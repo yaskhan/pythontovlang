@@ -66,6 +66,11 @@ class VNodeVisitor(ast.NodeVisitor):
         self.output = []
         self._indent_level = 0
 
+        # Handle decorators
+        for decorator in node.decorator_list:
+            dec_str = self.visit(decorator)
+            self.output.append(f"// @{dec_str}")
+
         is_method = self.current_class is not None
         # Ensure struct_name is always a string
         struct_name: str = self.current_class if self.current_class else ""
@@ -152,6 +157,12 @@ class VNodeVisitor(ast.NodeVisitor):
         struct_name = node.name
         self.current_class = struct_name
 
+        # Handle decorators
+        decorators = []
+        for decorator in node.decorator_list:
+            dec_str = self.visit(decorator)
+            decorators.append(f"// @{dec_str}")
+
         # Extract fields from __init__ or class body annotations (simplified)
         fields = []
         methods = []
@@ -167,7 +178,10 @@ class VNodeVisitor(ast.NodeVisitor):
                     field_type = stmt.annotation.id
                 fields.append(f"    {field_name} {field_type}")
 
-        struct_def = f"struct {struct_name} {{\n" + "\n".join(fields) + "\n}"
+        struct_def = ""
+        if decorators:
+            struct_def += "\n".join(decorators) + "\n"
+        struct_def += f"struct {struct_name} {{\n" + "\n".join(fields) + "\n}"
         self.emitter.add_struct(struct_def)
 
         # Visit methods to generate them as functions

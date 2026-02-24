@@ -17,7 +17,7 @@
 - [x] Support for f-strings
 - [x] Support for dictionaries
 - [x] Support for tuples
-- [ ] Support for decorators
+- [x] Support for decorators
 - [x] Support for context managers (with statement)
 - [x] Support for lambda expressions
 - [x] Support for async/await (concurrency)
