@@ -5,10 +5,29 @@ from py2v_transpiler.core.parser import PyASTParser
 from py2v_transpiler.core.analyzer import TypeInference
 from py2v_transpiler.core.translator import VNodeVisitor
 from py2v_transpiler.core.generator import VCodeEmitter
+from py2v_transpiler.core.dependencies import DependencyAnalyzer
 
 def main():
     if len(sys.argv) < 2:
-        print("Usage: python -m py2v_transpiler.main <file.py>")
+        print("Usage: python -m py2v_transpiler.main <file.py> OR --analyze-deps <project_root>")
+        return
+
+    if sys.argv[1] == "--analyze-deps":
+        if len(sys.argv) < 3:
+            print("Usage: python -m py2v_transpiler.main --analyze-deps <project_root>")
+            return
+
+        project_root = sys.argv[2]
+        if not os.path.exists(project_root):
+            print(f"Error: Directory '{project_root}' not found.")
+            return
+
+        analyzer = DependencyAnalyzer()
+        print(f"Analyzing dependencies for: {project_root}")
+        graph = analyzer.analyze_project(project_root)
+
+        for file, deps in graph.items():
+            print(f"{file}: {', '.join(deps) if deps else 'No imports'}")
         return
 
     source_file = sys.argv[1]

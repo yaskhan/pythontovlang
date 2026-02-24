@@ -1,19 +1,87 @@
 # Project Roadmap & TODOs
 
 ## Core Components
-- [ ] Implement AST Parser (wraps `ast` module)
-- [ ] Implement Type Analyzer (integrates `mypy`)
-- [ ] Implement Translator (AST NodeVisitor)
-- [ ] Implement Code Generator (Vlang emission)
+- [x] Implement AST Parser (wraps `ast` module)
+- [x] Implement Type Analyzer (integrates `mypy`)
+- [x] Implement Translator (AST NodeVisitor)
+- [x] Implement Code Generator (Vlang emission)
 
 ## Language Features
-- [ ] Basic types (int, float, bool, str)
-- [ ] Control flow (if, for, while)
-- [ ] Function definitions and calls
-- [ ] Class definitions and methods
-- [ ] List comprehensions
-- [ ] Exception handling (try/except)
-- [ ] Module imports and standard library mapping
+- [x] Basic types (int, float, bool, str)
+- [x] Control flow (if, for, while)
+- [x] Function definitions and calls
+- [x] Class definitions and methods
+- [x] List comprehensions
+- [x] Exception handling (try/except)
+- [x] Module imports and standard library mapping
+- [x] Support for f-strings
+- [x] Support for dictionaries
+- [x] Support for tuples
+- [ ] Support for decorators
+- [x] Support for context managers (with statement)
+- [x] Support for lambda expressions
+- [x] Support for async/await (concurrency)
+- [x] Support for generators (yield)
+- [ ] Support for class inheritance and method overriding
+- [ ] Support for operator overloading (__add__, etc.)
+- [ ] Support for structural pattern matching (match/case)
+- [ ] Support for type aliases
+- [x] Support for global/nonlocal keywords
+- [x] Support for assert statements
+- [x] Support for set data structure
+- [ ] Support for isinstance and type checks
+- [ ] Support for del statement
+- [x] Support for slice notation (list[1:3])
+- [ ] Support for walrus operator (:=)
+- [ ] Support for __main__ block
+- [ ] Support for hasattr, getattr, setattr
+- [ ] Support for enumerate and zip
+- [ ] Support for map and filter
+- [ ] Support for any and all
+- [ ] Support for reversed and sorted
+- [ ] Support for range() with step argument
+- [ ] Support for print with end and sep arguments
+- [ ] Support for input() function
+- [ ] Support for open() and file I/O context managers
+- [ ] Support for json module mapping
+- [ ] Support for math module mapping
+- [ ] Support for random module mapping
+- [ ] Support for time and datetime module mapping
+- [ ] Support for os and sys module mapping
+- [ ] Support for re module mapping
+- [ ] Support for argparse module mapping
+- [ ] Support for logging module mapping
+- [ ] Support for collections module mapping (defaultdict, Counter)
+- [ ] Support for itertools module mapping
+- [ ] Support for functools module mapping
+- [ ] Support for threading and multiprocessing module mapping
+- [ ] Support for socket module mapping
+- [ ] Support for http.client and urllib module mapping
+- [ ] Support for csv module mapping
+- [ ] Support for sqlite3 module mapping
+- [ ] Support for pathlib module mapping
+- [ ] Support for shutil module mapping
+- [ ] Support for tempfile module mapping
+- [ ] Support for unittest module mapping
+- [ ] Support for subprocess module mapping
+- [ ] Support for platform module mapping
+- [ ] Support for hashlib module mapping
+- [ ] Support for uuid module mapping
+- [ ] Support for base64 module mapping
+- [ ] Support for urllib.parse module mapping
+- [ ] Support for struct module mapping
+- [ ] Support for array module mapping
+- [ ] Support for copy module mapping
+- [ ] Support for pickle module mapping
+- [ ] Support for zlib/gzip module mapping
+- [ ] Support for decimal module mapping
+- [ ] Support for fractions module mapping
+- [ ] Support for statistics module mapping
+- [ ] Support for contextlib module mapping
+- [ ] Support for typing module mapping
+- [x] Implement Import Topology Analyzer (Dependency Graph)
+- [ ] Analyze dependencies to identify unsupported libraries
+- [ ] Support for reproducing module structure (directories/files)
 
 ## Infrastructure & Tooling
 - [ ] Set up comprehensive test suite (pytest)
