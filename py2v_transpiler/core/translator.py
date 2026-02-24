@@ -844,5 +844,44 @@ class VNodeVisitor(ast.NodeVisitor):
             return "none"
         return str(val)
 
+    def visit_Match(self, node: ast.Match) -> None:
+        subject = self.visit(node.subject)
+        self.output.append(f"{self._indent()}match {subject} {{")
+        self._indent_level += 1
+
+        for case in node.cases:
+            self._visit_match_case(case)
+
+        self._indent_level -= 1
+        self.output.append(f"{self._indent()}}}")
+
+    def _visit_match_case(self, node: ast.match_case) -> None:
+        pattern_str = self._translate_pattern(node.pattern)
+
+        if node.guard:
+            self.output.append(f"{self._indent()}// Guard condition '{self.visit(node.guard)}' ignored in match case")
+
+        self.output.append(f"{self._indent()}{pattern_str} {{")
+        self._indent_level += 1
+        for stmt in node.body:
+            self.visit(stmt)
+        self._indent_level -= 1
+        self.output.append(f"{self._indent()}}}")
+
+    def _translate_pattern(self, pattern: ast.AST) -> str:
+        if isinstance(pattern, ast.MatchValue):
+            return str(self.visit(pattern.value))
+        elif isinstance(pattern, ast.MatchSingleton):
+            return str(pattern.value).lower()
+        elif isinstance(pattern, ast.MatchOr):
+            parts = [self._translate_pattern(p) for p in pattern.patterns]
+            return ", ".join(parts)
+        elif isinstance(pattern, ast.MatchAs):
+             if pattern.name is None:
+                 return "else"
+             else:
+                 return "else" # TODO: Binding
+        return "else"
+
     def generic_visit(self, node: ast.AST) -> Any:
         return super().generic_visit(node)
