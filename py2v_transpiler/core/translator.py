@@ -455,6 +455,49 @@ class VNodeVisitor(ast.NodeVisitor):
         elif func_name == "reversed":
             self.used_builtins.add("reversed")
             return f"py_reversed({', '.join(args)})"
+        elif func_name == "print":
+            sep = " "
+            end = "\\n"
+
+            for keyword in node.keywords:
+                if keyword.arg == "sep":
+                    if isinstance(keyword.value, ast.Constant) and isinstance(keyword.value.value, str):
+                        sep = keyword.value.value
+                elif keyword.arg == "end":
+                    if isinstance(keyword.value, ast.Constant) and isinstance(keyword.value.value, str):
+                        end = keyword.value.value
+                        # Escape newline for V string if literal newline
+                        if end == "\n":
+                            end = "\\n"
+
+            # Construct the content string
+            # In V, interpolation handles types: '${var}'
+            # We want to join args with sep.
+            # If args are strings, we can just join them.
+            # If args are vars, we wrap in ${}.
+            # Simplified: always wrap in ${} unless it's a string literal?
+            # Actually, `visit` returns the V representation (e.g. 'foo' or var).
+
+            parts = []
+            for arg in node.args:
+                val = self.visit(arg)
+                # Strip quotes if it's a string literal to merge into one string?
+                # E.g. 'A', 'B' -> 'A B'
+                # val is like "'A'" or "x"
+                val_str = str(val)
+                if val_str.startswith("'") and val_str.endswith("'"):
+                    parts.append(val_str[1:-1])
+                else:
+                    parts.append(f"${{{val_str}}}")
+
+            joined_content = sep.join(parts)
+
+            if end == "\\n":
+                return f"println('{joined_content}')"
+            elif end == "":
+                return f"print('{joined_content}')"
+            else:
+                return f"print('{joined_content}{end}')"
 
         return f"{func_name}({', '.join(args)})"
 

@@ -31,7 +31,7 @@ def test_translator_function_call():
     analyzer.analyze(tree)
     result = translator.visit_Module(tree)
 
-    assert "print('hello')" in result
+    assert "println('hello')" in result
 
 def test_translator_return_none():
     parser = PyASTParser()

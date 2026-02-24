@@ -28,7 +28,7 @@ if __name__ == "__main__":
     # This is tricky to check strictly without parsing V, but we can check indentation or absence of "if"
     # Or just check that the code appears
     assert "run()" in v_code
-    assert "print('Done')" in v_code
+    assert "println('Done')" in v_code
     # Ensure no 'if __name__' V code (except in comments)
     assert "if __name__ == '__main__': {" not in v_code # V block start
 

@@ -41,7 +41,7 @@
 - [ ] Support for any and all
 - [x] Support for reversed and sorted
 - [x] Support for range() with step argument
-- [ ] Support for print with end and sep arguments
+- [x] Support for print with end and sep arguments
 - [ ] Support for input() function
 - [ ] Support for open() and file I/O context managers
 - [ ] Support for json module mapping
