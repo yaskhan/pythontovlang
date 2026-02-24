@@ -21,7 +21,7 @@
 - [x] Support for context managers (with statement)
 - [x] Support for lambda expressions
 - [x] Support for async/await (concurrency)
-- [ ] Support for generators (yield)
+- [x] Support for generators (yield)
 - [ ] Support for class inheritance and method overriding
 - [ ] Support for operator overloading (__add__, etc.)
 - [ ] Support for structural pattern matching (match/case)
@@ -31,7 +31,7 @@
 - [ ] Support for set data structure
 - [ ] Support for isinstance and type checks
 - [ ] Support for del statement
-- [ ] Support for slice notation (list[1:3])
+- [x] Support for slice notation (list[1:3])
 - [ ] Support for walrus operator (:=)
 - [ ] Support for __main__ block
 - [ ] Support for hasattr, getattr, setattr
@@ -69,6 +69,11 @@
 - [ ] Support for uuid module mapping
 - [ ] Support for base64 module mapping
 - [ ] Support for urllib.parse module mapping
+- [ ] Support for struct module mapping
+- [ ] Support for array module mapping
+- [ ] Support for copy module mapping
+- [ ] Support for pickle module mapping
+- [ ] Support for zlib/gzip module mapping
 
 ## Infrastructure & Tooling
 - [ ] Set up comprehensive test suite (pytest)

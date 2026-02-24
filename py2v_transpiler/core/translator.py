@@ -153,6 +153,9 @@ class VNodeVisitor(ast.NodeVisitor):
         elif isinstance(target, ast.Attribute):
             # obj.attr = value
             lhs = f"{self.visit(target.value)}.{target.attr}"
+        elif isinstance(target, ast.Subscript):
+            # list[index] = value
+            lhs = self.visit(target)
 
         if isinstance(node.value, ast.ListComp):
             self.visit_ListComp(node.value, target_var=lhs)
@@ -233,6 +236,17 @@ class VNodeVisitor(ast.NodeVisitor):
         # V anonymous functions: fn (a int) int { return a + 1 }
         return f"fn ({args_str}) int {{ return {body} }}"
 
+    def visit_Yield(self, node: ast.Yield) -> str:
+        # yield expr -> /* yield expr */
+        val = ""
+        if node.value:
+            val = self.visit(node.value)
+        return f"/* yield {val} */"
+
+    def visit_YieldFrom(self, node: ast.YieldFrom) -> str:
+        val = self.visit(node.value)
+        return f"/* yield from {val} */"
+
     def visit_Await(self, node: ast.Await) -> str:
         # await foo() -> // await foo()
         val = self.visit(node.value)
@@ -265,6 +279,20 @@ class VNodeVisitor(ast.NodeVisitor):
     def visit_Attribute(self, node: ast.Attribute) -> str:
         obj = self.visit(node.value)
         return f"{obj}.{node.attr}"
+
+    def visit_Subscript(self, node: ast.Subscript) -> str:
+        value = self.visit(node.value)
+
+        # In Python 3.9+, slice is ast.Slice, index is other
+        # In older python, it might be different, but we assume 3.10+ as per env
+        if isinstance(node.slice, ast.Slice):
+            lower = self.visit(node.slice.lower) if node.slice.lower else ""
+            upper = self.visit(node.slice.upper) if node.slice.upper else ""
+            # V slice syntax: array[start..end]
+            return f"{value}[{lower}..{upper}]"
+        else:
+            index = self.visit(node.slice)
+            return f"{value}[{index}]"
 
     def visit_JoinedStr(self, node: ast.JoinedStr) -> str:
         parts = []
