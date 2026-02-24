@@ -3,13 +3,13 @@
 ## Core Components
 - [x] Implement AST Parser (wraps `ast` module)
 - [x] Implement Type Analyzer (integrates `mypy`)
-- [ ] Implement Translator (AST NodeVisitor)
+- [x] Implement Translator (AST NodeVisitor)
 - [ ] Implement Code Generator (Vlang emission)
 
 ## Language Features
-- [ ] Basic types (int, float, bool, str)
+- [x] Basic types (int, float, bool, str)
 - [ ] Control flow (if, for, while)
-- [ ] Function definitions and calls
+- [x] Function definitions and calls
 - [ ] Class definitions and methods
 - [ ] List comprehensions
 - [ ] Exception handling (try/except)
@@ -19,6 +19,11 @@
 - [ ] Support for tuples
 - [ ] Support for decorators
 - [ ] Support for context managers (with statement)
+- [ ] Support for lambda expressions
+- [ ] Support for async/await (concurrency)
+- [ ] Support for generators (yield)
+- [ ] Support for class inheritance and method overriding
+- [ ] Support for operator overloading (__add__, etc.)
 
 ## Infrastructure & Tooling
 - [ ] Set up comprehensive test suite (pytest)
