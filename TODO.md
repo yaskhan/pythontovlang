@@ -19,8 +19,8 @@
 - [x] Support for tuples
 - [ ] Support for decorators
 - [x] Support for context managers (with statement)
-- [ ] Support for lambda expressions
-- [ ] Support for async/await (concurrency)
+- [x] Support for lambda expressions
+- [x] Support for async/await (concurrency)
 - [ ] Support for generators (yield)
 - [ ] Support for class inheritance and method overriding
 - [ ] Support for operator overloading (__add__, etc.)
@@ -64,6 +64,11 @@
 - [ ] Support for tempfile module mapping
 - [ ] Support for unittest module mapping
 - [ ] Support for subprocess module mapping
+- [ ] Support for platform module mapping
+- [ ] Support for hashlib module mapping
+- [ ] Support for uuid module mapping
+- [ ] Support for base64 module mapping
+- [ ] Support for urllib.parse module mapping
 
 ## Infrastructure & Tooling
 - [ ] Set up comprehensive test suite (pytest)

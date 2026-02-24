@@ -19,7 +19,7 @@ class VNodeVisitor(ast.NodeVisitor):
     def visit_Module(self, node: ast.Module) -> str:
         for stmt in node.body:
             # Check if statement is top-level expression or assignment
-            if isinstance(stmt, (ast.FunctionDef, ast.ClassDef, ast.Import, ast.ImportFrom)):
+            if isinstance(stmt, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef, ast.Import, ast.ImportFrom)):
                 self.in_main = False
                 self.visit(stmt)
                 self.in_main = True
@@ -42,6 +42,12 @@ class VNodeVisitor(ast.NodeVisitor):
         return self.emitter.emit()
 
     def visit_FunctionDef(self, node: ast.FunctionDef) -> None:
+        self._visit_function_common(node)
+
+    def visit_AsyncFunctionDef(self, node: ast.AsyncFunctionDef) -> None:
+        self._visit_function_common(node, is_async=True)
+
+    def _visit_function_common(self, node: Any, is_async: bool = False) -> None:
         # Save current state
         old_output = self.output
         self.output = []
@@ -112,7 +118,7 @@ class VNodeVisitor(ast.NodeVisitor):
         methods = []
 
         for stmt in node.body:
-            if isinstance(stmt, ast.FunctionDef):
+            if isinstance(stmt, (ast.FunctionDef, ast.AsyncFunctionDef)):
                 methods.append(stmt)
             elif isinstance(stmt, ast.AnnAssign) and isinstance(stmt.target, ast.Name):
                 # Class attribute with annotation -> struct field
@@ -212,6 +218,26 @@ class VNodeVisitor(ast.NodeVisitor):
         elements = [str(self.visit(elt)) for elt in node.elts]
         return f"[{', '.join(elements)}]"
 
+    def visit_Lambda(self, node: ast.Lambda) -> str:
+        # lambda args: expr -> fn (args) { return expr }
+        args_str_list = []
+        for arg in node.args.args:
+            arg_name = arg.arg
+            arg_type = "int" # Default type for now
+            args_str_list.append(f"{arg_name} {arg_type}")
+
+        args_str = ", ".join(args_str_list)
+        body = self.visit(node.body)
+
+        # Assuming return type is inferred or int for now
+        # V anonymous functions: fn (a int) int { return a + 1 }
+        return f"fn ({args_str}) int {{ return {body} }}"
+
+    def visit_Await(self, node: ast.Await) -> str:
+        # await foo() -> // await foo()
+        val = self.visit(node.value)
+        return f"/* await */ {val}"
+
     def visit_Return(self, node: ast.Return) -> None:
         if node.value:
             val = self.visit(node.value)
@@ -241,25 +267,18 @@ class VNodeVisitor(ast.NodeVisitor):
         return f"{obj}.{node.attr}"
 
     def visit_JoinedStr(self, node: ast.JoinedStr) -> str:
-        # F-string translation
-        # V uses ${var} or ${expression} inside strings.
-        # Python's JoinedStr contains Constant (string parts) and FormattedValue (expressions)
-
         parts = []
         for value in node.values:
             val = self.visit(value)
             if isinstance(value, ast.Constant) and isinstance(value.value, str):
                 parts.append(value.value)
             else:
-                # Assuming FormattedValue returns "${expr}" string
                 parts.append(str(val))
 
         return f"'{''.join(parts)}'"
 
     def visit_FormattedValue(self, node: ast.FormattedValue) -> str:
-        # Interpolated part of f-string
         val = self.visit(node.value)
-        # V string interpolation is ${...}
         return f"${{{val}}}"
 
     def visit_BinOp(self, node: ast.BinOp) -> str:
@@ -369,9 +388,6 @@ class VNodeVisitor(ast.NodeVisitor):
             else:
                 # Context manager without assignment
                 self.output.append(f"{self._indent()}_ := {context_expr}")
-                # We can't close it easily if we don't have a handle, unless expression is safe to repeat?
-                # Actually, standard python `with open(...)` needs assignment usually.
-                pass
 
         for stmt in node.body:
             self.visit(stmt)
