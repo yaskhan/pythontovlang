@@ -133,15 +133,11 @@ class VNodeVisitor(ast.NodeVisitor):
 
     def visit_Import(self, node: ast.Import) -> None:
         for alias in node.names:
-            # Map Python module to V module
-            # Ideally use a mapper function, but 1:1 for now
             self.emitter.add_import(alias.name)
 
     def visit_ImportFrom(self, node: ast.ImportFrom) -> None:
         if node.module:
             self.emitter.add_import(node.module)
-        # We don't support explicit name imports (from x import y) fully in V structure yet
-        # V usually imports the whole module.
 
     def visit_Assign(self, node: ast.Assign) -> None:
         target = node.targets[0]
@@ -153,15 +149,6 @@ class VNodeVisitor(ast.NodeVisitor):
             lhs = f"{self.visit(target.value)}.{target.attr}"
 
         if isinstance(node.value, ast.ListComp):
-            # Special handling for list comprehension in assignment
-            # x = [i for i in iter]
-            # -> mut x := []int{}
-            #    for i in iter { x << i }
-
-            # This is tricky because we need to know the type of list elements.
-            # Assuming int for now or inferring later.
-
-            # We emit the block directly
             self.visit_ListComp(node.value, target_var=lhs)
         else:
             rhs = self.visit(node.value)
@@ -169,23 +156,15 @@ class VNodeVisitor(ast.NodeVisitor):
 
     def visit_ListComp(self, node: ast.ListComp, target_var: Optional[str] = None) -> None:
         if not target_var:
-            # If not part of assignment, we can't easily translate to statements.
             self.output.append(f"{self._indent()}// List comprehension expression not supported inline yet")
             return
 
-        # Initialize result array
-        # Assuming []int for now, ideally inference
         self.output.append(f"{self._indent()}mut {target_var} := []int{{}}")
-
-        # Handle generators
-        # Python: [elt for target in iter if ifs]
-        # V: for target in iter { if ifs { acc << elt } }
 
         gen = node.generators[0] # Handle first generator
         target = self.visit(gen.target)
         iter_expr = self.visit(gen.iter)
 
-        # Expand range() if needed (same logic as visit_For)
         if isinstance(gen.iter, ast.Call) and isinstance(gen.iter.func, ast.Name) and gen.iter.func.id == "range":
              args = gen.iter.args
              start = "0"
@@ -200,17 +179,14 @@ class VNodeVisitor(ast.NodeVisitor):
         self.output.append(f"{self._indent()}for {target} in {iter_expr} {{")
         self._indent_level += 1
 
-        # Conditions
         for if_expr in gen.ifs:
             cond = self.visit(if_expr)
             self.output.append(f"{self._indent()}if {cond} {{")
             self._indent_level += 1
 
-        # Append element
         elt = self.visit(node.elt)
         self.output.append(f"{self._indent()}{target_var} << {elt}")
 
-        # Close blocks
         for _ in gen.ifs:
             self._indent_level -= 1
             self.output.append(f"{self._indent()}}}")
@@ -219,15 +195,12 @@ class VNodeVisitor(ast.NodeVisitor):
         self.output.append(f"{self._indent()}}}")
 
     def visit_Dict(self, node: ast.Dict) -> str:
-        # Translate {k: v} to map[string]int{k: v} (simplified type)
         pairs = []
         for k, v in zip(node.keys, node.values):
             if k:
                 key_str = self.visit(k)
                 val_str = self.visit(v)
                 pairs.append(f"{key_str}: {val_str}")
-
-        # TODO: infer type
         return f"map[string]int{{{', '.join(pairs)}}}"
 
     def visit_Return(self, node: ast.Return) -> None:
@@ -243,21 +216,7 @@ class VNodeVisitor(ast.NodeVisitor):
             self.output.append(f"{self._indent()}{val}")
 
     def visit_Call(self, node: ast.Call) -> str:
-        # Handle instantiation: ClassName(...) -> new_ClassName(...)?
-        # Or just ClassName{...} struct init syntax?
-        # Python: x = MyClass() -> x := MyClass{} or x := new_MyClass()
-
         func_name = self.visit(node.func)
-
-        # Heuristic: if func_name starts with capital letter, assume struct init
-        # V struct init: StructName{} (if no args) or StructName{field: val}
-        # But we defined __init__ as new_StructName factory.
-
-        # Let's assume we use the factory if it exists, or struct init if not.
-        # But we don't know if __init__ exists here easily.
-        # Let's verify if the name matches a known struct?
-        # For now, just generate the call.
-
         args = []
         for arg in node.args:
             val = self.visit(arg)
@@ -271,6 +230,28 @@ class VNodeVisitor(ast.NodeVisitor):
     def visit_Attribute(self, node: ast.Attribute) -> str:
         obj = self.visit(node.value)
         return f"{obj}.{node.attr}"
+
+    def visit_JoinedStr(self, node: ast.JoinedStr) -> str:
+        # F-string translation
+        # V uses ${var} or ${expression} inside strings.
+        # Python's JoinedStr contains Constant (string parts) and FormattedValue (expressions)
+
+        parts = []
+        for value in node.values:
+            val = self.visit(value)
+            if isinstance(value, ast.Constant) and isinstance(value.value, str):
+                parts.append(value.value)
+            else:
+                # Assuming FormattedValue returns "${expr}" string
+                parts.append(str(val))
+
+        return f"'{''.join(parts)}'"
+
+    def visit_FormattedValue(self, node: ast.FormattedValue) -> str:
+        # Interpolated part of f-string
+        val = self.visit(node.value)
+        # V string interpolation is ${...}
+        return f"${{{val}}}"
 
     def visit_BinOp(self, node: ast.BinOp) -> str:
         left = self.visit(node.left)
@@ -294,7 +275,6 @@ class VNodeVisitor(ast.NodeVisitor):
             if len(node.orelse) == 1 and isinstance(node.orelse[0], ast.If):
                 # elif case
                 self.output.append(f"{self._indent()}}} else {{")
-                # Just treat as nested if for now to be safe
                 self._indent_level += 1
                 self.visit(node.orelse[0])
                 self._indent_level -= 1

@@ -14,7 +14,7 @@
 - [x] List comprehensions
 - [ ] Exception handling (try/except)
 - [x] Module imports and standard library mapping
-- [ ] Support for f-strings
+- [x] Support for f-strings
 - [ ] Support for dictionaries
 - [ ] Support for tuples
 - [ ] Support for decorators
@@ -49,6 +49,11 @@
 - [ ] Support for time and datetime module mapping
 - [ ] Support for os and sys module mapping
 - [ ] Support for re module mapping
+- [ ] Support for argparse module mapping
+- [ ] Support for logging module mapping
+- [ ] Support for collections module mapping (defaultdict, Counter)
+- [ ] Support for itertools module mapping
+- [ ] Support for functools module mapping
 
 ## Infrastructure & Tooling
 - [ ] Set up comprehensive test suite (pytest)
