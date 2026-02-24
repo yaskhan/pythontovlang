@@ -95,59 +95,6 @@ class VNodeVisitor(ast.NodeVisitor):
 
         if node.orelse:
             if len(node.orelse) == 1 and isinstance(node.orelse[0], ast.If):
-                # Handle 'elif'
-                # We need to manually visit the elif node to avoid extra indentation/braces
-                # But wait, we can just print "else " and then visit the If node?
-                # Vlang syntax: else if condition { ... }
-                # The recursive call to visit_If will print "if condition { ... }"
-                # So we just need "else "
-                self.output.append(f"{self._indent()}}} else ")
-                # We need to suppress the newline after "else " or handle it
-                # Actually, standard V:
-                # } else if cond {
-                # }
-                # My recursive approach:
-                # } else
-                # if cond {
-                # }
-                # Which is valid but ugly.
-
-                # Let's do it properly manually
-                elif_node = node.orelse[0]
-                elif_test = self.visit(elif_node.test)
-                # The closing brace of the previous block is already appended?
-                # Wait, I appended "} else " above.
-                # Actually, let's look at how I construct strings.
-
-                # Rewriting to be safer
-                self.output[-1] = self.output[-1] + " else " + self.visit_If_Elif(elif_node)
-            else:
-                self.output.append(f"{self._indent()}}} else {{")
-                self._indent_level += 1
-                for stmt in node.orelse:
-                    self.visit(stmt)
-                self._indent_level -= 1
-                self.output.append(f"{self._indent()}}}")
-        else:
-            self.output.append(f"{self._indent()}}}")
-
-    def visit_If_Elif(self, node: ast.If) -> str:
-        # Helper for proper else if formatting if I were returning strings
-        # But visit_If appends to output list.
-        # This is getting complicated with the list approach.
-        return ""
-
-    # Reverting to simple recursive approach for stability, formatting can be fixed later
-    def visit_If(self, node: ast.If) -> None:
-        test_expr = self.visit(node.test)
-        self.output.append(f"{self._indent()}if {test_expr} {{")
-        self._indent_level += 1
-        for stmt in node.body:
-            self.visit(stmt)
-        self._indent_level -= 1
-
-        if node.orelse:
-            if len(node.orelse) == 1 and isinstance(node.orelse[0], ast.If):
                 # elif case
                 self.output.append(f"{self._indent()}}} else {{")
                 # Just treat as nested if for now to be safe
