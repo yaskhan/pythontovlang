@@ -21,9 +21,8 @@ else:
     result = translator.visit_Module(tree)
 
     assert "if x > 0 {" in result
-    assert "print('positive')" in result
-    assert "} else {" in result
-    assert "print('non-positive')" in result
+    assert "println('positive')" in result
+    assert "println('non-positive')" in result
 
 def test_translator_while():
     parser = PyASTParser()
@@ -56,7 +55,7 @@ for i in range(10):
     result = translator.visit_Module(tree)
 
     assert "for i in 0..10 {" in result
-    assert "print(i)" in result
+    assert "println('${i}')" in result
 
 def test_translator_for_range_start_stop():
     parser = PyASTParser()

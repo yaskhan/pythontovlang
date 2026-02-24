@@ -58,8 +58,7 @@ def main():
     v_code_intermediate = translator.visit_Module(tree)
 
     # 5. Generate Code
-    generator = VCodeEmitter()
-    final_code = generator.emit_module(v_code_intermediate)
+    final_code = v_code_intermediate
 
     # 6. Output
     output_file = os.path.splitext(source_file)[0] + ".v"

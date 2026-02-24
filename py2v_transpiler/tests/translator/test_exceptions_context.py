@@ -39,4 +39,4 @@ with open("file.txt") as f:
 
     assert 'f := open("file.txt")' in result.replace("'", '"')
     assert "defer { f.close() }" in result
-    assert "print(f.read())" in result
+    assert "println('${f.read()}')" in result

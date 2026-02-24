@@ -12,6 +12,10 @@ class VNodeVisitor(ast.NodeVisitor):
         self._indent_level = 0
         self.in_main = True # Flag to track if we are at top-level
         self.current_class: Optional[str] = None # Track if we are inside a class definition
+        self._zip_counter = 0 # Counter for unique variable names in zip loops
+        self.used_builtins = set() # Track used built-in helpers (sorted, reversed, etc)
+        self.renamed_functions = {"main": "py_main"} # Map to rename functions (e.g. main -> py_main)
+        self.name_remap = {} # Temporary variable renaming (e.g. x -> it in generators)
 
     def _indent(self) -> str:
         return "    " * self._indent_level
@@ -38,6 +42,15 @@ class VNodeVisitor(ast.NodeVisitor):
                     # Because generator adds indentation for main()
                     self.emitter.add_main_statement(line.strip())
                 self.output = []
+
+        if "sorted" in self.used_builtins:
+            self.emitter.add_function(
+                "fn py_sorted[T](a []T) []T {\n    mut b := a.clone()\n    b.sort()\n    return b\n}"
+            )
+        if "reversed" in self.used_builtins:
+            self.emitter.add_function(
+                "fn py_reversed[T](a []T) []T {\n    mut b := a.clone()\n    b.reverse()\n    return b\n}"
+            )
 
         return self.emitter.emit()
 
@@ -82,6 +95,9 @@ class VNodeVisitor(ast.NodeVisitor):
                   ret_type = node.returns.value
 
         func_name = node.name
+        if func_name in self.renamed_functions:
+            func_name = self.renamed_functions[func_name]
+
         if func_name == "__init__":
             # Constructor logic: make it a static factory function for now
             # fn new_Struct(...) Struct
@@ -90,8 +106,31 @@ class VNodeVisitor(ast.NodeVisitor):
             ret_type = struct_name
             # We need to implicitly return the struct instance, but that's complex logic.
             # For now, just change the name.
+        elif is_method and func_name in ("__add__", "__sub__", "__mul__", "__truediv__", "__mod__", "__lt__", "__le__", "__eq__", "__ne__"):
+             # Operator overloading
+             # fn (a Type) + (b Type) Type
+             op_map = {
+                 "__add__": "+", "__sub__": "-", "__mul__": "*", "__truediv__": "/",
+                 "__mod__": "%", "__lt__": "<", "__le__": "<=", "__eq__": "==",
+                 "__ne__": "!="
+             }
+             op = op_map.get(func_name)
+             if op:
+                 func_name = op
+                 # In V, operator overloading syntax is: fn (a Type) + (b Type) RetType
+                 # Our args_str is "b Type". We need to format it as "(b Type)".
+                 # receiver_str is "(a Type) ".
+                 # So: fn (a Type) + (b Type) RetType
+                 # We need to ensure args_str is wrapped in parens if not already (it isn't, it's a comma list)
+                 decl = f"fn {receiver_str}{op} ({args_str}) {ret_type} {{"
+                 # Skip the default decl assignment below
+        elif func_name == "__str__":
+             # String representation
+             func_name = "str"
+             decl = f"fn {receiver_str}{func_name}() string {{"
 
-        decl = f"fn {receiver_str}{func_name}({args_str}) {ret_type} {{"
+        if 'decl' not in locals():
+            decl = f"fn {receiver_str}{func_name}({args_str}) {ret_type} {{"
         if ret_type == "void":
              decl = f"fn {receiver_str}{func_name}({args_str}) {{"
 
@@ -171,19 +210,125 @@ class VNodeVisitor(ast.NodeVisitor):
         self.output.append(f"{self._indent()}mut {target_var} := []int{{}}")
 
         gen = node.generators[0] # Handle first generator
+
+        if isinstance(gen.iter, ast.Call) and isinstance(gen.iter.func, ast.Name) and gen.iter.func.id == "zip":
+             args = gen.iter.args
+             if len(args) == 2:
+                 self._zip_counter += 1
+                 zip_id = self._zip_counter
+
+                 it1 = self.visit(args[0])
+                 it2 = self.visit(args[1])
+
+                 var_it1 = f"_zip_it1_{zip_id}"
+                 var_it2 = f"_zip_it2_{zip_id}"
+                 var_i = f"_i_{zip_id}"
+                 var_v1 = f"_v1_{zip_id}"
+                 var_v2 = f"_v2_{zip_id}"
+
+                 self.output.append(f"{self._indent()}{var_it1} := {it1}")
+                 self.output.append(f"{self._indent()}{var_it2} := {it2}")
+
+                 self.output.append(f"{self._indent()}for {var_i}, {var_v1} in {var_it1} {{")
+                 self._indent_level += 1
+
+                 self.output.append(f"{self._indent()}if {var_i} >= {var_it2}.len {{ break }}")
+                 self.output.append(f"{self._indent()}{var_v2} := {var_it2}[{var_i}]")
+
+                 if isinstance(gen.target, ast.Tuple) and len(gen.target.elts) == 2:
+                     t1 = self.visit(gen.target.elts[0])
+                     t2 = self.visit(gen.target.elts[1])
+                     self.output.append(f"{self._indent()}{t1} := {var_v1}")
+                     self.output.append(f"{self._indent()}{t2} := {var_v2}")
+                 else:
+                     target = self.visit(gen.target)
+                     self.output.append(f"{self._indent()}{target} := [{var_v1}, {var_v2}]")
+
+                 for if_expr in gen.ifs:
+                    cond = self.visit(if_expr)
+                    self.output.append(f"{self._indent()}if {cond} {{")
+                    self._indent_level += 1
+
+                 elt = self.visit(node.elt)
+                 self.output.append(f"{self._indent()}{target_var} << {elt}")
+
+                 for _ in gen.ifs:
+                    self._indent_level -= 1
+                    self.output.append(f"{self._indent()}}}")
+
+                 self._indent_level -= 1
+                 self.output.append(f"{self._indent()}}}")
+                 return
+
         target = self.visit(gen.target)
         iter_expr = self.visit(gen.iter)
 
-        if isinstance(gen.iter, ast.Call) and isinstance(gen.iter.func, ast.Name) and gen.iter.func.id == "range":
-             args = gen.iter.args
-             start = "0"
-             stop = "0"
-             if len(args) == 1:
-                  stop = self.visit(args[0])
-             elif len(args) == 2:
-                  start = self.visit(args[0])
-                  stop = self.visit(args[1])
-             iter_expr = f"{start}..{stop}"
+        if isinstance(gen.iter, ast.Call) and isinstance(gen.iter.func, ast.Name):
+             if gen.iter.func.id == "range":
+                 args = gen.iter.args
+                 if len(args) == 3:
+                     # range(start, stop, step) -> C-style for loop
+                     # We need to manually construct the loop here because `visit_ListComp` expects `iter_expr`
+                     # But `iter_expr` is usually an iterable.
+                     # However, `visit_ListComp` uses `for {target} in {iter_expr} {`.
+                     # We can trick it by setting iter_expr to handle the step? No, `in` syntax doesn't support step.
+                     # We must emit a C-style loop: `for i := start; i < stop; i += step {`
+                     # But `visit_ListComp` hardcodes `for ... in ...`.
+                     # We need to restructure `visit_ListComp` to handle this or modify the output manually.
+                     # Let's override the loop generation for range with step.
+
+                     start = self.visit(args[0])
+                     stop = self.visit(args[1])
+                     step = self.visit(args[2])
+
+                     is_negative_step = False
+                     if isinstance(args[2], ast.UnaryOp) and isinstance(args[2].op, ast.USub):
+                         is_negative_step = True
+                     elif isinstance(args[2], ast.Constant) and isinstance(args[2].value, (int, float)) and args[2].value < 0:
+                         is_negative_step = True
+
+                     op = ">" if is_negative_step else "<"
+
+                     # We skip the standard `visit_ListComp` loop generation logic for this specific generator
+                     # and manually implement it.
+
+                     self.output.append(f"{self._indent()}for {target} := {start}; {target} {op} {stop}; {target} += {step} {{")
+                     self._indent_level += 1
+
+                     for if_expr in gen.ifs:
+                        cond = self.visit(if_expr)
+                        self.output.append(f"{self._indent()}if {cond} {{")
+                        self._indent_level += 1
+
+                     elt = self.visit(node.elt)
+                     self.output.append(f"{self._indent()}{target_var} << {elt}")
+
+                     for _ in gen.ifs:
+                        self._indent_level -= 1
+                        self.output.append(f"{self._indent()}}}")
+
+                     self._indent_level -= 1
+                     self.output.append(f"{self._indent()}}}")
+                     return
+
+                 start = "0"
+                 stop = "0"
+                 if len(args) == 1:
+                      stop = self.visit(args[0])
+                 elif len(args) == 2:
+                      start = self.visit(args[0])
+                      stop = self.visit(args[1])
+                 iter_expr = f"{start}..{stop}"
+             elif gen.iter.func.id == "enumerate":
+                 if gen.iter.args:
+                     iter_expr = self.visit(gen.iter.args[0])
+                     # Handle target for enumerate: for i, v in items
+                     if isinstance(gen.target, ast.Tuple):
+                         # visit_Tuple returns [i, v], we need i, v
+                         if target.startswith("[") and target.endswith("]"):
+                             target = target[1:-1]
+                     else:
+                         self.output.append(f"{self._indent()}// TODO: handle enumerate with single target variable")
 
         self.output.append(f"{self._indent()}for {target} in {iter_expr} {{")
         self._indent_level += 1
@@ -225,6 +370,12 @@ class VNodeVisitor(ast.NodeVisitor):
             elements.append(f"{val}: true")
 
         return f"map[int]bool{{{', '.join(elements)}}}"
+
+    def visit_List(self, node: ast.List) -> str:
+        elements = [str(self.visit(elt)) for elt in node.elts]
+        if not elements:
+             return "[]int{}" # Placeholder for empty list
+        return f"[{', '.join(elements)}]"
 
     def visit_Tuple(self, node: ast.Tuple) -> str:
         # Translate Tuple (a, b) to Array [a, b]
@@ -274,6 +425,21 @@ class VNodeVisitor(ast.NodeVisitor):
         names = ", ".join(node.names)
         self.output.append(f"{self._indent()}// nonlocal {names}")
 
+    def visit_Delete(self, node: ast.Delete) -> None:
+        for target in node.targets:
+            if isinstance(target, ast.Subscript):
+                # del l[i] -> l.delete(i)
+                value = self.visit(target.value)
+                index = self.visit(target.slice)
+                self.output.append(f"{self._indent()}{value}.delete({index})")
+            elif isinstance(target, ast.Name):
+                self.output.append(f"{self._indent()}// del {target.id} (variable deletion not supported in V)")
+            elif isinstance(target, ast.Attribute):
+                value = self.visit(target.value)
+                self.output.append(f"{self._indent()}// del {value}.{target.attr} (attribute deletion not supported)")
+            else:
+                self.output.append(f"{self._indent()}// del statement with unsupported target type")
+
     def visit_Return(self, node: ast.Return) -> None:
         if node.value:
             val = self.visit(node.value)
@@ -288,6 +454,9 @@ class VNodeVisitor(ast.NodeVisitor):
 
     def visit_Call(self, node: ast.Call) -> str:
         func_name = self.visit(node.func)
+        if func_name in self.renamed_functions:
+            func_name = self.renamed_functions[func_name]
+
         args = []
         for arg in node.args:
             val = self.visit(arg)
@@ -295,6 +464,94 @@ class VNodeVisitor(ast.NodeVisitor):
                 args.append(str(val))
             else:
                 args.append("/* unknown */")
+
+        if func_name == "sorted":
+            self.used_builtins.add("sorted")
+            return f"py_sorted({', '.join(args)})"
+        elif func_name == "reversed":
+            self.used_builtins.add("reversed")
+            return f"py_reversed({', '.join(args)})"
+        elif func_name == "map":
+            if len(args) == 2:
+                func = args[0]
+                iterable = args[1]
+                return f"{iterable}.map({func}(it))"
+        elif func_name == "filter":
+            if len(args) == 2:
+                func = args[0]
+                iterable = args[1]
+                if func == "None" or func == "none":
+                    return f"{iterable}.filter(it)"
+                return f"{iterable}.filter({func}(it))"
+        elif func_name == "any" or func_name == "all":
+            if len(node.args) == 1:
+                arg = node.args[0]
+                if isinstance(arg, ast.GeneratorExp):
+                    # any(expr for target in iter) -> iter.any(expr_with_it)
+                    gen = arg.generators[0]
+                    target = gen.target
+                    iter_expr = self.visit(gen.iter)
+
+                    if isinstance(target, ast.Name):
+                        # Map target name to 'it'
+                        self.name_remap[target.id] = "it"
+                        elt = self.visit(arg.elt)
+                        del self.name_remap[target.id]
+                        return f"{iter_expr}.{func_name}({elt})"
+                else:
+                    # any(iterable) -> iterable.any(it)
+                    val = self.visit(arg)
+                    return f"{val}.{func_name}(it)"
+
+        elif func_name == "input":
+            self.emitter.add_import("os")
+            if args:
+                return f"os.input({args[0]})"
+            return "os.input('')"
+
+        elif func_name == "print":
+            sep = " "
+            end = "\\n"
+
+            for keyword in node.keywords:
+                if keyword.arg == "sep":
+                    if isinstance(keyword.value, ast.Constant) and isinstance(keyword.value.value, str):
+                        sep = keyword.value.value
+                elif keyword.arg == "end":
+                    if isinstance(keyword.value, ast.Constant) and isinstance(keyword.value.value, str):
+                        end = keyword.value.value
+                        # Escape newline for V string if literal newline
+                        if end == "\n":
+                            end = "\\n"
+
+            # Construct the content string
+            # In V, interpolation handles types: '${var}'
+            # We want to join args with sep.
+            # If args are strings, we can just join them.
+            # If args are vars, we wrap in ${}.
+            # Simplified: always wrap in ${} unless it's a string literal?
+            # Actually, `visit` returns the V representation (e.g. 'foo' or var).
+
+            parts = []
+            for arg in node.args:
+                val = self.visit(arg)
+                # Strip quotes if it's a string literal to merge into one string?
+                # E.g. 'A', 'B' -> 'A B'
+                # val is like "'A'" or "x"
+                val_str = str(val)
+                if val_str.startswith("'") and val_str.endswith("'"):
+                    parts.append(val_str[1:-1])
+                else:
+                    parts.append(f"${{{val_str}}}")
+
+            joined_content = sep.join(parts)
+
+            if end == "\\n":
+                return f"println('{joined_content}')"
+            elif end == "":
+                return f"print('{joined_content}')"
+            else:
+                return f"print('{joined_content}{end}')"
 
         return f"{func_name}({', '.join(args)})"
 
@@ -339,6 +596,16 @@ class VNodeVisitor(ast.NodeVisitor):
         return f"{left} {op_str} {right}"
 
     def visit_If(self, node: ast.If) -> None:
+        # Check for if __name__ == "__main__":
+        if isinstance(node.test, ast.Compare):
+            if (isinstance(node.test.left, ast.Name) and node.test.left.id == "__name__" and
+                len(node.test.comparators) == 1 and isinstance(node.test.comparators[0], ast.Constant) and
+                node.test.comparators[0].value == "__main__"):
+                self.output.append(f"{self._indent()}// if __name__ == '__main__':")
+                for stmt in node.body:
+                    self.visit(stmt)
+                return
+
         test_expr = self.visit(node.test)
         self.output.append(f"{self._indent()}if {test_expr} {{")
         self._indent_level += 1
@@ -374,20 +641,95 @@ class VNodeVisitor(ast.NodeVisitor):
         self.output.append(f"{self._indent()}}}")
 
     def visit_For(self, node: ast.For) -> None:
+        if isinstance(node.iter, ast.Call) and isinstance(node.iter.func, ast.Name) and node.iter.func.id == "zip":
+            # Handle zip(a, b)
+            args = node.iter.args
+            if len(args) == 2:
+                self._zip_counter += 1
+                zip_id = self._zip_counter
+
+                it1 = self.visit(args[0])
+                it2 = self.visit(args[1])
+
+                var_it1 = f"_zip_it1_{zip_id}"
+                var_it2 = f"_zip_it2_{zip_id}"
+                var_i = f"_i_{zip_id}"
+                var_v1 = f"_v1_{zip_id}"
+                var_v2 = f"_v2_{zip_id}"
+
+                self.output.append(f"{self._indent()}{var_it1} := {it1}")
+                self.output.append(f"{self._indent()}{var_it2} := {it2}")
+
+                self.output.append(f"{self._indent()}for {var_i}, {var_v1} in {var_it1} {{")
+                self._indent_level += 1
+
+                self.output.append(f"{self._indent()}if {var_i} >= {var_it2}.len {{ break }}")
+                self.output.append(f"{self._indent()}{var_v2} := {var_it2}[{var_i}]")
+
+                if isinstance(node.target, ast.Tuple) and len(node.target.elts) == 2:
+                    t1 = self.visit(node.target.elts[0])
+                    t2 = self.visit(node.target.elts[1])
+                    self.output.append(f"{self._indent()}{t1} := {var_v1}")
+                    self.output.append(f"{self._indent()}{t2} := {var_v2}")
+                else:
+                    target = self.visit(node.target)
+                    self.output.append(f"{self._indent()}{target} := [{var_v1}, {var_v2}]")
+
+                for stmt in node.body:
+                    self.visit(stmt)
+
+                self._indent_level -= 1
+                self.output.append(f"{self._indent()}}}")
+                return
+
         target = self.visit(node.target)
         iter_expr = self.visit(node.iter)
 
-        if isinstance(node.iter, ast.Call) and isinstance(node.iter.func, ast.Name) and node.iter.func.id == "range":
-             args = node.iter.args
-             start = "0"
-             stop = "0"
-             if len(args) == 1:
-                  stop = self.visit(args[0])
-             elif len(args) == 2:
-                  start = self.visit(args[0])
-                  stop = self.visit(args[1])
+        if isinstance(node.iter, ast.Call) and isinstance(node.iter.func, ast.Name):
+             if node.iter.func.id == "range":
+                 args = node.iter.args
+                 if len(args) == 3:
+                     # range(start, stop, step) -> C-style for loop
+                     start = self.visit(args[0])
+                     stop = self.visit(args[1])
+                     step = self.visit(args[2])
 
-             iter_expr = f"{start}..{stop}"
+                     is_negative_step = False
+                     if isinstance(args[2], ast.UnaryOp) and isinstance(args[2].op, ast.USub):
+                         is_negative_step = True
+                     elif isinstance(args[2], ast.Constant) and isinstance(args[2].value, (int, float)) and args[2].value < 0:
+                         is_negative_step = True
+
+                     op = ">" if is_negative_step else "<"
+
+                     self.output.append(f"{self._indent()}for {target} := {start}; {target} {op} {stop}; {target} += {step} {{")
+                     self._indent_level += 1
+                     for stmt in node.body:
+                         self.visit(stmt)
+                     self._indent_level -= 1
+                     self.output.append(f"{self._indent()}}}")
+                     return
+
+                 start = "0"
+                 stop = "0"
+                 if len(args) == 1:
+                      stop = self.visit(args[0])
+                 elif len(args) == 2:
+                      start = self.visit(args[0])
+                      stop = self.visit(args[1])
+
+                 iter_expr = f"{start}..{stop}"
+             elif node.iter.func.id == "enumerate":
+                 if node.iter.args:
+                     iter_expr = self.visit(node.iter.args[0])
+                     # Handle target for enumerate: for i, v in items
+                     if isinstance(node.target, ast.Tuple):
+                         # visit_Tuple returns [i, v], we need i, v
+                         if target.startswith("[") and target.endswith("]"):
+                             target = target[1:-1]
+                     else:
+                         # Single variable target for enumerate (e.g. for x in enumerate(items))
+                         self.output.append(f"{self._indent()}// TODO: handle enumerate with single target variable")
 
         self.output.append(f"{self._indent()}for {target} in {iter_expr} {{")
         self._indent_level += 1
@@ -465,6 +807,8 @@ class VNodeVisitor(ast.NodeVisitor):
         self.output.append(f"{self._indent()}continue")
 
     def visit_Name(self, node: ast.Name) -> str:
+        if node.id in self.name_remap:
+            return self.name_remap[node.id]
         return node.id
 
     def visit_Constant(self, node: ast.Constant) -> str:

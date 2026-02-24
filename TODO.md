@@ -23,25 +23,26 @@
 - [x] Support for async/await (concurrency)
 - [x] Support for generators (yield)
 - [ ] Support for class inheritance and method overriding
-- [ ] Support for operator overloading (__add__, etc.)
+- [x] Support for operator overloading (__add__, etc.)
 - [ ] Support for structural pattern matching (match/case)
 - [ ] Support for type aliases
 - [x] Support for global/nonlocal keywords
 - [x] Support for assert statements
 - [x] Support for set data structure
 - [ ] Support for isinstance and type checks
-- [ ] Support for del statement
+- [x] Support for del statement
 - [x] Support for slice notation (list[1:3])
 - [ ] Support for walrus operator (:=)
-- [ ] Support for __main__ block
+- [x] Support for __main__ block
 - [ ] Support for hasattr, getattr, setattr
-- [ ] Support for enumerate and zip
-- [ ] Support for map and filter
-- [ ] Support for any and all
-- [ ] Support for reversed and sorted
-- [ ] Support for range() with step argument
-- [ ] Support for print with end and sep arguments
-- [ ] Support for input() function
+- [x] Support for enumerate
+- [x] Support for zip
+- [x] Support for map and filter
+- [x] Support for any and all
+- [x] Support for reversed and sorted
+- [x] Support for range() with step argument
+- [x] Support for print with end and sep arguments
+- [x] Support for input() function
 - [ ] Support for open() and file I/O context managers
 - [ ] Support for json module mapping
 - [ ] Support for math module mapping
