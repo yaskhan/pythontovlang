@@ -35,7 +35,8 @@
 - [ ] Support for walrus operator (:=)
 - [ ] Support for __main__ block
 - [ ] Support for hasattr, getattr, setattr
-- [ ] Support for enumerate and zip
+- [x] Support for enumerate
+- [ ] Support for zip
 - [ ] Support for map and filter
 - [ ] Support for any and all
 - [ ] Support for reversed and sorted

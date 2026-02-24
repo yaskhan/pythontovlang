@@ -174,16 +174,27 @@ class VNodeVisitor(ast.NodeVisitor):
         target = self.visit(gen.target)
         iter_expr = self.visit(gen.iter)
 
-        if isinstance(gen.iter, ast.Call) and isinstance(gen.iter.func, ast.Name) and gen.iter.func.id == "range":
-             args = gen.iter.args
-             start = "0"
-             stop = "0"
-             if len(args) == 1:
-                  stop = self.visit(args[0])
-             elif len(args) == 2:
-                  start = self.visit(args[0])
-                  stop = self.visit(args[1])
-             iter_expr = f"{start}..{stop}"
+        if isinstance(gen.iter, ast.Call) and isinstance(gen.iter.func, ast.Name):
+             if gen.iter.func.id == "range":
+                 args = gen.iter.args
+                 start = "0"
+                 stop = "0"
+                 if len(args) == 1:
+                      stop = self.visit(args[0])
+                 elif len(args) == 2:
+                      start = self.visit(args[0])
+                      stop = self.visit(args[1])
+                 iter_expr = f"{start}..{stop}"
+             elif gen.iter.func.id == "enumerate":
+                 if gen.iter.args:
+                     iter_expr = self.visit(gen.iter.args[0])
+                     # Handle target for enumerate: for i, v in items
+                     if isinstance(gen.target, ast.Tuple):
+                         # visit_Tuple returns [i, v], we need i, v
+                         if target.startswith("[") and target.endswith("]"):
+                             target = target[1:-1]
+                     else:
+                         self.output.append(f"{self._indent()}// TODO: handle enumerate with single target variable")
 
         self.output.append(f"{self._indent()}for {target} in {iter_expr} {{")
         self._indent_level += 1
@@ -225,6 +236,12 @@ class VNodeVisitor(ast.NodeVisitor):
             elements.append(f"{val}: true")
 
         return f"map[int]bool{{{', '.join(elements)}}}"
+
+    def visit_List(self, node: ast.List) -> str:
+        elements = [str(self.visit(elt)) for elt in node.elts]
+        if not elements:
+             return "[]int{}" # Placeholder for empty list
+        return f"[{', '.join(elements)}]"
 
     def visit_Tuple(self, node: ast.Tuple) -> str:
         # Translate Tuple (a, b) to Array [a, b]
@@ -377,17 +394,29 @@ class VNodeVisitor(ast.NodeVisitor):
         target = self.visit(node.target)
         iter_expr = self.visit(node.iter)
 
-        if isinstance(node.iter, ast.Call) and isinstance(node.iter.func, ast.Name) and node.iter.func.id == "range":
-             args = node.iter.args
-             start = "0"
-             stop = "0"
-             if len(args) == 1:
-                  stop = self.visit(args[0])
-             elif len(args) == 2:
-                  start = self.visit(args[0])
-                  stop = self.visit(args[1])
+        if isinstance(node.iter, ast.Call) and isinstance(node.iter.func, ast.Name):
+             if node.iter.func.id == "range":
+                 args = node.iter.args
+                 start = "0"
+                 stop = "0"
+                 if len(args) == 1:
+                      stop = self.visit(args[0])
+                 elif len(args) == 2:
+                      start = self.visit(args[0])
+                      stop = self.visit(args[1])
 
-             iter_expr = f"{start}..{stop}"
+                 iter_expr = f"{start}..{stop}"
+             elif node.iter.func.id == "enumerate":
+                 if node.iter.args:
+                     iter_expr = self.visit(node.iter.args[0])
+                     # Handle target for enumerate: for i, v in items
+                     if isinstance(node.target, ast.Tuple):
+                         # visit_Tuple returns [i, v], we need i, v
+                         if target.startswith("[") and target.endswith("]"):
+                             target = target[1:-1]
+                     else:
+                         # Single variable target for enumerate (e.g. for x in enumerate(items))
+                         self.output.append(f"{self._indent()}// TODO: handle enumerate with single target variable")
 
         self.output.append(f"{self._indent()}for {target} in {iter_expr} {{")
         self._indent_level += 1
