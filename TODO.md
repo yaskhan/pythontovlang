@@ -1,7 +1,7 @@
 # Project Roadmap & TODOs
 
 ## Core Components
-- [ ] Implement AST Parser (wraps `ast` module)
+- [x] Implement AST Parser (wraps `ast` module)
 - [ ] Implement Type Analyzer (integrates `mypy`)
 - [ ] Implement Translator (AST NodeVisitor)
 - [ ] Implement Code Generator (Vlang emission)
