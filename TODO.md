@@ -42,7 +42,7 @@
 - [x] Support for reversed and sorted
 - [x] Support for range() with step argument
 - [x] Support for print with end and sep arguments
-- [ ] Support for input() function
+- [x] Support for input() function
 - [ ] Support for open() and file I/O context managers
 - [ ] Support for json module mapping
 - [ ] Support for math module mapping

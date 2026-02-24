@@ -488,6 +488,12 @@ class VNodeVisitor(ast.NodeVisitor):
                     val = self.visit(arg)
                     return f"{val}.{func_name}(it)"
 
+        elif func_name == "input":
+            self.emitter.add_import("os")
+            if args:
+                return f"os.input({args[0]})"
+            return "os.input('')"
+
         elif func_name == "print":
             sep = " "
             end = "\\n"
