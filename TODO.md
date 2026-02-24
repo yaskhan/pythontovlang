@@ -40,7 +40,7 @@
 - [ ] Support for map and filter
 - [ ] Support for any and all
 - [ ] Support for reversed and sorted
-- [ ] Support for range() with step argument
+- [x] Support for range() with step argument
 - [ ] Support for print with end and sep arguments
 - [ ] Support for input() function
 - [ ] Support for open() and file I/O context managers

@@ -251,6 +251,51 @@ class VNodeVisitor(ast.NodeVisitor):
         if isinstance(gen.iter, ast.Call) and isinstance(gen.iter.func, ast.Name):
              if gen.iter.func.id == "range":
                  args = gen.iter.args
+                 if len(args) == 3:
+                     # range(start, stop, step) -> C-style for loop
+                     # We need to manually construct the loop here because `visit_ListComp` expects `iter_expr`
+                     # But `iter_expr` is usually an iterable.
+                     # However, `visit_ListComp` uses `for {target} in {iter_expr} {`.
+                     # We can trick it by setting iter_expr to handle the step? No, `in` syntax doesn't support step.
+                     # We must emit a C-style loop: `for i := start; i < stop; i += step {`
+                     # But `visit_ListComp` hardcodes `for ... in ...`.
+                     # We need to restructure `visit_ListComp` to handle this or modify the output manually.
+                     # Let's override the loop generation for range with step.
+
+                     start = self.visit(args[0])
+                     stop = self.visit(args[1])
+                     step = self.visit(args[2])
+
+                     is_negative_step = False
+                     if isinstance(args[2], ast.UnaryOp) and isinstance(args[2].op, ast.USub):
+                         is_negative_step = True
+                     elif isinstance(args[2], ast.Constant) and isinstance(args[2].value, (int, float)) and args[2].value < 0:
+                         is_negative_step = True
+
+                     op = ">" if is_negative_step else "<"
+
+                     # We skip the standard `visit_ListComp` loop generation logic for this specific generator
+                     # and manually implement it.
+
+                     self.output.append(f"{self._indent()}for {target} := {start}; {target} {op} {stop}; {target} += {step} {{")
+                     self._indent_level += 1
+
+                     for if_expr in gen.ifs:
+                        cond = self.visit(if_expr)
+                        self.output.append(f"{self._indent()}if {cond} {{")
+                        self._indent_level += 1
+
+                     elt = self.visit(node.elt)
+                     self.output.append(f"{self._indent()}{target_var} << {elt}")
+
+                     for _ in gen.ifs:
+                        self._indent_level -= 1
+                        self.output.append(f"{self._indent()}}}")
+
+                     self._indent_level -= 1
+                     self.output.append(f"{self._indent()}}}")
+                     return
+
                  start = "0"
                  stop = "0"
                  if len(args) == 1:
@@ -522,6 +567,28 @@ class VNodeVisitor(ast.NodeVisitor):
         if isinstance(node.iter, ast.Call) and isinstance(node.iter.func, ast.Name):
              if node.iter.func.id == "range":
                  args = node.iter.args
+                 if len(args) == 3:
+                     # range(start, stop, step) -> C-style for loop
+                     start = self.visit(args[0])
+                     stop = self.visit(args[1])
+                     step = self.visit(args[2])
+
+                     is_negative_step = False
+                     if isinstance(args[2], ast.UnaryOp) and isinstance(args[2].op, ast.USub):
+                         is_negative_step = True
+                     elif isinstance(args[2], ast.Constant) and isinstance(args[2].value, (int, float)) and args[2].value < 0:
+                         is_negative_step = True
+
+                     op = ">" if is_negative_step else "<"
+
+                     self.output.append(f"{self._indent()}for {target} := {start}; {target} {op} {stop}; {target} += {step} {{")
+                     self._indent_level += 1
+                     for stmt in node.body:
+                         self.visit(stmt)
+                     self._indent_level -= 1
+                     self.output.append(f"{self._indent()}}}")
+                     return
+
                  start = "0"
                  stop = "0"
                  if len(args) == 1:
