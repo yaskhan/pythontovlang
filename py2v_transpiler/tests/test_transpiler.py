@@ -183,3 +183,27 @@ while True:
 
     assert "break" in result
     assert "continue" in result
+
+def test_full_module_generation():
+    parser = PyASTParser()
+    analyzer = TypeInference()
+    translator = VNodeVisitor(analyzer)
+
+    code = """
+def add(a: int, b: int) -> int:
+    return a + b
+
+x = 1
+y = 2
+z = add(x, y)
+print(z)
+"""
+    tree = parser.parse(code)
+    analyzer.analyze(tree)
+    result = translator.visit_Module(tree)
+
+    assert "module main" in result
+    assert "fn add(a int, b int) int {" in result
+    assert "fn main() {" in result
+    assert "x := 1" in result
+    assert "z := add(x, y)" in result

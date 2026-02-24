@@ -4,7 +4,7 @@
 - [x] Implement AST Parser (wraps `ast` module)
 - [x] Implement Type Analyzer (integrates `mypy`)
 - [x] Implement Translator (AST NodeVisitor)
-- [ ] Implement Code Generator (Vlang emission)
+- [x] Implement Code Generator (Vlang emission)
 
 ## Language Features
 - [x] Basic types (int, float, bool, str)
@@ -29,6 +29,11 @@
 - [ ] Support for global/nonlocal keywords
 - [ ] Support for assert statements
 - [ ] Support for set data structure
+- [ ] Support for isinstance and type checks
+- [ ] Support for del statement
+- [ ] Support for slice notation (list[1:3])
+- [ ] Support for walrus operator (:=)
+- [ ] Support for __main__ block
 
 ## Infrastructure & Tooling
 - [ ] Set up comprehensive test suite (pytest)

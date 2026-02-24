@@ -1,25 +1,54 @@
 import ast
 from typing import Any, List, Optional
+from py2v_transpiler.core.generator import VCodeEmitter
 
 class VNodeVisitor(ast.NodeVisitor):
     def __init__(self, type_inference):
         self.type_inference = type_inference
+        # Use emitter for structured output
+        self.emitter = VCodeEmitter()
+        # Internal buffer for visiting blocks (functions, loops, etc.)
         self.output: List[str] = []
         self._indent_level = 0
+        self.in_main = True # Flag to track if we are at top-level
 
     def _indent(self) -> str:
         return "    " * self._indent_level
 
     def visit_Module(self, node: ast.Module) -> str:
         for stmt in node.body:
-            self.visit(stmt)
-        return "\n".join(self.output)
+            # Check if statement is top-level expression or assignment
+            if isinstance(stmt, (ast.FunctionDef, ast.ClassDef, ast.Import, ast.ImportFrom)):
+                self.in_main = False
+                self.visit(stmt)
+                self.in_main = True
+            else:
+                # This is part of main body
+                # We need to capture the output of this statement
+                # But visit returns None and appends to self.output
+                # So we need to manage self.output
+
+                # Clear output buffer
+                self.output = []
+                self.visit(stmt)
+                # Append buffer to main
+                for line in self.output:
+                    # Remove indentation if added by _indent() for main body
+                    # Because generator adds indentation for main()
+                    self.emitter.add_main_statement(line.strip())
+                self.output = []
+
+        return self.emitter.emit()
 
     def visit_FunctionDef(self, node: ast.FunctionDef) -> None:
+        # Save current state
+        old_output = self.output
+        self.output = []
+        self._indent_level = 0
+
         args_str_list = []
         for arg in node.args.args:
             arg_name = arg.arg
-            # Use type inference map, default to 'int' if not found
             arg_type = self.type_inference.type_map.get(arg_name, "int")
             args_str_list.append(f"{arg_name} {arg_type}")
 
@@ -36,15 +65,25 @@ class VNodeVisitor(ast.NodeVisitor):
         if ret_type == "void":
              decl = f"fn {node.name}({args_str}) {{"
 
-        self.output.append(f"{self._indent()}{decl}")
+        self.output.append(f"{decl}") # No indent for top level function
         self._indent_level += 1
         for stmt in node.body:
             self.visit(stmt)
         self._indent_level -= 1
-        self.output.append(f"{self._indent()}}}")
+        self.output.append("}")
+
+        # Add function to emitter
+        self.emitter.add_function("\n".join(self.output))
+
+        # Restore state
+        self.output = old_output
+
+    def visit_ClassDef(self, node: ast.ClassDef) -> None:
+        # Skeleton implementation
+        # Classes will map to structs in V
+        self.emitter.add_struct(f"struct {node.name} {{}}")
 
     def visit_Assign(self, node: ast.Assign) -> None:
-        # Simplification: assuming single target
         target = node.targets[0]
         if isinstance(target, ast.Name):
             lhs = target.id
@@ -59,7 +98,6 @@ class VNodeVisitor(ast.NodeVisitor):
             self.output.append(f"{self._indent()}return")
 
     def visit_Expr(self, node: ast.Expr) -> None:
-        # Standalone expression statement
         val = self.visit(node.value)
         if val:
             self.output.append(f"{self._indent()}{val}")
