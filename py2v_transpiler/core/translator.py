@@ -91,8 +91,31 @@ class VNodeVisitor(ast.NodeVisitor):
             ret_type = struct_name
             # We need to implicitly return the struct instance, but that's complex logic.
             # For now, just change the name.
+        elif is_method and func_name in ("__add__", "__sub__", "__mul__", "__truediv__", "__mod__", "__lt__", "__le__", "__eq__", "__ne__"):
+             # Operator overloading
+             # fn (a Type) + (b Type) Type
+             op_map = {
+                 "__add__": "+", "__sub__": "-", "__mul__": "*", "__truediv__": "/",
+                 "__mod__": "%", "__lt__": "<", "__le__": "<=", "__eq__": "==",
+                 "__ne__": "!="
+             }
+             op = op_map.get(func_name)
+             if op:
+                 func_name = op
+                 # In V, operator overloading syntax is: fn (a Type) + (b Type) RetType
+                 # Our args_str is "b Type". We need to format it as "(b Type)".
+                 # receiver_str is "(a Type) ".
+                 # So: fn (a Type) + (b Type) RetType
+                 # We need to ensure args_str is wrapped in parens if not already (it isn't, it's a comma list)
+                 decl = f"fn {receiver_str}{op} ({args_str}) {ret_type} {{"
+                 # Skip the default decl assignment below
+        elif func_name == "__str__":
+             # String representation
+             func_name = "str"
+             decl = f"fn {receiver_str}{func_name}() string {{"
 
-        decl = f"fn {receiver_str}{func_name}({args_str}) {ret_type} {{"
+        if 'decl' not in locals():
+            decl = f"fn {receiver_str}{func_name}({args_str}) {ret_type} {{"
         if ret_type == "void":
              decl = f"fn {receiver_str}{func_name}({args_str}) {{"
 

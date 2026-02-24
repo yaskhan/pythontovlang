@@ -30,4 +30,5 @@ def map_python_type_to_v(py_type: str) -> str:
     elif py_type.startswith('dict') or py_type == 'Dict':
         return 'map[string]string' # defaulting to string map for now
     else:
-        return 'void'
+        # Assume it's a user-defined type (struct)
+        return py_type
