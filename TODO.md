@@ -30,7 +30,7 @@
 - [x] Support for assert statements
 - [x] Support for set data structure
 - [ ] Support for isinstance and type checks
-- [ ] Support for del statement
+- [x] Support for del statement
 - [x] Support for slice notation (list[1:3])
 - [ ] Support for walrus operator (:=)
 - [x] Support for __main__ block
