@@ -131,6 +131,18 @@ class VNodeVisitor(ast.NodeVisitor):
 
         self.current_class = None
 
+    def visit_Import(self, node: ast.Import) -> None:
+        for alias in node.names:
+            # Map Python module to V module
+            # Ideally use a mapper function, but 1:1 for now
+            self.emitter.add_import(alias.name)
+
+    def visit_ImportFrom(self, node: ast.ImportFrom) -> None:
+        if node.module:
+            self.emitter.add_import(node.module)
+        # We don't support explicit name imports (from x import y) fully in V structure yet
+        # V usually imports the whole module.
+
     def visit_Assign(self, node: ast.Assign) -> None:
         target = node.targets[0]
         lhs = ""

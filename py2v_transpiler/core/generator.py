@@ -29,7 +29,8 @@ class VCodeEmitter:
         lines = ["module main\n"]
 
         if self.imports:
-            lines.append("import " + ", ".join(self.imports))
+            for imp in self.imports:
+                lines.append(f"import {imp}")
             lines.append("")
 
         if self.structs:

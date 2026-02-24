@@ -13,7 +13,7 @@
 - [x] Class definitions and methods
 - [x] List comprehensions
 - [ ] Exception handling (try/except)
-- [ ] Module imports and standard library mapping
+- [x] Module imports and standard library mapping
 - [ ] Support for f-strings
 - [ ] Support for dictionaries
 - [ ] Support for tuples
@@ -44,6 +44,11 @@
 - [ ] Support for input() function
 - [ ] Support for open() and file I/O context managers
 - [ ] Support for json module mapping
+- [ ] Support for math module mapping
+- [ ] Support for random module mapping
+- [ ] Support for time and datetime module mapping
+- [ ] Support for os and sys module mapping
+- [ ] Support for re module mapping
 
 ## Infrastructure & Tooling
 - [ ] Set up comprehensive test suite (pytest)
