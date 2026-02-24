@@ -37,7 +37,7 @@
 - [ ] Support for hasattr, getattr, setattr
 - [x] Support for enumerate
 - [x] Support for zip
-- [ ] Support for map and filter
+- [x] Support for map and filter
 - [ ] Support for any and all
 - [x] Support for reversed and sorted
 - [x] Support for range() with step argument

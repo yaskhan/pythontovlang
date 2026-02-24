@@ -455,6 +455,18 @@ class VNodeVisitor(ast.NodeVisitor):
         elif func_name == "reversed":
             self.used_builtins.add("reversed")
             return f"py_reversed({', '.join(args)})"
+        elif func_name == "map":
+            if len(args) == 2:
+                func = args[0]
+                iterable = args[1]
+                return f"{iterable}.map({func}(it))"
+        elif func_name == "filter":
+            if len(args) == 2:
+                func = args[0]
+                iterable = args[1]
+                if func == "None" or func == "none":
+                    return f"{iterable}.filter(it)"
+                return f"{iterable}.filter({func}(it))"
         elif func_name == "print":
             sep = " "
             end = "\\n"
