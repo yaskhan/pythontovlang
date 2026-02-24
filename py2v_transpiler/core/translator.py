@@ -140,8 +140,83 @@ class VNodeVisitor(ast.NodeVisitor):
             # obj.attr = value
             lhs = f"{self.visit(target.value)}.{target.attr}"
 
-        rhs = self.visit(node.value)
-        self.output.append(f"{self._indent()}{lhs} := {rhs}")
+        if isinstance(node.value, ast.ListComp):
+            # Special handling for list comprehension in assignment
+            # x = [i for i in iter]
+            # -> mut x := []int{}
+            #    for i in iter { x << i }
+
+            # This is tricky because we need to know the type of list elements.
+            # Assuming int for now or inferring later.
+
+            # We emit the block directly
+            self.visit_ListComp(node.value, target_var=lhs)
+        else:
+            rhs = self.visit(node.value)
+            self.output.append(f"{self._indent()}{lhs} := {rhs}")
+
+    def visit_ListComp(self, node: ast.ListComp, target_var: Optional[str] = None) -> None:
+        if not target_var:
+            # If not part of assignment, we can't easily translate to statements.
+            self.output.append(f"{self._indent()}// List comprehension expression not supported inline yet")
+            return
+
+        # Initialize result array
+        # Assuming []int for now, ideally inference
+        self.output.append(f"{self._indent()}mut {target_var} := []int{{}}")
+
+        # Handle generators
+        # Python: [elt for target in iter if ifs]
+        # V: for target in iter { if ifs { acc << elt } }
+
+        gen = node.generators[0] # Handle first generator
+        target = self.visit(gen.target)
+        iter_expr = self.visit(gen.iter)
+
+        # Expand range() if needed (same logic as visit_For)
+        if isinstance(gen.iter, ast.Call) and isinstance(gen.iter.func, ast.Name) and gen.iter.func.id == "range":
+             args = gen.iter.args
+             start = "0"
+             stop = "0"
+             if len(args) == 1:
+                  stop = self.visit(args[0])
+             elif len(args) == 2:
+                  start = self.visit(args[0])
+                  stop = self.visit(args[1])
+             iter_expr = f"{start}..{stop}"
+
+        self.output.append(f"{self._indent()}for {target} in {iter_expr} {{")
+        self._indent_level += 1
+
+        # Conditions
+        for if_expr in gen.ifs:
+            cond = self.visit(if_expr)
+            self.output.append(f"{self._indent()}if {cond} {{")
+            self._indent_level += 1
+
+        # Append element
+        elt = self.visit(node.elt)
+        self.output.append(f"{self._indent()}{target_var} << {elt}")
+
+        # Close blocks
+        for _ in gen.ifs:
+            self._indent_level -= 1
+            self.output.append(f"{self._indent()}}}")
+
+        self._indent_level -= 1
+        self.output.append(f"{self._indent()}}}")
+
+    def visit_Dict(self, node: ast.Dict) -> str:
+        # Translate {k: v} to map[string]int{k: v} (simplified type)
+        pairs = []
+        for k, v in zip(node.keys, node.values):
+            if k:
+                key_str = self.visit(k)
+                val_str = self.visit(v)
+                pairs.append(f"{key_str}: {val_str}")
+
+        # TODO: infer type
+        return f"map[string]int{{{', '.join(pairs)}}}"
 
     def visit_Return(self, node: ast.Return) -> None:
         if node.value:

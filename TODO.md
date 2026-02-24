@@ -11,7 +11,7 @@
 - [x] Control flow (if, for, while)
 - [x] Function definitions and calls
 - [x] Class definitions and methods
-- [ ] List comprehensions
+- [x] List comprehensions
 - [ ] Exception handling (try/except)
 - [ ] Module imports and standard library mapping
 - [ ] Support for f-strings
@@ -39,6 +39,11 @@
 - [ ] Support for map and filter
 - [ ] Support for any and all
 - [ ] Support for reversed and sorted
+- [ ] Support for range() with step argument
+- [ ] Support for print with end and sep arguments
+- [ ] Support for input() function
+- [ ] Support for open() and file I/O context managers
+- [ ] Support for json module mapping
 
 ## Infrastructure & Tooling
 - [ ] Set up comprehensive test suite (pytest)

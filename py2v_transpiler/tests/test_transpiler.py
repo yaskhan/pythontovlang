@@ -257,3 +257,44 @@ p.move(3, 4)
 
     assert "p := Point(1, 2)" in result
     assert "p.move(3, 4)" in result
+
+def test_translator_list_comp():
+    parser = PyASTParser()
+    analyzer = TypeInference()
+    translator = VNodeVisitor(analyzer)
+
+    code = "x = [i for i in range(10)]"
+    tree = parser.parse(code)
+    analyzer.analyze(tree)
+    result = translator.visit_Module(tree)
+
+    assert "mut x := []int{}" in result
+    assert "for i in 0..10 {" in result
+    assert "x << i" in result
+
+def test_translator_list_comp_filter():
+    parser = PyASTParser()
+    analyzer = TypeInference()
+    translator = VNodeVisitor(analyzer)
+
+    code = "x = [i for i in range(10) if i > 5]"
+    tree = parser.parse(code)
+    analyzer.analyze(tree)
+    result = translator.visit_Module(tree)
+
+    assert "mut x := []int{}" in result
+    assert "for i in 0..10 {" in result
+    assert "if i > 5 {" in result
+    assert "x << i" in result
+
+def test_translator_dict_literal():
+    parser = PyASTParser()
+    analyzer = TypeInference()
+    translator = VNodeVisitor(analyzer)
+
+    code = "d = {'a': 1, 'b': 2}"
+    tree = parser.parse(code)
+    analyzer.analyze(tree)
+    result = translator.visit_Module(tree)
+
+    assert "d := map[string]int{'a': 1, 'b': 2}" in result
