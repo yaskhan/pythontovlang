@@ -15,6 +15,7 @@ class VNodeVisitor(ast.NodeVisitor):
         self._zip_counter = 0 # Counter for unique variable names in zip loops
         self.used_builtins = set() # Track used built-in helpers (sorted, reversed, etc)
         self.renamed_functions = {"main": "py_main"} # Map to rename functions (e.g. main -> py_main)
+        self.name_remap = {} # Temporary variable renaming (e.g. x -> it in generators)
 
     def _indent(self) -> str:
         return "    " * self._indent_level
@@ -467,6 +468,26 @@ class VNodeVisitor(ast.NodeVisitor):
                 if func == "None" or func == "none":
                     return f"{iterable}.filter(it)"
                 return f"{iterable}.filter({func}(it))"
+        elif func_name == "any" or func_name == "all":
+            if len(node.args) == 1:
+                arg = node.args[0]
+                if isinstance(arg, ast.GeneratorExp):
+                    # any(expr for target in iter) -> iter.any(expr_with_it)
+                    gen = arg.generators[0]
+                    target = gen.target
+                    iter_expr = self.visit(gen.iter)
+
+                    if isinstance(target, ast.Name):
+                        # Map target name to 'it'
+                        self.name_remap[target.id] = "it"
+                        elt = self.visit(arg.elt)
+                        del self.name_remap[target.id]
+                        return f"{iter_expr}.{func_name}({elt})"
+                else:
+                    # any(iterable) -> iterable.any(it)
+                    val = self.visit(arg)
+                    return f"{val}.{func_name}(it)"
+
         elif func_name == "print":
             sep = " "
             end = "\\n"
@@ -765,6 +786,8 @@ class VNodeVisitor(ast.NodeVisitor):
         self.output.append(f"{self._indent()}continue")
 
     def visit_Name(self, node: ast.Name) -> str:
+        if node.id in self.name_remap:
+            return self.name_remap[node.id]
         return node.id
 
     def visit_Constant(self, node: ast.Constant) -> str:

@@ -38,7 +38,7 @@
 - [x] Support for enumerate
 - [x] Support for zip
 - [x] Support for map and filter
-- [ ] Support for any and all
+- [x] Support for any and all
 - [x] Support for reversed and sorted
 - [x] Support for range() with step argument
 - [x] Support for print with end and sep arguments
