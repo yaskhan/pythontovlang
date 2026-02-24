@@ -12,13 +12,13 @@
 - [x] Function definitions and calls
 - [x] Class definitions and methods
 - [x] List comprehensions
-- [ ] Exception handling (try/except)
+- [x] Exception handling (try/except)
 - [x] Module imports and standard library mapping
 - [x] Support for f-strings
 - [x] Support for dictionaries
 - [x] Support for tuples
 - [ ] Support for decorators
-- [ ] Support for context managers (with statement)
+- [x] Support for context managers (with statement)
 - [ ] Support for lambda expressions
 - [ ] Support for async/await (concurrency)
 - [ ] Support for generators (yield)
@@ -59,6 +59,11 @@
 - [ ] Support for http.client and urllib module mapping
 - [ ] Support for csv module mapping
 - [ ] Support for sqlite3 module mapping
+- [ ] Support for pathlib module mapping
+- [ ] Support for shutil module mapping
+- [ ] Support for tempfile module mapping
+- [ ] Support for unittest module mapping
+- [ ] Support for subprocess module mapping
 
 ## Infrastructure & Tooling
 - [ ] Set up comprehensive test suite (pytest)

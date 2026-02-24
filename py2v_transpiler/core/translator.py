@@ -330,6 +330,52 @@ class VNodeVisitor(ast.NodeVisitor):
         self._indent_level -= 1
         self.output.append(f"{self._indent()}}}")
 
+    def visit_Try(self, node: ast.Try) -> None:
+        # V does not have try/except blocks.
+        # We emit the try block contents normally.
+        # We emit except blocks as comments.
+        self.output.append(f"{self._indent()}// try {{")
+
+        for stmt in node.body:
+            self.visit(stmt)
+
+        self.output.append(f"{self._indent()}// }} except {{")
+
+        for handler in node.handlers:
+            self.output.append(f"{self._indent()}// Handler: {handler.type}")
+            # We could visit handler body but comment it out?
+            # For now, just a placeholder message.
+            self.output.append(f"{self._indent()}// ... exception handling logic ...")
+
+        if node.finalbody:
+             self.output.append(f"{self._indent()}// }} finally {{")
+             self.output.append(f"{self._indent()}defer {{")
+             self._indent_level += 1
+             for stmt in node.finalbody:
+                 self.visit(stmt)
+             self._indent_level -= 1
+             self.output.append(f"{self._indent()}}}")
+
+    def visit_With(self, node: ast.With) -> None:
+        # Handle `with item as target:`
+        # V: target := item; defer { target.close() }
+
+        for item in node.items:
+            context_expr = self.visit(item.context_expr)
+            if item.optional_vars:
+                var = self.visit(item.optional_vars)
+                self.output.append(f"{self._indent()}{var} := {context_expr}")
+                self.output.append(f"{self._indent()}defer {{ {var}.close() }}")
+            else:
+                # Context manager without assignment
+                self.output.append(f"{self._indent()}_ := {context_expr}")
+                # We can't close it easily if we don't have a handle, unless expression is safe to repeat?
+                # Actually, standard python `with open(...)` needs assignment usually.
+                pass
+
+        for stmt in node.body:
+            self.visit(stmt)
+
     def visit_Compare(self, node: ast.Compare) -> str:
         left = self.visit(node.left)
         ops = {
