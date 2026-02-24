@@ -48,10 +48,11 @@ class VNodeVisitor(ast.NodeVisitor):
         self._indent_level = 0
 
         is_method = self.current_class is not None
-        struct_name = self.current_class if is_method else ""
+        # Ensure struct_name is always a string
+        struct_name: str = self.current_class if self.current_class else ""
 
-        args_str_list = []
-        receiver_str = ""
+        args_str_list: List[str] = []
+        receiver_str: str = ""
 
         args = node.args.args
         if is_method and args and args[0].arg == "self":
