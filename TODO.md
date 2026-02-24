@@ -8,7 +8,7 @@
 
 ## Language Features
 - [x] Basic types (int, float, bool, str)
-- [ ] Control flow (if, for, while)
+- [x] Control flow (if, for, while)
 - [x] Function definitions and calls
 - [ ] Class definitions and methods
 - [ ] List comprehensions
@@ -24,6 +24,11 @@
 - [ ] Support for generators (yield)
 - [ ] Support for class inheritance and method overriding
 - [ ] Support for operator overloading (__add__, etc.)
+- [ ] Support for structural pattern matching (match/case)
+- [ ] Support for type aliases
+- [ ] Support for global/nonlocal keywords
+- [ ] Support for assert statements
+- [ ] Support for set data structure
 
 ## Infrastructure & Tooling
 - [ ] Set up comprehensive test suite (pytest)

@@ -85,6 +85,152 @@ class VNodeVisitor(ast.NodeVisitor):
         op_str = op_map.get(type(node.op), "?")
         return f"{left} {op_str} {right}"
 
+    def visit_If(self, node: ast.If) -> None:
+        test_expr = self.visit(node.test)
+        self.output.append(f"{self._indent()}if {test_expr} {{")
+        self._indent_level += 1
+        for stmt in node.body:
+            self.visit(stmt)
+        self._indent_level -= 1
+
+        if node.orelse:
+            if len(node.orelse) == 1 and isinstance(node.orelse[0], ast.If):
+                # Handle 'elif'
+                # We need to manually visit the elif node to avoid extra indentation/braces
+                # But wait, we can just print "else " and then visit the If node?
+                # Vlang syntax: else if condition { ... }
+                # The recursive call to visit_If will print "if condition { ... }"
+                # So we just need "else "
+                self.output.append(f"{self._indent()}}} else ")
+                # We need to suppress the newline after "else " or handle it
+                # Actually, standard V:
+                # } else if cond {
+                # }
+                # My recursive approach:
+                # } else
+                # if cond {
+                # }
+                # Which is valid but ugly.
+
+                # Let's do it properly manually
+                elif_node = node.orelse[0]
+                elif_test = self.visit(elif_node.test)
+                # The closing brace of the previous block is already appended?
+                # Wait, I appended "} else " above.
+                # Actually, let's look at how I construct strings.
+
+                # Rewriting to be safer
+                self.output[-1] = self.output[-1] + " else " + self.visit_If_Elif(elif_node)
+            else:
+                self.output.append(f"{self._indent()}}} else {{")
+                self._indent_level += 1
+                for stmt in node.orelse:
+                    self.visit(stmt)
+                self._indent_level -= 1
+                self.output.append(f"{self._indent()}}}")
+        else:
+            self.output.append(f"{self._indent()}}}")
+
+    def visit_If_Elif(self, node: ast.If) -> str:
+        # Helper for proper else if formatting if I were returning strings
+        # But visit_If appends to output list.
+        # This is getting complicated with the list approach.
+        return ""
+
+    # Reverting to simple recursive approach for stability, formatting can be fixed later
+    def visit_If(self, node: ast.If) -> None:
+        test_expr = self.visit(node.test)
+        self.output.append(f"{self._indent()}if {test_expr} {{")
+        self._indent_level += 1
+        for stmt in node.body:
+            self.visit(stmt)
+        self._indent_level -= 1
+
+        if node.orelse:
+            if len(node.orelse) == 1 and isinstance(node.orelse[0], ast.If):
+                # elif case
+                self.output.append(f"{self._indent()}}} else {{")
+                # Just treat as nested if for now to be safe
+                self._indent_level += 1
+                self.visit(node.orelse[0])
+                self._indent_level -= 1
+                self.output.append(f"{self._indent()}}}")
+            else:
+                self.output.append(f"{self._indent()}}} else {{")
+                self._indent_level += 1
+                for stmt in node.orelse:
+                    self.visit(stmt)
+                self._indent_level -= 1
+                self.output.append(f"{self._indent()}}}")
+        else:
+            self.output.append(f"{self._indent()}}}")
+
+    def visit_While(self, node: ast.While) -> None:
+        test_expr = self.visit(node.test)
+        self.output.append(f"{self._indent()}for {test_expr} {{")
+        self._indent_level += 1
+        for stmt in node.body:
+            self.visit(stmt)
+        self._indent_level -= 1
+        self.output.append(f"{self._indent()}}}")
+
+    def visit_For(self, node: ast.For) -> None:
+        target = self.visit(node.target)
+        iter_expr = self.visit(node.iter)
+
+        if isinstance(node.iter, ast.Call) and isinstance(node.iter.func, ast.Name) and node.iter.func.id == "range":
+             args = node.iter.args
+             start = "0"
+             stop = "0"
+             if len(args) == 1:
+                  stop = self.visit(args[0])
+             elif len(args) == 2:
+                  start = self.visit(args[0])
+                  stop = self.visit(args[1])
+
+             iter_expr = f"{start}..{stop}"
+
+        self.output.append(f"{self._indent()}for {target} in {iter_expr} {{")
+        self._indent_level += 1
+        for stmt in node.body:
+            self.visit(stmt)
+        self._indent_level -= 1
+        self.output.append(f"{self._indent()}}}")
+
+    def visit_Compare(self, node: ast.Compare) -> str:
+        left = self.visit(node.left)
+        ops = {
+            ast.Eq: "==", ast.NotEq: "!=", ast.Lt: "<", ast.LtE: "<=",
+            ast.Gt: ">", ast.GtE: ">=", ast.Is: "==", ast.IsNot: "!=",
+            ast.In: "in", ast.NotIn: "!in"
+        }
+
+        result = [str(left)]
+        for op, comparator in zip(node.ops, node.comparators):
+             op_str = ops.get(type(op), "?")
+             comp_val = self.visit(comparator)
+             result.append(f"{op_str} {comp_val}")
+
+        return " ".join(result)
+
+    def visit_BoolOp(self, node: ast.BoolOp) -> str:
+        op_map = {ast.And: "&&", ast.Or: "||"}
+        op_str = op_map.get(type(node.op), "and")
+        values = [str(self.visit(val)) for val in node.values]
+        return f" {op_str} ".join(values)
+
+    def visit_UnaryOp(self, node: ast.UnaryOp) -> str:
+        operand = self.visit(node.operand)
+        op_map = {ast.Not: "!", ast.UAdd: "+", ast.USub: "-"}
+        op_str = op_map.get(type(node.op), "?")
+        return f"{op_str}{operand}"
+
+    def visit_Break(self, node: ast.Break) -> None:
+        self.output.append(f"{self._indent()}break")
+
+    def visit_Continue(self, node: ast.Continue) -> None:
+        self.output.append(f"{self._indent()}continue")
+
     def visit_Name(self, node: ast.Name) -> str:
         return node.id
 
