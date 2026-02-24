@@ -22,7 +22,7 @@
 - [x] Support for lambda expressions
 - [x] Support for async/await (concurrency)
 - [x] Support for generators (yield)
-- [ ] Support for class inheritance and method overriding
+- [x] Support for class inheritance and method overriding
 - [x] Support for operator overloading (__add__, etc.)
 - [ ] Support for structural pattern matching (match/case)
 - [ ] Support for type aliases

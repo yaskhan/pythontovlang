@@ -165,6 +165,15 @@ class VNodeVisitor(ast.NodeVisitor):
 
         # Extract fields from __init__ or class body annotations (simplified)
         fields = []
+
+        # Handle inheritance (bases)
+        for base in node.bases:
+            if isinstance(base, ast.Name):
+                fields.append(f"    {base.id}")
+            # Could handle Attribute (e.g. module.Class) too
+            elif isinstance(base, ast.Attribute):
+                fields.append(f"    {self.visit(base)}")
+
         methods = []
 
         for stmt in node.body:
