@@ -2,7 +2,7 @@
 
 ## Core Components
 - [x] Implement AST Parser (wraps `ast` module)
-- [ ] Implement Type Analyzer (integrates `mypy`)
+- [x] Implement Type Analyzer (integrates `mypy`)
 - [ ] Implement Translator (AST NodeVisitor)
 - [ ] Implement Code Generator (Vlang emission)
 
@@ -14,6 +14,11 @@
 - [ ] List comprehensions
 - [ ] Exception handling (try/except)
 - [ ] Module imports and standard library mapping
+- [ ] Support for f-strings
+- [ ] Support for dictionaries
+- [ ] Support for tuples
+- [ ] Support for decorators
+- [ ] Support for context managers (with statement)
 
 ## Infrastructure & Tooling
 - [ ] Set up comprehensive test suite (pytest)
