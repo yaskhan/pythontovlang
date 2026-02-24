@@ -6,6 +6,8 @@ from py2v_transpiler.core.translator import VNodeVisitor
 def translate(source: str) -> str:
     parser = PyASTParser()
     tree = parser.parse(source)
+    if not isinstance(tree, ast.Module):
+        raise ValueError("Parsed AST is not a Module")
     analyzer = TypeInference()
     translator = VNodeVisitor(analyzer)
     return translator.visit_Module(tree)
