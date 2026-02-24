@@ -10,7 +10,7 @@
 - [x] Basic types (int, float, bool, str)
 - [x] Control flow (if, for, while)
 - [x] Function definitions and calls
-- [ ] Class definitions and methods
+- [x] Class definitions and methods
 - [ ] List comprehensions
 - [ ] Exception handling (try/except)
 - [ ] Module imports and standard library mapping
@@ -34,6 +34,11 @@
 - [ ] Support for slice notation (list[1:3])
 - [ ] Support for walrus operator (:=)
 - [ ] Support for __main__ block
+- [ ] Support for hasattr, getattr, setattr
+- [ ] Support for enumerate and zip
+- [ ] Support for map and filter
+- [ ] Support for any and all
+- [ ] Support for reversed and sorted
 
 ## Infrastructure & Tooling
 - [ ] Set up comprehensive test suite (pytest)

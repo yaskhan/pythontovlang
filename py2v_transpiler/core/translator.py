@@ -11,6 +11,7 @@ class VNodeVisitor(ast.NodeVisitor):
         self.output: List[str] = []
         self._indent_level = 0
         self.in_main = True # Flag to track if we are at top-level
+        self.current_class: Optional[str] = None # Track if we are inside a class definition
 
     def _indent(self) -> str:
         return "    " * self._indent_level
@@ -46,8 +47,20 @@ class VNodeVisitor(ast.NodeVisitor):
         self.output = []
         self._indent_level = 0
 
+        is_method = self.current_class is not None
+        struct_name = self.current_class if is_method else ""
+
         args_str_list = []
-        for arg in node.args.args:
+        receiver_str = ""
+
+        args = node.args.args
+        if is_method and args and args[0].arg == "self":
+            # Handle 'self' - it becomes the receiver in V
+            # fn (s Struct) method()
+            receiver_str = f"({args[0].arg} {struct_name}) "
+            args = args[1:] # Remove self from arguments list
+
+        for arg in args:
             arg_name = arg.arg
             arg_type = self.type_inference.type_map.get(arg_name, "int")
             args_str_list.append(f"{arg_name} {arg_type}")
@@ -61,9 +74,19 @@ class VNodeVisitor(ast.NodeVisitor):
              elif isinstance(node.returns, ast.Constant) and isinstance(node.returns.value, str):
                   ret_type = node.returns.value
 
-        decl = f"fn {node.name}({args_str}) {ret_type} {{"
+        func_name = node.name
+        if func_name == "__init__":
+            # Constructor logic: make it a static factory function for now
+            # fn new_Struct(...) Struct
+            func_name = f"new_{struct_name}"
+            receiver_str = "" # Factory is static
+            ret_type = struct_name
+            # We need to implicitly return the struct instance, but that's complex logic.
+            # For now, just change the name.
+
+        decl = f"fn {receiver_str}{func_name}({args_str}) {ret_type} {{"
         if ret_type == "void":
-             decl = f"fn {node.name}({args_str}) {{"
+             decl = f"fn {receiver_str}{func_name}({args_str}) {{"
 
         self.output.append(f"{decl}") # No indent for top level function
         self._indent_level += 1
@@ -79,16 +102,45 @@ class VNodeVisitor(ast.NodeVisitor):
         self.output = old_output
 
     def visit_ClassDef(self, node: ast.ClassDef) -> None:
-        # Skeleton implementation
-        # Classes will map to structs in V
-        self.emitter.add_struct(f"struct {node.name} {{}}")
+        # Map Python class to V struct
+        struct_name = node.name
+        self.current_class = struct_name
+
+        # Extract fields from __init__ or class body annotations (simplified)
+        fields = []
+        methods = []
+
+        for stmt in node.body:
+            if isinstance(stmt, ast.FunctionDef):
+                methods.append(stmt)
+            elif isinstance(stmt, ast.AnnAssign) and isinstance(stmt.target, ast.Name):
+                # Class attribute with annotation -> struct field
+                field_name = stmt.target.id
+                field_type = "int" # default
+                if isinstance(stmt.annotation, ast.Name):
+                    field_type = stmt.annotation.id
+                fields.append(f"    {field_name} {field_type}")
+
+        struct_def = f"struct {struct_name} {{\n" + "\n".join(fields) + "\n}"
+        self.emitter.add_struct(struct_def)
+
+        # Visit methods to generate them as functions
+        for method in methods:
+            self.visit(method)
+
+        self.current_class = None
 
     def visit_Assign(self, node: ast.Assign) -> None:
         target = node.targets[0]
+        lhs = ""
         if isinstance(target, ast.Name):
             lhs = target.id
-            rhs = self.visit(node.value)
-            self.output.append(f"{self._indent()}{lhs} := {rhs}")
+        elif isinstance(target, ast.Attribute):
+            # obj.attr = value
+            lhs = f"{self.visit(target.value)}.{target.attr}"
+
+        rhs = self.visit(node.value)
+        self.output.append(f"{self._indent()}{lhs} := {rhs}")
 
     def visit_Return(self, node: ast.Return) -> None:
         if node.value:
@@ -103,7 +155,21 @@ class VNodeVisitor(ast.NodeVisitor):
             self.output.append(f"{self._indent()}{val}")
 
     def visit_Call(self, node: ast.Call) -> str:
+        # Handle instantiation: ClassName(...) -> new_ClassName(...)?
+        # Or just ClassName{...} struct init syntax?
+        # Python: x = MyClass() -> x := MyClass{} or x := new_MyClass()
+
         func_name = self.visit(node.func)
+
+        # Heuristic: if func_name starts with capital letter, assume struct init
+        # V struct init: StructName{} (if no args) or StructName{field: val}
+        # But we defined __init__ as new_StructName factory.
+
+        # Let's assume we use the factory if it exists, or struct init if not.
+        # But we don't know if __init__ exists here easily.
+        # Let's verify if the name matches a known struct?
+        # For now, just generate the call.
+
         args = []
         for arg in node.args:
             val = self.visit(arg)
@@ -111,7 +177,12 @@ class VNodeVisitor(ast.NodeVisitor):
                 args.append(str(val))
             else:
                 args.append("/* unknown */")
+
         return f"{func_name}({', '.join(args)})"
+
+    def visit_Attribute(self, node: ast.Attribute) -> str:
+        obj = self.visit(node.value)
+        return f"{obj}.{node.attr}"
 
     def visit_BinOp(self, node: ast.BinOp) -> str:
         left = self.visit(node.left)
