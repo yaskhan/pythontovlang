@@ -36,7 +36,7 @@
 - [ ] Support for __main__ block
 - [ ] Support for hasattr, getattr, setattr
 - [x] Support for enumerate
-- [ ] Support for zip
+- [x] Support for zip
 - [ ] Support for map and filter
 - [ ] Support for any and all
 - [ ] Support for reversed and sorted

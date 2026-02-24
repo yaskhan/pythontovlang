@@ -12,6 +12,7 @@ class VNodeVisitor(ast.NodeVisitor):
         self._indent_level = 0
         self.in_main = True # Flag to track if we are at top-level
         self.current_class: Optional[str] = None # Track if we are inside a class definition
+        self._zip_counter = 0 # Counter for unique variable names in zip loops
 
     def _indent(self) -> str:
         return "    " * self._indent_level
@@ -171,6 +172,56 @@ class VNodeVisitor(ast.NodeVisitor):
         self.output.append(f"{self._indent()}mut {target_var} := []int{{}}")
 
         gen = node.generators[0] # Handle first generator
+
+        if isinstance(gen.iter, ast.Call) and isinstance(gen.iter.func, ast.Name) and gen.iter.func.id == "zip":
+             args = gen.iter.args
+             if len(args) == 2:
+                 self._zip_counter += 1
+                 zip_id = self._zip_counter
+
+                 it1 = self.visit(args[0])
+                 it2 = self.visit(args[1])
+
+                 var_it1 = f"_zip_it1_{zip_id}"
+                 var_it2 = f"_zip_it2_{zip_id}"
+                 var_i = f"_i_{zip_id}"
+                 var_v1 = f"_v1_{zip_id}"
+                 var_v2 = f"_v2_{zip_id}"
+
+                 self.output.append(f"{self._indent()}{var_it1} := {it1}")
+                 self.output.append(f"{self._indent()}{var_it2} := {it2}")
+
+                 self.output.append(f"{self._indent()}for {var_i}, {var_v1} in {var_it1} {{")
+                 self._indent_level += 1
+
+                 self.output.append(f"{self._indent()}if {var_i} >= {var_it2}.len {{ break }}")
+                 self.output.append(f"{self._indent()}{var_v2} := {var_it2}[{var_i}]")
+
+                 if isinstance(gen.target, ast.Tuple) and len(gen.target.elts) == 2:
+                     t1 = self.visit(gen.target.elts[0])
+                     t2 = self.visit(gen.target.elts[1])
+                     self.output.append(f"{self._indent()}{t1} := {var_v1}")
+                     self.output.append(f"{self._indent()}{t2} := {var_v2}")
+                 else:
+                     target = self.visit(gen.target)
+                     self.output.append(f"{self._indent()}{target} := [{var_v1}, {var_v2}]")
+
+                 for if_expr in gen.ifs:
+                    cond = self.visit(if_expr)
+                    self.output.append(f"{self._indent()}if {cond} {{")
+                    self._indent_level += 1
+
+                 elt = self.visit(node.elt)
+                 self.output.append(f"{self._indent()}{target_var} << {elt}")
+
+                 for _ in gen.ifs:
+                    self._indent_level -= 1
+                    self.output.append(f"{self._indent()}}}")
+
+                 self._indent_level -= 1
+                 self.output.append(f"{self._indent()}}}")
+                 return
+
         target = self.visit(gen.target)
         iter_expr = self.visit(gen.iter)
 
@@ -391,6 +442,47 @@ class VNodeVisitor(ast.NodeVisitor):
         self.output.append(f"{self._indent()}}}")
 
     def visit_For(self, node: ast.For) -> None:
+        if isinstance(node.iter, ast.Call) and isinstance(node.iter.func, ast.Name) and node.iter.func.id == "zip":
+            # Handle zip(a, b)
+            args = node.iter.args
+            if len(args) == 2:
+                self._zip_counter += 1
+                zip_id = self._zip_counter
+
+                it1 = self.visit(args[0])
+                it2 = self.visit(args[1])
+
+                var_it1 = f"_zip_it1_{zip_id}"
+                var_it2 = f"_zip_it2_{zip_id}"
+                var_i = f"_i_{zip_id}"
+                var_v1 = f"_v1_{zip_id}"
+                var_v2 = f"_v2_{zip_id}"
+
+                self.output.append(f"{self._indent()}{var_it1} := {it1}")
+                self.output.append(f"{self._indent()}{var_it2} := {it2}")
+
+                self.output.append(f"{self._indent()}for {var_i}, {var_v1} in {var_it1} {{")
+                self._indent_level += 1
+
+                self.output.append(f"{self._indent()}if {var_i} >= {var_it2}.len {{ break }}")
+                self.output.append(f"{self._indent()}{var_v2} := {var_it2}[{var_i}]")
+
+                if isinstance(node.target, ast.Tuple) and len(node.target.elts) == 2:
+                    t1 = self.visit(node.target.elts[0])
+                    t2 = self.visit(node.target.elts[1])
+                    self.output.append(f"{self._indent()}{t1} := {var_v1}")
+                    self.output.append(f"{self._indent()}{t2} := {var_v2}")
+                else:
+                    target = self.visit(node.target)
+                    self.output.append(f"{self._indent()}{target} := [{var_v1}, {var_v2}]")
+
+                for stmt in node.body:
+                    self.visit(stmt)
+
+                self._indent_level -= 1
+                self.output.append(f"{self._indent()}}}")
+                return
+
         target = self.visit(node.target)
         iter_expr = self.visit(node.iter)
 
