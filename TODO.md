@@ -15,8 +15,8 @@
 - [ ] Exception handling (try/except)
 - [x] Module imports and standard library mapping
 - [x] Support for f-strings
-- [ ] Support for dictionaries
-- [ ] Support for tuples
+- [x] Support for dictionaries
+- [x] Support for tuples
 - [ ] Support for decorators
 - [ ] Support for context managers (with statement)
 - [ ] Support for lambda expressions
@@ -54,6 +54,11 @@
 - [ ] Support for collections module mapping (defaultdict, Counter)
 - [ ] Support for itertools module mapping
 - [ ] Support for functools module mapping
+- [ ] Support for threading and multiprocessing module mapping
+- [ ] Support for socket module mapping
+- [ ] Support for http.client and urllib module mapping
+- [ ] Support for csv module mapping
+- [ ] Support for sqlite3 module mapping
 
 ## Infrastructure & Tooling
 - [ ] Set up comprehensive test suite (pytest)

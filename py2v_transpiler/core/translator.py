@@ -195,6 +195,10 @@ class VNodeVisitor(ast.NodeVisitor):
         self.output.append(f"{self._indent()}}}")
 
     def visit_Dict(self, node: ast.Dict) -> str:
+        if not node.keys:
+            # Empty dict
+            return "map[string]int{}" # Default fallback
+
         pairs = []
         for k, v in zip(node.keys, node.values):
             if k:
@@ -202,6 +206,11 @@ class VNodeVisitor(ast.NodeVisitor):
                 val_str = self.visit(v)
                 pairs.append(f"{key_str}: {val_str}")
         return f"map[string]int{{{', '.join(pairs)}}}"
+
+    def visit_Tuple(self, node: ast.Tuple) -> str:
+        # Translate Tuple (a, b) to Array [a, b]
+        elements = [str(self.visit(elt)) for elt in node.elts]
+        return f"[{', '.join(elements)}]"
 
     def visit_Return(self, node: ast.Return) -> None:
         if node.value:

@@ -44,3 +44,15 @@ def test_translator_dict_literal():
     result = translator.visit_Module(tree)
 
     assert "d := map[string]int{'a': 1, 'b': 2}" in result
+
+def test_translator_dict_empty():
+    parser = PyASTParser()
+    analyzer = TypeInference()
+    translator = VNodeVisitor(analyzer)
+
+    code = "d = {}"
+    tree = parser.parse(code)
+    analyzer.analyze(tree)
+    result = translator.visit_Module(tree)
+
+    assert "d := map[string]int{}" in result
