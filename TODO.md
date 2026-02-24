@@ -33,7 +33,7 @@
 - [ ] Support for del statement
 - [x] Support for slice notation (list[1:3])
 - [ ] Support for walrus operator (:=)
-- [ ] Support for __main__ block
+- [x] Support for __main__ block
 - [ ] Support for hasattr, getattr, setattr
 - [x] Support for enumerate
 - [x] Support for zip

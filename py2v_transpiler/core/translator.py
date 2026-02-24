@@ -407,6 +407,16 @@ class VNodeVisitor(ast.NodeVisitor):
         return f"{left} {op_str} {right}"
 
     def visit_If(self, node: ast.If) -> None:
+        # Check for if __name__ == "__main__":
+        if isinstance(node.test, ast.Compare):
+            if (isinstance(node.test.left, ast.Name) and node.test.left.id == "__name__" and
+                len(node.test.comparators) == 1 and isinstance(node.test.comparators[0], ast.Constant) and
+                node.test.comparators[0].value == "__main__"):
+                self.output.append(f"{self._indent()}// if __name__ == '__main__':")
+                for stmt in node.body:
+                    self.visit(stmt)
+                return
+
         test_expr = self.visit(node.test)
         self.output.append(f"{self._indent()}if {test_expr} {{")
         self._indent_level += 1
