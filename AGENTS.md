@@ -24,3 +24,7 @@ The project follows a pipeline architecture:
 -   Follow PEP 8.
 -   Use descriptive variable names.
 -   Document functions and classes.
+
+## Task Completion Protocol
+
+-   After finishing a task, update `TODO.md` by marking the corresponding checkbox as completed (change `[ ]` to `[x]`).
