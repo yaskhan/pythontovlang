@@ -216,6 +216,16 @@ class VNodeVisitor(ast.NodeVisitor):
                 pairs.append(f"{key_str}: {val_str}")
         return f"map[string]int{{{', '.join(pairs)}}}"
 
+    def visit_Set(self, node: ast.Set) -> str:
+        # {1, 2} -> map[int]bool{1: true, 2: true}
+        # Simplified assumption that elements are ints
+        elements = []
+        for elt in node.elts:
+            val = self.visit(elt)
+            elements.append(f"{val}: true")
+
+        return f"map[int]bool{{{', '.join(elements)}}}"
+
     def visit_Tuple(self, node: ast.Tuple) -> str:
         # Translate Tuple (a, b) to Array [a, b]
         elements = [str(self.visit(elt)) for elt in node.elts]
@@ -252,6 +262,18 @@ class VNodeVisitor(ast.NodeVisitor):
         val = self.visit(node.value)
         return f"/* await */ {val}"
 
+    def visit_Assert(self, node: ast.Assert) -> None:
+        test = self.visit(node.test)
+        self.output.append(f"{self._indent()}assert {test}")
+
+    def visit_Global(self, node: ast.Global) -> None:
+        names = ", ".join(node.names)
+        self.output.append(f"{self._indent()}// global {names}")
+
+    def visit_Nonlocal(self, node: ast.Nonlocal) -> None:
+        names = ", ".join(node.names)
+        self.output.append(f"{self._indent()}// nonlocal {names}")
+
     def visit_Return(self, node: ast.Return) -> None:
         if node.value:
             val = self.visit(node.value)
@@ -283,12 +305,9 @@ class VNodeVisitor(ast.NodeVisitor):
     def visit_Subscript(self, node: ast.Subscript) -> str:
         value = self.visit(node.value)
 
-        # In Python 3.9+, slice is ast.Slice, index is other
-        # In older python, it might be different, but we assume 3.10+ as per env
         if isinstance(node.slice, ast.Slice):
             lower = self.visit(node.slice.lower) if node.slice.lower else ""
             upper = self.visit(node.slice.upper) if node.slice.upper else ""
-            # V slice syntax: array[start..end]
             return f"{value}[{lower}..{upper}]"
         else:
             index = self.visit(node.slice)
@@ -378,9 +397,6 @@ class VNodeVisitor(ast.NodeVisitor):
         self.output.append(f"{self._indent()}}}")
 
     def visit_Try(self, node: ast.Try) -> None:
-        # V does not have try/except blocks.
-        # We emit the try block contents normally.
-        # We emit except blocks as comments.
         self.output.append(f"{self._indent()}// try {{")
 
         for stmt in node.body:
@@ -390,8 +406,6 @@ class VNodeVisitor(ast.NodeVisitor):
 
         for handler in node.handlers:
             self.output.append(f"{self._indent()}// Handler: {handler.type}")
-            # We could visit handler body but comment it out?
-            # For now, just a placeholder message.
             self.output.append(f"{self._indent()}// ... exception handling logic ...")
 
         if node.finalbody:
@@ -404,9 +418,6 @@ class VNodeVisitor(ast.NodeVisitor):
              self.output.append(f"{self._indent()}}}")
 
     def visit_With(self, node: ast.With) -> None:
-        # Handle `with item as target:`
-        # V: target := item; defer { target.close() }
-
         for item in node.items:
             context_expr = self.visit(item.context_expr)
             if item.optional_vars:
@@ -414,7 +425,6 @@ class VNodeVisitor(ast.NodeVisitor):
                 self.output.append(f"{self._indent()}{var} := {context_expr}")
                 self.output.append(f"{self._indent()}defer {{ {var}.close() }}")
             else:
-                # Context manager without assignment
                 self.output.append(f"{self._indent()}_ := {context_expr}")
 
         for stmt in node.body:

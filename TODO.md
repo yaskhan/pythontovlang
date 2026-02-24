@@ -26,9 +26,9 @@
 - [ ] Support for operator overloading (__add__, etc.)
 - [ ] Support for structural pattern matching (match/case)
 - [ ] Support for type aliases
-- [ ] Support for global/nonlocal keywords
-- [ ] Support for assert statements
-- [ ] Support for set data structure
+- [x] Support for global/nonlocal keywords
+- [x] Support for assert statements
+- [x] Support for set data structure
 - [ ] Support for isinstance and type checks
 - [ ] Support for del statement
 - [x] Support for slice notation (list[1:3])
@@ -74,6 +74,11 @@
 - [ ] Support for copy module mapping
 - [ ] Support for pickle module mapping
 - [ ] Support for zlib/gzip module mapping
+- [ ] Support for decimal module mapping
+- [ ] Support for fractions module mapping
+- [ ] Support for statistics module mapping
+- [ ] Support for contextlib module mapping
+- [ ] Support for typing module mapping
 
 ## Infrastructure & Tooling
 - [ ] Set up comprehensive test suite (pytest)
