@@ -20,7 +20,17 @@ class VNodeVisitor(ast.NodeVisitor):
     def visit_Assign(self, node: ast.Assign) -> Any:
         targets = [t.id for t in node.targets if isinstance(t, ast.Name)]
         if targets and isinstance(node.value, ast.Constant):
-             self.output.append(f"{targets[0]} := {node.value.value}")
+             val = node.value.value
+             if isinstance(val, str):
+                 val_str = f"'{val}'"
+             elif isinstance(val, bool):
+                 val_str = str(val).lower()
+             elif val is None:
+                 val_str = "none" # V uses none for nil/null
+             else:
+                 val_str = str(val)
+
+             self.output.append(f"{targets[0]} := {val_str}")
         else:
              self.output.append("// Complex assignment not yet supported")
 

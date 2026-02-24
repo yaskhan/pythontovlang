@@ -2,9 +2,9 @@ import ast
 from typing import Dict, Any, Optional
 
 try:
-    from mypy import api as mypy_api
+    from mypy import api as mypy_api_module
 except ImportError:
-    mypy_api = None
+    mypy_api_module = None # type: ignore
 
 class TypeInference:
     def __init__(self):
@@ -12,10 +12,10 @@ class TypeInference:
 
     def run_mypy(self, path: str) -> str:
         """Runs mypy on the given file path and returns the output."""
-        if not mypy_api:
+        if not mypy_api_module:
             return "Mypy not installed."
 
-        result, error, exit_code = mypy_api.run([path])
+        result, error, exit_code = mypy_api_module.run([path])
         return result
 
     def resolve_type(self, node: ast.AST) -> str:
