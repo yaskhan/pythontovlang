@@ -13,6 +13,8 @@ class VNodeVisitor(ast.NodeVisitor):
         self.in_main = True # Flag to track if we are at top-level
         self.current_class: Optional[str] = None # Track if we are inside a class definition
         self._zip_counter = 0 # Counter for unique variable names in zip loops
+        self.used_builtins = set() # Track used built-in helpers (sorted, reversed, etc)
+        self.renamed_functions = {"main": "py_main"} # Map to rename functions (e.g. main -> py_main)
 
     def _indent(self) -> str:
         return "    " * self._indent_level
@@ -39,6 +41,15 @@ class VNodeVisitor(ast.NodeVisitor):
                     # Because generator adds indentation for main()
                     self.emitter.add_main_statement(line.strip())
                 self.output = []
+
+        if "sorted" in self.used_builtins:
+            self.emitter.add_function(
+                "fn py_sorted[T](a []T) []T {\n    mut b := a.clone()\n    b.sort()\n    return b\n}"
+            )
+        if "reversed" in self.used_builtins:
+            self.emitter.add_function(
+                "fn py_reversed[T](a []T) []T {\n    mut b := a.clone()\n    b.reverse()\n    return b\n}"
+            )
 
         return self.emitter.emit()
 
@@ -83,6 +94,9 @@ class VNodeVisitor(ast.NodeVisitor):
                   ret_type = node.returns.value
 
         func_name = node.name
+        if func_name in self.renamed_functions:
+            func_name = self.renamed_functions[func_name]
+
         if func_name == "__init__":
             # Constructor logic: make it a static factory function for now
             # fn new_Struct(...) Struct
@@ -424,6 +438,9 @@ class VNodeVisitor(ast.NodeVisitor):
 
     def visit_Call(self, node: ast.Call) -> str:
         func_name = self.visit(node.func)
+        if func_name in self.renamed_functions:
+            func_name = self.renamed_functions[func_name]
+
         args = []
         for arg in node.args:
             val = self.visit(arg)
@@ -431,6 +448,13 @@ class VNodeVisitor(ast.NodeVisitor):
                 args.append(str(val))
             else:
                 args.append("/* unknown */")
+
+        if func_name == "sorted":
+            self.used_builtins.add("sorted")
+            return f"py_sorted({', '.join(args)})"
+        elif func_name == "reversed":
+            self.used_builtins.add("reversed")
+            return f"py_reversed({', '.join(args)})"
 
         return f"{func_name}({', '.join(args)})"
 

@@ -39,7 +39,7 @@
 - [x] Support for zip
 - [ ] Support for map and filter
 - [ ] Support for any and all
-- [ ] Support for reversed and sorted
+- [x] Support for reversed and sorted
 - [x] Support for range() with step argument
 - [ ] Support for print with end and sep arguments
 - [ ] Support for input() function
