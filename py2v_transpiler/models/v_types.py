@@ -40,6 +40,8 @@ def _map_ast_type(node: ast.AST) -> str:
     elif isinstance(node, ast.Constant):
         if node.value is None:
             return 'none'
+        if node.value is Ellipsis:
+            return '...'
         return str(node.value)
 
     elif isinstance(node, ast.Subscript):
@@ -61,39 +63,76 @@ def _map_ast_type(node: ast.AST) -> str:
         # Helper to map args, handling nested types
         mapped_args = [_map_ast_type(arg) for arg in args]
 
-        if value_id in ('List', 'list', 'Set', 'set', 'Sequence'):
+        if value_id in ('List', 'list', 'Sequence', 'MutableSequence', 'Iterable', 'Iterator'):
             if mapped_args:
                 return f"[]{mapped_args[0]}"
             return "[]int" # fallback
-        elif value_id in ('Dict', 'dict'):
+
+        elif value_id in ('Set', 'set', 'FrozenSet', 'MutableSet', 'AbstractSet'):
+            if mapped_args:
+                return f"map[{mapped_args[0]}]bool"
+            return "map[int]bool" # fallback
+
+        elif value_id in ('Dict', 'dict', 'Mapping', 'MutableMapping'):
             if len(mapped_args) >= 2:
                 return f"map[{mapped_args[0]}]{mapped_args[1]}"
             return "map[string]int" # fallback
+
+        elif value_id == 'Tuple':
+            # Tuple[int, ...] -> []int
+            if len(mapped_args) == 2 and mapped_args[1] == '...':
+                return f"[]{mapped_args[0]}"
+
+            # Tuple[int, int] -> []int (if all same)
+            first = mapped_args[0] if mapped_args else 'any'
+            if all(arg == first for arg in mapped_args):
+                return f"[]{first}"
+
+            # Tuple[int, str] -> []any
+            return "[]any"
+
         elif value_id == 'Optional':
             if mapped_args:
                 return f"?{mapped_args[0]}"
             return "?int"
+
         elif value_id == 'Union':
             # Check for None to map to Optional
             non_none = [t for t in mapped_args if t != 'none']
             if len(non_none) == 1 and len(mapped_args) > 1:
                 return f"?{non_none[0]}"
             return " | ".join(mapped_args)
+
         elif value_id == 'Callable':
             # Callable[[Arg1, Arg2], Ret]
-            # slice is typically Tuple(elts=[List(args), Ret])
             if len(args) == 2:
                 arg_list_node = args[0]
                 ret_node = args[1]
 
                 arg_types = []
-                # arg_list_node should be ast.List
                 if isinstance(arg_list_node, ast.List):
                     arg_types = [_map_ast_type(a) for a in arg_list_node.elts]
 
                 ret_type = _map_ast_type(ret_node)
                 return f"fn ({', '.join(arg_types)}) {ret_type}"
-            return "fn" # fallback
+            return "fn"
+
+        elif value_id == 'Literal':
+            # Literal[1] -> int, Literal['a'] -> string
+            if args:
+                arg = args[0]
+                if isinstance(arg, ast.Constant):
+                    if isinstance(arg.value, int): return 'int'
+                    if isinstance(arg.value, float): return 'f64'
+                    if isinstance(arg.value, str): return 'string'
+                    if isinstance(arg.value, bool): return 'bool'
+            return 'string' # default?
+
+        elif value_id == 'Type':
+            # Type[C] -> C
+            if mapped_args:
+                return mapped_args[0]
+            return 'any'
 
         # Default generic mapping: Name[T]
         return f"{value_id}[{', '.join(mapped_args)}]"
@@ -122,5 +161,10 @@ def _map_basic_type(name: str) -> str:
         'list': '[]int',
         'dict': 'map[string]int',
         'tuple': '[]int',
+        'set': 'map[int]bool',
+        'IO': 'os.File',
+        'TextIO': 'os.File',
+        'BinaryIO': 'os.File',
+        'NoReturn': 'void',
     }
     return mapping.get(name, name)
