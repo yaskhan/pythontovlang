@@ -370,6 +370,39 @@ class VNodeVisitor(ast.NodeVisitor):
              # writerow
              self.emitter.add_function("fn (mut w PyCsvWriter) writerow(row []string) {\n    w.writer.write(row) or { panic(err) }\n}")
 
+        sqlite3_used = "sqlite3" in self.imported_modules.values()
+        if not sqlite3_used:
+             for sym in self.imported_symbols.values():
+                 if sym.startswith("sqlite3."):
+                     sqlite3_used = True
+                     break
+
+        if sqlite3_used:
+             # PySqliteConnection wrapping sqlite.DB
+             self.emitter.add_struct("struct PySqliteConnection {\n    db sqlite.DB\n}")
+             # py_sqlite_connect
+             self.emitter.add_function("fn py_sqlite_connect(path string) PySqliteConnection {\n    db := sqlite.connect(path) or { panic(err) }\n    return PySqliteConnection{db: db}\n}")
+
+             # PySqliteCursor
+             # Needs ref to DB. V structs pass by value unless ref or handle. sqlite.DB is a handle (voidptr C.sqlite3).
+             # It also needs to store results of last query for fetchall.
+             self.emitter.add_struct("struct PySqliteCursor {\n    db sqlite.DB\nmut:\n    rows []sqlite.Row\n}")
+
+             # cursor() method
+             self.emitter.add_function("fn (c PySqliteConnection) cursor() PySqliteCursor {\n    return PySqliteCursor{db: c.db}\n}")
+
+             # execute(sql)
+             self.emitter.add_function("fn (mut c PySqliteCursor) execute(sql string) {\n    // Basic execute. For SELECT, store rows.\n    // V sqlite exec returns []Row.\n    // Note: sqlite.exec takes (query string) ![]Row\n    rows := c.db.exec(sql) or { panic(err) }\n    c.rows = rows\n}")
+
+             # fetchall()
+             self.emitter.add_function("fn (c PySqliteCursor) fetchall() []sqlite.Row {\n    return c.rows\n}")
+
+             # commit()
+             self.emitter.add_function("fn (c PySqliteConnection) commit() {\n    // V sqlite usually auto-commits or simple exec. No explicit commit API exposed in vlib/db/sqlite usually unless raw?\n    // But 'commit' is SQL. c.db.exec('COMMIT')?\n    // Let's execute COMMIT.\n    c.db.exec('COMMIT') or {}\n}")
+
+             # close()
+             self.emitter.add_function("fn (c PySqliteConnection) close() {\n    c.db.close() or {}\n}")
+
         return self.emitter.emit()
 
     def visit_FunctionDef(self, node: ast.FunctionDef) -> None:

@@ -163,6 +163,9 @@ class StdLibMapper:
             "csv": {
                 "reader": "py_csv_reader",
                 "writer": "py_csv_writer",
+            },
+            "sqlite3": {
+                "connect": "py_sqlite_connect",
             }
         }
 
@@ -192,6 +195,7 @@ class StdLibMapper:
             "urllib.request": ["net.http"],
             "http.client": ["net.http"],
             "csv": ["encoding.csv"],
+            "sqlite3": ["db.sqlite"],
         }
 
     def get_mapping(self, module: str, func: str, args: List[str]) -> Optional[str]:

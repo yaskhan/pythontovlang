@@ -58,7 +58,7 @@
 - [x] Support for threading and multiprocessing module mapping
 - [x] Support for socket module mapping
 - [x] Support for http.client and urllib module mapping
-- [ ] Support for csv module mapping
+- [x] Support for csv module mapping
 - [ ] Support for sqlite3 module mapping
 - [x] Support for pathlib module mapping
 - [x] Support for shutil module mapping
