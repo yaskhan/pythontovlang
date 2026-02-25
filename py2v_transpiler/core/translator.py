@@ -403,6 +403,28 @@ class VNodeVisitor(ast.NodeVisitor):
              # close()
              self.emitter.add_function("fn (c PySqliteConnection) close() {\n    c.db.close() or {}\n}")
 
+        subprocess_used = "subprocess" in self.imported_modules.values()
+        if not subprocess_used:
+             for sym in self.imported_symbols.values():
+                 if sym.startswith("subprocess."):
+                     subprocess_used = True
+                     break
+
+        if subprocess_used:
+             # PyCompletedProcess
+             self.emitter.add_struct("struct PyCompletedProcess {\n    returncode int\n    stdout string\n    stderr string\n}")
+
+             # py_subprocess_run(args []string) PyCompletedProcess
+             # os.execute(cmd string) returns Result.
+             # We need to join args. V's os.execute takes a string command.
+             # Joining args with spaces is naive but standard for simple shells.
+             # Better: os.new_process? But that's more complex.
+             # For now, simplistic join.
+             self.emitter.add_function("fn py_subprocess_run(args []string) PyCompletedProcess {\n    cmd := args.join(' ')\n    res := os.execute(cmd)\n    return PyCompletedProcess{returncode: res.exit_code, stdout: res.output, stderr: ''}\n}")
+
+             # py_subprocess_call(args []string) int
+             self.emitter.add_function("fn py_subprocess_call(args []string) int {\n    cmd := args.join(' ')\n    return os.system(cmd)\n}")
+
         return self.emitter.emit()
 
     def visit_FunctionDef(self, node: ast.FunctionDef) -> None:

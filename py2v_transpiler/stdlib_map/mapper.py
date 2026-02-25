@@ -166,6 +166,10 @@ class StdLibMapper:
             },
             "sqlite3": {
                 "connect": "py_sqlite_connect",
+            },
+            "subprocess": {
+                "run": "py_subprocess_run",
+                "call": "py_subprocess_call",
             }
         }
 
@@ -196,6 +200,7 @@ class StdLibMapper:
             "http.client": ["net.http"],
             "csv": ["encoding.csv"],
             "sqlite3": ["db.sqlite"],
+            "subprocess": ["os"],
         }
 
     def get_mapping(self, module: str, func: str, args: List[str]) -> Optional[str]:

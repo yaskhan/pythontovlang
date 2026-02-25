@@ -59,7 +59,7 @@
 - [x] Support for socket module mapping
 - [x] Support for http.client and urllib module mapping
 - [x] Support for csv module mapping
-- [ ] Support for sqlite3 module mapping
+- [x] Support for sqlite3 module mapping
 - [x] Support for pathlib module mapping
 - [x] Support for shutil module mapping
 - [x] Support for tempfile module mapping
