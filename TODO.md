@@ -86,7 +86,7 @@
 - [ ] Support for keyword arguments in definitions (**kwargs)
 - [ ] Support for keyword-only arguments (*, arg)
 - [ ] Support for positional-only arguments (arg, /)
-- [ ] Support for destructuring assignment (a, *b = l)
+- [x] Support for destructuring assignment (a, *b = l)
 - [x] Support for chained comparisons (a < b < c)
 - [x] Support for dictionary comprehensions
 - [x] Support for set comprehensions
