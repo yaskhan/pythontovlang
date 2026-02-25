@@ -73,6 +73,17 @@ class StdLibMapper:
                 "match": "regex.regex_opt", # V regex is different, simplified mapping
                 "search": "regex.regex_opt",
                 "compile": "regex.regex_opt",
+            },
+            "shutil": {
+                "copy": self._shutil_copy,
+                "copy2": self._shutil_copy,
+                "copyfile": self._shutil_copy,
+                "move": self._shutil_move,
+                "rmtree": self._shutil_rmtree,
+                "copytree": self._shutil_copytree,
+                "which": self._shutil_which,
+                "chown": "os.chown",
+                # "disk_usage": "os.disk_usage", # Not confirmed in V stdlib
             }
         }
 
@@ -86,6 +97,7 @@ class StdLibMapper:
             "sys": ["os"],
             "os": ["os"],
             "re": ["regex"],
+            "shutil": ["os"],
         }
 
     def get_mapping(self, module: str, func: str, args: List[str]) -> Optional[str]:
@@ -160,3 +172,29 @@ class StdLibMapper:
             # safe cast?
             return f"time.sleep({args[0]} * time.second)"
         return "/* time.sleep args error */"
+
+    def _shutil_copy(self, args: List[str]) -> str:
+        if len(args) >= 2:
+            return f"os.cp({args[0]}, {args[1]}) or {{ panic(err) }}"
+        return "/* shutil.copy args error */"
+
+    def _shutil_move(self, args: List[str]) -> str:
+        if len(args) >= 2:
+            return f"os.mv({args[0]}, {args[1]}) or {{ panic(err) }}"
+        return "/* shutil.move args error */"
+
+    def _shutil_rmtree(self, args: List[str]) -> str:
+        if len(args) >= 1:
+            return f"os.rmdir_all({args[0]}) or {{ panic(err) }}"
+        return "/* shutil.rmtree args error */"
+
+    def _shutil_copytree(self, args: List[str]) -> str:
+        if len(args) >= 2:
+            # os.cp_all(src, dst, overwrite)
+            return f"os.cp_all({args[0]}, {args[1]}, true) or {{ panic(err) }}"
+        return "/* shutil.copytree args error */"
+
+    def _shutil_which(self, args: List[str]) -> str:
+        if len(args) >= 1:
+             return f"os.find_abs_path_of_executable({args[0]}) or {{ '' }}"
+        return "''"

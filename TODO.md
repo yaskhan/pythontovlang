@@ -61,7 +61,7 @@
 - [ ] Support for csv module mapping
 - [ ] Support for sqlite3 module mapping
 - [ ] Support for pathlib module mapping
-- [ ] Support for shutil module mapping
+- [x] Support for shutil module mapping
 - [ ] Support for tempfile module mapping
 - [ ] Support for unittest module mapping
 - [ ] Support for subprocess module mapping
