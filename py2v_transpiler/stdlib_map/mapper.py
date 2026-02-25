@@ -103,6 +103,9 @@ class StdLibMapper:
                 "critical": "log.error",
                 "getLogger": self._logging_get_logger,
                 "basicConfig": self._logging_basic_config,
+            },
+            "argparse": {
+                "ArgumentParser": "py_argparse_new",
             }
         }
 
@@ -120,6 +123,7 @@ class StdLibMapper:
             "unittest": [], # No import needed in V if we translate to assert
             "tempfile": ["os"],
             "logging": ["log"],
+            "argparse": ["os"],
         }
 
     def get_mapping(self, module: str, func: str, args: List[str]) -> Optional[str]:

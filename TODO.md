@@ -50,7 +50,7 @@
 - [x] Support for time and datetime module mapping
 - [x] Support for os and sys module mapping
 - [x] Support for re module mapping
-- [ ] Support for argparse module mapping
+- [x] Support for argparse module mapping
 - [x] Support for logging module mapping
 - [ ] Support for collections module mapping (defaultdict, Counter)
 - [ ] Support for itertools module mapping

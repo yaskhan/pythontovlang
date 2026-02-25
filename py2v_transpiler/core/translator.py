@@ -82,6 +82,13 @@ class VNodeVisitor(ast.NodeVisitor):
         if "logging" in self.imported_modules.values():
              self.emitter.add_function("fn py_get_logger(name string) log.Log {\n    mut l := log.Log{}\n    l.set_level(.info)\n    return l\n}")
 
+        if "argparse" in self.imported_modules.values():
+             self.emitter.add_struct("struct PyArgDef {\n    name string\n}")
+             self.emitter.add_struct("struct PyArgumentParser {\n    mut:\n    definitions []PyArgDef\n}")
+             self.emitter.add_function("fn py_argparse_new() PyArgumentParser {\n    return PyArgumentParser{}\n}")
+             self.emitter.add_function("fn (mut p PyArgumentParser) add_argument(name string) {\n    p.definitions << PyArgDef{name: name}\n}")
+             self.emitter.add_function("fn (mut p PyArgumentParser) parse_args() map[string]string {\n    mut args := map[string]string{}\n    // Placeholder manual parsing logic\n    for i := 0; i < os.args.len; i++ {\n        arg := os.args[i]\n        if arg.starts_with('--') {\n            key := arg[2..]\n            val := if i + 1 < os.args.len { os.args[i+1] } else { '' }\n            args[key] = val\n        }\n    }\n    return args\n}")
+
         pathlib_used = "pathlib" in self.imported_modules.values()
         if not pathlib_used:
              # Check if used via from ... import ...
