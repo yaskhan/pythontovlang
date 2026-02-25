@@ -159,6 +159,10 @@ class StdLibMapper:
             },
             "http.client": {
                 "HTTPConnection": "py_http_connection",
+            },
+            "csv": {
+                "reader": "py_csv_reader",
+                "writer": "py_csv_writer",
             }
         }
 
@@ -187,6 +191,7 @@ class StdLibMapper:
             "pathlib": ["os"],
             "urllib.request": ["net.http"],
             "http.client": ["net.http"],
+            "csv": ["encoding.csv"],
         }
 
     def get_mapping(self, module: str, func: str, args: List[str]) -> Optional[str]:

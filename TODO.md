@@ -57,7 +57,7 @@
 - [x] Support for functools module mapping
 - [x] Support for threading and multiprocessing module mapping
 - [x] Support for socket module mapping
-- [ ] Support for http.client and urllib module mapping
+- [x] Support for http.client and urllib module mapping
 - [ ] Support for csv module mapping
 - [ ] Support for sqlite3 module mapping
 - [x] Support for pathlib module mapping

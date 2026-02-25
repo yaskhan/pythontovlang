@@ -341,6 +341,35 @@ class VNodeVisitor(ast.NodeVisitor):
              self.emitter.add_function("fn (mut c PyHttpConnection) request(method string, path string) {\n    url := 'http://${c.host}${path}'\n    resp := http.fetch(http.FetchConfig{url: url, method: method}) or { panic(err) }\n    c.resp = PyHttpResponse{body: resp.body}\n}")
              self.emitter.add_function("fn (c PyHttpConnection) getresponse() PyHttpResponse {\n    return c.resp\n}")
 
+        csv_used = "csv" in self.imported_modules.values()
+        if not csv_used:
+             for sym in self.imported_symbols.values():
+                 if sym.startswith("csv."):
+                     csv_used = True
+                     break
+
+        if csv_used:
+             # PyCsvReader wrapper
+             # Wraps csv.Reader. Needs iterator protocol.
+             # V csv.Reader.read() returns ?[]string.
+             self.emitter.add_struct("struct PyCsvReader {\nmut:\n    reader csv.Reader\n}")
+             # Helper to init. f is os.File which implements io.Reader (in V).
+             # But csv.new_reader expects io.Reader. os.File works.
+             # Note: V's io.Reader interface requires `read(mut []u8) !int`.
+             # os.File has it.
+             self.emitter.add_function("fn py_csv_reader(f os.File) PyCsvReader {\n    return PyCsvReader{reader: csv.new_reader(f)}\n}")
+
+             # next method for iteration
+             # V loops `for x in iter` call `next() ?T`.
+             self.emitter.add_function("fn (mut r PyCsvReader) next() ?[]string {\n    res := r.reader.read() or { return none }\n    return res\n}")
+
+             # PyCsvWriter wrapper
+             self.emitter.add_struct("struct PyCsvWriter {\nmut:\n    writer csv.Writer\n}")
+             self.emitter.add_function("fn py_csv_writer(f os.File) PyCsvWriter {\n    return PyCsvWriter{writer: csv.new_writer(f)}\n}")
+
+             # writerow
+             self.emitter.add_function("fn (mut w PyCsvWriter) writerow(row []string) {\n    w.writer.write(row) or { panic(err) }\n}")
+
         return self.emitter.emit()
 
     def visit_FunctionDef(self, node: ast.FunctionDef) -> None:
