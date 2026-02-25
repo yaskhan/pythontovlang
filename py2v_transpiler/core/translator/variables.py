@@ -74,6 +74,18 @@ class VariablesMixin(TranslatorBase):
                  self.visit_ListComp(node.value, target_var=lhs) # type: ignore
             else:
                  self.output.append(f"{self._indent()}// Error: List comprehension support missing")
+        elif isinstance(node.value, ast.SetComp):
+            # visit_SetComp is defined in ExpressionsMixin, but available on self at runtime
+            if hasattr(self, 'visit_SetComp'):
+                 self.visit_SetComp(node.value, target_var=lhs) # type: ignore
+            else:
+                 self.output.append(f"{self._indent()}// Error: Set comprehension support missing")
+        elif isinstance(node.value, ast.DictComp):
+            # visit_DictComp is defined in ExpressionsMixin, but available on self at runtime
+            if hasattr(self, 'visit_DictComp'):
+                 self.visit_DictComp(node.value, target_var=lhs) # type: ignore
+            else:
+                 self.output.append(f"{self._indent()}// Error: Dict comprehension support missing")
         else:
             rhs = self.visit(node.value)
             self.output.append(f"{self._indent()}{lhs} := {rhs}")
