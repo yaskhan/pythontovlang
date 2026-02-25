@@ -1,0 +1,121 @@
+import ast
+from typing import Optional
+from py2v_transpiler.models.v_types import map_python_type_to_v
+from .base import TranslatorBase
+
+class VariablesMixin(TranslatorBase):
+    def visit_Assign(self, node: ast.Assign) -> None:
+        target = node.targets[0]
+        lhs = ""
+        if isinstance(target, ast.Name):
+            lhs = target.id
+
+            # Check for TypeVar: T = TypeVar("T", int, str)
+            if isinstance(node.value, ast.Call) and isinstance(node.value.func, ast.Name) and node.value.func.id == "TypeVar":
+                # Check args for constraints
+                # args[0] is name
+                constraints = []
+                for arg in node.value.args[1:]:
+                    if isinstance(arg, ast.Name):
+                        constraints.append(map_python_type_to_v(arg.id))
+                    elif isinstance(arg, ast.Constant) and isinstance(arg.value, str):
+                        constraints.append(map_python_type_to_v(arg.value))
+
+                # Check keyword bound
+                for kw in node.value.keywords:
+                    if kw.arg == "bound":
+                        # bound=Union[int, str] or bound=int
+                        # We can use ast.unparse and map
+                         try:
+                             bound_str = ast.unparse(kw.value)
+                             mapped = map_python_type_to_v(bound_str)
+                             # If mapped is "int | string", we use it
+                             constraints.append(mapped)
+                         except:
+                             pass
+
+                if constraints:
+                    # Emit sum type
+                    # Sanitize lhs?
+                    sanitized_lhs = lhs.lstrip('_')
+                    # If multiple constraints, join with |
+                    # But mapped bound might already be a union string "A | B"
+                    # We need to be careful not to create "A | B | C" if they are distinct
+
+                    final_type = " | ".join(constraints)
+                    self.emitter.add_struct(f"type {sanitized_lhs} = {final_type}")
+                return
+
+            # Check for type alias: MyType = int or MyType = OtherType
+            if self.in_main and isinstance(node.value, ast.Name):
+                # Basic heuristic: if it looks like a type assignment
+                # Allow primitive types and potentially other class names (capitalized)
+                # But be careful not to catch variable assignment.
+                # In Python, `x = y` is var assignment. `Type = int` is type alias.
+                # We can restrict to known primitives OR if the LHS is capitalized (heuristic for Type)
+                # and RHS is a Name.
+                if node.value.id in ("int", "str", "bool", "float"):
+                    self.emitter.add_struct(f"type {lhs} = {node.value.id}")
+                    return
+                elif lhs[0].isupper() and node.value.id[0].isupper():
+                     # Heuristic: MyType = OtherType
+                     self.emitter.add_struct(f"type {lhs} = {node.value.id}")
+                     return
+        elif isinstance(target, ast.Attribute):
+            # obj.attr = value
+            lhs = f"{self.visit(target.value)}.{target.attr}"
+        elif isinstance(target, ast.Subscript):
+            # list[index] = value
+            lhs = self.visit(target)
+
+        if isinstance(node.value, ast.ListComp):
+            # visit_ListComp is defined in ExpressionsMixin, but available on self at runtime
+            if hasattr(self, 'visit_ListComp'):
+                 self.visit_ListComp(node.value, target_var=lhs) # type: ignore
+            else:
+                 self.output.append(f"{self._indent()}// Error: List comprehension support missing")
+        else:
+            rhs = self.visit(node.value)
+            self.output.append(f"{self._indent()}{lhs} := {rhs}")
+
+    def visit_AugAssign(self, node: ast.AugAssign) -> None:
+        target = self.visit(node.target)
+        value = self.visit(node.value)
+        op_map = {
+            ast.Add: "+=", ast.Sub: "-=", ast.Mult: "*=", ast.Div: "/=",
+            ast.Mod: "%="
+        }
+        # V supports +=, -=, *=, /=, %=
+        # V does not support **= (must use math.pow or similar, which is not AugAssign compatible directly)
+        op_str = op_map.get(type(node.op))
+        if op_str:
+             self.output.append(f"{self._indent()}{target} {op_str} {value}")
+        else:
+             self.output.append(f"{self._indent()}// Unsupported AugAssign operator: {type(node.op)}")
+
+    def visit_Delete(self, node: ast.Delete) -> None:
+        for target in node.targets:
+            if isinstance(target, ast.Subscript):
+                # del l[i] -> l.delete(i)
+                value = self.visit(target.value)
+                index = self.visit(target.slice)
+                self.output.append(f"{self._indent()}{value}.delete({index})")
+            elif isinstance(target, ast.Name):
+                self.output.append(f"{self._indent()}/* del {target.id} */")
+            elif isinstance(target, ast.Attribute):
+                value = self.visit(target.value)
+                self.output.append(f"{self._indent()}/* del {value}.{target.attr} */")
+            else:
+                self.output.append(f"{self._indent()}// del statement with unsupported target type")
+
+    def visit_NamedExpr(self, node: ast.NamedExpr) -> str:
+        # (target := value)
+        target = node.target.id
+        value = self.visit(node.value)
+        self._walrus_assignments.append(f"{target} := {value}")
+        return target
+
+    def visit_Name(self, node: ast.Name) -> str:
+        if node.id in self.name_remap:
+            return self.name_remap[node.id]
+        return node.id
