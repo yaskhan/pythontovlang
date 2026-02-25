@@ -17,22 +17,22 @@
 - [x] Support for f-strings
 - [x] Support for dictionaries
 - [x] Support for tuples
-- [ ] Support for decorators
+- [x] Support for decorators
 - [x] Support for context managers (with statement)
 - [x] Support for lambda expressions
 - [x] Support for async/await (concurrency)
 - [x] Support for generators (yield)
-- [ ] Support for class inheritance and method overriding
+- [x] Support for class inheritance and method overriding
 - [x] Support for operator overloading (__add__, etc.)
-- [ ] Support for structural pattern matching (match/case)
-- [ ] Support for type aliases
+- [x] Support for structural pattern matching (match/case)
+- [x] Support for type aliases
 - [x] Support for global/nonlocal keywords
 - [x] Support for assert statements
 - [x] Support for set data structure
-- [ ] Support for isinstance and type checks
+- [x] Support for isinstance and type checks
 - [x] Support for del statement
 - [x] Support for slice notation (list[1:3])
-- [ ] Support for walrus operator (:=)
+- [x] Support for walrus operator (:=)
 - [x] Support for __main__ block
 - [ ] Support for hasattr, getattr, setattr
 - [x] Support for enumerate

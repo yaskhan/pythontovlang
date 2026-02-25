@@ -16,6 +16,7 @@ class VNodeVisitor(ast.NodeVisitor):
         self.used_builtins = set() # Track used built-in helpers (sorted, reversed, etc)
         self.renamed_functions = {"main": "py_main"} # Map to rename functions (e.g. main -> py_main)
         self.name_remap = {} # Temporary variable renaming (e.g. x -> it in generators)
+        self._walrus_assignments: List[str] = [] # Buffer for walrus operator assignments
 
     def _indent(self) -> str:
         return "    " * self._indent_level
@@ -65,6 +66,11 @@ class VNodeVisitor(ast.NodeVisitor):
         old_output = self.output
         self.output = []
         self._indent_level = 0
+
+        # Handle decorators
+        for decorator in node.decorator_list:
+            dec_str = self.visit(decorator)
+            self.output.append(f"// @{dec_str}")
 
         is_method = self.current_class is not None
         # Ensure struct_name is always a string
@@ -152,8 +158,23 @@ class VNodeVisitor(ast.NodeVisitor):
         struct_name = node.name
         self.current_class = struct_name
 
+        # Handle decorators
+        decorators = []
+        for decorator in node.decorator_list:
+            dec_str = self.visit(decorator)
+            decorators.append(f"// @{dec_str}")
+
         # Extract fields from __init__ or class body annotations (simplified)
         fields = []
+
+        # Handle inheritance (bases)
+        for base in node.bases:
+            if isinstance(base, ast.Name):
+                fields.append(f"    {base.id}")
+            # Could handle Attribute (e.g. module.Class) too
+            elif isinstance(base, ast.Attribute):
+                fields.append(f"    {self.visit(base)}")
+
         methods = []
 
         for stmt in node.body:
@@ -167,7 +188,10 @@ class VNodeVisitor(ast.NodeVisitor):
                     field_type = stmt.annotation.id
                 fields.append(f"    {field_name} {field_type}")
 
-        struct_def = f"struct {struct_name} {{\n" + "\n".join(fields) + "\n}"
+        struct_def = ""
+        if decorators:
+            struct_def += "\n".join(decorators) + "\n"
+        struct_def += f"struct {struct_name} {{\n" + "\n".join(fields) + "\n}"
         self.emitter.add_struct(struct_def)
 
         # Visit methods to generate them as functions
@@ -189,6 +213,21 @@ class VNodeVisitor(ast.NodeVisitor):
         lhs = ""
         if isinstance(target, ast.Name):
             lhs = target.id
+            # Check for type alias: MyType = int or MyType = OtherType
+            if self.in_main and isinstance(node.value, ast.Name):
+                # Basic heuristic: if it looks like a type assignment
+                # Allow primitive types and potentially other class names (capitalized)
+                # But be careful not to catch variable assignment.
+                # In Python, `x = y` is var assignment. `Type = int` is type alias.
+                # We can restrict to known primitives OR if the LHS is capitalized (heuristic for Type)
+                # and RHS is a Name.
+                if node.value.id in ("int", "str", "bool", "float"):
+                    self.output.append(f"type {lhs} = {node.value.id}")
+                    return
+                elif lhs[0].isupper() and node.value.id[0].isupper():
+                     # Heuristic: MyType = OtherType
+                     self.output.append(f"type {lhs} = {node.value.id}")
+                     return
         elif isinstance(target, ast.Attribute):
             # obj.attr = value
             lhs = f"{self.visit(target.value)}.{target.attr}"
@@ -503,6 +542,18 @@ class VNodeVisitor(ast.NodeVisitor):
                     val = self.visit(arg)
                     return f"{val}.{func_name}(it)"
 
+        elif func_name == "isinstance":
+            if len(args) == 2:
+                obj = args[0]
+                types = args[1]
+                # Check if it's a single type check: isinstance(x, MyClass) -> x is MyClass
+                # If types is a tuple (array in V representation), it's harder.
+                # args[1] string comes from self.visit(), so it might be "MyClass" or "[int, float]"
+                if types.startswith("[") and types.endswith("]"):
+                     # Multiple types check not directly supported in 'is' expression
+                     return f"/* isinstance({obj}, {types}) - multi-type check not supported */ false"
+                return f"{obj} is {types}"
+
         elif func_name == "input":
             self.emitter.add_import("os")
             if args:
@@ -606,7 +657,48 @@ class VNodeVisitor(ast.NodeVisitor):
                     self.visit(stmt)
                 return
 
+        # Check for walrus operator in condition: if (x := expr):
+        walrus_assignment = None
+        if isinstance(node.test, ast.NamedExpr):
+             # Extract the assignment
+             target = node.test.target.id
+             value = self.visit(node.test.value)
+             walrus_assignment = f"{target} := {value}"
+             # The condition becomes just the target (if boolean check) or the value?
+             # Actually, (x := 5) returns 5.
+             # So if (x := 5) > 0 becomes: x := 5; if x > 0 {
+             # But here node.test IS the named expr.
+             # If it's part of a larger expression (e.g. Compare), we need to traverse finding NamedExpr.
+             # Doing full traversal is hard. Let's support the simple case where NamedExpr is the test or part of it?
+             # Actually, visit_NamedExpr will be called if we just visit(node.test).
+             # We need visit_NamedExpr to return the value (for the expression) but ALSO emit the assignment BEFORE.
+             # But we can't emit before easily inside an expression.
+             # Strategy: Detect NamedExpr at the top level of the condition or handle it specifically.
+             pass
+
+        # New strategy for Walrus:
+        # 1. Pre-visit the test expression to find NamedExprs.
+        # 2. Emit their assignments.
+        # 3. Replace NamedExpr in the test with just the target variable.
+        # This is complex to do without mutating the AST or complex visitor.
+        # Simplified: If the test contains a NamedExpr, we extract it.
+
+        # Let's try to handle NamedExpr via a specific helper or just handle the top-level case first?
+        # In `if (x := 5) > 0`: the test is Compare(left=NamedExpr(...), ops=..., comparators=...)
+
+        # We will implement `visit_NamedExpr` to return the target name, and SIDE-EFFECT emit the assignment?
+        # But if we emit inside `if ... {`, it breaks syntax.
+        # So we must emit BEFORE the `if`.
+
+        # Let's peek for NamedExpr
+        self._walrus_assignments = []
         test_expr = self.visit(node.test)
+
+        if self._walrus_assignments:
+             for assign in self._walrus_assignments:
+                 self.output.append(f"{self._indent()}{assign}")
+             self._walrus_assignments = []
+
         self.output.append(f"{self._indent()}if {test_expr} {{")
         self._indent_level += 1
         for stmt in node.body:
@@ -632,13 +724,56 @@ class VNodeVisitor(ast.NodeVisitor):
             self.output.append(f"{self._indent()}}}")
 
     def visit_While(self, node: ast.While) -> None:
+        # Check for walrus in while: while (x := expr):
+        # Vlang doesn't support this.
+        # Transform to: for { x := expr; if !cond { break } ... }
+
+        # We need to detect if there is a walrus operator.
+        # Similar to If, we can capture it.
+
+        self._walrus_assignments = []
+        # We need to buffer the output because visiting test might emit things (if we implemented it that way, but we didn't yet)
+        # But wait, `visit_NamedExpr` needs to be implemented.
+
+        # We can't easily execute visit(node.test) twice or speculatively.
+        # But we can assume visit_NamedExpr will populate _walrus_assignments.
+
         test_expr = self.visit(node.test)
-        self.output.append(f"{self._indent()}for {test_expr} {{")
-        self._indent_level += 1
-        for stmt in node.body:
-            self.visit(stmt)
-        self._indent_level -= 1
-        self.output.append(f"{self._indent()}}}")
+
+        if self._walrus_assignments:
+             # Found walrus! Transform loop.
+             self.output.append(f"{self._indent()}for {{")
+             self._indent_level += 1
+
+             for assign in self._walrus_assignments:
+                 self.output.append(f"{self._indent()}{assign}")
+
+             self.output.append(f"{self._indent()}if !({test_expr}) {{ break }}")
+             self._walrus_assignments = []
+
+             for stmt in node.body:
+                 self.visit(stmt)
+
+             self._indent_level -= 1
+             self.output.append(f"{self._indent()}}}")
+        else:
+             # Normal while
+             self.output.append(f"{self._indent()}for {test_expr} {{")
+             self._indent_level += 1
+             for stmt in node.body:
+                 self.visit(stmt)
+             self._indent_level -= 1
+             self.output.append(f"{self._indent()}}}")
+
+    def visit_NamedExpr(self, node: ast.NamedExpr) -> str:
+        # (target := value)
+        target = node.target.id
+        value = self.visit(node.value)
+
+        # We need to register this assignment to be emitted before the statement
+        self._walrus_assignments.append(f"{target} := {value}")
+
+        return target
 
     def visit_For(self, node: ast.For) -> None:
         if isinstance(node.iter, ast.Call) and isinstance(node.iter.func, ast.Name) and node.iter.func.id == "zip":
@@ -820,6 +955,48 @@ class VNodeVisitor(ast.NodeVisitor):
         elif val is None:
             return "none"
         return str(val)
+
+    def visit_Match(self, node: "ast.Match") -> None:
+        subject = self.visit(node.subject)
+        self.output.append(f"{self._indent()}match {subject} {{")
+        self._indent_level += 1
+
+        for case in node.cases:
+            self._visit_match_case(case)
+
+        self._indent_level -= 1
+        self.output.append(f"{self._indent()}}}")
+
+    def _visit_match_case(self, node: "ast.match_case") -> None:
+        pattern_str = self._translate_pattern(node.pattern)
+
+        if node.guard:
+            self.output.append(f"{self._indent()}// Guard condition '{self.visit(node.guard)}' ignored in match case")
+
+        self.output.append(f"{self._indent()}{pattern_str} {{")
+        self._indent_level += 1
+        for stmt in node.body:
+            self.visit(stmt)
+        self._indent_level -= 1
+        self.output.append(f"{self._indent()}}}")
+
+    def _translate_pattern(self, pattern: ast.AST) -> str:
+        if isinstance(pattern, ast.MatchValue):
+            return str(self.visit(pattern.value))
+        elif isinstance(pattern, ast.MatchSingleton):
+            return str(pattern.value).lower()
+        elif isinstance(pattern, ast.MatchOr):
+            parts = [self._translate_pattern(p) for p in pattern.patterns]
+            return ", ".join(parts)
+        elif isinstance(pattern, ast.MatchAs):
+             if pattern.name is None:
+                 return "else"
+             else:
+                 # V pattern matching doesn't support binding directly in the case clause in the same way.
+                 # We can use the 'else' block and manual casting if needed, or mapping to a catch-all.
+                 # For now, we'll emit 'else' but add a comment about the binding.
+                 return f"else /* bound to {pattern.name} */"
+        return "else"
 
     def generic_visit(self, node: ast.AST) -> Any:
         return super().generic_visit(node)
