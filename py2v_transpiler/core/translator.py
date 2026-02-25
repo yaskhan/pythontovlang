@@ -213,10 +213,21 @@ class VNodeVisitor(ast.NodeVisitor):
         lhs = ""
         if isinstance(target, ast.Name):
             lhs = target.id
-            # Check for type alias: MyType = int
-            if self.in_main and isinstance(node.value, ast.Name) and node.value.id in ("int", "str", "bool", "float"):
-                self.output.append(f"type {lhs} = {node.value.id}")
-                return
+            # Check for type alias: MyType = int or MyType = OtherType
+            if self.in_main and isinstance(node.value, ast.Name):
+                # Basic heuristic: if it looks like a type assignment
+                # Allow primitive types and potentially other class names (capitalized)
+                # But be careful not to catch variable assignment.
+                # In Python, `x = y` is var assignment. `Type = int` is type alias.
+                # We can restrict to known primitives OR if the LHS is capitalized (heuristic for Type)
+                # and RHS is a Name.
+                if node.value.id in ("int", "str", "bool", "float"):
+                    self.output.append(f"type {lhs} = {node.value.id}")
+                    return
+                elif lhs[0].isupper() and node.value.id[0].isupper():
+                     # Heuristic: MyType = OtherType
+                     self.output.append(f"type {lhs} = {node.value.id}")
+                     return
         elif isinstance(target, ast.Attribute):
             # obj.attr = value
             lhs = f"{self.visit(target.value)}.{target.attr}"
@@ -945,7 +956,7 @@ class VNodeVisitor(ast.NodeVisitor):
             return "none"
         return str(val)
 
-    def visit_Match(self, node: ast.Match) -> None:
+    def visit_Match(self, node: "ast.Match") -> None:
         subject = self.visit(node.subject)
         self.output.append(f"{self._indent()}match {subject} {{")
         self._indent_level += 1
@@ -956,7 +967,7 @@ class VNodeVisitor(ast.NodeVisitor):
         self._indent_level -= 1
         self.output.append(f"{self._indent()}}}")
 
-    def _visit_match_case(self, node: ast.match_case) -> None:
+    def _visit_match_case(self, node: "ast.match_case") -> None:
         pattern_str = self._translate_pattern(node.pattern)
 
         if node.guard:
@@ -981,7 +992,10 @@ class VNodeVisitor(ast.NodeVisitor):
              if pattern.name is None:
                  return "else"
              else:
-                 return "else" # TODO: Binding
+                 # V pattern matching doesn't support binding directly in the case clause in the same way.
+                 # We can use the 'else' block and manual casting if needed, or mapping to a catch-all.
+                 # For now, we'll emit 'else' but add a comment about the binding.
+                 return f"else /* bound to {pattern.name} */"
         return "else"
 
     def generic_visit(self, node: ast.AST) -> Any:

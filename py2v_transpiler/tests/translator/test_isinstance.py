@@ -11,10 +11,8 @@ if isinstance(y, (int, float)):
 """
     expected_fragments = [
         "if x is MyClass {",
-        "// isinstance(y, (int, float)) is complex to map directly"
+        "/* isinstance(y, [int, float]) - multi-type check not supported */ false"
     ]
-    # For now, let's just support the single type check which maps nicely to V's `is`
-    # Multi-type check is harder.
 
     visitor = VNodeVisitor(TypeInference())
     tree = ast.parse(source)
@@ -22,4 +20,5 @@ if isinstance(y, (int, float)):
 
     print(code)
 
-    assert "if x is MyClass {" in code
+    for fragment in expected_fragments:
+        assert fragment in code, f"Expected '{fragment}' in generated code"

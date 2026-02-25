@@ -6,10 +6,14 @@ def test_type_alias():
     source = """
 MyInt = int
 UserID = int
+MyAlias = OtherClass
+var_assign = some_var
 """
     expected_fragments = [
         "type MyInt = int",
-        "type UserID = int"
+        "type UserID = int",
+        "type MyAlias = OtherClass",
+        "var_assign := some_var"
     ]
 
     visitor = VNodeVisitor(TypeInference())
