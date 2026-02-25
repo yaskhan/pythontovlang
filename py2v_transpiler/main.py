@@ -1,6 +1,7 @@
 import sys
 import os
 import argparse
+import ast
 from typing import List
 from py2v_transpiler.config import TranspilerConfig
 from py2v_transpiler.core.parser import PyASTParser
@@ -23,6 +24,9 @@ def transpile_file(source_file: str, config: TranspilerConfig) -> bool:
     parser = PyASTParser()
     try:
         tree = parser.parse(source_code)
+        if not isinstance(tree, ast.Module):
+            print(f"Error: {source_file} must be a valid Python module.")
+            return False
     except SyntaxError as e:
         print(f"Syntax error in {source_file}: {e}")
         return False

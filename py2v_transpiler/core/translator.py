@@ -532,7 +532,7 @@ class VNodeVisitor(ast.NodeVisitor):
         func_name = None
 
         # Resolve qualified name if possible (e.g. datetime.datetime.now or os.path.join)
-        qualified_name_parts = []
+        qualified_name_parts: List[str] = []
         curr = func_node
         while isinstance(curr, ast.Attribute):
             qualified_name_parts.insert(0, curr.attr)
