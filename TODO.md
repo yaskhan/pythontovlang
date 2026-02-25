@@ -53,7 +53,7 @@
 - [x] Support for argparse module mapping
 - [x] Support for logging module mapping
 - [x] Support for collections module mapping (defaultdict, Counter)
-- [ ] Support for itertools module mapping
+- [x] Support for itertools module mapping
 - [ ] Support for functools module mapping
 - [ ] Support for threading and multiprocessing module mapping
 - [ ] Support for socket module mapping

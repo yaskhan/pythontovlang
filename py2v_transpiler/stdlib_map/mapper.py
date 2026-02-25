@@ -119,6 +119,28 @@ class StdLibMapper:
                 "repeat": self._itertools_repeat,
                 "count": self._itertools_count,
                 "cycle": "py_cycle",
+            },
+            "functools": {
+                "reduce": "py_reduce",
+            },
+            "operator": {
+                "add": "py_op_add",
+                "sub": "py_op_sub",
+                "mul": "py_op_mul",
+                "truediv": "py_op_div",
+                "floordiv": "py_op_div", # V / is integer div for ints
+                "mod": "py_op_mod",
+                "pow": "math.pow", # Helper needed or direct usage
+                "eq": "py_op_eq",
+                "ne": "py_op_ne",
+                "lt": "py_op_lt",
+                "le": "py_op_le",
+                "gt": "py_op_gt",
+                "ge": "py_op_ge",
+                "not_": "py_op_not",
+                "and_": "py_op_and",
+                "or_": "py_op_or",
+                "xor": "py_op_xor",
             }
         }
 
@@ -140,6 +162,8 @@ class StdLibMapper:
             "uuid": ["rand"],
             "collections": [],
             "itertools": [],
+            "functools": [],
+            "operator": [],
         }
 
     def get_mapping(self, module: str, func: str, args: List[str]) -> Optional[str]:

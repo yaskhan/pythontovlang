@@ -134,6 +134,42 @@ class VNodeVisitor(ast.NodeVisitor):
              self.emitter.add_function("fn (mut i PyCycleIterator[T]) next() ?T {\n    if i.data.len == 0 { return none }\n    val := i.data[i.idx]\n    i.idx = (i.idx + 1) % i.data.len\n    return val\n}")
              self.emitter.add_function("fn py_cycle[T](data []T) PyCycleIterator[T] {\n    return PyCycleIterator[T]{data: data}\n}")
 
+        functools_used = "functools" in self.imported_modules.values()
+        if not functools_used:
+             for sym in self.imported_symbols.values():
+                 if sym.startswith("functools."):
+                     functools_used = True
+                     break
+
+        if functools_used:
+             # py_reduce helper
+             self.emitter.add_function("fn py_reduce[T](op fn (acc T, x T) T, iter []T) T {\n    if iter.len == 0 { panic('reduce() of empty sequence with no initial value') }\n    mut acc := iter[0]\n    for i in 1..iter.len {\n        acc = op(acc, iter[i])\n    }\n    return acc\n}")
+
+        operator_used = "operator" in self.imported_modules.values()
+        if not operator_used:
+             for sym in self.imported_symbols.values():
+                 if sym.startswith("operator."):
+                     operator_used = True
+                     break
+
+        if operator_used:
+             self.emitter.add_function("fn py_op_add[T](a T, b T) T { return a + b }")
+             self.emitter.add_function("fn py_op_sub[T](a T, b T) T { return a - b }")
+             self.emitter.add_function("fn py_op_mul[T](a T, b T) T { return a * b }")
+             self.emitter.add_function("fn py_op_div[T](a T, b T) T { return a / b }")
+             self.emitter.add_function("fn py_op_mod[T](a T, b T) T { return a % b }")
+             self.emitter.add_function("fn py_op_eq[T](a T, b T) bool { return a == b }")
+             self.emitter.add_function("fn py_op_ne[T](a T, b T) bool { return a != b }")
+             self.emitter.add_function("fn py_op_lt[T](a T, b T) bool { return a < b }")
+             self.emitter.add_function("fn py_op_le[T](a T, b T) bool { return a <= b }")
+             self.emitter.add_function("fn py_op_gt[T](a T, b T) bool { return a > b }")
+             self.emitter.add_function("fn py_op_ge[T](a T, b T) bool { return a >= b }")
+             self.emitter.add_function("fn py_op_not(a bool) bool { return !a }")
+             self.emitter.add_function("fn py_op_and(a bool, b bool) bool { return a && b }")
+             self.emitter.add_function("fn py_op_or(a bool, b bool) bool { return a || b }")
+             # xor in V is ^ for ints, but logic xor? (a != b)
+             self.emitter.add_function("fn py_op_xor[T](a T, b T) T { return a ^ b }")
+
         return self.emitter.emit()
 
     def visit_FunctionDef(self, node: ast.FunctionDef) -> None:
