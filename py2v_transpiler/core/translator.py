@@ -107,6 +107,33 @@ class VNodeVisitor(ast.NodeVisitor):
         if collections_used:
              self.emitter.add_function("fn py_counter[T](a []T) map[T]int {\n    mut m := map[T]int{}\n    for x in a {\n        m[x]++\n    }\n    return m\n}")
 
+        itertools_used = "itertools" in self.imported_modules.values()
+        if not itertools_used:
+             for sym in self.imported_symbols.values():
+                 if sym.startswith("itertools."):
+                     itertools_used = True
+                     break
+
+        if itertools_used:
+             # py_chain: variadic, generic, flattens arrays
+             # Note: V generics with variadic args might be tricky.
+             # fn py_chain[T](args ...[]T) []T
+             self.emitter.add_function("fn py_chain[T](args ...[]T) []T {\n    mut res := []T{}\n    for arg in args {\n        res << arg\n    }\n    return res\n}")
+
+             # py_repeat: returns array initialized with value
+             self.emitter.add_function("fn py_repeat[T](val T, n int) []T {\n    return []T{len: n, init: val}\n}")
+
+             # py_count: iterator struct
+             self.emitter.add_struct("struct PyCountIterator {\nmut:\n    val int\n    step int\n}")
+             self.emitter.add_function("fn (mut i PyCountIterator) next() ?int {\n    val := i.val\n    i.val += i.step\n    return val\n}")
+             self.emitter.add_function("fn py_count(start int, step int) PyCountIterator {\n    return PyCountIterator{val: start, step: step}\n}")
+
+             # py_cycle: iterator struct
+             # Cycle needs to store the array and current index
+             self.emitter.add_struct("struct PyCycleIterator[T] {\n    data []T\nmut:\n    idx int\n}")
+             self.emitter.add_function("fn (mut i PyCycleIterator[T]) next() ?T {\n    if i.data.len == 0 { return none }\n    val := i.data[i.idx]\n    i.idx = (i.idx + 1) % i.data.len\n    return val\n}")
+             self.emitter.add_function("fn py_cycle[T](data []T) PyCycleIterator[T] {\n    return PyCycleIterator[T]{data: data}\n}")
+
         return self.emitter.emit()
 
     def visit_FunctionDef(self, node: ast.FunctionDef) -> None:

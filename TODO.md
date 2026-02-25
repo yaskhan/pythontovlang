@@ -52,7 +52,7 @@
 - [x] Support for re module mapping
 - [x] Support for argparse module mapping
 - [x] Support for logging module mapping
-- [ ] Support for collections module mapping (defaultdict, Counter)
+- [x] Support for collections module mapping (defaultdict, Counter)
 - [ ] Support for itertools module mapping
 - [ ] Support for functools module mapping
 - [ ] Support for threading and multiprocessing module mapping

@@ -113,6 +113,12 @@ class StdLibMapper:
             "collections": {
                 "defaultdict": self._collections_defaultdict,
                 "Counter": self._collections_Counter,
+            },
+            "itertools": {
+                "chain": "py_chain",
+                "repeat": self._itertools_repeat,
+                "count": self._itertools_count,
+                "cycle": "py_cycle",
             }
         }
 
@@ -133,6 +139,7 @@ class StdLibMapper:
             "argparse": ["os"],
             "uuid": ["rand"],
             "collections": [],
+            "itertools": [],
         }
 
     def get_mapping(self, module: str, func: str, args: List[str]) -> Optional[str]:
@@ -318,3 +325,17 @@ class StdLibMapper:
         if len(args) == 1:
             return f"py_counter({args[0]})"
         return "map[string]int{}"
+
+    def _itertools_repeat(self, args: List[str]) -> str:
+        if len(args) >= 2:
+            return f"py_repeat({args[0]}, {args[1]})"
+        return "[]int{}"
+
+    def _itertools_count(self, args: List[str]) -> str:
+        start = "0"
+        step = "1"
+        if len(args) >= 1:
+             start = args[0]
+        if len(args) >= 2:
+             step = args[1]
+        return f"py_count({start}, {step})"
