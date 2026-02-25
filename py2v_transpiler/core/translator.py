@@ -79,6 +79,9 @@ class VNodeVisitor(ast.NodeVisitor):
              self.emitter.add_function("fn py_temp_dir() PyTempDir {\n    p := os.mkdir_temp('') or { panic(err) }\n    return PyTempDir{path: p}\n}")
              self.emitter.add_function("fn py_named_temp_file() os.File {\n    f, _ := os.create_temp('') or { panic(err) }\n    return f\n}")
 
+        if "logging" in self.imported_modules.values():
+             self.emitter.add_function("fn py_get_logger(name string) log.Log {\n    mut l := log.Log{}\n    l.set_level(.info)\n    return l\n}")
+
         pathlib_used = "pathlib" in self.imported_modules.values()
         if not pathlib_used:
              # Check if used via from ... import ...

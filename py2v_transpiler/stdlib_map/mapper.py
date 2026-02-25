@@ -94,6 +94,15 @@ class StdLibMapper:
                 "mkdtemp": self._tempfile_mkdtemp,
                 "NamedTemporaryFile": self._tempfile_named_temporary_file,
                 "TemporaryDirectory": self._tempfile_temporary_directory,
+            },
+            "logging": {
+                "info": "log.info",
+                "warning": "log.warn",
+                "error": "log.error",
+                "debug": "log.debug",
+                "critical": "log.error",
+                "getLogger": self._logging_get_logger,
+                "basicConfig": self._logging_basic_config,
             }
         }
 
@@ -110,6 +119,7 @@ class StdLibMapper:
             "shutil": ["os"],
             "unittest": [], # No import needed in V if we translate to assert
             "tempfile": ["os"],
+            "logging": ["log"],
         }
 
     def get_mapping(self, module: str, func: str, args: List[str]) -> Optional[str]:
@@ -268,3 +278,11 @@ class StdLibMapper:
         # But TemporaryDirectory needs `.cleanup()`.
         # We might need a helper struct `PyTempDir` with `close()` method that calls `rmdir_all`.
         return "py_temp_dir()"
+
+    def _logging_get_logger(self, args: List[str]) -> str:
+        if len(args) == 1:
+            return f"py_get_logger({args[0]})"
+        return "py_get_logger('')"
+
+    def _logging_basic_config(self, args: List[str]) -> str:
+        return "/* logging.basicConfig ignored */"
