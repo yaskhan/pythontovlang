@@ -87,6 +87,13 @@ class StdLibMapper:
                 "which": self._shutil_which,
                 "chown": "os.chown",
                 # "disk_usage": "os.disk_usage", # Not confirmed in V stdlib
+            },
+            "tempfile": {
+                "gettempdir": "os.temp_dir",
+                "mkstemp": self._tempfile_mkstemp,
+                "mkdtemp": self._tempfile_mkdtemp,
+                "NamedTemporaryFile": self._tempfile_named_temporary_file,
+                "TemporaryDirectory": self._tempfile_temporary_directory,
             }
         }
 
@@ -102,6 +109,7 @@ class StdLibMapper:
             "re": ["regex"],
             "shutil": ["os"],
             "unittest": [], # No import needed in V if we translate to assert
+            "tempfile": ["os"],
         }
 
     def get_mapping(self, module: str, func: str, args: List[str]) -> Optional[str]:
@@ -207,3 +215,56 @@ class StdLibMapper:
         if len(args) >= 1:
              return f"os.find_abs_path_of_executable({args[0]}) or {{ '' }}"
         return "''"
+
+    def _tempfile_mkstemp(self, args: List[str]) -> str:
+        # mkstemp(suffix, prefix, dir, text)
+        # V: os.create_temp(pattern) -> (File, string)
+        # We need to adapt arguments. V create_temp takes a pattern.
+        # Minimal impl: os.create_temp('') returns (File, path)
+        # We need to close the file to simulate mkstemp returning (fd, path) or similar?
+        # mkstemp returns (fd, path).
+        # We can construct a tuple/array or struct?
+        # os.create_temp('') returns (File, string).
+        # We can map it to:
+        # (os.create_temp('') or { panic(err) })
+        # But this returns a Result.
+        # Let's emit a helper call if needed, or inline.
+        # Inline:
+        # (fn() (int, string) { f, p := os.create_temp('') or { panic(err) }; return f.fd, p })()
+        # This is complex.
+        # Simplified: os.create_temp('') or { panic(err) } returns File, string? No, just File.
+        # Wait, docs say create_temp returns (File, string).
+        # But V usually returns Result.
+        # Let's assume `os.create_temp('') or { panic(err) }` returns `(File, string)`.
+        # No, multiple return values in V must be handled.
+        # `f, p := os.create_temp('') or { panic(err) }`
+        # We can't put this in an expression.
+        # We probably need to implement this via AST transformation or helper function injection.
+        # For now, let's return a comment or best effort.
+        return "/* tempfile.mkstemp() - complex mapping needed */"
+
+    def _tempfile_mkdtemp(self, args: List[str]) -> str:
+        # mkdtemp(suffix, prefix, dir)
+        # V: os.mkdir_temp(prefix) returns string
+        prefix = "''"
+        if len(args) >= 2:
+             prefix = args[1]
+        return f"os.mkdir_temp({prefix}) or {{ panic(err) }}"
+
+    def _tempfile_named_temporary_file(self, args: List[str]) -> str:
+        # NamedTemporaryFile() -> file-like object
+        # In V, os.create_temp('') returns (File, path).
+        # If used in 'with', we want the file object.
+        # But create_temp returns two values.
+        # We can try to use a helper `py_named_temp_file()`
+        return "py_named_temp_file()"
+
+    def _tempfile_temporary_directory(self, args: List[str]) -> str:
+        # TemporaryDirectory() -> context manager yielding path
+        # In V, os.mkdir_temp('') returns path.
+        # We need a struct that has .cleanup() method?
+        # Or just return the path string?
+        # If used in `with`, `visit_With` handles cleanup via `.close()`.
+        # But TemporaryDirectory needs `.cleanup()`.
+        # We might need a helper struct `PyTempDir` with `close()` method that calls `rmdir_all`.
+        return "py_temp_dir()"

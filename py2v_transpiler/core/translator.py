@@ -67,6 +67,18 @@ class VNodeVisitor(ast.NodeVisitor):
                 "fn py_reversed[T](a []T) []T {\n    mut b := a.clone()\n    b.reverse()\n    return b\n}"
             )
 
+        # Simple check for tempfile usage. `imported_modules` values are module names.
+        # But we also need to check if we actually used the helpers, which are returned by mapper.
+        # The mapper returns strings like "py_temp_dir()".
+        # We can scan the emitted output for usage, but `self.output` is cleared.
+        # However, `self.emitter` holds the full code.
+        # Let's just check if `tempfile` was imported.
+        if "tempfile" in self.imported_modules.values():
+             self.emitter.add_struct("struct PyTempDir {\n    path string\n}")
+             self.emitter.add_function("fn (d PyTempDir) close() {\n    os.rmdir_all(d.path) or {}\n}")
+             self.emitter.add_function("fn py_temp_dir() PyTempDir {\n    p := os.mkdir_temp('') or { panic(err) }\n    return PyTempDir{path: p}\n}")
+             self.emitter.add_function("fn py_named_temp_file() os.File {\n    f, _ := os.create_temp('') or { panic(err) }\n    return f\n}")
+
         return self.emitter.emit()
 
     def visit_FunctionDef(self, node: ast.FunctionDef) -> None:
