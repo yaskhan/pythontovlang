@@ -1,5 +1,6 @@
 import ast
 from typing import Any, List, Optional, Dict
+from py2v_transpiler.models.v_types import map_python_type_to_v
 from py2v_transpiler.core.generator import VCodeEmitter
 from py2v_transpiler.stdlib_map.mapper import StdLibMapper
 from py2v_transpiler.core.decorators import DecoratorProcessor
@@ -17,6 +18,8 @@ class VNodeVisitor(ast.NodeVisitor):
         self._indent_level = 0
         self.in_main = True # Flag to track if we are at top-level
         self.current_class: Optional[str] = None # Track if we are inside a class definition
+        self.current_class_generics: List[str] = [] # Track generics of current class
+        self.current_class_bases: List[str] = [] # Track bases of current class
         self._zip_counter = 0 # Counter for unique variable names in zip loops
         self.used_builtins = set() # Track used built-in helpers (sorted, reversed, etc)
         self.renamed_functions = {"main": "py_main"} # Map to rename functions (e.g. main -> py_main)
@@ -113,14 +116,28 @@ class VNodeVisitor(ast.NodeVisitor):
             # UNLESS it is static
             if not dec_info.is_static:
                 # fn (s Struct) method()
-                receiver_str = f"({args[0].arg} {struct_name}) "
+                if self.current_class_generics:
+                    # fn (s Struct[T]) method()
+                    gen_str = f"[{', '.join(self.current_class_generics)}]"
+                    receiver_str = f"({args[0].arg} {struct_name}{gen_str}) "
+                else:
+                    receiver_str = f"({args[0].arg} {struct_name}) "
 
             args = args[1:] # Remove self from arguments list
 
         for arg in args:
             arg_name = arg.arg
             args_names.append(arg_name)
-            arg_type = self.type_inference.type_map.get(arg_name, "int")
+            # Use annotation if available for better type mapping
+            if arg.annotation:
+                try:
+                    type_str = ast.unparse(arg.annotation)
+                    arg_type = map_python_type_to_v(type_str)
+                except Exception:
+                    arg_type = self.type_inference.type_map.get(arg_name, "int")
+            else:
+                arg_type = self.type_inference.type_map.get(arg_name, "int")
+
             args_str_list.append(f"{arg_name} {arg_type}")
 
         args_str = ", ".join(args_str_list)
@@ -152,6 +169,19 @@ class VNodeVisitor(ast.NodeVisitor):
             func_name = f"new_{struct_name}"
             receiver_str = "" # Factory is static
             ret_type = struct_name
+            if self.current_class_generics:
+                # new_Struct[T](...) Struct[T]
+                # Wait, generic functions in V: fn foo[T](...)
+                # Factory: fn new_Struct[T](...) Struct[T]
+                # We need to add [T] to function name?
+                # V syntax: fn new_Struct[T](...) Struct[T]
+                # func_name should be new_Struct[T]
+                # ret_type should be Struct[T]
+                sanitized_gens = [g.lstrip('_') for g in self.current_class_generics]
+                gen_str = f"[{', '.join(sanitized_gens)}]"
+                func_name += gen_str
+                ret_type += gen_str
+
             # We need to implicitly return the struct instance, but that's complex logic.
             # For now, just change the name.
         elif is_method and func_name in ("__add__", "__sub__", "__mul__", "__truediv__", "__mod__", "__lt__", "__le__", "__eq__", "__ne__"):
@@ -172,7 +202,7 @@ class VNodeVisitor(ast.NodeVisitor):
                  # We need to ensure args_str is wrapped in parens if not already (it isn't, it's a comma list)
                  decl = f"fn {receiver_str}{op} ({args_str}) {ret_type} {{"
                  # Skip the default decl assignment below
-        elif func_name == "__str__":
+        elif func_name in ("__str__", "__repr__"):
              # String representation
              func_name = "str"
              decl = f"fn {receiver_str}{func_name}() string {{"
@@ -213,6 +243,8 @@ class VNodeVisitor(ast.NodeVisitor):
         # Map Python class to V struct
         struct_name = node.name
         self.current_class = struct_name
+        self.current_class_generics = []
+        self.current_class_bases = []
 
         # Handle decorators
         decorators = []
@@ -225,11 +257,40 @@ class VNodeVisitor(ast.NodeVisitor):
 
         # Handle inheritance (bases)
         for base in node.bases:
-            if isinstance(base, ast.Name):
-                fields.append(f"    {base.id}")
-            # Could handle Attribute (e.g. module.Class) too
+            # Handle Generic[T]
+            if isinstance(base, ast.Subscript):
+                base_name = ""
+                if isinstance(base.value, ast.Name):
+                    base_name = base.value.id
+                elif isinstance(base.value, ast.Attribute):
+                    base_name = base.value.attr
+
+                if base_name == "Generic":
+                    # Extract type vars: Generic[T, U]
+                    if isinstance(base.slice, ast.Tuple):
+                        for elt in base.slice.elts:
+                            if isinstance(elt, ast.Name):
+                                self.current_class_generics.append(elt.id)
+                    elif isinstance(base.slice, ast.Name):
+                        self.current_class_generics.append(base.slice.id)
+                    # Don't add Generic to fields
+                    continue
+                else:
+                    # Regular generic base: Parent[T]
+                    # Add to fields as embedded struct
+                    type_str = ast.unparse(base)
+                    v_type = map_python_type_to_v(type_str)
+                    fields.append(f"    {v_type}")
+                    self.current_class_bases.append(base_name)
+
+            elif isinstance(base, ast.Name):
+                if base.id != "Generic":
+                    fields.append(f"    {base.id}")
+                    self.current_class_bases.append(base.id)
             elif isinstance(base, ast.Attribute):
-                fields.append(f"    {self.visit(base)}")
+                val = self.visit(base)
+                fields.append(f"    {val}")
+                self.current_class_bases.append(base.attr)
 
         methods = []
 
@@ -240,14 +301,27 @@ class VNodeVisitor(ast.NodeVisitor):
                 # Class attribute with annotation -> struct field
                 field_name = stmt.target.id
                 field_type = "int" # default
-                if isinstance(stmt.annotation, ast.Name):
-                    field_type = stmt.annotation.id
+                if stmt.annotation:
+                    try:
+                        type_str = ast.unparse(stmt.annotation)
+                        field_type = map_python_type_to_v(type_str)
+                    except Exception:
+                        if isinstance(stmt.annotation, ast.Name):
+                            field_type = stmt.annotation.id
                 fields.append(f"    {field_name} {field_type}")
 
         struct_def = ""
         if decorators:
             struct_def += "\n".join(decorators) + "\n"
-        struct_def += f"struct {struct_name} {{\n" + "\n".join(fields) + "\n}"
+
+        generics_str = ""
+        if self.current_class_generics:
+            # Sanitize: _T -> T
+            sanitized = [g.lstrip('_') for g in self.current_class_generics]
+            self.current_class_generics = sanitized
+            generics_str = f"[{', '.join(sanitized)}]"
+
+        struct_def += f"struct {struct_name}{generics_str} {{\n" + "\n".join(fields) + "\n}"
         self.emitter.add_struct(struct_def)
 
         # Visit methods to generate them as functions
@@ -255,6 +329,8 @@ class VNodeVisitor(ast.NodeVisitor):
             self.visit(method)
 
         self.current_class = None
+        self.current_class_generics = []
+        self.current_class_bases = []
 
     def visit_Import(self, node: ast.Import) -> None:
         for alias in node.names:
@@ -290,6 +366,43 @@ class VNodeVisitor(ast.NodeVisitor):
         lhs = ""
         if isinstance(target, ast.Name):
             lhs = target.id
+
+            # Check for TypeVar: T = TypeVar("T", int, str)
+            if isinstance(node.value, ast.Call) and isinstance(node.value.func, ast.Name) and node.value.func.id == "TypeVar":
+                # Check args for constraints
+                # args[0] is name
+                constraints = []
+                for arg in node.value.args[1:]:
+                    if isinstance(arg, ast.Name):
+                        constraints.append(map_python_type_to_v(arg.id))
+                    elif isinstance(arg, ast.Constant) and isinstance(arg.value, str):
+                        constraints.append(map_python_type_to_v(arg.value))
+
+                # Check keyword bound
+                for kw in node.value.keywords:
+                    if kw.arg == "bound":
+                        # bound=Union[int, str] or bound=int
+                        # We can use ast.unparse and map
+                         try:
+                             bound_str = ast.unparse(kw.value)
+                             mapped = map_python_type_to_v(bound_str)
+                             # If mapped is "int | string", we use it
+                             constraints.append(mapped)
+                         except:
+                             pass
+
+                if constraints:
+                    # Emit sum type
+                    # Sanitize lhs?
+                    sanitized_lhs = lhs.lstrip('_')
+                    # If multiple constraints, join with |
+                    # But mapped bound might already be a union string "A | B"
+                    # We need to be careful not to create "A | B | C" if they are distinct
+
+                    final_type = " | ".join(constraints)
+                    self.emitter.add_struct(f"type {sanitized_lhs} = {final_type}")
+                return
+
             # Check for type alias: MyType = int or MyType = OtherType
             if self.in_main and isinstance(node.value, ast.Name):
                 # Basic heuristic: if it looks like a type assignment
@@ -299,11 +412,11 @@ class VNodeVisitor(ast.NodeVisitor):
                 # We can restrict to known primitives OR if the LHS is capitalized (heuristic for Type)
                 # and RHS is a Name.
                 if node.value.id in ("int", "str", "bool", "float"):
-                    self.output.append(f"type {lhs} = {node.value.id}")
+                    self.emitter.add_struct(f"type {lhs} = {node.value.id}")
                     return
                 elif lhs[0].isupper() and node.value.id[0].isupper():
                      # Heuristic: MyType = OtherType
-                     self.output.append(f"type {lhs} = {node.value.id}")
+                     self.emitter.add_struct(f"type {lhs} = {node.value.id}")
                      return
         elif isinstance(target, ast.Attribute):
             # obj.attr = value
@@ -631,7 +744,7 @@ class VNodeVisitor(ast.NodeVisitor):
             elif func_node.id == "open":
                 module_name = "os" # synthetic
                 func_name = "open"
-            elif func_node.id in ("hasattr", "getattr", "setattr"):
+            elif func_node.id in ("hasattr", "getattr", "setattr", "type", "super"):
                  module_name = "builtins" # synthetic
                  func_name = func_node.id
 
@@ -662,6 +775,11 @@ class VNodeVisitor(ast.NodeVisitor):
                       if attr_name.startswith("'") and attr_name.endswith("'"):
                            return f"{args[0]}.{attr_name[1:-1]} = {args[2]}"
                  return f"/* setattr({', '.join(args)}) - dynamic setting not supported */"
+            elif func_name == "type":
+                if len(args) >= 1:
+                    return f"typeof({args[0]}).name"
+            elif func_name == "super":
+                 pass
 
         if module_name and func_name:
             mapped = self.mapper.get_mapping(module_name, func_name, args)
@@ -673,6 +791,17 @@ class VNodeVisitor(ast.NodeVisitor):
              # os.path.join -> value is os.path, attr is join
              # Check if os.path is module
              pass
+
+        # Handle super().method()
+        if isinstance(func_node, ast.Attribute) and isinstance(func_node.value, ast.Call) and \
+           isinstance(func_node.value.func, ast.Name) and func_node.value.func.id == "super":
+            # super().method(...)
+            method_name = func_node.attr
+            if self.current_class_bases:
+                parent = self.current_class_bases[0]
+                return f"self.{parent}.{method_name}({', '.join(args)})"
+            else:
+                 return f"/* super().{method_name} call without known parent */"
 
         # Fallback to existing logic
         func_name_str = self.visit(node.func)
@@ -778,6 +907,10 @@ class VNodeVisitor(ast.NodeVisitor):
              if mapped:
                  return mapped
 
+        if node.attr == "__class__":
+             obj = self.visit(node.value)
+             return f"typeof({obj})"
+
         obj = self.visit(node.value)
         return f"{obj}.{node.attr}"
 
@@ -795,16 +928,31 @@ class VNodeVisitor(ast.NodeVisitor):
     def visit_JoinedStr(self, node: ast.JoinedStr) -> str:
         parts = []
         for value in node.values:
-            val = self.visit(value)
             if isinstance(value, ast.Constant) and isinstance(value.value, str):
-                parts.append(value.value)
+                val = value.value
+                val = val.replace('\\', '\\\\')
+                val = val.replace("'", "\\'")
+                val = val.replace('\n', '\\n')
+                val = val.replace('\r', '\\r')
+                val = val.replace('\t', '\\t')
+                parts.append(val)
             else:
-                parts.append(str(val))
+                parts.append(str(self.visit(value)))
 
         return f"'{''.join(parts)}'"
 
     def visit_FormattedValue(self, node: ast.FormattedValue) -> str:
         val = self.visit(node.value)
+        if node.format_spec:
+            spec_parts = []
+            for v in node.format_spec.values:
+                if isinstance(v, ast.Constant):
+                    spec_parts.append(str(v.value))
+                else:
+                    # Best effort for dynamic format specs
+                    spec_parts.append(str(self.visit(v)))
+            spec = "".join(spec_parts)
+            return f"${{{val}:{spec}}}"
         return f"${{{val}}}"
 
     def visit_BinOp(self, node: ast.BinOp) -> str:
@@ -1047,6 +1195,12 @@ class VNodeVisitor(ast.NodeVisitor):
         for op, comparator in zip(node.ops, node.comparators):
              op_str = ops.get(type(op), "?")
              comp_val = self.visit(comparator)
+
+             if isinstance(op, ast.Is) and comp_val == "none":
+                 op_str = "=="
+             elif isinstance(op, ast.IsNot) and comp_val == "none":
+                 op_str = "!="
+
              result.append(f"{op_str} {comp_val}")
         return " ".join(result)
 
