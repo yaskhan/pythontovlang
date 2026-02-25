@@ -318,24 +318,40 @@ class ExpressionsMixin(TranslatorBase):
         return f"{op_str}{operand}"
 
     def visit_Compare(self, node: ast.Compare) -> str:
-        left = self.visit(node.left)
-        ops = {
+        comparators = [self.visit(node.left)] + [self.visit(c) for c in node.comparators]
+        ops_map = {
             ast.Eq: "==", ast.NotEq: "!=", ast.Lt: "<", ast.LtE: "<=",
             ast.Gt: ">", ast.GtE: ">=", ast.Is: "==", ast.IsNot: "!=",
             ast.In: "in", ast.NotIn: "!in"
         }
-        result = [str(left)]
-        for op, comparator in zip(node.ops, node.comparators):
-             op_str = ops.get(type(op), "?")
-             comp_val = self.visit(comparator)
 
-             if isinstance(op, ast.Is) and comp_val == "none":
+        if len(node.ops) == 1:
+            left = comparators[0]
+            right = comparators[1]
+            op = node.ops[0]
+            op_str = ops_map.get(type(op), "?")
+
+            if isinstance(op, ast.Is) and str(right) == "none":
                  op_str = "=="
-             elif isinstance(op, ast.IsNot) and comp_val == "none":
+            elif isinstance(op, ast.IsNot) and str(right) == "none":
                  op_str = "!="
 
-             result.append(f"{op_str} {comp_val}")
-        return " ".join(result)
+            return f"{left} {op_str} {right}"
+
+        parts = []
+        for i, op in enumerate(node.ops):
+            left = comparators[i]
+            right = comparators[i+1]
+            op_str = ops_map.get(type(op), "?")
+
+            if isinstance(op, ast.Is) and str(right) == "none":
+                 op_str = "=="
+            elif isinstance(op, ast.IsNot) and str(right) == "none":
+                 op_str = "!="
+
+            parts.append(f"({left} {op_str} {right})")
+
+        return " && ".join(parts)
 
     def visit_ListComp(self, node: ast.ListComp, target_var: Optional[str] = None) -> None:
         if not target_var:

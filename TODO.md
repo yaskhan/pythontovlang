@@ -87,7 +87,7 @@
 - [ ] Support for keyword-only arguments (*, arg)
 - [ ] Support for positional-only arguments (arg, /)
 - [ ] Support for destructuring assignment (a, *b = l)
-- [ ] Support for chained comparisons (a < b < c)
+- [x] Support for chained comparisons (a < b < c)
 - [x] Support for dictionary comprehensions
 - [x] Support for set comprehensions
 - [ ] Support for generator expressions (independent)
