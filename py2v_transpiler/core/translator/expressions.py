@@ -347,13 +347,13 @@ class ExpressionsMixin(TranslatorBase):
         gen = node.generators[0] # Handle first generator
 
         if isinstance(gen.iter, ast.Call) and isinstance(gen.iter.func, ast.Name) and gen.iter.func.id == "zip":
-             args = gen.iter.args
-             if len(args) == 2:
+             zip_args = gen.iter.args
+             if len(zip_args) == 2:
                  self._zip_counter += 1
                  zip_id = self._zip_counter
 
-                 it1 = self.visit(args[0])
-                 it2 = self.visit(args[1])
+                 it1 = self.visit(zip_args[0])
+                 it2 = self.visit(zip_args[1])
 
                  var_it1 = f"_zip_it1_{zip_id}"
                  var_it2 = f"_zip_it2_{zip_id}"
@@ -400,8 +400,8 @@ class ExpressionsMixin(TranslatorBase):
 
         if isinstance(gen.iter, ast.Call) and isinstance(gen.iter.func, ast.Name):
              if gen.iter.func.id == "range":
-                 args = gen.iter.args
-                 if len(args) == 3:
+                 range_args = gen.iter.args
+                 if len(range_args) == 3:
                      # range(start, stop, step) -> C-style for loop
                      # We need to manually construct the loop here because `visit_ListComp` expects `iter_expr`
                      # But `iter_expr` is usually an iterable.
@@ -412,14 +412,14 @@ class ExpressionsMixin(TranslatorBase):
                      # We need to restructure `visit_ListComp` to handle this or modify the output manually.
                      # Let's override the loop generation for range with step.
 
-                     start = self.visit(args[0])
-                     stop = self.visit(args[1])
-                     step = self.visit(args[2])
+                     start = self.visit(range_args[0])
+                     stop = self.visit(range_args[1])
+                     step = self.visit(range_args[2])
 
                      is_negative_step = False
-                     if isinstance(args[2], ast.UnaryOp) and isinstance(args[2].op, ast.USub):
+                     if isinstance(range_args[2], ast.UnaryOp) and isinstance(range_args[2].op, ast.USub):
                          is_negative_step = True
-                     elif isinstance(args[2], ast.Constant) and isinstance(args[2].value, (int, float)) and args[2].value < 0:
+                     elif isinstance(range_args[2], ast.Constant) and isinstance(range_args[2].value, (int, float)) and range_args[2].value < 0:
                          is_negative_step = True
 
                      op = ">" if is_negative_step else "<"
@@ -448,11 +448,11 @@ class ExpressionsMixin(TranslatorBase):
 
                  start = "0"
                  stop = "0"
-                 if len(args) == 1:
-                      stop = self.visit(args[0])
-                 elif len(args) == 2:
-                      start = self.visit(args[0])
-                      stop = self.visit(args[1])
+                 if len(range_args) == 1:
+                      stop = self.visit(range_args[0])
+                 elif len(range_args) == 2:
+                      start = self.visit(range_args[0])
+                      stop = self.visit(range_args[1])
                  iter_expr = f"{start}..{stop}"
              elif gen.iter.func.id == "enumerate":
                  if gen.iter.args:

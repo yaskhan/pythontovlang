@@ -91,8 +91,8 @@ class ControlFlowMixin(TranslatorBase):
                  # We need to inject ch_name as first arg
                  func_name = iter_node.func.id
                  # self.visit(node.iter.args) ?
-                 args = [ch_name] + [str(self.visit(a)) for a in iter_node.args]
-                 call_str = f"spawn {func_name}({', '.join(args)})"
+                 spawn_args = [ch_name] + [str(self.visit(a)) for a in iter_node.args]
+                 call_str = f"spawn {func_name}({', '.join(spawn_args)})"
                  self.output.append(f"{self._indent()}{call_str}")
 
                  # Now loop over channel
@@ -107,12 +107,12 @@ class ControlFlowMixin(TranslatorBase):
 
         # Zip handling
         if isinstance(node.iter, ast.Call) and isinstance(node.iter.func, ast.Name) and node.iter.func.id == "zip":
-            args = node.iter.args
-            if len(args) == 2:
+            zip_args = node.iter.args
+            if len(zip_args) == 2:
                 self._zip_counter += 1
                 zip_id = self._zip_counter
-                it1 = self.visit(args[0])
-                it2 = self.visit(args[1])
+                it1 = self.visit(zip_args[0])
+                it2 = self.visit(zip_args[1])
                 var_it1 = f"_zip_it1_{zip_id}"
                 var_it2 = f"_zip_it2_{zip_id}"
                 var_i = f"_i_{zip_id}"
@@ -143,15 +143,15 @@ class ControlFlowMixin(TranslatorBase):
 
         if isinstance(node.iter, ast.Call) and isinstance(node.iter.func, ast.Name):
              if node.iter.func.id == "range":
-                 args = node.iter.args
-                 if len(args) == 3:
-                     start = self.visit(args[0])
-                     stop = self.visit(args[1])
-                     step = self.visit(args[2])
+                 range_args = node.iter.args
+                 if len(range_args) == 3:
+                     start = self.visit(range_args[0])
+                     stop = self.visit(range_args[1])
+                     step = self.visit(range_args[2])
                      is_negative_step = False
-                     if isinstance(args[2], ast.UnaryOp) and isinstance(args[2].op, ast.USub):
+                     if isinstance(range_args[2], ast.UnaryOp) and isinstance(range_args[2].op, ast.USub):
                          is_negative_step = True
-                     elif isinstance(args[2], ast.Constant) and isinstance(args[2].value, (int, float)) and args[2].value < 0:
+                     elif isinstance(range_args[2], ast.Constant) and isinstance(range_args[2].value, (int, float)) and range_args[2].value < 0:
                          is_negative_step = True
                      op = ">" if is_negative_step else "<"
                      self.output.append(f"{self._indent()}for {target} := {start}; {target} {op} {stop}; {target} += {step} {{")
@@ -163,11 +163,11 @@ class ControlFlowMixin(TranslatorBase):
                      return
                  start = "0"
                  stop = "0"
-                 if len(args) == 1:
-                      stop = self.visit(args[0])
-                 elif len(args) == 2:
-                      start = self.visit(args[0])
-                      stop = self.visit(args[1])
+                 if len(range_args) == 1:
+                      stop = self.visit(range_args[0])
+                 elif len(range_args) == 2:
+                      start = self.visit(range_args[0])
+                      stop = self.visit(range_args[1])
                  iter_expr = f"{start}..{stop}"
              elif node.iter.func.id == "enumerate":
                  if node.iter.args:
