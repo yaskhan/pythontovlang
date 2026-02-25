@@ -1,6 +1,7 @@
 import ast
-from typing import Any, List, Optional
+from typing import Any, List, Optional, Dict
 from py2v_transpiler.core.generator import VCodeEmitter
+from py2v_transpiler.stdlib_map.mapper import StdLibMapper
 
 class VNodeVisitor(ast.NodeVisitor):
     def __init__(self, type_inference):
@@ -17,6 +18,10 @@ class VNodeVisitor(ast.NodeVisitor):
         self.renamed_functions = {"main": "py_main"} # Map to rename functions (e.g. main -> py_main)
         self.name_remap = {} # Temporary variable renaming (e.g. x -> it in generators)
         self._walrus_assignments: List[str] = [] # Buffer for walrus operator assignments
+
+        self.mapper = StdLibMapper()
+        self.imported_modules: Dict[str, str] = {} # alias -> module_name
+        self.imported_symbols: Dict[str, str] = {} # alias -> module_name.symbol
 
     def _indent(self) -> str:
         return "    " * self._indent_level
@@ -202,11 +207,32 @@ class VNodeVisitor(ast.NodeVisitor):
 
     def visit_Import(self, node: ast.Import) -> None:
         for alias in node.names:
-            self.emitter.add_import(alias.name)
+            module_name = alias.name
+            as_name = alias.asname if alias.asname else module_name
+            self.imported_modules[as_name] = module_name
+
+            # Add V imports via mapper
+            v_imports = self.mapper.get_imports(module_name)
+            for imp in v_imports:
+                self.emitter.add_import(imp)
+
+            if not v_imports:
+                # If not mapped, import as is (or handle default mapping)
+                self.emitter.add_import(module_name)
 
     def visit_ImportFrom(self, node: ast.ImportFrom) -> None:
         if node.module:
-            self.emitter.add_import(node.module)
+            module_name = node.module
+
+            # Add V imports
+            v_imports = self.mapper.get_imports(module_name)
+            for imp in v_imports:
+                self.emitter.add_import(imp)
+
+            for alias in node.names:
+                name = alias.name
+                as_name = alias.asname if alias.asname else name
+                self.imported_symbols[as_name] = f"{module_name}.{name}"
 
     def visit_Assign(self, node: ast.Assign) -> None:
         target = node.targets[0]
@@ -492,10 +518,7 @@ class VNodeVisitor(ast.NodeVisitor):
             self.output.append(f"{self._indent()}{val}")
 
     def visit_Call(self, node: ast.Call) -> str:
-        func_name = self.visit(node.func)
-        if func_name in self.renamed_functions:
-            func_name = self.renamed_functions[func_name]
-
+        # Check if we can resolve the call via mapper
         args = []
         for arg in node.args:
             val = self.visit(arg)
@@ -504,25 +527,118 @@ class VNodeVisitor(ast.NodeVisitor):
             else:
                 args.append("/* unknown */")
 
-        if func_name == "sorted":
+        func_node = node.func
+        module_name = None
+        func_name = None
+
+        # Resolve qualified name if possible (e.g. datetime.datetime.now or os.path.join)
+        qualified_name_parts = []
+        curr = func_node
+        while isinstance(curr, ast.Attribute):
+            qualified_name_parts.insert(0, curr.attr)
+            curr = curr.value
+
+        if isinstance(curr, ast.Name):
+            qualified_name_parts.insert(0, curr.id)
+            # Check if root is a known module
+            root_name = qualified_name_parts[0]
+            if root_name in self.imported_modules:
+                 module_name = self.imported_modules[root_name]
+                 # construct func_name from rest
+                 func_name = ".".join(qualified_name_parts[1:])
+            elif root_name == "os" and len(qualified_name_parts) > 1 and qualified_name_parts[1] == "path":
+                 # Special case for os.path
+                 module_name = "os"
+                 func_name = ".".join(qualified_name_parts[1:])
+
+        if not module_name and isinstance(func_node, ast.Attribute):
+            # obj.method() fallback
+            if isinstance(func_node.value, ast.Name) and func_node.value.id in self.imported_modules:
+                module_name = self.imported_modules[func_node.value.id]
+                func_name = func_node.attr
+
+        if not module_name and isinstance(func_node, ast.Name):
+            # func()
+            if func_node.id in self.imported_symbols:
+                # from mod import func
+                full_name = self.imported_symbols[func_node.id]
+                parts = full_name.split(".")
+                module_name = parts[0]
+                func_name = parts[1]
+            elif func_node.id == "open":
+                module_name = "os" # synthetic
+                func_name = "open"
+            elif func_node.id in ("hasattr", "getattr", "setattr"):
+                 module_name = "builtins" # synthetic
+                 func_name = func_node.id
+
+        if module_name == "os" and func_name == "open":
+             # Handle open() -> os.open()
+             self.emitter.add_import("os")
+             if len(args) >= 1:
+                 # In V: os.open(path) returns ?File, so we unwrap it.
+                 # Assuming read mode for simplicity as mapped from open(path)
+                 return f"os.open({args[0]}) or {{ panic(err) }}"
+
+        if module_name == "builtins":
+            if func_name == "hasattr":
+                 # hasattr(obj, 'attr')
+                 # Best effort: comments
+                 return f"/* hasattr({', '.join(args)}) - reflection not fully supported */ false"
+            elif func_name == "getattr":
+                 if len(args) >= 2:
+                      # check if args[1] is string literal
+                      # args[1] is already visited code, e.g. "'attr'"
+                      attr_name = args[1]
+                      if attr_name.startswith("'") and attr_name.endswith("'"):
+                           return f"{args[0]}.{attr_name[1:-1]}"
+                 return f"/* getattr({', '.join(args)}) - dynamic access not supported */"
+            elif func_name == "setattr":
+                 if len(args) >= 3:
+                      attr_name = args[1]
+                      if attr_name.startswith("'") and attr_name.endswith("'"):
+                           return f"{args[0]}.{attr_name[1:-1]} = {args[2]}"
+                 return f"/* setattr({', '.join(args)}) - dynamic setting not supported */"
+
+        if module_name and func_name:
+            mapped = self.mapper.get_mapping(module_name, func_name, args)
+            if mapped:
+                return mapped
+
+        # Try finding os.path.X by concatenating if attribute access
+        if isinstance(func_node, ast.Attribute) and isinstance(func_node.value, ast.Attribute):
+             # os.path.join -> value is os.path, attr is join
+             # Check if os.path is module
+             pass
+
+        # Fallback to existing logic
+        func_name_str = self.visit(node.func)
+        if func_name_str in self.renamed_functions:
+            func_name_str = self.renamed_functions[func_name_str]
+
+        # Handle builtins handled by old logic (print, sorted, etc)
+        # Note: 'open', 'hasattr' are handled above or fall through if not matched.
+        # But wait, open is not in existing logic.
+
+        if func_name_str == "sorted":
             self.used_builtins.add("sorted")
             return f"py_sorted({', '.join(args)})"
-        elif func_name == "reversed":
+        elif func_name_str == "reversed":
             self.used_builtins.add("reversed")
             return f"py_reversed({', '.join(args)})"
-        elif func_name == "map":
+        elif func_name_str == "map":
             if len(args) == 2:
                 func = args[0]
                 iterable = args[1]
                 return f"{iterable}.map({func}(it))"
-        elif func_name == "filter":
+        elif func_name_str == "filter":
             if len(args) == 2:
                 func = args[0]
                 iterable = args[1]
                 if func == "None" or func == "none":
                     return f"{iterable}.filter(it)"
                 return f"{iterable}.filter({func}(it))"
-        elif func_name == "any" or func_name == "all":
+        elif func_name_str == "any" or func_name_str == "all":
             if len(node.args) == 1:
                 arg = node.args[0]
                 if isinstance(arg, ast.GeneratorExp):
@@ -536,31 +652,27 @@ class VNodeVisitor(ast.NodeVisitor):
                         self.name_remap[target.id] = "it"
                         elt = self.visit(arg.elt)
                         del self.name_remap[target.id]
-                        return f"{iter_expr}.{func_name}({elt})"
+                        return f"{iter_expr}.{func_name_str}({elt})"
                 else:
                     # any(iterable) -> iterable.any(it)
                     val = self.visit(arg)
-                    return f"{val}.{func_name}(it)"
+                    return f"{val}.{func_name_str}(it)"
 
-        elif func_name == "isinstance":
+        elif func_name_str == "isinstance":
             if len(args) == 2:
                 obj = args[0]
                 types = args[1]
-                # Check if it's a single type check: isinstance(x, MyClass) -> x is MyClass
-                # If types is a tuple (array in V representation), it's harder.
-                # args[1] string comes from self.visit(), so it might be "MyClass" or "[int, float]"
                 if types.startswith("[") and types.endswith("]"):
-                     # Multiple types check not directly supported in 'is' expression
                      return f"/* isinstance({obj}, {types}) - multi-type check not supported */ false"
                 return f"{obj} is {types}"
 
-        elif func_name == "input":
+        elif func_name_str == "input":
             self.emitter.add_import("os")
             if args:
                 return f"os.input({args[0]})"
             return "os.input('')"
 
-        elif func_name == "print":
+        elif func_name_str == "print":
             sep = " "
             end = "\\n"
 
@@ -571,24 +683,12 @@ class VNodeVisitor(ast.NodeVisitor):
                 elif keyword.arg == "end":
                     if isinstance(keyword.value, ast.Constant) and isinstance(keyword.value.value, str):
                         end = keyword.value.value
-                        # Escape newline for V string if literal newline
                         if end == "\n":
                             end = "\\n"
-
-            # Construct the content string
-            # In V, interpolation handles types: '${var}'
-            # We want to join args with sep.
-            # If args are strings, we can just join them.
-            # If args are vars, we wrap in ${}.
-            # Simplified: always wrap in ${} unless it's a string literal?
-            # Actually, `visit` returns the V representation (e.g. 'foo' or var).
 
             parts = []
             for arg in node.args:
                 val = self.visit(arg)
-                # Strip quotes if it's a string literal to merge into one string?
-                # E.g. 'A', 'B' -> 'A B'
-                # val is like "'A'" or "x"
                 val_str = str(val)
                 if val_str.startswith("'") and val_str.endswith("'"):
                     parts.append(val_str[1:-1])
@@ -604,9 +704,17 @@ class VNodeVisitor(ast.NodeVisitor):
             else:
                 return f"print('{joined_content}{end}')"
 
-        return f"{func_name}({', '.join(args)})"
+        return f"{func_name_str}({', '.join(args)})"
 
     def visit_Attribute(self, node: ast.Attribute) -> str:
+        # Check if this is a mapped constant (e.g. math.pi)
+        if isinstance(node.value, ast.Name) and node.value.id in self.imported_modules:
+             module_name = self.imported_modules[node.value.id]
+             const_name = node.attr
+             mapped = self.mapper.get_constant_mapping(module_name, const_name)
+             if mapped:
+                 return mapped
+
         obj = self.visit(node.value)
         return f"{obj}.{node.attr}"
 
@@ -657,40 +765,7 @@ class VNodeVisitor(ast.NodeVisitor):
                     self.visit(stmt)
                 return
 
-        # Check for walrus operator in condition: if (x := expr):
-        walrus_assignment = None
-        if isinstance(node.test, ast.NamedExpr):
-             # Extract the assignment
-             target = node.test.target.id
-             value = self.visit(node.test.value)
-             walrus_assignment = f"{target} := {value}"
-             # The condition becomes just the target (if boolean check) or the value?
-             # Actually, (x := 5) returns 5.
-             # So if (x := 5) > 0 becomes: x := 5; if x > 0 {
-             # But here node.test IS the named expr.
-             # If it's part of a larger expression (e.g. Compare), we need to traverse finding NamedExpr.
-             # Doing full traversal is hard. Let's support the simple case where NamedExpr is the test or part of it?
-             # Actually, visit_NamedExpr will be called if we just visit(node.test).
-             # We need visit_NamedExpr to return the value (for the expression) but ALSO emit the assignment BEFORE.
-             # But we can't emit before easily inside an expression.
-             # Strategy: Detect NamedExpr at the top level of the condition or handle it specifically.
-             pass
-
-        # New strategy for Walrus:
-        # 1. Pre-visit the test expression to find NamedExprs.
-        # 2. Emit their assignments.
-        # 3. Replace NamedExpr in the test with just the target variable.
-        # This is complex to do without mutating the AST or complex visitor.
-        # Simplified: If the test contains a NamedExpr, we extract it.
-
-        # Let's try to handle NamedExpr via a specific helper or just handle the top-level case first?
-        # In `if (x := 5) > 0`: the test is Compare(left=NamedExpr(...), ops=..., comparators=...)
-
-        # We will implement `visit_NamedExpr` to return the target name, and SIDE-EFFECT emit the assignment?
-        # But if we emit inside `if ... {`, it breaks syntax.
-        # So we must emit BEFORE the `if`.
-
-        # Let's peek for NamedExpr
+        # Check for walrus operator
         self._walrus_assignments = []
         test_expr = self.visit(node.test)
 
@@ -724,20 +799,7 @@ class VNodeVisitor(ast.NodeVisitor):
             self.output.append(f"{self._indent()}}}")
 
     def visit_While(self, node: ast.While) -> None:
-        # Check for walrus in while: while (x := expr):
-        # Vlang doesn't support this.
-        # Transform to: for { x := expr; if !cond { break } ... }
-
-        # We need to detect if there is a walrus operator.
-        # Similar to If, we can capture it.
-
         self._walrus_assignments = []
-        # We need to buffer the output because visiting test might emit things (if we implemented it that way, but we didn't yet)
-        # But wait, `visit_NamedExpr` needs to be implemented.
-
-        # We can't easily execute visit(node.test) twice or speculatively.
-        # But we can assume visit_NamedExpr will populate _walrus_assignments.
-
         test_expr = self.visit(node.test)
 
         if self._walrus_assignments:
@@ -769,38 +831,33 @@ class VNodeVisitor(ast.NodeVisitor):
         # (target := value)
         target = node.target.id
         value = self.visit(node.value)
-
-        # We need to register this assignment to be emitted before the statement
         self._walrus_assignments.append(f"{target} := {value}")
-
         return target
 
     def visit_For(self, node: ast.For) -> None:
+        # Re-implemented visit_For from reading to include previous logic
+        # ... (same as original, checking zip, range, enumerate) ...
+        # Since I'm overwriting the file, I must include all method bodies.
+
+        # Zip handling
         if isinstance(node.iter, ast.Call) and isinstance(node.iter.func, ast.Name) and node.iter.func.id == "zip":
-            # Handle zip(a, b)
             args = node.iter.args
             if len(args) == 2:
                 self._zip_counter += 1
                 zip_id = self._zip_counter
-
                 it1 = self.visit(args[0])
                 it2 = self.visit(args[1])
-
                 var_it1 = f"_zip_it1_{zip_id}"
                 var_it2 = f"_zip_it2_{zip_id}"
                 var_i = f"_i_{zip_id}"
                 var_v1 = f"_v1_{zip_id}"
                 var_v2 = f"_v2_{zip_id}"
-
                 self.output.append(f"{self._indent()}{var_it1} := {it1}")
                 self.output.append(f"{self._indent()}{var_it2} := {it2}")
-
                 self.output.append(f"{self._indent()}for {var_i}, {var_v1} in {var_it1} {{")
                 self._indent_level += 1
-
                 self.output.append(f"{self._indent()}if {var_i} >= {var_it2}.len {{ break }}")
                 self.output.append(f"{self._indent()}{var_v2} := {var_it2}[{var_i}]")
-
                 if isinstance(node.target, ast.Tuple) and len(node.target.elts) == 2:
                     t1 = self.visit(node.target.elts[0])
                     t2 = self.visit(node.target.elts[1])
@@ -809,10 +866,8 @@ class VNodeVisitor(ast.NodeVisitor):
                 else:
                     target = self.visit(node.target)
                     self.output.append(f"{self._indent()}{target} := [{var_v1}, {var_v2}]")
-
                 for stmt in node.body:
                     self.visit(stmt)
-
                 self._indent_level -= 1
                 self.output.append(f"{self._indent()}}}")
                 return
@@ -824,19 +879,15 @@ class VNodeVisitor(ast.NodeVisitor):
              if node.iter.func.id == "range":
                  args = node.iter.args
                  if len(args) == 3:
-                     # range(start, stop, step) -> C-style for loop
                      start = self.visit(args[0])
                      stop = self.visit(args[1])
                      step = self.visit(args[2])
-
                      is_negative_step = False
                      if isinstance(args[2], ast.UnaryOp) and isinstance(args[2].op, ast.USub):
                          is_negative_step = True
                      elif isinstance(args[2], ast.Constant) and isinstance(args[2].value, (int, float)) and args[2].value < 0:
                          is_negative_step = True
-
                      op = ">" if is_negative_step else "<"
-
                      self.output.append(f"{self._indent()}for {target} := {start}; {target} {op} {stop}; {target} += {step} {{")
                      self._indent_level += 1
                      for stmt in node.body:
@@ -844,7 +895,6 @@ class VNodeVisitor(ast.NodeVisitor):
                      self._indent_level -= 1
                      self.output.append(f"{self._indent()}}}")
                      return
-
                  start = "0"
                  stop = "0"
                  if len(args) == 1:
@@ -852,18 +902,14 @@ class VNodeVisitor(ast.NodeVisitor):
                  elif len(args) == 2:
                       start = self.visit(args[0])
                       stop = self.visit(args[1])
-
                  iter_expr = f"{start}..{stop}"
              elif node.iter.func.id == "enumerate":
                  if node.iter.args:
                      iter_expr = self.visit(node.iter.args[0])
-                     # Handle target for enumerate: for i, v in items
                      if isinstance(node.target, ast.Tuple):
-                         # visit_Tuple returns [i, v], we need i, v
                          if target.startswith("[") and target.endswith("]"):
                              target = target[1:-1]
                      else:
-                         # Single variable target for enumerate (e.g. for x in enumerate(items))
                          self.output.append(f"{self._indent()}// TODO: handle enumerate with single target variable")
 
         self.output.append(f"{self._indent()}for {target} in {iter_expr} {{")
@@ -875,16 +921,12 @@ class VNodeVisitor(ast.NodeVisitor):
 
     def visit_Try(self, node: ast.Try) -> None:
         self.output.append(f"{self._indent()}// try {{")
-
         for stmt in node.body:
             self.visit(stmt)
-
         self.output.append(f"{self._indent()}// }} except {{")
-
         for handler in node.handlers:
             self.output.append(f"{self._indent()}// Handler: {handler.type}")
             self.output.append(f"{self._indent()}// ... exception handling logic ...")
-
         if node.finalbody:
              self.output.append(f"{self._indent()}// }} finally {{")
              self.output.append(f"{self._indent()}defer {{")
@@ -903,7 +945,6 @@ class VNodeVisitor(ast.NodeVisitor):
                 self.output.append(f"{self._indent()}defer {{ {var}.close() }}")
             else:
                 self.output.append(f"{self._indent()}_ := {context_expr}")
-
         for stmt in node.body:
             self.visit(stmt)
 
@@ -914,13 +955,11 @@ class VNodeVisitor(ast.NodeVisitor):
             ast.Gt: ">", ast.GtE: ">=", ast.Is: "==", ast.IsNot: "!=",
             ast.In: "in", ast.NotIn: "!in"
         }
-
         result = [str(left)]
         for op, comparator in zip(node.ops, node.comparators):
              op_str = ops.get(type(op), "?")
              comp_val = self.visit(comparator)
              result.append(f"{op_str} {comp_val}")
-
         return " ".join(result)
 
     def visit_BoolOp(self, node: ast.BoolOp) -> str:
@@ -960,19 +999,15 @@ class VNodeVisitor(ast.NodeVisitor):
         subject = self.visit(node.subject)
         self.output.append(f"{self._indent()}match {subject} {{")
         self._indent_level += 1
-
         for case in node.cases:
             self._visit_match_case(case)
-
         self._indent_level -= 1
         self.output.append(f"{self._indent()}}}")
 
     def _visit_match_case(self, node: "ast.match_case") -> None:
         pattern_str = self._translate_pattern(node.pattern)
-
         if node.guard:
             self.output.append(f"{self._indent()}// Guard condition '{self.visit(node.guard)}' ignored in match case")
-
         self.output.append(f"{self._indent()}{pattern_str} {{")
         self._indent_level += 1
         for stmt in node.body:
@@ -992,9 +1027,6 @@ class VNodeVisitor(ast.NodeVisitor):
              if pattern.name is None:
                  return "else"
              else:
-                 # V pattern matching doesn't support binding directly in the case clause in the same way.
-                 # We can use the 'else' block and manual casting if needed, or mapping to a catch-all.
-                 # For now, we'll emit 'else' but add a comment about the binding.
                  return f"else /* bound to {pattern.name} */"
         return "else"
 
