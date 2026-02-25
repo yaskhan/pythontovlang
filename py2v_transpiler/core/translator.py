@@ -2,10 +2,12 @@ import ast
 from typing import Any, List, Optional, Dict
 from py2v_transpiler.core.generator import VCodeEmitter
 from py2v_transpiler.stdlib_map.mapper import StdLibMapper
+from py2v_transpiler.core.decorators import DecoratorProcessor
 
 class VNodeVisitor(ast.NodeVisitor):
     def __init__(self, type_inference):
         self.type_inference = type_inference
+        self.decorator_processor = DecoratorProcessor(self)
         # Use emitter for structured output
         self.emitter = VCodeEmitter()
         # Internal buffer for visiting blocks (functions, loops, etc.)
@@ -72,10 +74,15 @@ class VNodeVisitor(ast.NodeVisitor):
         self.output = []
         self._indent_level = 0
 
-        # Handle decorators
+        # Analyze decorators
+        dec_info = self.decorator_processor.analyze(node, self.current_class)
+
+        # Handle decorators comments (emit all for clarity)
         for decorator in node.decorator_list:
-            dec_str = self.visit(decorator)
-            self.output.append(f"// @{dec_str}")
+             dec_str = self.visit(decorator)
+             # Avoid duplicating if in handled list?
+             # Just emit comments for all decorators as metadata
+             self.output.append(f"// @{dec_str}")
 
         is_method = self.current_class is not None
         # Ensure struct_name is always a string
@@ -83,16 +90,21 @@ class VNodeVisitor(ast.NodeVisitor):
 
         args_str_list: List[str] = []
         receiver_str: str = ""
+        args_names: List[str] = []
 
         args = node.args.args
         if is_method and args and args[0].arg == "self":
             # Handle 'self' - it becomes the receiver in V
-            # fn (s Struct) method()
-            receiver_str = f"({args[0].arg} {struct_name}) "
+            # UNLESS it is static
+            if not dec_info.is_static:
+                # fn (s Struct) method()
+                receiver_str = f"({args[0].arg} {struct_name}) "
+
             args = args[1:] # Remove self from arguments list
 
         for arg in args:
             arg_name = arg.arg
+            args_names.append(arg_name)
             arg_type = self.type_inference.type_map.get(arg_name, "int")
             args_str_list.append(f"{arg_name} {arg_type}")
 
@@ -108,6 +120,16 @@ class VNodeVisitor(ast.NodeVisitor):
         func_name = node.name
         if func_name in self.renamed_functions:
             func_name = self.renamed_functions[func_name]
+
+        # Handle cache wrapper generation
+        if dec_info.cache_wrapper_needed and dec_info.implementation_name:
+            wrapper_code = self.decorator_processor.generate_cache_wrapper(
+                dec_info, func_name, args_str, ret_type, args_names, receiver_str
+            )
+            self.emitter.add_function(wrapper_code)
+
+            # Switch to generating implementation
+            func_name = dec_info.implementation_name
 
         if func_name == "__init__":
             # Constructor logic: make it a static factory function for now
@@ -147,6 +169,15 @@ class VNodeVisitor(ast.NodeVisitor):
 
         self.output.append(f"{decl}") # No indent for top level function
         self._indent_level += 1
+
+        # Injected start code
+        for line in dec_info.injected_start:
+             self.output.append(f"{self._indent()}{line}")
+
+        # Injected end code (defer)
+        for line in dec_info.injected_end:
+             self.output.append(f"{self._indent()}{line}")
+
         for stmt in node.body:
             self.visit(stmt)
         self._indent_level -= 1
