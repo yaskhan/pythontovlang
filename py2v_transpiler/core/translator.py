@@ -79,6 +79,14 @@ class VNodeVisitor(ast.NodeVisitor):
              self.emitter.add_function("fn py_temp_dir() PyTempDir {\n    p := os.mkdir_temp('') or { panic(err) }\n    return PyTempDir{path: p}\n}")
              self.emitter.add_function("fn py_named_temp_file() os.File {\n    f, _ := os.create_temp('') or { panic(err) }\n    return f\n}")
 
+        pathlib_used = "pathlib" in self.imported_modules.values()
+        if not pathlib_used:
+             # Check if used via from ... import ...
+             for sym in self.imported_symbols.values():
+                 if sym.startswith("pathlib."):
+                     pathlib_used = True
+                     break
+
         return self.emitter.emit()
 
     def visit_FunctionDef(self, node: ast.FunctionDef) -> None:
@@ -894,19 +902,14 @@ class VNodeVisitor(ast.NodeVisitor):
                  return f"/* super().{method_name} call without known parent */"
 
         # Handle unittest assertions
-        # We detect calls on 'self' that match assertX
+        # Strictly check for self.assertX if possible to avoid regressions
+        # We check if receiver is "self"
+        is_self_assertion = False
         if isinstance(func_node, ast.Attribute) and func_node.attr.startswith("assert"):
-             # Check if receiver is self?
-             # Or just allow any assertX call to be transformed?
-             # Let's check strictly for self.assertX if possible, but 'self' might be implicit or named differently.
-             # In visit_FunctionDef we removed self arg for unittest methods.
-             # But the AST still has 'self'.
-             # Wait, visit_Name transforms 'self' to 'self' (or whatever).
-             # In unittest methods, we removed the receiver from function signature, but inside body 'self' is still used?
-             # No, if we removed 'self' from args, then 'self' inside body is undefined or refers to nothing?
-             # Actually, if we remove 'self' from args, any usage of 'self' in body becomes a Name node.
-             # We should probably map 'self' to nothing or handle self.assertX specially.
+             if isinstance(func_node.value, ast.Name) and func_node.value.id == "self":
+                 is_self_assertion = True
 
+        if is_self_assertion:
              assertion = func_node.attr
              if assertion == "assertEqual" and len(args) == 2:
                   return f"assert {args[0]} == {args[1]}"
