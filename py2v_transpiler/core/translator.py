@@ -285,6 +285,41 @@ class VNodeVisitor(ast.NodeVisitor):
             # close
             self.emitter.add_function("fn (mut s PySocket) close() {\n    if mut c := s.conn {\n        c.close() or {}\n    }\n    if mut l := s.listener {\n        l.close() or {}\n    }\n}")
 
+        pathlib_used = "pathlib" in self.imported_modules.values()
+        if not pathlib_used:
+             for sym in self.imported_symbols.values():
+                 if sym.startswith("pathlib."):
+                     pathlib_used = True
+                     break
+
+        if pathlib_used:
+             # struct PyPath { path string }
+             self.emitter.add_struct("struct PyPath {\n    path string\n}")
+
+             # py_path_new
+             self.emitter.add_function("fn py_path_new(p string) PyPath {\n    return PyPath{path: p}\n}")
+
+             # operator /
+             self.emitter.add_function("fn (p PyPath) / (other string) PyPath {\n    return PyPath{path: os.join_path(p.path, other)}\n}")
+
+             # exists
+             self.emitter.add_function("fn (p PyPath) exists() bool {\n    return os.exists(p.path)\n}")
+
+             # is_dir
+             self.emitter.add_function("fn (p PyPath) is_dir() bool {\n    return os.is_dir(p.path)\n}")
+
+             # is_file
+             self.emitter.add_function("fn (p PyPath) is_file() bool {\n    return os.is_file(p.path)\n}")
+
+             # read_text
+             self.emitter.add_function("fn (p PyPath) read_text() string {\n    return os.read_file(p.path) or { panic(err) }\n}")
+
+             # write_text
+             self.emitter.add_function("fn (p PyPath) write_text(text string) {\n    os.write_file(p.path, text) or { panic(err) }\n}")
+
+             # str
+             self.emitter.add_function("fn (p PyPath) str() string {\n    return p.path\n}")
+
         return self.emitter.emit()
 
     def visit_FunctionDef(self, node: ast.FunctionDef) -> None:

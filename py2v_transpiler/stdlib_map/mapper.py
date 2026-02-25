@@ -150,6 +150,9 @@ class StdLibMapper:
                 "socket": "py_socket_new",
                 "AF_INET": "py_AF_INET", # Constants
                 "SOCK_STREAM": "py_SOCK_STREAM",
+            },
+            "pathlib": {
+                "Path": "py_path_new",
             }
         }
 
@@ -175,6 +178,7 @@ class StdLibMapper:
             "operator": [],
             "threading": ["sync"],
             "socket": ["net"],
+            "pathlib": ["os"],
         }
 
     def get_mapping(self, module: str, func: str, args: List[str]) -> Optional[str]:
