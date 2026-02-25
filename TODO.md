@@ -25,7 +25,7 @@
 - [x] Support for class inheritance and method overriding
 - [x] Support for operator overloading (__add__, etc.)
 - [x] Support for structural pattern matching (match/case)
-- [ ] Support for type aliases
+- [x] Support for type aliases
 - [x] Support for global/nonlocal keywords
 - [x] Support for assert statements
 - [x] Support for set data structure

@@ -212,6 +212,10 @@ class VNodeVisitor(ast.NodeVisitor):
         lhs = ""
         if isinstance(target, ast.Name):
             lhs = target.id
+            # Check for type alias: MyType = int
+            if self.in_main and isinstance(node.value, ast.Name) and node.value.id in ("int", "str", "bool", "float"):
+                self.output.append(f"type {lhs} = {node.value.id}")
+                return
         elif isinstance(target, ast.Attribute):
             # obj.attr = value
             lhs = f"{self.visit(target.value)}.{target.attr}"
