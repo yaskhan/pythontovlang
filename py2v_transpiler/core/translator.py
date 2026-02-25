@@ -645,7 +645,48 @@ class VNodeVisitor(ast.NodeVisitor):
                     self.visit(stmt)
                 return
 
+        # Check for walrus operator in condition: if (x := expr):
+        walrus_assignment = None
+        if isinstance(node.test, ast.NamedExpr):
+             # Extract the assignment
+             target = node.test.target.id
+             value = self.visit(node.test.value)
+             walrus_assignment = f"{target} := {value}"
+             # The condition becomes just the target (if boolean check) or the value?
+             # Actually, (x := 5) returns 5.
+             # So if (x := 5) > 0 becomes: x := 5; if x > 0 {
+             # But here node.test IS the named expr.
+             # If it's part of a larger expression (e.g. Compare), we need to traverse finding NamedExpr.
+             # Doing full traversal is hard. Let's support the simple case where NamedExpr is the test or part of it?
+             # Actually, visit_NamedExpr will be called if we just visit(node.test).
+             # We need visit_NamedExpr to return the value (for the expression) but ALSO emit the assignment BEFORE.
+             # But we can't emit before easily inside an expression.
+             # Strategy: Detect NamedExpr at the top level of the condition or handle it specifically.
+             pass
+
+        # New strategy for Walrus:
+        # 1. Pre-visit the test expression to find NamedExprs.
+        # 2. Emit their assignments.
+        # 3. Replace NamedExpr in the test with just the target variable.
+        # This is complex to do without mutating the AST or complex visitor.
+        # Simplified: If the test contains a NamedExpr, we extract it.
+
+        # Let's try to handle NamedExpr via a specific helper or just handle the top-level case first?
+        # In `if (x := 5) > 0`: the test is Compare(left=NamedExpr(...), ops=..., comparators=...)
+
+        # We will implement `visit_NamedExpr` to return the target name, and SIDE-EFFECT emit the assignment?
+        # But if we emit inside `if ... {`, it breaks syntax.
+        # So we must emit BEFORE the `if`.
+
+        # Let's peek for NamedExpr
+        self._walrus_assignments = []
         test_expr = self.visit(node.test)
+
+        if hasattr(self, '_walrus_assignments') and self._walrus_assignments:
+             for assign in self._walrus_assignments:
+                 self.output.append(f"{self._indent()}{assign}")
+             self._walrus_assignments = []
+
         self.output.append(f"{self._indent()}if {test_expr} {{")
         self._indent_level += 1
         for stmt in node.body:
@@ -671,13 +712,59 @@ class VNodeVisitor(ast.NodeVisitor):
             self.output.append(f"{self._indent()}}}")
 
     def visit_While(self, node: ast.While) -> None:
+        # Check for walrus in while: while (x := expr):
+        # Vlang doesn't support this.
+        # Transform to: for { x := expr; if !cond { break } ... }
+
+        # We need to detect if there is a walrus operator.
+        # Similar to If, we can capture it.
+
+        self._walrus_assignments = []
+        # We need to buffer the output because visiting test might emit things (if we implemented it that way, but we didn't yet)
+        # But wait, `visit_NamedExpr` needs to be implemented.
+
+        # We can't easily execute visit(node.test) twice or speculatively.
+        # But we can assume visit_NamedExpr will populate _walrus_assignments.
+
         test_expr = self.visit(node.test)
-        self.output.append(f"{self._indent()}for {test_expr} {{")
-        self._indent_level += 1
-        for stmt in node.body:
-            self.visit(stmt)
-        self._indent_level -= 1
-        self.output.append(f"{self._indent()}}}")
+
+        if hasattr(self, '_walrus_assignments') and self._walrus_assignments:
+             # Found walrus! Transform loop.
+             self.output.append(f"{self._indent()}for {{")
+             self._indent_level += 1
+
+             for assign in self._walrus_assignments:
+                 self.output.append(f"{self._indent()}{assign}")
+
+             self.output.append(f"{self._indent()}if !({test_expr}) {{ break }}")
+             self._walrus_assignments = []
+
+             for stmt in node.body:
+                 self.visit(stmt)
+
+             self._indent_level -= 1
+             self.output.append(f"{self._indent()}}}")
+        else:
+             # Normal while
+             self.output.append(f"{self._indent()}for {test_expr} {{")
+             self._indent_level += 1
+             for stmt in node.body:
+                 self.visit(stmt)
+             self._indent_level -= 1
+             self.output.append(f"{self._indent()}}}")
+
+    def visit_NamedExpr(self, node: ast.NamedExpr) -> str:
+        # (target := value)
+        target = node.target.id
+        value = self.visit(node.value)
+
+        # We need to register this assignment to be emitted before the statement
+        if not hasattr(self, '_walrus_assignments'):
+            self._walrus_assignments = []
+
+        self._walrus_assignments.append(f"{target} := {value}")
+
+        return target
 
     def visit_For(self, node: ast.For) -> None:
         if isinstance(node.iter, ast.Call) and isinstance(node.iter.func, ast.Name) and node.iter.func.id == "zip":

@@ -32,7 +32,7 @@
 - [x] Support for isinstance and type checks
 - [x] Support for del statement
 - [x] Support for slice notation (list[1:3])
-- [ ] Support for walrus operator (:=)
+- [x] Support for walrus operator (:=)
 - [x] Support for __main__ block
 - [ ] Support for hasattr, getattr, setattr
 - [x] Support for enumerate
