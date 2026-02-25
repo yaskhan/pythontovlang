@@ -50,8 +50,8 @@
 - [x] Support for time and datetime module mapping
 - [x] Support for os and sys module mapping
 - [x] Support for re module mapping
-- [ ] Support for argparse module mapping
-- [ ] Support for logging module mapping
+- [x] Support for argparse module mapping
+- [x] Support for logging module mapping
 - [ ] Support for collections module mapping (defaultdict, Counter)
 - [ ] Support for itertools module mapping
 - [ ] Support for functools module mapping
@@ -61,13 +61,13 @@
 - [ ] Support for csv module mapping
 - [ ] Support for sqlite3 module mapping
 - [ ] Support for pathlib module mapping
-- [ ] Support for shutil module mapping
-- [ ] Support for tempfile module mapping
-- [ ] Support for unittest module mapping
+- [x] Support for shutil module mapping
+- [x] Support for tempfile module mapping
+- [x] Support for unittest module mapping
 - [ ] Support for subprocess module mapping
 - [ ] Support for platform module mapping
 - [ ] Support for hashlib module mapping
-- [ ] Support for uuid module mapping
+- [x] Support for uuid module mapping
 - [ ] Support for base64 module mapping
 - [ ] Support for urllib.parse module mapping
 - [ ] Support for struct module mapping

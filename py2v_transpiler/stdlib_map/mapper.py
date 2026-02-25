@@ -73,6 +73,42 @@ class StdLibMapper:
                 "match": "regex.regex_opt", # V regex is different, simplified mapping
                 "search": "regex.regex_opt",
                 "compile": "regex.regex_opt",
+            },
+            "unittest": {
+                # Handled structurally in translator, but map here to avoid errors
+            },
+            "shutil": {
+                "copy": self._shutil_copy,
+                "copy2": self._shutil_copy,
+                "copyfile": self._shutil_copy,
+                "move": self._shutil_move,
+                "rmtree": self._shutil_rmtree,
+                "copytree": self._shutil_copytree,
+                "which": self._shutil_which,
+                "chown": "os.chown",
+                # "disk_usage": "os.disk_usage", # Not confirmed in V stdlib
+            },
+            "tempfile": {
+                "gettempdir": "os.temp_dir",
+                "mkstemp": self._tempfile_mkstemp,
+                "mkdtemp": self._tempfile_mkdtemp,
+                "NamedTemporaryFile": self._tempfile_named_temporary_file,
+                "TemporaryDirectory": self._tempfile_temporary_directory,
+            },
+            "logging": {
+                "info": "log.info",
+                "warning": "log.warn",
+                "error": "log.error",
+                "debug": "log.debug",
+                "critical": "log.error",
+                "getLogger": self._logging_get_logger,
+                "basicConfig": self._logging_basic_config,
+            },
+            "argparse": {
+                "ArgumentParser": "py_argparse_new",
+            },
+            "uuid": {
+                "uuid4": "rand.uuid_v4",
             }
         }
 
@@ -86,6 +122,12 @@ class StdLibMapper:
             "sys": ["os"],
             "os": ["os"],
             "re": ["regex"],
+            "shutil": ["os"],
+            "unittest": [], # No import needed in V if we translate to assert
+            "tempfile": ["os"],
+            "logging": ["log"],
+            "argparse": ["os"],
+            "uuid": ["rand"],
         }
 
     def get_mapping(self, module: str, func: str, args: List[str]) -> Optional[str]:
@@ -131,8 +173,13 @@ class StdLibMapper:
              return handler
         return None
 
-    def get_imports(self, module: str) -> List[str]:
-        return self.v_imports.get(module, [])
+    def get_imports(self, module: str) -> Optional[List[str]]:
+        """
+        Returns list of V imports for a Python module.
+        Returns None if module is unknown/not mapped.
+        Returns [] if module is known but needs no imports.
+        """
+        return self.v_imports.get(module)
 
     # specialized handlers
 
@@ -160,3 +207,90 @@ class StdLibMapper:
             # safe cast?
             return f"time.sleep({args[0]} * time.second)"
         return "/* time.sleep args error */"
+
+    def _shutil_copy(self, args: List[str]) -> str:
+        if len(args) >= 2:
+            return f"os.cp({args[0]}, {args[1]}) or {{ panic(err) }}"
+        return "/* shutil.copy args error */"
+
+    def _shutil_move(self, args: List[str]) -> str:
+        if len(args) >= 2:
+            return f"os.mv({args[0]}, {args[1]}) or {{ panic(err) }}"
+        return "/* shutil.move args error */"
+
+    def _shutil_rmtree(self, args: List[str]) -> str:
+        if len(args) >= 1:
+            return f"os.rmdir_all({args[0]}) or {{ panic(err) }}"
+        return "/* shutil.rmtree args error */"
+
+    def _shutil_copytree(self, args: List[str]) -> str:
+        if len(args) >= 2:
+            # os.cp_all(src, dst, overwrite)
+            return f"os.cp_all({args[0]}, {args[1]}, true) or {{ panic(err) }}"
+        return "/* shutil.copytree args error */"
+
+    def _shutil_which(self, args: List[str]) -> str:
+        if len(args) >= 1:
+             return f"os.find_abs_path_of_executable({args[0]}) or {{ '' }}"
+        return "''"
+
+    def _tempfile_mkstemp(self, args: List[str]) -> str:
+        # mkstemp(suffix, prefix, dir, text)
+        # V: os.create_temp(pattern) -> (File, string)
+        # We need to adapt arguments. V create_temp takes a pattern.
+        # Minimal impl: os.create_temp('') returns (File, path)
+        # We need to close the file to simulate mkstemp returning (fd, path) or similar?
+        # mkstemp returns (fd, path).
+        # We can construct a tuple/array or struct?
+        # os.create_temp('') returns (File, string).
+        # We can map it to:
+        # (os.create_temp('') or { panic(err) })
+        # But this returns a Result.
+        # Let's emit a helper call if needed, or inline.
+        # Inline:
+        # (fn() (int, string) { f, p := os.create_temp('') or { panic(err) }; return f.fd, p })()
+        # This is complex.
+        # Simplified: os.create_temp('') or { panic(err) } returns File, string? No, just File.
+        # Wait, docs say create_temp returns (File, string).
+        # But V usually returns Result.
+        # Let's assume `os.create_temp('') or { panic(err) }` returns `(File, string)`.
+        # No, multiple return values in V must be handled.
+        # `f, p := os.create_temp('') or { panic(err) }`
+        # We can't put this in an expression.
+        # We probably need to implement this via AST transformation or helper function injection.
+        # For now, let's return a comment or best effort.
+        return "/* tempfile.mkstemp() - complex mapping needed */"
+
+    def _tempfile_mkdtemp(self, args: List[str]) -> str:
+        # mkdtemp(suffix, prefix, dir)
+        # V: os.mkdir_temp(prefix) returns string
+        prefix = "''"
+        if len(args) >= 2:
+             prefix = args[1]
+        return f"os.mkdir_temp({prefix}) or {{ panic(err) }}"
+
+    def _tempfile_named_temporary_file(self, args: List[str]) -> str:
+        # NamedTemporaryFile() -> file-like object
+        # In V, os.create_temp('') returns (File, path).
+        # If used in 'with', we want the file object.
+        # But create_temp returns two values.
+        # We can try to use a helper `py_named_temp_file()`
+        return "py_named_temp_file()"
+
+    def _tempfile_temporary_directory(self, args: List[str]) -> str:
+        # TemporaryDirectory() -> context manager yielding path
+        # In V, os.mkdir_temp('') returns path.
+        # We need a struct that has .cleanup() method?
+        # Or just return the path string?
+        # If used in `with`, `visit_With` handles cleanup via `.close()`.
+        # But TemporaryDirectory needs `.cleanup()`.
+        # We might need a helper struct `PyTempDir` with `close()` method that calls `rmdir_all`.
+        return "py_temp_dir()"
+
+    def _logging_get_logger(self, args: List[str]) -> str:
+        if len(args) == 1:
+            return f"py_get_logger({args[0]})"
+        return "py_get_logger('')"
+
+    def _logging_basic_config(self, args: List[str]) -> str:
+        return "/* logging.basicConfig ignored */"
