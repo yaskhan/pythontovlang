@@ -34,7 +34,7 @@
 - [x] Support for slice notation (list[1:3])
 - [x] Support for walrus operator (:=)
 - [x] Support for __main__ block
-- [ ] Support for hasattr, getattr, setattr
+- [x] Support for hasattr, getattr, setattr
 - [x] Support for enumerate
 - [x] Support for zip
 - [x] Support for map and filter
@@ -43,13 +43,13 @@
 - [x] Support for range() with step argument
 - [x] Support for print with end and sep arguments
 - [x] Support for input() function
-- [ ] Support for open() and file I/O context managers
-- [ ] Support for json module mapping
-- [ ] Support for math module mapping
-- [ ] Support for random module mapping
-- [ ] Support for time and datetime module mapping
-- [ ] Support for os and sys module mapping
-- [ ] Support for re module mapping
+- [x] Support for open() and file I/O context managers
+- [x] Support for json module mapping
+- [x] Support for math module mapping
+- [x] Support for random module mapping
+- [x] Support for time and datetime module mapping
+- [x] Support for os and sys module mapping
+- [x] Support for re module mapping
 - [ ] Support for argparse module mapping
 - [ ] Support for logging module mapping
 - [ ] Support for collections module mapping (defaultdict, Counter)
@@ -81,10 +81,10 @@
 - [ ] Support for contextlib module mapping
 - [ ] Support for typing module mapping
 - [x] Implement Import Topology Analyzer (Dependency Graph)
-- [ ] Analyze dependencies to identify unsupported libraries
-- [ ] Support for reproducing module structure (directories/files)
+- [x] Analyze dependencies to identify unsupported libraries
+- [x] Support for reproducing module structure (directories/files)
 
 ## Infrastructure & Tooling
-- [ ] Set up comprehensive test suite (pytest)
-- [ ] CLI Interface polish
+- [x] Set up comprehensive test suite (pytest)
+- [x] CLI Interface polish
 - [ ] Documentation and Usage Examples
