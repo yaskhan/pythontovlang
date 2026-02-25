@@ -425,6 +425,17 @@ class VNodeVisitor(ast.NodeVisitor):
              # py_subprocess_call(args []string) int
              self.emitter.add_function("fn py_subprocess_call(args []string) int {\n    cmd := args.join(' ')\n    return os.system(cmd)\n}")
 
+        platform_used = "platform" in self.imported_modules.values()
+        if not platform_used:
+             for sym in self.imported_symbols.values():
+                 if sym.startswith("platform."):
+                     platform_used = True
+                     break
+
+        if platform_used:
+             # py_platform_machine
+             self.emitter.add_function("fn py_platform_machine() string {\n    return os.uname().machine\n}")
+
         return self.emitter.emit()
 
     def visit_FunctionDef(self, node: ast.FunctionDef) -> None:

@@ -170,6 +170,10 @@ class StdLibMapper:
             "subprocess": {
                 "run": "py_subprocess_run",
                 "call": "py_subprocess_call",
+            },
+            "platform": {
+                "system": "os.user_os",
+                "machine": "py_platform_machine",
             }
         }
 
@@ -201,6 +205,7 @@ class StdLibMapper:
             "csv": ["encoding.csv"],
             "sqlite3": ["db.sqlite"],
             "subprocess": ["os"],
+            "platform": ["os"],
         }
 
     def get_mapping(self, module: str, func: str, args: List[str]) -> Optional[str]:

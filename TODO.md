@@ -64,7 +64,7 @@
 - [x] Support for shutil module mapping
 - [x] Support for tempfile module mapping
 - [x] Support for unittest module mapping
-- [ ] Support for subprocess module mapping
+- [x] Support for subprocess module mapping
 - [ ] Support for platform module mapping
 - [ ] Support for hashlib module mapping
 - [x] Support for uuid module mapping
