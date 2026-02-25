@@ -436,6 +436,28 @@ class VNodeVisitor(ast.NodeVisitor):
              # py_platform_machine
              self.emitter.add_function("fn py_platform_machine() string {\n    return os.uname().machine\n}")
 
+        hashlib_used = "hashlib" in self.imported_modules.values()
+        if not hashlib_used:
+             for sym in self.imported_symbols.values():
+                 if sym.startswith("hashlib."):
+                     hashlib_used = True
+                     break
+
+        if hashlib_used:
+             # PyHashSha256
+             self.emitter.add_struct("struct PyHashSha256 {\nmut:\n    data []u8\n}")
+             self.emitter.add_function("fn py_hash_sha256(data []u8) PyHashSha256 {\n    return PyHashSha256{data: data}\n}")
+             self.emitter.add_function("fn (mut h PyHashSha256) update(data []u8) {\n    h.data << data\n}")
+             self.emitter.add_function("fn (h PyHashSha256) digest() []u8 {\n    return sha256.sum(h.data)\n}")
+             self.emitter.add_function("fn (h PyHashSha256) hexdigest() string {\n    return sha256.hexhash(h.data)\n}")
+
+             # PyHashMd5
+             self.emitter.add_struct("struct PyHashMd5 {\nmut:\n    data []u8\n}")
+             self.emitter.add_function("fn py_hash_md5(data []u8) PyHashMd5 {\n    return PyHashMd5{data: data}\n}")
+             self.emitter.add_function("fn (mut h PyHashMd5) update(data []u8) {\n    h.data << data\n}")
+             self.emitter.add_function("fn (h PyHashMd5) digest() []u8 {\n    return md5.sum(h.data)\n}")
+             self.emitter.add_function("fn (h PyHashMd5) hexdigest() string {\n    return md5.hexhash(h.data)\n}")
+
         return self.emitter.emit()
 
     def visit_FunctionDef(self, node: ast.FunctionDef) -> None:

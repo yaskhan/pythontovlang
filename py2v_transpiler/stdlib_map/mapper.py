@@ -174,6 +174,10 @@ class StdLibMapper:
             "platform": {
                 "system": "os.user_os",
                 "machine": "py_platform_machine",
+            },
+            "hashlib": {
+                "sha256": "py_hash_sha256",
+                "md5": "py_hash_md5",
             }
         }
 
@@ -206,6 +210,7 @@ class StdLibMapper:
             "sqlite3": ["db.sqlite"],
             "subprocess": ["os"],
             "platform": ["os"],
+            "hashlib": ["crypto.sha256", "crypto.md5", "encoding.hex"],
         }
 
     def get_mapping(self, module: str, func: str, args: List[str]) -> Optional[str]:
