@@ -16,6 +16,7 @@ class VNodeVisitor(ast.NodeVisitor):
         self.used_builtins = set() # Track used built-in helpers (sorted, reversed, etc)
         self.renamed_functions = {"main": "py_main"} # Map to rename functions (e.g. main -> py_main)
         self.name_remap = {} # Temporary variable renaming (e.g. x -> it in generators)
+        self._walrus_assignments: List[str] = [] # Buffer for walrus operator assignments
 
     def _indent(self) -> str:
         return "    " * self._indent_level
@@ -682,7 +683,7 @@ class VNodeVisitor(ast.NodeVisitor):
         self._walrus_assignments = []
         test_expr = self.visit(node.test)
 
-        if hasattr(self, '_walrus_assignments') and self._walrus_assignments:
+        if self._walrus_assignments:
              for assign in self._walrus_assignments:
                  self.output.append(f"{self._indent()}{assign}")
              self._walrus_assignments = []
@@ -728,7 +729,7 @@ class VNodeVisitor(ast.NodeVisitor):
 
         test_expr = self.visit(node.test)
 
-        if hasattr(self, '_walrus_assignments') and self._walrus_assignments:
+        if self._walrus_assignments:
              # Found walrus! Transform loop.
              self.output.append(f"{self._indent()}for {{")
              self._indent_level += 1
@@ -759,9 +760,6 @@ class VNodeVisitor(ast.NodeVisitor):
         value = self.visit(node.value)
 
         # We need to register this assignment to be emitted before the statement
-        if not hasattr(self, '_walrus_assignments'):
-            self._walrus_assignments = []
-
         self._walrus_assignments.append(f"{target} := {value}")
 
         return target
