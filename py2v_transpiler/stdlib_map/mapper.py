@@ -106,6 +106,9 @@ class StdLibMapper:
             },
             "argparse": {
                 "ArgumentParser": "py_argparse_new",
+            },
+            "uuid": {
+                "uuid4": "rand.uuid_v4",
             }
         }
 
@@ -124,6 +127,7 @@ class StdLibMapper:
             "tempfile": ["os"],
             "logging": ["log"],
             "argparse": ["os"],
+            "uuid": ["rand"],
         }
 
     def get_mapping(self, module: str, func: str, args: List[str]) -> Optional[str]:

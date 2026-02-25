@@ -67,7 +67,7 @@
 - [ ] Support for subprocess module mapping
 - [ ] Support for platform module mapping
 - [ ] Support for hashlib module mapping
-- [ ] Support for uuid module mapping
+- [x] Support for uuid module mapping
 - [ ] Support for base64 module mapping
 - [ ] Support for urllib.parse module mapping
 - [ ] Support for struct module mapping
