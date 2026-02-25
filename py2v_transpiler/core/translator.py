@@ -221,6 +221,70 @@ class VNodeVisitor(ast.NodeVisitor):
             # Let's use `sync.Mutex` and try to map methods in `visit_Call`.
             pass
 
+        socket_used = "socket" in self.imported_modules.values()
+        if not socket_used:
+             for sym in self.imported_symbols.values():
+                 if sym.startswith("socket."):
+                     socket_used = True
+                     break
+
+        if socket_used:
+            # Constants
+            self.emitter.add_main_statement("const py_AF_INET = 2")
+            self.emitter.add_main_statement("const py_SOCK_STREAM = 1")
+
+            # PySocket struct
+            # It needs to hold either a TcpListener or TcpConn, or both (union-like behavior)
+            # V doesn't have tagged unions easily for this without sum types.
+            # But sum types work. `type PySocketState = net.TcpListener | net.TcpConn`?
+            # Or just use `net.TcpListener` and `net.TcpConn` as fields, one is none.
+            #
+            # Simplified:
+            # struct PySocket {
+            # mut:
+            #   listener ?net.TcpListener
+            #   conn ?net.TcpConn
+            #   is_server bool
+            #   bound_addr string
+            #   bound_port int
+            # }
+            self.emitter.add_struct("struct PySocket {\nmut:\n    listener ?net.TcpListener\n    conn ?net.TcpConn\n    is_server bool\n    bound_addr string\n    bound_port int\n}")
+
+            # py_socket_new
+            self.emitter.add_function("fn py_socket_new(af int, type_ int) PySocket {\n    return PySocket{}\n}")
+
+            # bind
+            # args: address tuple (host, port)
+            # In V, we just store it. Listen happens on listen().
+            self.emitter.add_function("fn (mut s PySocket) bind(addr []string) {\n    // Expecting addr to be [host, port_str] or similar from transpiled tuple\n    // But tuple transpilation maps to array of strings? Or array of mixed?\n    // If tuple (str, int) -> struct? or array of sumtype?\n    // Assuming simplistic transpilation of tuple to array of strings/anys.\n    // Here we stub it.\n    s.bound_addr = addr[0]\n    // s.bound_port = addr[1].int() // pseudo\n}")
+
+            # listen
+            # s.listen(backlog)
+            # In V: listener := net.listen_tcp(.ip, '$addr:$port') or { panic(err) }
+            self.emitter.add_function("fn (mut s PySocket) listen(backlog int) {\n    s.is_server = true\n    l := net.listen_tcp(.ip6, '${s.bound_addr}:${s.bound_port}') or { panic(err) }\n    s.listener = l\n}")
+
+            # accept
+            # conn, addr = s.accept()
+            # Returns (conn, addr)
+            # V: l.accept() returns TcpConn.
+            # We need to return (PySocket, addr_tuple)
+            # But V functions return multi values.
+            # We return (PySocket, []string)
+            self.emitter.add_function("fn (mut s PySocket) accept() (PySocket, []string) {\n    if mut l := s.listener {\n        new_conn := l.accept() or { panic(err) }\n        // addr := new_conn.peer_addr()?\n        return PySocket{conn: new_conn}, ['127.0.0.1', '0']\n    }\n    panic('accept on non-listener')\n}")
+
+            # connect
+            # s.connect((host, port))
+            self.emitter.add_function("fn (mut s PySocket) connect(addr []string) {\n    c := net.dial_tcp('${addr[0]}:${addr[1]}') or { panic(err) }\n    s.conn = c\n}")
+
+            # send (bytes) -> write
+            self.emitter.add_function("fn (mut s PySocket) send(data []u8) int {\n    if mut c := s.conn {\n        c.write(data) or { panic(err) }\n        return data.len\n    }\n    return 0\n}")
+
+            # recv (bufsize) -> read
+            self.emitter.add_function("fn (mut s PySocket) recv(bufsize int) []u8 {\n    if mut c := s.conn {\n        mut buf := []u8{len: bufsize}\n        n := c.read(mut buf) or { 0 }\n        return buf[..n]\n    }\n    return []u8{}\n}")
+
+            # close
+            self.emitter.add_function("fn (mut s PySocket) close() {\n    if mut c := s.conn {\n        c.close() or {}\n    }\n    if mut l := s.listener {\n        l.close() or {}\n    }\n}")
+
         return self.emitter.emit()
 
     def visit_FunctionDef(self, node: ast.FunctionDef) -> None:

@@ -145,6 +145,11 @@ class StdLibMapper:
             "threading": {
                 "Thread": "PyThread",
                 "Lock": self._threading_lock,
+            },
+            "socket": {
+                "socket": "py_socket_new",
+                "AF_INET": "py_AF_INET", # Constants
+                "SOCK_STREAM": "py_SOCK_STREAM",
             }
         }
 
@@ -169,6 +174,7 @@ class StdLibMapper:
             "functools": [],
             "operator": [],
             "threading": ["sync"],
+            "socket": ["net"],
         }
 
     def get_mapping(self, module: str, func: str, args: List[str]) -> Optional[str]:

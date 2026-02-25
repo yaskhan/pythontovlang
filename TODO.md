@@ -55,7 +55,7 @@
 - [x] Support for collections module mapping (defaultdict, Counter)
 - [x] Support for itertools module mapping
 - [x] Support for functools module mapping
-- [ ] Support for threading and multiprocessing module mapping
+- [x] Support for threading and multiprocessing module mapping
 - [ ] Support for socket module mapping
 - [ ] Support for http.client and urllib module mapping
 - [ ] Support for csv module mapping
