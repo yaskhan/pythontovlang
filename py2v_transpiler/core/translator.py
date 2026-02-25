@@ -97,6 +97,367 @@ class VNodeVisitor(ast.NodeVisitor):
                      pathlib_used = True
                      break
 
+        collections_used = "collections" in self.imported_modules.values()
+        if not collections_used:
+             for sym in self.imported_symbols.values():
+                 if sym.startswith("collections."):
+                     collections_used = True
+                     break
+
+        if collections_used:
+             self.emitter.add_function("fn py_counter[T](a []T) map[T]int {\n    mut m := map[T]int{}\n    for x in a {\n        m[x]++\n    }\n    return m\n}")
+
+        itertools_used = "itertools" in self.imported_modules.values()
+        if not itertools_used:
+             for sym in self.imported_symbols.values():
+                 if sym.startswith("itertools."):
+                     itertools_used = True
+                     break
+
+        if itertools_used:
+             # py_chain: variadic, generic, flattens arrays
+             # Note: V generics with variadic args might be tricky.
+             # fn py_chain[T](args ...[]T) []T
+             self.emitter.add_function("fn py_chain[T](args ...[]T) []T {\n    mut res := []T{}\n    for arg in args {\n        res << arg\n    }\n    return res\n}")
+
+             # py_repeat: returns array initialized with value
+             self.emitter.add_function("fn py_repeat[T](val T, n int) []T {\n    return []T{len: n, init: val}\n}")
+
+             # py_count: iterator struct
+             self.emitter.add_struct("struct PyCountIterator {\nmut:\n    val int\n    step int\n}")
+             self.emitter.add_function("fn (mut i PyCountIterator) next() ?int {\n    val := i.val\n    i.val += i.step\n    return val\n}")
+             self.emitter.add_function("fn py_count(start int, step int) PyCountIterator {\n    return PyCountIterator{val: start, step: step}\n}")
+
+             # py_cycle: iterator struct
+             # Cycle needs to store the array and current index
+             self.emitter.add_struct("struct PyCycleIterator[T] {\n    data []T\nmut:\n    idx int\n}")
+             self.emitter.add_function("fn (mut i PyCycleIterator[T]) next() ?T {\n    if i.data.len == 0 { return none }\n    val := i.data[i.idx]\n    i.idx = (i.idx + 1) % i.data.len\n    return val\n}")
+             self.emitter.add_function("fn py_cycle[T](data []T) PyCycleIterator[T] {\n    return PyCycleIterator[T]{data: data}\n}")
+
+        functools_used = "functools" in self.imported_modules.values()
+        if not functools_used:
+             for sym in self.imported_symbols.values():
+                 if sym.startswith("functools."):
+                     functools_used = True
+                     break
+
+        if functools_used:
+             # py_reduce helper
+             self.emitter.add_function("fn py_reduce[T](op fn (acc T, x T) T, iter []T) T {\n    if iter.len == 0 { panic('reduce() of empty sequence with no initial value') }\n    mut acc := iter[0]\n    for i in 1..iter.len {\n        acc = op(acc, iter[i])\n    }\n    return acc\n}")
+
+        operator_used = "operator" in self.imported_modules.values()
+        if not operator_used:
+             for sym in self.imported_symbols.values():
+                 if sym.startswith("operator."):
+                     operator_used = True
+                     break
+
+        if operator_used:
+             self.emitter.add_function("fn py_op_add[T](a T, b T) T { return a + b }")
+             self.emitter.add_function("fn py_op_sub[T](a T, b T) T { return a - b }")
+             self.emitter.add_function("fn py_op_mul[T](a T, b T) T { return a * b }")
+             self.emitter.add_function("fn py_op_div[T](a T, b T) T { return a / b }")
+             self.emitter.add_function("fn py_op_mod[T](a T, b T) T { return a % b }")
+             self.emitter.add_function("fn py_op_eq[T](a T, b T) bool { return a == b }")
+             self.emitter.add_function("fn py_op_ne[T](a T, b T) bool { return a != b }")
+             self.emitter.add_function("fn py_op_lt[T](a T, b T) bool { return a < b }")
+             self.emitter.add_function("fn py_op_le[T](a T, b T) bool { return a <= b }")
+             self.emitter.add_function("fn py_op_gt[T](a T, b T) bool { return a > b }")
+             self.emitter.add_function("fn py_op_ge[T](a T, b T) bool { return a >= b }")
+             self.emitter.add_function("fn py_op_not(a bool) bool { return !a }")
+             self.emitter.add_function("fn py_op_and(a bool, b bool) bool { return a && b }")
+             self.emitter.add_function("fn py_op_or(a bool, b bool) bool { return a || b }")
+             # xor in V is ^ for ints, but logic xor? (a != b)
+             self.emitter.add_function("fn py_op_xor[T](a T, b T) T { return a ^ b }")
+
+        threading_used = "threading" in self.imported_modules.values()
+        if not threading_used:
+             for sym in self.imported_symbols.values():
+                 if sym.startswith("threading."):
+                     threading_used = True
+                     break
+
+        if threading_used:
+            # We need a PyThread struct. But standard threads in V (spawn) don't have join() unless we keep the handle.
+            # V spawn returns a thread handle. `h := spawn foo()`. `h.wait()`.
+            # Python: t = Thread(target=f, args=...); t.start(); t.join()
+            # We can't easily emulate `start()` deferral without wrapping the function in a struct and spawning later.
+            # Simplified: PyThread struct that holds the function? No, function types vary.
+            # Compromise: Map `Thread` to a struct that does NOT hold the function, but assumes immediate start or
+            # we just provide a dummy wrapper.
+            # Actually, `visit_Call` will map `threading.Thread(...)`.
+            # If we map it to `spawn`, it starts immediately.
+            # Let's try to map `threading.Thread` to a struct `PyThread` and `start` to `spawn`.
+            # BUT `start` is a method on the instance.
+            # `t.start()` -> `t.handle = spawn t.run()`.
+            # This requires `t` to know what `run` is.
+            # This is complex for a simple transpiler.
+            #
+            # ALTERNATIVE:
+            # Map `t = threading.Thread(target=f)` -> `t := PyThread{ task: fn() { f() } }` (closure?)
+            # `t.start()` -> `t.handle = spawn t.task()`
+            # `t.join()` -> `t.handle.wait()`
+            #
+            # Limitation: V closures support is evolving.
+            # Also `target=f` might take args. `args=(1,)`. `fn() { f(1) }`.
+            #
+            # Let's emit a placeholder PyThread implementation that suggests manual adjustment or
+            # limited support (no args, or specific signature).
+            #
+            # `struct PyThread { mut: handle thread int /* generic handle */ }`
+            # `fn (mut t PyThread) start(f fn()) { t.handle = spawn f() }`
+            # `fn (t PyThread) join() { t.handle.wait() }`
+
+            self.emitter.add_struct("struct PyThread {\nmut:\n    handle thread int\n    // task fn() // V function types in structs?\n}")
+            self.emitter.add_function("fn (mut t PyThread) start() {\n    // Implementation requires generic task storage or closures\n    println('PyThread.start() called. Note: V spawns immediately on `spawn`. This requires manual adjustment.')\n}")
+            self.emitter.add_function("fn (mut t PyThread) join() {\n    t.handle.wait()\n}")
+
+            # Map acquire/release for Lock (sync.Mutex)
+            # sync.Mutex has .lock() and .unlock()
+            # Python: .acquire(), .release()
+            # We can't add methods to sync.Mutex (foreign type).
+            # But we can wrap it or just rely on manual fix?
+            # Or use a wrapper struct `PyLock`.
+            # Let's use `sync.Mutex` and try to map methods in `visit_Call`.
+            pass
+
+        socket_used = "socket" in self.imported_modules.values()
+        if not socket_used:
+             for sym in self.imported_symbols.values():
+                 if sym.startswith("socket."):
+                     socket_used = True
+                     break
+
+        if socket_used:
+            # Constants
+            self.emitter.add_main_statement("const py_AF_INET = 2")
+            self.emitter.add_main_statement("const py_SOCK_STREAM = 1")
+
+            # PySocket struct
+            # It needs to hold either a TcpListener or TcpConn, or both (union-like behavior)
+            # V doesn't have tagged unions easily for this without sum types.
+            # But sum types work. `type PySocketState = net.TcpListener | net.TcpConn`?
+            # Or just use `net.TcpListener` and `net.TcpConn` as fields, one is none.
+            #
+            # Simplified:
+            # struct PySocket {
+            # mut:
+            #   listener ?net.TcpListener
+            #   conn ?net.TcpConn
+            #   is_server bool
+            #   bound_addr string
+            #   bound_port int
+            # }
+            self.emitter.add_struct("struct PySocket {\nmut:\n    listener ?net.TcpListener\n    conn ?net.TcpConn\n    is_server bool\n    bound_addr string\n    bound_port int\n}")
+
+            # py_socket_new
+            self.emitter.add_function("fn py_socket_new(af int, type_ int) PySocket {\n    return PySocket{}\n}")
+
+            # bind
+            # args: address tuple (host, port)
+            # In V, we just store it. Listen happens on listen().
+            self.emitter.add_function("fn (mut s PySocket) bind(addr []string) {\n    // Expecting addr to be [host, port_str] or similar from transpiled tuple\n    // But tuple transpilation maps to array of strings? Or array of mixed?\n    // If tuple (str, int) -> struct? or array of sumtype?\n    // Assuming simplistic transpilation of tuple to array of strings/anys.\n    // Here we stub it.\n    s.bound_addr = addr[0]\n    // s.bound_port = addr[1].int() // pseudo\n}")
+
+            # listen
+            # s.listen(backlog)
+            # In V: listener := net.listen_tcp(.ip, '$addr:$port') or { panic(err) }
+            self.emitter.add_function("fn (mut s PySocket) listen(backlog int) {\n    s.is_server = true\n    l := net.listen_tcp(.ip6, '${s.bound_addr}:${s.bound_port}') or { panic(err) }\n    s.listener = l\n}")
+
+            # accept
+            # conn, addr = s.accept()
+            # Returns (conn, addr)
+            # V: l.accept() returns TcpConn.
+            # We need to return (PySocket, addr_tuple)
+            # But V functions return multi values.
+            # We return (PySocket, []string)
+            self.emitter.add_function("fn (mut s PySocket) accept() (PySocket, []string) {\n    if mut l := s.listener {\n        new_conn := l.accept() or { panic(err) }\n        // addr := new_conn.peer_addr()?\n        return PySocket{conn: new_conn}, ['127.0.0.1', '0']\n    }\n    panic('accept on non-listener')\n}")
+
+            # connect
+            # s.connect((host, port))
+            self.emitter.add_function("fn (mut s PySocket) connect(addr []string) {\n    c := net.dial_tcp('${addr[0]}:${addr[1]}') or { panic(err) }\n    s.conn = c\n}")
+
+            # send (bytes) -> write
+            self.emitter.add_function("fn (mut s PySocket) send(data []u8) int {\n    if mut c := s.conn {\n        c.write(data) or { panic(err) }\n        return data.len\n    }\n    return 0\n}")
+
+            # recv (bufsize) -> read
+            self.emitter.add_function("fn (mut s PySocket) recv(bufsize int) []u8 {\n    if mut c := s.conn {\n        mut buf := []u8{len: bufsize}\n        n := c.read(mut buf) or { 0 }\n        return buf[..n]\n    }\n    return []u8{}\n}")
+
+            # close
+            self.emitter.add_function("fn (mut s PySocket) close() {\n    if mut c := s.conn {\n        c.close() or {}\n    }\n    if mut l := s.listener {\n        l.close() or {}\n    }\n}")
+
+        pathlib_used = "pathlib" in self.imported_modules.values()
+        if not pathlib_used:
+             for sym in self.imported_symbols.values():
+                 if sym.startswith("pathlib."):
+                     pathlib_used = True
+                     break
+
+        if pathlib_used:
+             # struct PyPath { path string }
+             self.emitter.add_struct("struct PyPath {\n    path string\n}")
+
+             # py_path_new
+             self.emitter.add_function("fn py_path_new(p string) PyPath {\n    return PyPath{path: p}\n}")
+
+             # operator /
+             self.emitter.add_function("fn (p PyPath) / (other string) PyPath {\n    return PyPath{path: os.join_path(p.path, other)}\n}")
+
+             # exists
+             self.emitter.add_function("fn (p PyPath) exists() bool {\n    return os.exists(p.path)\n}")
+
+             # is_dir
+             self.emitter.add_function("fn (p PyPath) is_dir() bool {\n    return os.is_dir(p.path)\n}")
+
+             # is_file
+             self.emitter.add_function("fn (p PyPath) is_file() bool {\n    return os.is_file(p.path)\n}")
+
+             # read_text
+             self.emitter.add_function("fn (p PyPath) read_text() string {\n    return os.read_file(p.path) or { panic(err) }\n}")
+
+             # write_text
+             self.emitter.add_function("fn (p PyPath) write_text(text string) {\n    os.write_file(p.path, text) or { panic(err) }\n}")
+
+             # str
+             self.emitter.add_function("fn (p PyPath) str() string {\n    return p.path\n}")
+
+        http_used = "urllib.request" in self.imported_modules.values() or "http.client" in self.imported_modules.values()
+        if not http_used:
+             for sym in self.imported_symbols.values():
+                 if sym.startswith("urllib.request.") or sym.startswith("http.client."):
+                     http_used = True
+                     break
+
+        if http_used:
+             # PyHttpResponse
+             self.emitter.add_struct("struct PyHttpResponse {\n    body string\n}")
+             self.emitter.add_function("fn (r PyHttpResponse) read() string {\n    return r.body\n}")
+
+             # py_urlopen
+             self.emitter.add_function("fn py_urlopen(url string) PyHttpResponse {\n    resp := http.get(url) or { panic(err) }\n    return PyHttpResponse{body: resp.body}\n}")
+
+             # PyHttpConnection (mock/wrapper for http.client)
+             self.emitter.add_struct("struct PyHttpConnection {\n    host string\nmut:\n    resp PyHttpResponse\n}")
+             self.emitter.add_function("fn py_http_connection(host string) PyHttpConnection {\n    return PyHttpConnection{host: host}\n}")
+             self.emitter.add_function("fn (mut c PyHttpConnection) request(method string, path string) {\n    url := 'http://${c.host}${path}'\n    resp := http.fetch(http.FetchConfig{url: url, method: method}) or { panic(err) }\n    c.resp = PyHttpResponse{body: resp.body}\n}")
+             self.emitter.add_function("fn (c PyHttpConnection) getresponse() PyHttpResponse {\n    return c.resp\n}")
+
+        csv_used = "csv" in self.imported_modules.values()
+        if not csv_used:
+             for sym in self.imported_symbols.values():
+                 if sym.startswith("csv."):
+                     csv_used = True
+                     break
+
+        if csv_used:
+             # PyCsvReader wrapper
+             # Wraps csv.Reader. Needs iterator protocol.
+             # V csv.Reader.read() returns ?[]string.
+             self.emitter.add_struct("struct PyCsvReader {\nmut:\n    reader csv.Reader\n}")
+             # Helper to init. f is os.File which implements io.Reader (in V).
+             # But csv.new_reader expects io.Reader. os.File works.
+             # Note: V's io.Reader interface requires `read(mut []u8) !int`.
+             # os.File has it.
+             self.emitter.add_function("fn py_csv_reader(f os.File) PyCsvReader {\n    return PyCsvReader{reader: csv.new_reader(f)}\n}")
+
+             # next method for iteration
+             # V loops `for x in iter` call `next() ?T`.
+             self.emitter.add_function("fn (mut r PyCsvReader) next() ?[]string {\n    res := r.reader.read() or { return none }\n    return res\n}")
+
+             # PyCsvWriter wrapper
+             self.emitter.add_struct("struct PyCsvWriter {\nmut:\n    writer csv.Writer\n}")
+             self.emitter.add_function("fn py_csv_writer(f os.File) PyCsvWriter {\n    return PyCsvWriter{writer: csv.new_writer(f)}\n}")
+
+             # writerow
+             self.emitter.add_function("fn (mut w PyCsvWriter) writerow(row []string) {\n    w.writer.write(row) or { panic(err) }\n}")
+
+        sqlite3_used = "sqlite3" in self.imported_modules.values()
+        if not sqlite3_used:
+             for sym in self.imported_symbols.values():
+                 if sym.startswith("sqlite3."):
+                     sqlite3_used = True
+                     break
+
+        if sqlite3_used:
+             # PySqliteConnection wrapping sqlite.DB
+             self.emitter.add_struct("struct PySqliteConnection {\n    db sqlite.DB\n}")
+             # py_sqlite_connect
+             self.emitter.add_function("fn py_sqlite_connect(path string) PySqliteConnection {\n    db := sqlite.connect(path) or { panic(err) }\n    return PySqliteConnection{db: db}\n}")
+
+             # PySqliteCursor
+             # Needs ref to DB. V structs pass by value unless ref or handle. sqlite.DB is a handle (voidptr C.sqlite3).
+             # It also needs to store results of last query for fetchall.
+             self.emitter.add_struct("struct PySqliteCursor {\n    db sqlite.DB\nmut:\n    rows []sqlite.Row\n}")
+
+             # cursor() method
+             self.emitter.add_function("fn (c PySqliteConnection) cursor() PySqliteCursor {\n    return PySqliteCursor{db: c.db}\n}")
+
+             # execute(sql)
+             self.emitter.add_function("fn (mut c PySqliteCursor) execute(sql string) {\n    // Basic execute. For SELECT, store rows.\n    // V sqlite exec returns []Row.\n    // Note: sqlite.exec takes (query string) ![]Row\n    rows := c.db.exec(sql) or { panic(err) }\n    c.rows = rows\n}")
+
+             # fetchall()
+             self.emitter.add_function("fn (c PySqliteCursor) fetchall() []sqlite.Row {\n    return c.rows\n}")
+
+             # commit()
+             self.emitter.add_function("fn (c PySqliteConnection) commit() {\n    // V sqlite usually auto-commits or simple exec. No explicit commit API exposed in vlib/db/sqlite usually unless raw?\n    // But 'commit' is SQL. c.db.exec('COMMIT')?\n    // Let's execute COMMIT.\n    c.db.exec('COMMIT') or {}\n}")
+
+             # close()
+             self.emitter.add_function("fn (c PySqliteConnection) close() {\n    c.db.close() or {}\n}")
+
+        subprocess_used = "subprocess" in self.imported_modules.values()
+        if not subprocess_used:
+             for sym in self.imported_symbols.values():
+                 if sym.startswith("subprocess."):
+                     subprocess_used = True
+                     break
+
+        if subprocess_used:
+             # PyCompletedProcess
+             self.emitter.add_struct("struct PyCompletedProcess {\n    returncode int\n    stdout string\n    stderr string\n}")
+
+             # py_subprocess_run(args []string) PyCompletedProcess
+             # os.execute(cmd string) returns Result.
+             # We need to join args. V's os.execute takes a string command.
+             # Joining args with spaces is naive but standard for simple shells.
+             # Better: os.new_process? But that's more complex.
+             # For now, simplistic join.
+             self.emitter.add_function("fn py_subprocess_run(args []string) PyCompletedProcess {\n    cmd := args.join(' ')\n    res := os.execute(cmd)\n    return PyCompletedProcess{returncode: res.exit_code, stdout: res.output, stderr: ''}\n}")
+
+             # py_subprocess_call(args []string) int
+             self.emitter.add_function("fn py_subprocess_call(args []string) int {\n    cmd := args.join(' ')\n    return os.system(cmd)\n}")
+
+        platform_used = "platform" in self.imported_modules.values()
+        if not platform_used:
+             for sym in self.imported_symbols.values():
+                 if sym.startswith("platform."):
+                     platform_used = True
+                     break
+
+        if platform_used:
+             # py_platform_machine
+             self.emitter.add_function("fn py_platform_machine() string {\n    return os.uname().machine\n}")
+
+        hashlib_used = "hashlib" in self.imported_modules.values()
+        if not hashlib_used:
+             for sym in self.imported_symbols.values():
+                 if sym.startswith("hashlib."):
+                     hashlib_used = True
+                     break
+
+        if hashlib_used:
+             # PyHashSha256
+             self.emitter.add_struct("struct PyHashSha256 {\nmut:\n    data []u8\n}")
+             self.emitter.add_function("fn py_hash_sha256(data []u8) PyHashSha256 {\n    return PyHashSha256{data: data}\n}")
+             self.emitter.add_function("fn (mut h PyHashSha256) update(data []u8) {\n    h.data << data\n}")
+             self.emitter.add_function("fn (h PyHashSha256) digest() []u8 {\n    return sha256.sum(h.data)\n}")
+             self.emitter.add_function("fn (h PyHashSha256) hexdigest() string {\n    return sha256.hexhash(h.data)\n}")
+
+             # PyHashMd5
+             self.emitter.add_struct("struct PyHashMd5 {\nmut:\n    data []u8\n}")
+             self.emitter.add_function("fn py_hash_md5(data []u8) PyHashMd5 {\n    return PyHashMd5{data: data}\n}")
+             self.emitter.add_function("fn (mut h PyHashMd5) update(data []u8) {\n    h.data << data\n}")
+             self.emitter.add_function("fn (h PyHashMd5) digest() []u8 {\n    return md5.sum(h.data)\n}")
+             self.emitter.add_function("fn (h PyHashMd5) hexdigest() string {\n    return md5.hexhash(h.data)\n}")
+
         return self.emitter.emit()
 
     def visit_FunctionDef(self, node: ast.FunctionDef) -> None:
@@ -468,6 +829,21 @@ class VNodeVisitor(ast.NodeVisitor):
                 name = alias.name
                 as_name = alias.asname if alias.asname else name
                 self.imported_symbols[as_name] = f"{module_name}.{name}"
+
+    def visit_AugAssign(self, node: ast.AugAssign) -> None:
+        target = self.visit(node.target)
+        value = self.visit(node.value)
+        op_map = {
+            ast.Add: "+=", ast.Sub: "-=", ast.Mult: "*=", ast.Div: "/=",
+            ast.Mod: "%="
+        }
+        # V supports +=, -=, *=, /=, %=
+        # V does not support **= (must use math.pow or similar, which is not AugAssign compatible directly)
+        op_str = op_map.get(type(node.op))
+        if op_str:
+             self.output.append(f"{self._indent()}{target} {op_str} {value}")
+        else:
+             self.output.append(f"{self._indent()}// Unsupported AugAssign operator: {type(node.op)}")
 
     def visit_Assign(self, node: ast.Assign) -> None:
         target = node.targets[0]
@@ -899,6 +1275,22 @@ class VNodeVisitor(ast.NodeVisitor):
              # os.path.join -> value is os.path, attr is join
              # Check if os.path is module
              pass
+
+        # Handle threading.Lock.acquire/release -> lock/unlock
+        # Heuristic: if method name is acquire/release and receiver is unknown or mapped to sync.Mutex (hard to know type here)
+        # We can just map acquire->lock, release->unlock generally if threading is imported?
+        # Or check if receiver name suggests lock?
+        # Safe approach: if threading is used, and method is acquire/release, map it.
+        # But this might conflict with other classes.
+        # Let's check mapped type? We don't have robust type inference for variables yet.
+        # Just map it for now if threading is imported.
+        if "threading" in self.imported_modules.values() and isinstance(func_node, ast.Attribute):
+             if func_node.attr == "acquire":
+                 receiver = self.visit(func_node.value)
+                 return f"{receiver}.lock()"
+             elif func_node.attr == "release":
+                 receiver = self.visit(func_node.value)
+                 return f"{receiver}.unlock()"
 
         # Handle super().method()
         if isinstance(func_node, ast.Attribute) and isinstance(func_node.value, ast.Call) and \

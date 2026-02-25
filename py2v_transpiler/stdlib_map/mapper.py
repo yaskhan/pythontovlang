@@ -109,6 +109,75 @@ class StdLibMapper:
             },
             "uuid": {
                 "uuid4": "rand.uuid_v4",
+            },
+            "collections": {
+                "defaultdict": self._collections_defaultdict,
+                "Counter": self._collections_Counter,
+            },
+            "itertools": {
+                "chain": "py_chain",
+                "repeat": self._itertools_repeat,
+                "count": self._itertools_count,
+                "cycle": "py_cycle",
+            },
+            "functools": {
+                "reduce": "py_reduce",
+            },
+            "operator": {
+                "add": "py_op_add",
+                "sub": "py_op_sub",
+                "mul": "py_op_mul",
+                "truediv": "py_op_div",
+                "floordiv": "py_op_div", # V / is integer div for ints
+                "mod": "py_op_mod",
+                "pow": "math.pow", # Helper needed or direct usage
+                "eq": "py_op_eq",
+                "ne": "py_op_ne",
+                "lt": "py_op_lt",
+                "le": "py_op_le",
+                "gt": "py_op_gt",
+                "ge": "py_op_ge",
+                "not_": "py_op_not",
+                "and_": "py_op_and",
+                "or_": "py_op_or",
+                "xor": "py_op_xor",
+            },
+            "threading": {
+                "Thread": "PyThread",
+                "Lock": self._threading_lock,
+            },
+            "socket": {
+                "socket": "py_socket_new",
+                "AF_INET": "py_AF_INET", # Constants
+                "SOCK_STREAM": "py_SOCK_STREAM",
+            },
+            "pathlib": {
+                "Path": "py_path_new",
+            },
+            "urllib.request": {
+                "urlopen": "py_urlopen",
+            },
+            "http.client": {
+                "HTTPConnection": "py_http_connection",
+            },
+            "csv": {
+                "reader": "py_csv_reader",
+                "writer": "py_csv_writer",
+            },
+            "sqlite3": {
+                "connect": "py_sqlite_connect",
+            },
+            "subprocess": {
+                "run": "py_subprocess_run",
+                "call": "py_subprocess_call",
+            },
+            "platform": {
+                "system": "os.user_os",
+                "machine": "py_platform_machine",
+            },
+            "hashlib": {
+                "sha256": "py_hash_sha256",
+                "md5": "py_hash_md5",
             }
         }
 
@@ -128,6 +197,20 @@ class StdLibMapper:
             "logging": ["log"],
             "argparse": ["os"],
             "uuid": ["rand"],
+            "collections": [],
+            "itertools": [],
+            "functools": [],
+            "operator": [],
+            "threading": ["sync"],
+            "socket": ["net"],
+            "pathlib": ["os"],
+            "urllib.request": ["net.http"],
+            "http.client": ["net.http"],
+            "csv": ["encoding.csv"],
+            "sqlite3": ["db.sqlite"],
+            "subprocess": ["os"],
+            "platform": ["os"],
+            "hashlib": ["crypto.sha256", "crypto.md5", "encoding.hex"],
         }
 
     def get_mapping(self, module: str, func: str, args: List[str]) -> Optional[str]:
@@ -294,3 +377,39 @@ class StdLibMapper:
 
     def _logging_basic_config(self, args: List[str]) -> str:
         return "/* logging.basicConfig ignored */"
+
+    def _collections_defaultdict(self, args: List[str]) -> str:
+        if len(args) == 1:
+            factory = args[0]
+            if factory == "int":
+                return "map[string]int{}"
+            elif factory == "list":
+                # Assuming list of ints for generic list usage, or use generic array if possible?
+                # V requires specific type. map[string][]int{} is a safe bet for numbers.
+                return "map[string][]int{}"
+            elif factory == "set":
+                 return "map[string]map[int]bool{}"
+        # Fallback
+        return "map[string]int{}"
+
+    def _collections_Counter(self, args: List[str]) -> str:
+        if len(args) == 1:
+            return f"py_counter({args[0]})"
+        return "map[string]int{}"
+
+    def _itertools_repeat(self, args: List[str]) -> str:
+        if len(args) >= 2:
+            return f"py_repeat({args[0]}, {args[1]})"
+        return "[]int{}"
+
+    def _itertools_count(self, args: List[str]) -> str:
+        start = "0"
+        step = "1"
+        if len(args) >= 1:
+             start = args[0]
+        if len(args) >= 2:
+             step = args[1]
+        return f"py_count({start}, {step})"
+
+    def _threading_lock(self, args: List[str]) -> str:
+        return "sync.new_mutex()"

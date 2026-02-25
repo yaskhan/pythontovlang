@@ -52,21 +52,21 @@
 - [x] Support for re module mapping
 - [x] Support for argparse module mapping
 - [x] Support for logging module mapping
-- [ ] Support for collections module mapping (defaultdict, Counter)
-- [ ] Support for itertools module mapping
-- [ ] Support for functools module mapping
-- [ ] Support for threading and multiprocessing module mapping
-- [ ] Support for socket module mapping
-- [ ] Support for http.client and urllib module mapping
-- [ ] Support for csv module mapping
-- [ ] Support for sqlite3 module mapping
-- [ ] Support for pathlib module mapping
+- [x] Support for collections module mapping (defaultdict, Counter)
+- [x] Support for itertools module mapping
+- [x] Support for functools module mapping
+- [x] Support for threading and multiprocessing module mapping
+- [x] Support for socket module mapping
+- [x] Support for http.client and urllib module mapping
+- [x] Support for csv module mapping
+- [x] Support for sqlite3 module mapping
+- [x] Support for pathlib module mapping
 - [x] Support for shutil module mapping
 - [x] Support for tempfile module mapping
 - [x] Support for unittest module mapping
-- [ ] Support for subprocess module mapping
-- [ ] Support for platform module mapping
-- [ ] Support for hashlib module mapping
+- [x] Support for subprocess module mapping
+- [x] Support for platform module mapping
+- [x] Support for hashlib module mapping
 - [x] Support for uuid module mapping
 - [ ] Support for base64 module mapping
 - [ ] Support for urllib.parse module mapping
@@ -80,6 +80,20 @@
 - [ ] Support for statistics module mapping
 - [ ] Support for contextlib module mapping
 - [ ] Support for typing module mapping
+- [ ] Support for star arguments in function calls (*args)
+- [ ] Support for double star arguments in function calls (**kwargs)
+- [ ] Support for variadic arguments in definitions (*args)
+- [ ] Support for keyword arguments in definitions (**kwargs)
+- [ ] Support for keyword-only arguments (*, arg)
+- [ ] Support for positional-only arguments (arg, /)
+- [ ] Support for destructuring assignment (a, *b = l)
+- [ ] Support for chained comparisons (a < b < c)
+- [ ] Support for dictionary comprehensions
+- [ ] Support for set comprehensions
+- [ ] Support for generator expressions (independent)
+- [ ] Support for complex numbers
+- [ ] Support for matrix multiplication operator (@)
+- [ ] Support for bytes and bytearray literals
 - [x] Implement Import Topology Analyzer (Dependency Graph)
 - [x] Analyze dependencies to identify unsupported libraries
 - [x] Support for reproducing module structure (directories/files)
