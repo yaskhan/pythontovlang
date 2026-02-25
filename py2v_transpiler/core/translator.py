@@ -530,6 +530,18 @@ class VNodeVisitor(ast.NodeVisitor):
                     val = self.visit(arg)
                     return f"{val}.{func_name}(it)"
 
+        elif func_name == "isinstance":
+            if len(args) == 2:
+                obj = args[0]
+                types = args[1]
+                # Check if it's a single type check: isinstance(x, MyClass) -> x is MyClass
+                # If types is a tuple (array in V representation), it's harder.
+                # args[1] string comes from self.visit(), so it might be "MyClass" or "[int, float]"
+                if types.startswith("[") and types.endswith("]"):
+                     # Multiple types check not directly supported in 'is' expression
+                     return f"/* isinstance({obj}, {types}) - multi-type check not supported */ false"
+                return f"{obj} is {types}"
+
         elif func_name == "input":
             self.emitter.add_import("os")
             if args:
