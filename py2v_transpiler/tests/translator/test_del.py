@@ -34,7 +34,7 @@ x = 1
 del x
 """
     v_code = translate(source)
-    assert "// del x (variable deletion not supported in V)" in v_code
+    assert "/* del x */" in v_code
 
 def test_del_attribute():
     source = """
@@ -42,4 +42,4 @@ obj.attr = 1
 del obj.attr
 """
     v_code = translate(source)
-    assert "// del obj.attr (attribute deletion not supported)" in v_code
+    assert "/* del obj.attr */" in v_code
