@@ -109,6 +109,10 @@ class StdLibMapper:
             },
             "uuid": {
                 "uuid4": "rand.uuid_v4",
+            },
+            "collections": {
+                "defaultdict": self._collections_defaultdict,
+                "Counter": self._collections_Counter,
             }
         }
 
@@ -128,6 +132,7 @@ class StdLibMapper:
             "logging": ["log"],
             "argparse": ["os"],
             "uuid": ["rand"],
+            "collections": [],
         }
 
     def get_mapping(self, module: str, func: str, args: List[str]) -> Optional[str]:
@@ -294,3 +299,22 @@ class StdLibMapper:
 
     def _logging_basic_config(self, args: List[str]) -> str:
         return "/* logging.basicConfig ignored */"
+
+    def _collections_defaultdict(self, args: List[str]) -> str:
+        if len(args) == 1:
+            factory = args[0]
+            if factory == "int":
+                return "map[string]int{}"
+            elif factory == "list":
+                # Assuming list of ints for generic list usage, or use generic array if possible?
+                # V requires specific type. map[string][]int{} is a safe bet for numbers.
+                return "map[string][]int{}"
+            elif factory == "set":
+                 return "map[string]map[int]bool{}"
+        # Fallback
+        return "map[string]int{}"
+
+    def _collections_Counter(self, args: List[str]) -> str:
+        if len(args) == 1:
+            return f"py_counter({args[0]})"
+        return "map[string]int{}"

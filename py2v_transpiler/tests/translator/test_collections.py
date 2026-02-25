@@ -56,3 +56,73 @@ def test_translator_dict_empty():
     result = translator.visit_Module(tree)
 
     assert "d := map[string]int{}" in result
+
+# New tests for collections module (defaultdict, Counter)
+
+def translate(source: str) -> str:
+    parser = PyASTParser()
+    tree = parser.parse(source)
+    if not isinstance(tree, ast.Module):
+        raise ValueError("Parsed AST is not a Module")
+    analyzer = TypeInference()
+    translator = VNodeVisitor(analyzer)
+    return translator.visit_Module(tree)
+
+def test_defaultdict_int():
+    source = """
+from collections import defaultdict
+d = defaultdict(int)
+d['a'] += 1
+"""
+    v_code = translate(source)
+    # Expect d := ... (mutability handling is separate concern)
+    assert "d := map[string]int{}" in v_code
+    assert "d['a'] += 1" in v_code or "d['a']++" in v_code
+
+def test_defaultdict_list():
+    source = """
+from collections import defaultdict
+d = defaultdict(list)
+d['a'].append(1)
+"""
+    v_code = translate(source)
+    assert "d := map[string][]int{}" in v_code
+    # Currently .append is not mapped to << automatically for general calls
+    assert "d['a'].append(1)" in v_code or "d['a'] << 1" in v_code
+
+def test_counter_empty():
+    source = """
+from collections import Counter
+c = Counter()
+c['a'] += 1
+"""
+    v_code = translate(source)
+    assert "c := map[string]int{}" in v_code
+    # Verify AugAssign works for Counter too
+    assert "c['a'] += 1" in v_code
+
+def test_counter_list():
+    source = """
+from collections import Counter
+l = [1, 2, 1]
+c = Counter(l)
+"""
+    v_code = translate(source)
+    assert "c := py_counter(l)" in v_code
+    assert "fn py_counter[T](a []T) map[T]int" in v_code
+
+def test_import_collections_defaultdict():
+    source = """
+import collections
+d = collections.defaultdict(int)
+"""
+    v_code = translate(source)
+    assert "d := map[string]int{}" in v_code
+
+def test_import_collections_counter():
+    source = """
+import collections
+c = collections.Counter([1, 2, 3])
+"""
+    v_code = translate(source)
+    assert "c := py_counter([1, 2, 3])" in v_code

@@ -97,6 +97,16 @@ class VNodeVisitor(ast.NodeVisitor):
                      pathlib_used = True
                      break
 
+        collections_used = "collections" in self.imported_modules.values()
+        if not collections_used:
+             for sym in self.imported_symbols.values():
+                 if sym.startswith("collections."):
+                     collections_used = True
+                     break
+
+        if collections_used:
+             self.emitter.add_function("fn py_counter[T](a []T) map[T]int {\n    mut m := map[T]int{}\n    for x in a {\n        m[x]++\n    }\n    return m\n}")
+
         return self.emitter.emit()
 
     def visit_FunctionDef(self, node: ast.FunctionDef) -> None:
@@ -468,6 +478,21 @@ class VNodeVisitor(ast.NodeVisitor):
                 name = alias.name
                 as_name = alias.asname if alias.asname else name
                 self.imported_symbols[as_name] = f"{module_name}.{name}"
+
+    def visit_AugAssign(self, node: ast.AugAssign) -> None:
+        target = self.visit(node.target)
+        value = self.visit(node.value)
+        op_map = {
+            ast.Add: "+=", ast.Sub: "-=", ast.Mult: "*=", ast.Div: "/=",
+            ast.Mod: "%="
+        }
+        # V supports +=, -=, *=, /=, %=
+        # V does not support **= (must use math.pow or similar, which is not AugAssign compatible directly)
+        op_str = op_map.get(type(node.op))
+        if op_str:
+             self.output.append(f"{self._indent()}{target} {op_str} {value}")
+        else:
+             self.output.append(f"{self._indent()}// Unsupported AugAssign operator: {type(node.op)}")
 
     def visit_Assign(self, node: ast.Assign) -> None:
         target = node.targets[0]
