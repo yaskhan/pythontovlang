@@ -255,8 +255,18 @@ class VNodeVisitor(ast.NodeVisitor):
         # Extract fields from __init__ or class body annotations (simplified)
         fields = []
 
+        is_enum = False
+        is_int_enum = False
+
         # Handle inheritance (bases)
         for base in node.bases:
+            # Handle Enum
+            if isinstance(base, ast.Name):
+                if base.id == "Enum":
+                    is_enum = True
+                elif base.id == "IntEnum":
+                    is_int_enum = True
+
             # Handle Generic[T]
             if isinstance(base, ast.Subscript):
                 base_name = ""
@@ -313,6 +323,23 @@ class VNodeVisitor(ast.NodeVisitor):
         struct_def = ""
         if decorators:
             struct_def += "\n".join(decorators) + "\n"
+
+        if is_int_enum:
+            # Transpile to V enum
+            enum_fields = []
+            for stmt in node.body:
+                if isinstance(stmt, ast.Assign):
+                    for target in stmt.targets:
+                        if isinstance(target, ast.Name):
+                            # snake_case conversion for member
+                            member_name = target.id.lower()
+                            value = self.visit(stmt.value)
+                            enum_fields.append(f"    {member_name} = {value}")
+
+            struct_def += f"enum {struct_name} {{\n" + "\n".join(enum_fields) + "\n}"
+            self.emitter.add_struct(struct_def)
+            # Skip method generation for simple enums for now
+            return
 
         generics_str = ""
         if self.current_class_generics:
