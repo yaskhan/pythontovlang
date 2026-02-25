@@ -99,6 +99,28 @@ class VNodeVisitor(ast.NodeVisitor):
         # Ensure struct_name is always a string
         struct_name: str = self.current_class if self.current_class else ""
 
+        # Special handling for unittest methods: flatten to function calls
+        # We detect if we are inside a unittest class (flag set in visit_ClassDef)
+        is_unittest_method = False
+        if hasattr(self, 'current_class_is_unittest') and self.current_class_is_unittest:
+            if node.name.startswith("test_"):
+                is_unittest_method = True
+                # Rename function to include class name
+                func_name = f"{node.name}_{struct_name}"
+                # Remove self argument and receiver
+                is_method = False
+                receiver_str = ""
+            elif node.name in ("setUp", "tearDown"):
+                 # Skip setup/teardown for now or map to V test hooks if possible
+                 # V supports test_setup() but it's global per module usually?
+                 # For now, comment them out
+                 self.output.append(f"// {node.name} method in unittest class ignored")
+                 return
+            else:
+                 # Helper method?
+                 # Keep as function but maybe private?
+                 pass
+
         args_str_list: List[str] = []
         receiver_str: str = ""
         args_names: List[str] = []
@@ -124,6 +146,9 @@ class VNodeVisitor(ast.NodeVisitor):
                     receiver_str = f"({args[0].arg} {struct_name}) "
 
             args = args[1:] # Remove self from arguments list
+        elif is_unittest_method and args and args[0].arg == "self":
+             # Remove self from unittest method args
+             args = args[1:]
 
         for arg in args:
             arg_name = arg.arg
@@ -149,9 +174,10 @@ class VNodeVisitor(ast.NodeVisitor):
              elif isinstance(node.returns, ast.Constant) and isinstance(node.returns.value, str):
                   ret_type = node.returns.value
 
-        func_name = node.name
-        if func_name in self.renamed_functions:
-            func_name = self.renamed_functions[func_name]
+        if not is_unittest_method:
+            func_name = node.name
+            if func_name in self.renamed_functions:
+                func_name = self.renamed_functions[func_name]
 
         # Handle cache wrapper generation
         if dec_info.cache_wrapper_needed and dec_info.implementation_name:
@@ -245,6 +271,7 @@ class VNodeVisitor(ast.NodeVisitor):
         self.current_class = struct_name
         self.current_class_generics = []
         self.current_class_bases = []
+        self.current_class_is_unittest = False
 
         # Handle decorators
         decorators = []
@@ -257,6 +284,7 @@ class VNodeVisitor(ast.NodeVisitor):
 
         is_enum = False
         is_int_enum = False
+        is_unittest = False
 
         # Handle inheritance (bases)
         for base in node.bases:
@@ -266,6 +294,16 @@ class VNodeVisitor(ast.NodeVisitor):
                     is_enum = True
                 elif base.id == "IntEnum":
                     is_int_enum = True
+                elif base.id == "TestCase":
+                     # Check if it's likely unittest.TestCase
+                     # Or check if base is Attribute unittest.TestCase
+                     is_unittest = True
+
+            elif isinstance(base, ast.Attribute):
+                # Check for unittest.TestCase
+                val = self.visit(base)
+                if val == "unittest.TestCase" or (isinstance(base.value, ast.Name) and base.value.id == "unittest" and base.attr == "TestCase"):
+                     is_unittest = True
 
             # Handle Generic[T]
             if isinstance(base, ast.Subscript):
@@ -320,44 +358,51 @@ class VNodeVisitor(ast.NodeVisitor):
                             field_type = stmt.annotation.id
                 fields.append(f"    {field_name} {field_type}")
 
-        struct_def = ""
-        if decorators:
-            struct_def += "\n".join(decorators) + "\n"
+        if is_unittest:
+             self.current_class_is_unittest = True
+             # Do NOT emit struct for unittest class, just methods
+             for method in methods:
+                 self.visit(method)
+        else:
+            struct_def = ""
+            if decorators:
+                struct_def += "\n".join(decorators) + "\n"
 
-        if is_int_enum:
-            # Transpile to V enum
-            enum_fields = []
-            for stmt in node.body:
-                if isinstance(stmt, ast.Assign):
-                    for target in stmt.targets:
-                        if isinstance(target, ast.Name):
-                            # snake_case conversion for member
-                            member_name = target.id.lower()
-                            value = self.visit(stmt.value)
-                            enum_fields.append(f"    {member_name} = {value}")
+            if is_int_enum:
+                # Transpile to V enum
+                enum_fields = []
+                for stmt in node.body:
+                    if isinstance(stmt, ast.Assign):
+                        for target in stmt.targets:
+                            if isinstance(target, ast.Name):
+                                # snake_case conversion for member
+                                member_name = target.id.lower()
+                                value = self.visit(stmt.value)
+                                enum_fields.append(f"    {member_name} = {value}")
 
-            struct_def += f"enum {struct_name} {{\n" + "\n".join(enum_fields) + "\n}"
+                struct_def += f"enum {struct_name} {{\n" + "\n".join(enum_fields) + "\n}"
+                self.emitter.add_struct(struct_def)
+                # Skip method generation for simple enums for now
+                return
+
+            generics_str = ""
+            if self.current_class_generics:
+                # Sanitize: _T -> T
+                sanitized = [g.lstrip('_') for g in self.current_class_generics]
+                self.current_class_generics = sanitized
+                generics_str = f"[{', '.join(sanitized)}]"
+
+            struct_def += f"struct {struct_name}{generics_str} {{\n" + "\n".join(fields) + "\n}"
             self.emitter.add_struct(struct_def)
-            # Skip method generation for simple enums for now
-            return
 
-        generics_str = ""
-        if self.current_class_generics:
-            # Sanitize: _T -> T
-            sanitized = [g.lstrip('_') for g in self.current_class_generics]
-            self.current_class_generics = sanitized
-            generics_str = f"[{', '.join(sanitized)}]"
-
-        struct_def += f"struct {struct_name}{generics_str} {{\n" + "\n".join(fields) + "\n}"
-        self.emitter.add_struct(struct_def)
-
-        # Visit methods to generate them as functions
-        for method in methods:
-            self.visit(method)
+            # Visit methods to generate them as functions
+            for method in methods:
+                self.visit(method)
 
         self.current_class = None
         self.current_class_generics = []
         self.current_class_bases = []
+        self.current_class_is_unittest = False
 
     def visit_Import(self, node: ast.Import) -> None:
         for alias in node.names:
@@ -367,11 +412,11 @@ class VNodeVisitor(ast.NodeVisitor):
 
             # Add V imports via mapper
             v_imports = self.mapper.get_imports(module_name)
-            for imp in v_imports:
-                self.emitter.add_import(imp)
-
-            if not v_imports:
-                # If not mapped, import as is (or handle default mapping)
+            if v_imports is not None:
+                for imp in v_imports:
+                    self.emitter.add_import(imp)
+            else:
+                # If not mapped (None), import as is
                 self.emitter.add_import(module_name)
 
     def visit_ImportFrom(self, node: ast.ImportFrom) -> None:
@@ -380,8 +425,14 @@ class VNodeVisitor(ast.NodeVisitor):
 
             # Add V imports
             v_imports = self.mapper.get_imports(module_name)
-            for imp in v_imports:
-                self.emitter.add_import(imp)
+            if v_imports is not None:
+                for imp in v_imports:
+                    self.emitter.add_import(imp)
+            # Else? For ImportFrom, we don't necessarily import the module if not mapped,
+            # unless we need symbols from it. Python `from x import y` imports y.
+            # If not mapped, we might need `import x` or `import x.y`.
+            # Existing logic didn't handle `else` case for ImportFrom explicitly
+            # except implicitly assuming `y` would be used.
 
             for alias in node.names:
                 name = alias.name
@@ -829,6 +880,46 @@ class VNodeVisitor(ast.NodeVisitor):
                 return f"self.{parent}.{method_name}({', '.join(args)})"
             else:
                  return f"/* super().{method_name} call without known parent */"
+
+        # Handle unittest assertions
+        # We detect calls on 'self' that match assertX
+        if isinstance(func_node, ast.Attribute) and func_node.attr.startswith("assert"):
+             # Check if receiver is self?
+             # Or just allow any assertX call to be transformed?
+             # Let's check strictly for self.assertX if possible, but 'self' might be implicit or named differently.
+             # In visit_FunctionDef we removed self arg for unittest methods.
+             # But the AST still has 'self'.
+             # Wait, visit_Name transforms 'self' to 'self' (or whatever).
+             # In unittest methods, we removed the receiver from function signature, but inside body 'self' is still used?
+             # No, if we removed 'self' from args, then 'self' inside body is undefined or refers to nothing?
+             # Actually, if we remove 'self' from args, any usage of 'self' in body becomes a Name node.
+             # We should probably map 'self' to nothing or handle self.assertX specially.
+
+             assertion = func_node.attr
+             if assertion == "assertEqual" and len(args) == 2:
+                  return f"assert {args[0]} == {args[1]}"
+             elif assertion == "assertNotEqual" and len(args) == 2:
+                  return f"assert {args[0]} != {args[1]}"
+             elif assertion == "assertTrue" and len(args) == 1:
+                  return f"assert {args[0]}"
+             elif assertion == "assertFalse" and len(args) == 1:
+                  return f"assert !({args[0]})"
+             elif assertion == "assertIn" and len(args) == 2:
+                  return f"assert {args[0]} in {args[1]}"
+             elif assertion == "assertNotIn" and len(args) == 2:
+                  return f"assert {args[0]} !in {args[1]}"
+             elif assertion == "assertIsNone" and len(args) == 1:
+                  return f"assert {args[0]} == none"
+             elif assertion == "assertIsNotNone" and len(args) == 1:
+                  return f"assert {args[0]} != none"
+             elif assertion == "assertIs" and len(args) == 2:
+                   return f"assert {args[0]} == {args[1]}" # Approx
+             elif assertion == "assertIsNot" and len(args) == 2:
+                   return f"assert {args[0]} != {args[1]}" # Approx
+
+        # unittest.main()
+        if module_name == "unittest" and func_name == "main":
+             return "// unittest.main() ignored"
 
         # Fallback to existing logic
         func_name_str = self.visit(node.func)

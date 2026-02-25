@@ -74,6 +74,9 @@ class StdLibMapper:
                 "search": "regex.regex_opt",
                 "compile": "regex.regex_opt",
             },
+            "unittest": {
+                # Handled structurally in translator, but map here to avoid errors
+            },
             "shutil": {
                 "copy": self._shutil_copy,
                 "copy2": self._shutil_copy,
@@ -98,6 +101,7 @@ class StdLibMapper:
             "os": ["os"],
             "re": ["regex"],
             "shutil": ["os"],
+            "unittest": [], # No import needed in V if we translate to assert
         }
 
     def get_mapping(self, module: str, func: str, args: List[str]) -> Optional[str]:
@@ -143,8 +147,13 @@ class StdLibMapper:
              return handler
         return None
 
-    def get_imports(self, module: str) -> List[str]:
-        return self.v_imports.get(module, [])
+    def get_imports(self, module: str) -> Optional[List[str]]:
+        """
+        Returns list of V imports for a Python module.
+        Returns None if module is unknown/not mapped.
+        Returns [] if module is known but needs no imports.
+        """
+        return self.v_imports.get(module)
 
     # specialized handlers
 

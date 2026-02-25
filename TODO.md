@@ -63,7 +63,7 @@
 - [ ] Support for pathlib module mapping
 - [x] Support for shutil module mapping
 - [ ] Support for tempfile module mapping
-- [ ] Support for unittest module mapping
+- [x] Support for unittest module mapping
 - [ ] Support for subprocess module mapping
 - [ ] Support for platform module mapping
 - [ ] Support for hashlib module mapping
