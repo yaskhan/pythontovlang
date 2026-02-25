@@ -320,6 +320,27 @@ class VNodeVisitor(ast.NodeVisitor):
              # str
              self.emitter.add_function("fn (p PyPath) str() string {\n    return p.path\n}")
 
+        http_used = "urllib.request" in self.imported_modules.values() or "http.client" in self.imported_modules.values()
+        if not http_used:
+             for sym in self.imported_symbols.values():
+                 if sym.startswith("urllib.request.") or sym.startswith("http.client."):
+                     http_used = True
+                     break
+
+        if http_used:
+             # PyHttpResponse
+             self.emitter.add_struct("struct PyHttpResponse {\n    body string\n}")
+             self.emitter.add_function("fn (r PyHttpResponse) read() string {\n    return r.body\n}")
+
+             # py_urlopen
+             self.emitter.add_function("fn py_urlopen(url string) PyHttpResponse {\n    resp := http.get(url) or { panic(err) }\n    return PyHttpResponse{body: resp.body}\n}")
+
+             # PyHttpConnection (mock/wrapper for http.client)
+             self.emitter.add_struct("struct PyHttpConnection {\n    host string\nmut:\n    resp PyHttpResponse\n}")
+             self.emitter.add_function("fn py_http_connection(host string) PyHttpConnection {\n    return PyHttpConnection{host: host}\n}")
+             self.emitter.add_function("fn (mut c PyHttpConnection) request(method string, path string) {\n    url := 'http://${c.host}${path}'\n    resp := http.fetch(http.FetchConfig{url: url, method: method}) or { panic(err) }\n    c.resp = PyHttpResponse{body: resp.body}\n}")
+             self.emitter.add_function("fn (c PyHttpConnection) getresponse() PyHttpResponse {\n    return c.resp\n}")
+
         return self.emitter.emit()
 
     def visit_FunctionDef(self, node: ast.FunctionDef) -> None:

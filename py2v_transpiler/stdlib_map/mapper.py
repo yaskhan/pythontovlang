@@ -153,6 +153,12 @@ class StdLibMapper:
             },
             "pathlib": {
                 "Path": "py_path_new",
+            },
+            "urllib.request": {
+                "urlopen": "py_urlopen",
+            },
+            "http.client": {
+                "HTTPConnection": "py_http_connection",
             }
         }
 
@@ -179,6 +185,8 @@ class StdLibMapper:
             "threading": ["sync"],
             "socket": ["net"],
             "pathlib": ["os"],
+            "urllib.request": ["net.http"],
+            "http.client": ["net.http"],
         }
 
     def get_mapping(self, module: str, func: str, args: List[str]) -> Optional[str]:

@@ -60,7 +60,7 @@
 - [ ] Support for http.client and urllib module mapping
 - [ ] Support for csv module mapping
 - [ ] Support for sqlite3 module mapping
-- [ ] Support for pathlib module mapping
+- [x] Support for pathlib module mapping
 - [x] Support for shutil module mapping
 - [x] Support for tempfile module mapping
 - [x] Support for unittest module mapping
