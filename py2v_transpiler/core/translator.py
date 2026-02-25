@@ -909,7 +909,7 @@ class VNodeVisitor(ast.NodeVisitor):
              if isinstance(func_node.value, ast.Name) and func_node.value.id == "self":
                  is_self_assertion = True
 
-        if is_self_assertion:
+        if is_self_assertion and isinstance(func_node, ast.Attribute):
              assertion = func_node.attr
              if assertion == "assertEqual" and len(args) == 2:
                   return f"assert {args[0]} == {args[1]}"
