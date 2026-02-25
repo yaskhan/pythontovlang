@@ -943,7 +943,7 @@ class VNodeVisitor(ast.NodeVisitor):
 
     def visit_FormattedValue(self, node: ast.FormattedValue) -> str:
         val = self.visit(node.value)
-        if node.format_spec:
+        if isinstance(node.format_spec, ast.JoinedStr):
             spec_parts = []
             for v in node.format_spec.values:
                 if isinstance(v, ast.Constant):
