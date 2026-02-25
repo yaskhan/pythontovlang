@@ -1,6 +1,6 @@
 import ast
 import sys
-from typing import Dict, Set, Optional, Any
+from typing import Dict, Set, Optional, Any, Union
 
 class YieldFinder(ast.NodeVisitor):
     def __init__(self):
@@ -36,7 +36,7 @@ class CoroutineHandler:
                     y_type = self.get_yield_type(n)
                     self.generators[n.name] = y_type
 
-    def _has_yield(self, node: ast.FunctionDef) -> bool:
+    def _has_yield(self, node: Union[ast.FunctionDef, ast.AsyncFunctionDef]) -> bool:
         finder = YieldFinder()
         for stmt in node.body:
             finder.visit(stmt)
@@ -57,7 +57,7 @@ class CoroutineHandler:
         self._temp_var_counter += 1
         return f"ch_{self._temp_var_counter}"
 
-    def get_yield_type(self, node: ast.FunctionDef) -> str:
+    def get_yield_type(self, node: Union[ast.FunctionDef, ast.AsyncFunctionDef]) -> str:
         """Attempt to infer yield type from return annotation."""
         if not node.returns:
              return "int" # Default
