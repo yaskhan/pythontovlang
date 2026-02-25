@@ -3,11 +3,13 @@ from typing import Any, List, Optional, Dict
 from py2v_transpiler.core.generator import VCodeEmitter
 from py2v_transpiler.stdlib_map.mapper import StdLibMapper
 from py2v_transpiler.core.decorators import DecoratorProcessor
+from py2v_transpiler.core.coroutines import CoroutineHandler
 
 class VNodeVisitor(ast.NodeVisitor):
     def __init__(self, type_inference):
         self.type_inference = type_inference
         self.decorator_processor = DecoratorProcessor(self)
+        self.coroutine_handler = CoroutineHandler()
         # Use emitter for structured output
         self.emitter = VCodeEmitter()
         # Internal buffer for visiting blocks (functions, loops, etc.)
@@ -29,6 +31,8 @@ class VNodeVisitor(ast.NodeVisitor):
         return "    " * self._indent_level
 
     def visit_Module(self, node: ast.Module) -> str:
+        self.coroutine_handler.scan_module(node)
+
         for stmt in node.body:
             # Check if statement is top-level expression or assignment
             if isinstance(stmt, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef, ast.Import, ast.ImportFrom)):
@@ -69,6 +73,10 @@ class VNodeVisitor(ast.NodeVisitor):
         self._visit_function_common(node, is_async=True)
 
     def _visit_function_common(self, node: Any, is_async: bool = False) -> None:
+        is_generator = False
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+             is_generator = self.coroutine_handler.is_generator(node.name)
+
         # Save current state
         old_output = self.output
         self.output = []
@@ -92,6 +100,13 @@ class VNodeVisitor(ast.NodeVisitor):
         receiver_str: str = ""
         args_names: List[str] = []
 
+        if is_generator:
+            # Inject channel argument
+            # Attempt to infer type from return annotation
+            yield_type = self.coroutine_handler.get_yield_type(node)
+            args_str_list.append(f"ch chan {yield_type}")
+            self.coroutine_handler.enter_generator("ch")
+
         args = node.args.args
         if is_method and args and args[0].arg == "self":
             # Handle 'self' - it becomes the receiver in V
@@ -111,7 +126,7 @@ class VNodeVisitor(ast.NodeVisitor):
         args_str = ", ".join(args_str_list)
 
         ret_type = "void"
-        if node.returns:
+        if not is_generator and node.returns:
              if isinstance(node.returns, ast.Name):
                   ret_type = node.returns.id
              elif isinstance(node.returns, ast.Constant) and isinstance(node.returns.value, str):
@@ -180,6 +195,11 @@ class VNodeVisitor(ast.NodeVisitor):
 
         for stmt in node.body:
             self.visit(stmt)
+
+        if is_generator:
+            self.output.append(f"{self._indent()}{self.coroutine_handler.active_channel}.close()")
+            self.coroutine_handler.exit_generator()
+
         self._indent_level -= 1
         self.output.append("}")
 
@@ -494,13 +514,25 @@ class VNodeVisitor(ast.NodeVisitor):
         return f"fn ({args_str}) int {{ return {body} }}"
 
     def visit_Yield(self, node: ast.Yield) -> str:
+        if self.coroutine_handler.active_channel:
+             val = self.visit(node.value) if node.value else "0"
+             return f"{self.coroutine_handler.active_channel} <- {val}"
         # yield expr -> /* yield expr */
         val = ""
         if node.value:
             val = self.visit(node.value)
         return f"/* yield {val} */"
 
-    def visit_YieldFrom(self, node: ast.YieldFrom) -> str:
+    def visit_YieldFrom(self, node: ast.YieldFrom) -> Optional[str]:
+        if self.coroutine_handler.active_channel:
+             val = self.visit(node.value)
+             self.output.append(f"{self._indent()}for v in {val} {{")
+             self._indent_level += 1
+             self.output.append(f"{self._indent()}{self.coroutine_handler.active_channel} <- v")
+             self._indent_level -= 1
+             self.output.append(f"{self._indent()}}}")
+             return None
+
         val = self.visit(node.value)
         return f"/* yield from {val} */"
 
@@ -866,9 +898,34 @@ class VNodeVisitor(ast.NodeVisitor):
         return target
 
     def visit_For(self, node: ast.For) -> None:
-        # Re-implemented visit_For from reading to include previous logic
-        # ... (same as original, checking zip, range, enumerate) ...
-        # Since I'm overwriting the file, I must include all method bodies.
+        # Check if iterating over generator
+        iter_node = node.iter
+        if isinstance(iter_node, ast.Call) and isinstance(iter_node.func, ast.Name):
+            if self.coroutine_handler.is_generator(iter_node.func.id):
+                 # Generate setup
+                 ch_name = self.coroutine_handler.get_temp_channel_name()
+                 yield_type = self.coroutine_handler.get_generator_type(iter_node.func.id)
+                 self.output.append(f"{self._indent()}{ch_name} := chan {yield_type}{{cap: 0}}")
+
+                 # Call spawn
+                 # Construct args
+                 # node.iter is Call(func, args, keywords)
+                 # We need to inject ch_name as first arg
+                 func_name = iter_node.func.id
+                 # self.visit(node.iter.args) ?
+                 args = [ch_name] + [str(self.visit(a)) for a in iter_node.args]
+                 call_str = f"spawn {func_name}({', '.join(args)})"
+                 self.output.append(f"{self._indent()}{call_str}")
+
+                 # Now loop over channel
+                 target = self.visit(node.target)
+                 self.output.append(f"{self._indent()}for {target} in {ch_name} {{")
+                 self._indent_level += 1
+                 for stmt in node.body:
+                     self.visit(stmt)
+                 self._indent_level -= 1
+                 self.output.append(f"{self._indent()}}}")
+                 return
 
         # Zip handling
         if isinstance(node.iter, ast.Call) and isinstance(node.iter.func, ast.Name) and node.iter.func.id == "zip":

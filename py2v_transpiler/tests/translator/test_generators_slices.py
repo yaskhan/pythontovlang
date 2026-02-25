@@ -17,8 +17,10 @@ def gen():
     analyzer.analyze(tree)
     result = translator.visit_Module(tree)
 
-    # Yield translates to comment
-    assert "/* yield 1 */" in result
+    # Yield translates to channel push
+    assert "ch <- 1" in result
+    assert "ch.close()" in result
+    assert "fn gen(ch chan int) {" in result
 
 def test_translator_list_indexing():
     parser = PyASTParser()
