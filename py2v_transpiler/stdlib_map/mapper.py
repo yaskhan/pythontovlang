@@ -141,6 +141,10 @@ class StdLibMapper:
                 "and_": "py_op_and",
                 "or_": "py_op_or",
                 "xor": "py_op_xor",
+            },
+            "threading": {
+                "Thread": "PyThread",
+                "Lock": self._threading_lock,
             }
         }
 
@@ -164,6 +168,7 @@ class StdLibMapper:
             "itertools": [],
             "functools": [],
             "operator": [],
+            "threading": ["sync"],
         }
 
     def get_mapping(self, module: str, func: str, args: List[str]) -> Optional[str]:
@@ -363,3 +368,6 @@ class StdLibMapper:
         if len(args) >= 2:
              step = args[1]
         return f"py_count({start}, {step})"
+
+    def _threading_lock(self, args: List[str]) -> str:
+        return "sync.new_mutex()"

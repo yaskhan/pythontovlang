@@ -170,6 +170,57 @@ class VNodeVisitor(ast.NodeVisitor):
              # xor in V is ^ for ints, but logic xor? (a != b)
              self.emitter.add_function("fn py_op_xor[T](a T, b T) T { return a ^ b }")
 
+        threading_used = "threading" in self.imported_modules.values()
+        if not threading_used:
+             for sym in self.imported_symbols.values():
+                 if sym.startswith("threading."):
+                     threading_used = True
+                     break
+
+        if threading_used:
+            # We need a PyThread struct. But standard threads in V (spawn) don't have join() unless we keep the handle.
+            # V spawn returns a thread handle. `h := spawn foo()`. `h.wait()`.
+            # Python: t = Thread(target=f, args=...); t.start(); t.join()
+            # We can't easily emulate `start()` deferral without wrapping the function in a struct and spawning later.
+            # Simplified: PyThread struct that holds the function? No, function types vary.
+            # Compromise: Map `Thread` to a struct that does NOT hold the function, but assumes immediate start or
+            # we just provide a dummy wrapper.
+            # Actually, `visit_Call` will map `threading.Thread(...)`.
+            # If we map it to `spawn`, it starts immediately.
+            # Let's try to map `threading.Thread` to a struct `PyThread` and `start` to `spawn`.
+            # BUT `start` is a method on the instance.
+            # `t.start()` -> `t.handle = spawn t.run()`.
+            # This requires `t` to know what `run` is.
+            # This is complex for a simple transpiler.
+            #
+            # ALTERNATIVE:
+            # Map `t = threading.Thread(target=f)` -> `t := PyThread{ task: fn() { f() } }` (closure?)
+            # `t.start()` -> `t.handle = spawn t.task()`
+            # `t.join()` -> `t.handle.wait()`
+            #
+            # Limitation: V closures support is evolving.
+            # Also `target=f` might take args. `args=(1,)`. `fn() { f(1) }`.
+            #
+            # Let's emit a placeholder PyThread implementation that suggests manual adjustment or
+            # limited support (no args, or specific signature).
+            #
+            # `struct PyThread { mut: handle thread int /* generic handle */ }`
+            # `fn (mut t PyThread) start(f fn()) { t.handle = spawn f() }`
+            # `fn (t PyThread) join() { t.handle.wait() }`
+
+            self.emitter.add_struct("struct PyThread {\nmut:\n    handle thread int\n    // task fn() // V function types in structs?\n}")
+            self.emitter.add_function("fn (mut t PyThread) start() {\n    // Implementation requires generic task storage or closures\n    println('PyThread.start() called. Note: V spawns immediately on `spawn`. This requires manual adjustment.')\n}")
+            self.emitter.add_function("fn (mut t PyThread) join() {\n    t.handle.wait()\n}")
+
+            # Map acquire/release for Lock (sync.Mutex)
+            # sync.Mutex has .lock() and .unlock()
+            # Python: .acquire(), .release()
+            # We can't add methods to sync.Mutex (foreign type).
+            # But we can wrap it or just rely on manual fix?
+            # Or use a wrapper struct `PyLock`.
+            # Let's use `sync.Mutex` and try to map methods in `visit_Call`.
+            pass
+
         return self.emitter.emit()
 
     def visit_FunctionDef(self, node: ast.FunctionDef) -> None:
@@ -987,6 +1038,22 @@ class VNodeVisitor(ast.NodeVisitor):
              # os.path.join -> value is os.path, attr is join
              # Check if os.path is module
              pass
+
+        # Handle threading.Lock.acquire/release -> lock/unlock
+        # Heuristic: if method name is acquire/release and receiver is unknown or mapped to sync.Mutex (hard to know type here)
+        # We can just map acquire->lock, release->unlock generally if threading is imported?
+        # Or check if receiver name suggests lock?
+        # Safe approach: if threading is used, and method is acquire/release, map it.
+        # But this might conflict with other classes.
+        # Let's check mapped type? We don't have robust type inference for variables yet.
+        # Just map it for now if threading is imported.
+        if "threading" in self.imported_modules.values() and isinstance(func_node, ast.Attribute):
+             if func_node.attr == "acquire":
+                 receiver = self.visit(func_node.value)
+                 return f"{receiver}.lock()"
+             elif func_node.attr == "release":
+                 receiver = self.visit(func_node.value)
+                 return f"{receiver}.unlock()"
 
         # Handle super().method()
         if isinstance(func_node, ast.Attribute) and isinstance(func_node.value, ast.Call) and \
