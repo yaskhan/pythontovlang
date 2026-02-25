@@ -99,6 +99,10 @@ class VNodeVisitor(ast.NodeVisitor):
         # Ensure struct_name is always a string
         struct_name: str = self.current_class if self.current_class else ""
 
+        args_str_list: List[str] = []
+        receiver_str: str = ""
+        args_names: List[str] = []
+
         # Special handling for unittest methods: flatten to function calls
         # We detect if we are inside a unittest class (flag set in visit_ClassDef)
         is_unittest_method = False
@@ -120,10 +124,6 @@ class VNodeVisitor(ast.NodeVisitor):
                  # Helper method?
                  # Keep as function but maybe private?
                  pass
-
-        args_str_list: List[str] = []
-        receiver_str: str = ""
-        args_names: List[str] = []
 
         if is_generator:
             # Inject channel argument
