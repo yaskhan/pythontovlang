@@ -674,10 +674,10 @@ class VNodeVisitor(ast.NodeVisitor):
                 index = self.visit(target.slice)
                 self.output.append(f"{self._indent()}{value}.delete({index})")
             elif isinstance(target, ast.Name):
-                self.output.append(f"{self._indent()}// del {target.id} (variable deletion not supported in V)")
+                self.output.append(f"{self._indent()}/* del {target.id} */")
             elif isinstance(target, ast.Attribute):
                 value = self.visit(target.value)
-                self.output.append(f"{self._indent()}// del {value}.{target.attr} (attribute deletion not supported)")
+                self.output.append(f"{self._indent()}/* del {value}.{target.attr} */")
             else:
                 self.output.append(f"{self._indent()}// del statement with unsupported target type")
 
@@ -811,6 +811,10 @@ class VNodeVisitor(ast.NodeVisitor):
         # Handle builtins handled by old logic (print, sorted, etc)
         # Note: 'open', 'hasattr' are handled above or fall through if not matched.
         # But wait, open is not in existing logic.
+
+        if isinstance(func_node, ast.Attribute) and func_node.attr == "clear" and not module_name:
+             obj = self.visit(func_node.value)
+             return f"/* {obj}.clear() */ {obj} = {{}}"
 
         if func_name_str == "sorted":
             self.used_builtins.add("sorted")
