@@ -214,6 +214,9 @@ class StdLibMapper:
             },
             "array": {
                 "array": self._array_array,
+            },
+            "fractions": {
+                "Fraction": self._fractions_Fraction,
             }
         }
 
@@ -254,6 +257,7 @@ class StdLibMapper:
             "copy": [],
             "struct": ["encoding.binary"],
             "array": [],
+            "fractions": ["math.fractions"],
         }
 
     def get_mapping(self, module: str, func: str, args: List[str]) -> Optional[str]:
@@ -508,3 +512,10 @@ class StdLibMapper:
         typecode = args[0]
         initializer = args[1] if len(args) > 1 else "[]"
         return f"py_array({typecode}, {initializer})"
+
+    def _fractions_Fraction(self, args: List[str]) -> str:
+        if len(args) == 2:
+            return f"fractions.fraction({args[0]}, {args[1]})"
+        if len(args) == 1:
+            return f"py_fraction({args[0]})"
+        return "fractions.fraction(0, 1)"

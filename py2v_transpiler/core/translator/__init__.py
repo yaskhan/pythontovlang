@@ -629,4 +629,19 @@ class VNodeVisitor(
              # Let's assume correct input type for now, or just return `init`.
              self.emitter.add_function("fn py_array[T](code string, init []T) []T {\n    // Best effort: ignoring typecode validation, returning typed array directly\n    return init\n}")
 
+        fractions_used = "fractions" in self.imported_modules.values()
+        if not fractions_used:
+             for sym in self.imported_symbols.values():
+                 if sym.startswith("fractions."):
+                     fractions_used = True
+                     break
+
+        if fractions_used:
+             # py_fraction helper for single argument (int, float, string)
+             # V fractions.fraction(n, d) is for two ints.
+             # fractions.from_f64(f) exists.
+             # Parsing string requires custom logic or libc atof?
+             # For now, simplistic implementation for int/float/string
+             self.emitter.add_function("fn py_fraction(val any) fractions.Fraction {\n    $if val is $int {\n        return fractions.fraction(i64(val), 1)\n    } $else $if val is $float {\n        return fractions.from_f64(f64(val))\n    } $else $if val is string {\n        // Simplistic string parsing not implemented in helper yet\n        return fractions.fraction(0, 1)\n    }\n    return fractions.fraction(0, 1)\n}")
+
         return self.emitter.emit()
