@@ -68,6 +68,9 @@ class FunctionsMixin(TranslatorBase):
             self.coroutine_handler.enter_generator("ch")
 
         args = node.args.args
+        if hasattr(node.args, 'posonlyargs'):
+             args = node.args.posonlyargs + args
+
         if is_method and args and args[0].arg == "self":
             # Handle 'self' - it becomes the receiver in V
             # UNLESS it is static
