@@ -14,12 +14,16 @@ class ClassesMixin(TranslatorBase):
 
         # Handle decorators
         decorators = []
+        is_dataclass = False
         for decorator in node.decorator_list:
             dec_str = self.visit(decorator)
             decorators.append(f"// @{dec_str}")
+            if dec_str.startswith("dataclass") or dec_str.startswith("dataclasses.dataclass"):
+                is_dataclass = True
 
         # Extract fields from __init__ or class body annotations (simplified)
         fields = []
+        dataclass_field_order = []
 
         is_enum = False
         is_int_enum = False
@@ -112,7 +116,21 @@ class ClassesMixin(TranslatorBase):
                     except Exception:
                         if isinstance(stmt.annotation, ast.Name):
                             field_type = stmt.annotation.id
-                fields.append(f"    {field_name} {field_type}")
+
+                if is_dataclass:
+                    dataclass_field_order.append(field_name)
+                    if stmt.value:
+                        default_val = self.visit(stmt.value)
+                        fields.append(f"    {field_name} {field_type} = {default_val}")
+                    else:
+                        fields.append(f"    {field_name} {field_type}")
+                else:
+                    fields.append(f"    {field_name} {field_type}")
+
+        if is_dataclass:
+            if not hasattr(self, 'dataclasses'):
+                self.dataclasses = {}
+            self.dataclasses[struct_name] = dataclass_field_order
 
         if is_unittest:
              self.current_class_is_unittest = True

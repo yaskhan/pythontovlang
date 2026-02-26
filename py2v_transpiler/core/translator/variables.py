@@ -244,6 +244,7 @@ class VariablesMixin(TranslatorBase):
              self.output.append(f"{self._indent()}// Unsupported AugAssign operator: {type(node.op)}")
 
     def visit_Delete(self, node: ast.Delete) -> None:
+        # Support for multiple delete targets (e.g. del a, b)
         for target in node.targets:
             if isinstance(target, ast.Subscript):
                 # del l[i] -> l.delete(i)
