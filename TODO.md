@@ -114,6 +114,17 @@
 - [ ] Support for underscores in numeric literals (e.g. 1_000)
 - [ ] Support for 'del' on slices (del l[x:y])
 - [ ] Support for chained assignment (a = b = c)
+- [ ] Support for 'else' clause in loops (for/else, while/else)
+- [ ] Support for 'else' and 'finally' clauses in try/except blocks
+- [ ] Support for 'raise from' syntax
+- [ ] Support for no-argument super() calls
+- [ ] Support for * unpacking in list/tuple/set literals
+- [ ] Support for ** unpacking in dict literals
+- [ ] Support for relative imports (from . import module)
+- [ ] Support for docstrings (emit as V comments)
+- [ ] Support for decorators with arguments
+- [ ] Support for multiple exception types in single 'except' block
+- [ ] Support for bi-directional generator methods (send/throw/close)
 
 ## Infrastructure & Tooling
 - [x] Set up comprehensive test suite (pytest)
