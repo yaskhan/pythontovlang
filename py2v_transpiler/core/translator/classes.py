@@ -6,7 +6,19 @@ from .base import TranslatorBase
 class ClassesMixin(TranslatorBase):
     def visit_ClassDef(self, node: ast.ClassDef) -> None:
         # Map Python class to V struct
-        struct_name = node.name
+        # Handle nested classes by prefixing with parent class name
+        if not hasattr(self, 'class_stack'):
+            self.class_stack = []
+
+        self.class_stack.append(node.name)
+        struct_name = "_".join(self.class_stack)
+
+        # Save previous state to restore later (for nesting)
+        prev_class = self.current_class
+        prev_generics = self.current_class_generics
+        prev_bases = self.current_class_bases
+        prev_is_unittest = self.current_class_is_unittest
+
         self.current_class = struct_name
         self.current_class_generics = []
         self.current_class_bases = []
@@ -137,6 +149,11 @@ class ClassesMixin(TranslatorBase):
         for stmt in body:
             if isinstance(stmt, (ast.FunctionDef, ast.AsyncFunctionDef)):
                 methods.append(stmt)
+            elif isinstance(stmt, ast.ClassDef):
+                # Nested class: visit it recursively
+                # The stack is currently set to parent class name.
+                # So visiting it will push Parent_Child.
+                self.visit(stmt)
             elif isinstance(stmt, ast.AnnAssign) and isinstance(stmt.target, ast.Name):
                 # Class attribute with annotation -> struct field
                 field_name = stmt.target.id
@@ -299,7 +316,42 @@ class ClassesMixin(TranslatorBase):
             for method in methods:
                 self.visit(method)
 
-        self.current_class = None
-        self.current_class_generics = []
-        self.current_class_bases = []
-        self.current_class_is_unittest = False
+        # Restore previous state
+        self.class_stack.pop()
+        self.current_class = prev_class
+        self.current_class_generics = prev_generics
+        self.current_class_bases = prev_bases
+        self.current_class_is_unittest = prev_is_unittest
+
+        # Ensure we output the nested struct definition at the top level
+        # visit_ClassDef doesn't return string, it appends to self.emitter.
+        # But wait, self.visit(method) appends to self.emitter? No, self.visit returns string for methods?
+        # Methods are visited via visit_FunctionDef.
+        # visit_FunctionDef returns string? No, it appends to self.output usually?
+        # No, visit_FunctionDef in functions.py does:
+        # self.output = ...
+        # self.emitter.add_function(...)
+
+        # The struct definition is added via self.emitter.add_struct(struct_def) inside visit_ClassDef.
+        # The issue with nested classes test failure:
+        # Expected:
+        # struct Outer {}
+        # struct Outer_Inner {}
+        # Got:
+        # struct Outer {}
+
+        # Why is Outer_Inner missing?
+        # Because we visit nested statements in `body`.
+        # `for stmt in body: ... self.visit(stmt)` (Wait, looking at code...)
+        # In `visit_ClassDef`, we iterate `body`.
+        # `for stmt in body: if isinstance(stmt, (FunctionDef...)): methods.append`.
+        # `elif isinstance(stmt, AnnAssign)...`
+        # `elif isinstance(stmt, Assign)...`
+        # We DO NOT explicitly visit other statements like nested ClassDef!
+        # Standard Python `ast.NodeVisitor` visits children if we call generic_visit, but we override `visit_ClassDef`.
+        # We need to manually visit nested classes.
+
+        # Ensure we output the nested struct definition at the top level
+        # visit_ClassDef processes body elements via iteration.
+        # The iteration logic in visit_ClassDef handles methods, AnnAssign, Assign.
+        # We added handling for nested ClassDef in the loop above.

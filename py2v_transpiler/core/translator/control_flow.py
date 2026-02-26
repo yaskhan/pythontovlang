@@ -271,7 +271,12 @@ class ControlFlowMixin(TranslatorBase):
                 self.output.append(f"{self._indent()}{var} := {context_expr}")
                 self.output.append(f"{self._indent()}defer {{ {var}.close() }}")
             else:
-                self.output.append(f"{self._indent()}_ := {context_expr}")
+                # If no variable is assigned, we still need to close it.
+                # But we don't have a variable name. We should create a temp one.
+                tmp_var = f"_ctx_mgr_{self._zip_counter}"
+                self._zip_counter += 1
+                self.output.append(f"{self._indent()}{tmp_var} := {context_expr}")
+                self.output.append(f"{self._indent()}defer {{ {tmp_var}.close() }}")
         for stmt in node.body:
             self.visit(stmt)
 

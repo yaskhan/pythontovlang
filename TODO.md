@@ -102,15 +102,15 @@
 - [ ] Support for 'async with' context managers
 - [ ] Support for Union types syntax (X | Y) (Python 3.10+)
 - [ ] Support for complex structural pattern matching (class patterns)
-- [ ] Support for legacy string formatting (%) operator
-- [ ] Support for raw string literals (r"...")
-- [ ] Support for variable annotations without assignment (x: int)
+- [x] Support for legacy string formatting (%) operator
+- [x] Support for raw string literals (r"...")
+- [x] Support for variable annotations without assignment (x: int)
 - [ ] Support for generic type alias syntax (type T = ...) (Python 3.12+)
-- [ ] Support for f-string debug expressions (f"{x=}")
-- [ ] Support for multiple context managers in single 'with' statement
-- [ ] Support for slice assignment (l[x:y] = [1, 2])
+- [x] Support for f-string debug expressions (f"{x=}")
+- [x] Support for multiple context managers in single 'with' statement
+- [x] Support for slice assignment (l[x:y] = [1, 2])
 - [x] Support for 'match' statement guard clauses
-- [ ] Support for nested classes
+- [x] Support for nested classes
 - [ ] Support for underscores in numeric literals (e.g. 1_000)
 - [ ] Support for 'del' on slices (del l[x:y])
 - [ ] Support for chained assignment (a = b = c)

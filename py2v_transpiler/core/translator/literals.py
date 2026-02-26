@@ -5,7 +5,44 @@ class LiteralsMixin(TranslatorBase):
     def visit_Constant(self, node: ast.Constant) -> str:
         val = node.value
         if isinstance(val, str):
-            return f"'{val}'"
+            # Check for backslashes to decide if raw string is beneficial
+            # Python AST usually resolves escape sequences in string literals.
+            # e.g. "a\nb" -> 'a\nb' (length 3, \n is one char)
+            # r"a\nb" -> 'a\\nb' (length 4, \ and n)
+            # If we see actual backslashes in the string value, it means they were escaped or raw.
+            # If we output as V string, we need to escape them again if we want to preserve them.
+            # Or we can use V raw string r'...' if possible.
+            # V raw strings don't support escaping ' inside (r'\' is end of string?).
+            # V raw string: r'hello\nworld' -> prints hello\nworld.
+            # If val contains `\` (backslash char), we can use r'' to make it cleaner.
+            # V raw strings r'...' or r"..." do not support escaping of the delimiter.
+            # If string contains both ' and ", raw string might not be possible if it contains \.
+            # But standard string with manual escaping is always safe.
+            # Logic:
+            # 1. If no backslash, standard string is fine (escapes handled by visit/literal).
+            #    Wait, standard string generation `f"'{val}'"` might fail if val contains '.
+            #    We should handle escaping of ' in standard strings too.
+            # 2. If backslash exists, try raw string.
+            #    If no ', use r'...'.
+            #    If no ", use r"...".
+            #    If both, fallback to standard string with heavy escaping.
+
+            # Helper for standard string
+            def to_standard_str(s):
+                # Escape \ and '
+                s = s.replace('\\', '\\\\').replace("'", "\\'")
+                return f"'{s}'"
+
+            if '\\' in val:
+                 if "'" not in val:
+                     return f"r'{val}'"
+                 if '"' not in val:
+                     return f'r"{val}"'
+                 # Fallback
+                 return to_standard_str(val)
+
+            # No backslash, standard string but check quotes
+            return to_standard_str(val)
         elif val is Ellipsis:
              return "/* ... */"
         elif isinstance(val, bool):
@@ -80,6 +117,27 @@ class LiteralsMixin(TranslatorBase):
 
     def visit_FormattedValue(self, node: ast.FormattedValue) -> str:
         val = self.visit(node.value)
+
+        # Check for f-string debug expression: f"{x=}"
+        # Python 3.8+ sets conversion=-1 (default), 115 ('s'), 114 ('r'), 97 ('a')
+        # node.equal is available in 3.8+ if it was a debug expression
+        is_debug = getattr(node, 'equal', False)
+
+        if is_debug:
+             # We need the source text of the expression
+             expr_text = val
+             # Try to unparse if ast.unparse is available (Py3.9+)
+             if hasattr(ast, 'unparse'):
+                 try:
+                     expr_text = ast.unparse(node.value)
+                 except:
+                     pass
+
+             # If format spec exists, append it? Python f"{x=:d}" -> "x=10"
+             # V doesn't support "x=" syntax automatically.
+             # We emit "x=${x}"
+             pass # fall through to construction
+
         if isinstance(node.format_spec, ast.JoinedStr):
             spec_parts = []
             for v in node.format_spec.values:
@@ -89,5 +147,10 @@ class LiteralsMixin(TranslatorBase):
                     # Best effort for dynamic format specs
                     spec_parts.append(str(self.visit(v)))
             spec = "".join(spec_parts)
+            if is_debug:
+                 return f"{expr_text}=${{{val}:{spec}}}"
             return f"${{{val}:{spec}}}"
+
+        if is_debug:
+             return f"{expr_text}=${{{val}}}"
         return f"${{{val}}}"

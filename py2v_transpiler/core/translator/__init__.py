@@ -43,6 +43,7 @@ class VNodeVisitor(
         self._zip_counter = 0 # Counter for unique variable names in zip loops
         self.used_builtins = set() # Track used built-in helpers (sorted, reversed, etc)
         self.used_complex = False
+        self.used_string_format = False
         self.renamed_functions = {"main": "py_main"} # Map to rename functions (e.g. main -> py_main)
         self.name_remap = {} # Temporary variable renaming (e.g. x -> it in generators)
         self._walrus_assignments: List[str] = [] # Buffer for walrus operator assignments
@@ -780,5 +781,51 @@ class VNodeVisitor(
              # py_pickle_load (from file) - hard because we need to read everything?
              # Or assume file content is valid json.
              self.emitter.add_function("fn py_pickle_load[T](f os.File) T {\n    // Warning: Mapped to JSON deserialization\n    // This assumes the file contains one JSON object\n    // We need to read whole file? or stream?\n    // V json.decode takes string.\n    // We can't easily read from file inside generic func without reading all.\n    // Assuming small file for now, but we don't have read_all on File struct easily exposed in standard way? \n    // actually os.read_file(path) exists. But here we have File object.\n    // Let's panic for now or return zero.\n    panic('pickle.load not fully implemented')\n    return T{}\n}")
+
+        # String formatting helper
+        if self.used_string_format:
+            self.emitter.add_function("""fn py_string_format(fmt string, args ...any) string {
+    // Basic implementation of %-formatting
+    mut res := ''
+    mut arg_idx := 0
+    mut i := 0
+    for i < fmt.len {
+        if fmt[i] == `%` {
+            if i + 1 < fmt.len {
+                spec := fmt[i+1]
+                if spec == `%` {
+                    res += '%'
+                    i += 2
+                    continue
+                }
+                if arg_idx >= args.len {
+                    // Not enough args
+                    res += '%'
+                    i++
+                    continue
+                }
+                arg := args[arg_idx]
+                arg_idx++
+                if spec == `s` {
+                    res += '${arg}'
+                } else if spec == `d` {
+                    res += '${arg}'
+                } else if spec == `f` {
+                     res += '${arg}'
+                } else if spec == `r` {
+                     res += '${arg}'
+                } else {
+                     // Unknown spec, just print arg
+                     res += '${arg}'
+                }
+                i += 2
+                continue
+            }
+        }
+        res += fmt[i].ascii_str()
+        i++
+    }
+    return res
+}""")
 
         return self.emitter.emit()
