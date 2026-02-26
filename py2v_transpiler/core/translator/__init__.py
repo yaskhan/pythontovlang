@@ -644,4 +644,27 @@ class VNodeVisitor(
              # For now, simplistic implementation for int/float/string
              self.emitter.add_function("fn py_fraction(val any) fractions.Fraction {\n    $if val is $int {\n        return fractions.fraction(i64(val), 1)\n    } $else $if val is $float {\n        return fractions.from_f64(f64(val))\n    } $else $if val is string {\n        // Simplistic string parsing not implemented in helper yet\n        return fractions.fraction(0, 1)\n    }\n    return fractions.fraction(0, 1)\n}")
 
+        statistics_used = "statistics" in self.imported_modules.values()
+        if not statistics_used:
+             for sym in self.imported_symbols.values():
+                 if sym.startswith("statistics."):
+                     statistics_used = True
+                     break
+
+        if statistics_used:
+             # py_statistics_mean
+             self.emitter.add_function("fn py_statistics_mean[T](data []T) f64 {\n    mut sum := f64(0)\n    for x in data {\n        sum += f64(x)\n    }\n    if data.len == 0 { return 0.0 }\n    return sum / f64(data.len)\n}")
+
+             # py_statistics_median
+             self.emitter.add_function("fn py_statistics_median[T](data []T) f64 {\n    if data.len == 0 { return 0.0 }\n    mut sorted_data := data.clone()\n    sorted_data.sort()\n    mid := sorted_data.len / 2\n    if sorted_data.len % 2 == 1 {\n        return f64(sorted_data[mid])\n    }\n    return (f64(sorted_data[mid-1]) + f64(sorted_data[mid])) / 2.0\n}")
+
+             # py_statistics_mode
+             self.emitter.add_function("fn py_statistics_mode[T](data []T) T {\n    if data.len == 0 { panic('statistics.mode on empty data') }\n    mut counts := map[T]int{}\n    for x in data {\n        counts[x]++\n    }\n    mut max_count := 0\n    mut mode_val := data[0]\n    for val, count in counts {\n        if count > max_count {\n            max_count = count\n            mode_val = val\n        }\n    }\n    return mode_val\n}")
+
+             # py_statistics_variance
+             self.emitter.add_function("fn py_statistics_variance[T](data []T) f64 {\n    if data.len < 2 { panic('statistics.variance requires at least two data points') }\n    m := py_statistics_mean(data)\n    mut sum_sq_diff := f64(0)\n    for x in data {\n        diff := f64(x) - m\n        sum_sq_diff += diff * diff\n    }\n    return sum_sq_diff / f64(data.len - 1)\n}")
+
+             # py_statistics_stdev
+             self.emitter.add_function("fn py_statistics_stdev[T](data []T) f64 {\n    return math.sqrt(py_statistics_variance(data))\n}")
+
         return self.emitter.emit()

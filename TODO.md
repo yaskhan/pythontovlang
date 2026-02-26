@@ -77,7 +77,7 @@
 - [x] Support for zlib/gzip module mapping
 - [ ] Support for decimal module mapping
 - [x] Support for fractions module mapping
-- [ ] Support for statistics module mapping
+- [x] Support for statistics module mapping
 - [ ] Support for contextlib module mapping
 - [ ] Support for typing module mapping
 - [ ] Support for star arguments in function calls (*args)

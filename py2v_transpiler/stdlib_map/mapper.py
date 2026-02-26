@@ -217,6 +217,13 @@ class StdLibMapper:
             },
             "fractions": {
                 "Fraction": self._fractions_Fraction,
+            },
+            "statistics": {
+                "mean": "py_statistics_mean",
+                "median": "py_statistics_median",
+                "mode": "py_statistics_mode",
+                "stdev": "py_statistics_stdev",
+                "variance": "py_statistics_variance",
             }
         }
 
@@ -258,6 +265,7 @@ class StdLibMapper:
             "struct": ["encoding.binary"],
             "array": [],
             "fractions": ["math.fractions"],
+            "statistics": ["math"],
         }
 
     def get_mapping(self, module: str, func: str, args: List[str]) -> Optional[str]:
