@@ -164,10 +164,10 @@
 - [x] Support for 'typing.ClassVar'
 - [x] Support for 'typing.Self' (Python 3.11+)
 - [x] Support for 'typing.Annotated'
-- [ ] Support for multiple targets in 'del' statement (del a, b)
-- [ ] Support for bitwise operators (&, |, ^, ~, <<, >>)
-- [ ] Support for conditional expressions (x if y else z)
-- [ ] Support for 'dataclasses' module (transform to V structs)
+- [x] Support for multiple targets in 'del' statement (del a, b)
+- [x] Support for bitwise operators (&, |, ^, ~, <<, >>)
+- [x] Support for conditional expressions (x if y else z)
+- [x] Support for 'dataclasses' module (transform to V structs)
 - [x] Support for 'typing.NamedTuple'
 - [x] Support for 'typing.ParamSpec'
 - [x] Support for 'typing.TypeGuard'
