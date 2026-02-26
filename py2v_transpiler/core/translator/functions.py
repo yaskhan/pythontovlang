@@ -102,13 +102,13 @@ class FunctionsMixin(TranslatorBase):
              if isinstance(decorator, ast.Call):
                  # Decorator with args: @dec(arg)
                  func = self.visit(decorator.func)
-                 args = []
-                 for arg in decorator.args:
-                     args.append(str(self.visit(arg)))
+                 dec_args_list = []
+                 for dec_arg in decorator.args:
+                     dec_args_list.append(str(self.visit(dec_arg)))
                  for kw in decorator.keywords:
                      val = self.visit(kw.value)
-                     args.append(f"{kw.arg}={val}")
-                 dec_str = f"{func}({', '.join(args)})"
+                     dec_args_list.append(f"{kw.arg}={val}")
+                 dec_str = f"{func}({', '.join(dec_args_list)})"
              else:
                  dec_str = self.visit(decorator)
 
