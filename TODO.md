@@ -166,6 +166,16 @@
 - [ ] Support for 'typing.Annotated'
 - [ ] Support for multiple targets in 'del' statement (del a, b)
 - [ ] Support for bitwise operators (&, |, ^, ~, <<, >>)
+- [ ] Support for conditional expressions (x if y else z)
+- [ ] Support for 'dataclasses' module (transform to V structs)
+- [ ] Support for 'typing.NamedTuple'
+- [ ] Support for 'typing.ParamSpec'
+- [ ] Support for 'typing.TypeGuard'
+- [ ] Support for 'typing.Required' and 'typing.NotRequired'
+- [ ] Support for 'typing.Unpack'
+- [ ] Support for 'enum.Flag' and 'enum.auto()'
+- [ ] Support for 'functools.partial' translation
+- [ ] Support for 'functools.singledispatch'
 
 ## Infrastructure & Tooling
 - [x] Set up comprehensive test suite (pytest)
