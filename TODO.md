@@ -135,6 +135,16 @@
 - [ ] Support for postponed type annotation evaluation (from __future__ import annotations)
 - [ ] Support for augmented matrix multiplication (@=)
 - [ ] Support for custom __format__ methods
+- [ ] Support for 'match' statement sequence patterns ([x, y, *rest])
+- [ ] Support for 'match' statement mapping patterns ({'k': v})
+- [ ] Support for 'match' statement OR patterns (A | B)
+- [ ] Support for nested f-strings
+- [ ] Support for dynamic format specifiers in f-strings (f"{x:{y}}")
+- [ ] Support for bytes formatting (b"%s" % b"a")
+- [ ] Support for function attributes (func.attr = val)
+- [ ] Support for 'continue' in 'finally' block (Python 3.8+)
+- [ ] Support for recursive type aliases
+- [ ] Support for TypedDict class-based syntax
 
 ## Infrastructure & Tooling
 - [x] Set up comprehensive test suite (pytest)
