@@ -138,13 +138,13 @@
 - [x] Support for 'match' statement sequence patterns ([x, y, *rest])
 - [x] Support for 'match' statement mapping patterns ({'k': v})
 - [x] Support for 'match' statement OR patterns (A | B)
-- [ ] Support for nested f-strings
-- [ ] Support for dynamic format specifiers in f-strings (f"{x:{y}}")
-- [ ] Support for bytes formatting (b"%s" % b"a")
-- [ ] Support for function attributes (func.attr = val)
-- [ ] Support for 'continue' in 'finally' block (Python 3.8+)
-- [ ] Support for recursive type aliases
-- [ ] Support for TypedDict class-based syntax
+- [x] Support for nested f-strings
+- [x] Support for dynamic format specifiers in f-strings (f"{x:{y}}")
+- [x] Support for bytes formatting (b"%s" % b"a")
+- [x] Support for function attributes (func.attr = val)
+- [x] Support for 'continue' in 'finally' block (Python 3.8+)
+- [x] Support for recursive type aliases
+- [x] Support for TypedDict class-based syntax
 - [x] Support for 'match' statement capture patterns (case A() as x)
 - [x] Support for 'match' statement value patterns (case CONST)
 - [ ] Support for 'try/except*' (Exception Groups - Python 3.11+)
