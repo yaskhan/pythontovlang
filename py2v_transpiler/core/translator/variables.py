@@ -147,6 +147,12 @@ class VariablesMixin(TranslatorBase):
                  self.visit_DictComp(node.value, target_var=lhs) # type: ignore
             else:
                  self.output.append(f"{self._indent()}// Error: Dict comprehension support missing")
+        elif isinstance(node.value, ast.GeneratorExp):
+            # Treat generator expression as list comprehension (eager evaluation)
+            if hasattr(self, 'visit_ListComp'):
+                 self.visit_ListComp(node.value, target_var=lhs) # type: ignore
+            else:
+                 self.output.append(f"{self._indent()}// Error: Generator expression support missing")
         else:
             rhs = self.visit(node.value)
             self.output.append(f"{self._indent()}{lhs} := {rhs}")

@@ -90,7 +90,7 @@
 - [x] Support for chained comparisons (a < b < c)
 - [x] Support for dictionary comprehensions
 - [x] Support for set comprehensions
-- [ ] Support for generator expressions (independent)
+- [x] Support for generator expressions (independent)
 - [ ] Support for complex numbers
 - [ ] Support for matrix multiplication operator (@)
 - [x] Support for bytes and bytearray literals
