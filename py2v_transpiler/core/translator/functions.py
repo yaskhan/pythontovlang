@@ -71,6 +71,9 @@ class FunctionsMixin(TranslatorBase):
         if hasattr(node.args, 'posonlyargs'):
              args = node.args.posonlyargs + args
 
+        if hasattr(node.args, 'kwonlyargs'):
+             args = args + node.args.kwonlyargs
+
         if is_method and args and args[0].arg == "self":
             # Handle 'self' - it becomes the receiver in V
             # UNLESS it is static

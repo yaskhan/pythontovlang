@@ -84,7 +84,7 @@
 - [ ] Support for double star arguments in function calls (**kwargs)
 - [ ] Support for variadic arguments in definitions (*args)
 - [ ] Support for keyword arguments in definitions (**kwargs)
-- [ ] Support for keyword-only arguments (*, arg)
+- [x] Support for keyword-only arguments (*, arg)
 - [x] Support for positional-only arguments (arg, /)
 - [x] Support for destructuring assignment (a, *b = l)
 - [x] Support for chained comparisons (a < b < c)
