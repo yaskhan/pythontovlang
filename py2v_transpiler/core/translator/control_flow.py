@@ -322,7 +322,7 @@ class ControlFlowMixin(TranslatorBase):
             is_first = False
 
     def _compile_pattern(self, pattern: ast.AST, subject_expr: str) -> "tuple[str, list[str]]":
-        bindings = []
+        bindings: list[str] = []
 
         if isinstance(pattern, ast.MatchValue):
             val = self.visit(pattern.value)
