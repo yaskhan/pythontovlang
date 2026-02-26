@@ -233,6 +233,16 @@ class StdLibMapper:
                 "loads": "py_pickle_loads",
                 "dump": "py_pickle_dump",
                 "load": "py_pickle_load",
+            },
+            "contextlib": {
+                "closing": self._contextlib_closing,
+                "nullcontext": self._contextlib_nullcontext,
+                "suppress": self._contextlib_suppress,
+                "redirect_stdout": self._contextlib_redirect_stdout,
+            },
+            "typing": {
+                # Mostly handled via static type analysis and type hints
+                # Symbols here are often used as type hints which are processed separately
             }
         }
 
@@ -277,6 +287,8 @@ class StdLibMapper:
             "statistics": ["math"],
             "decimal": [],
             "pickle": ["json"],
+            "contextlib": [],
+            "typing": [],
         }
 
     def get_mapping(self, module: str, func: str, args: List[str]) -> Optional[str]:
@@ -538,3 +550,23 @@ class StdLibMapper:
         if len(args) == 1:
             return f"py_fraction({args[0]})"
         return "fractions.fraction(0, 1)"
+
+    def _contextlib_closing(self, args: List[str]) -> str:
+        # closing(x) -> x
+        if len(args) >= 1:
+            return args[0]
+        return "/* contextlib.closing missing args */"
+
+    def _contextlib_nullcontext(self, args: List[str]) -> str:
+        # nullcontext(x) -> x
+        if len(args) >= 1:
+            return args[0]
+        return "0" # Default? or nothing. Python default is None.
+
+    def _contextlib_suppress(self, args: List[str]) -> str:
+        # suppress(*exceptions)
+        # We map to a comment because the logic is in visit_With
+        return f"/* contextlib.suppress({', '.join(args)}) */"
+
+    def _contextlib_redirect_stdout(self, args: List[str]) -> str:
+        return f"/* contextlib.redirect_stdout({', '.join(args)}) ignored */"
