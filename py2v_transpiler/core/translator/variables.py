@@ -115,65 +115,26 @@ class VariablesMixin(TranslatorBase):
             # list[index] = value
             lhs = self.visit(target)
         elif isinstance(target, (ast.Tuple, ast.List)):
-             # Destructuring assignment
+             # Destructuring assignment with nested support
              rhs = self.visit(node.value)
 
              # Optimization: If simple unpacking a, b = 1, 2 (RHS is Tuple/List literal) and no starred elements
-             has_starred = any(isinstance(elt, ast.Starred) for elt in target.elts)
-             if not has_starred and isinstance(node.value, (ast.Tuple, ast.List)) and len(node.value.elts) == len(target.elts):
+             # And no nested targets!
+             def is_simple(targets):
+                 return not any(isinstance(elt, (ast.Tuple, ast.List, ast.Starred)) for elt in targets)
+
+             if is_simple(target.elts) and isinstance(node.value, (ast.Tuple, ast.List)) and len(node.value.elts) == len(target.elts):
                   lhs_parts = [self.visit(t) for t in target.elts]
                   rhs_parts = [self.visit(v) for v in node.value.elts]
-                  # Use := for all? Or check? Assuming declarations for simplicity as per existing logic
                   self.output.append(f"{self._indent()}{', '.join(lhs_parts)} := {', '.join(rhs_parts)}")
                   return
 
-             # General case: a, *b = l OR a, b = l
-             # Assign RHS to temp var
-             tmp_var = f"_destruct_{self._zip_counter}"
-             self._zip_counter += 1
-             self.output.append(f"{self._indent()}{tmp_var} := {rhs}")
+             # Use recursive destructuring helper
+             self._visit_destructuring(target, rhs)
+             return
 
-             starred_idx = -1
-             for i, elt in enumerate(target.elts):
-                 if isinstance(elt, ast.Starred):
-                     starred_idx = i
-                     break
-
-             if starred_idx == -1:
-                 # Simple unpacking: a, b = l
-                 for i, elt in enumerate(target.elts):
-                     lhs_elt = self.visit(elt)
-                     op = "=" if isinstance(elt, (ast.Attribute, ast.Subscript)) else ":="
-                     self.output.append(f"{self._indent()}{lhs_elt} {op} {tmp_var}[{i}]")
-             else:
-                 # Starred unpacking
-                 # Pre-star
-                 for i in range(starred_idx):
-                     elt = target.elts[i]
-                     lhs_elt = self.visit(elt)
-                     op = "=" if isinstance(elt, (ast.Attribute, ast.Subscript)) else ":="
-                     self.output.append(f"{self._indent()}{lhs_elt} {op} {tmp_var}[{i}]")
-
-                 # Star
-                 star_elt = target.elts[starred_idx]
-                 if isinstance(star_elt, ast.Starred):
-                     lhs_star = self.visit(star_elt.value)
-                     op = "=" if isinstance(star_elt.value, (ast.Attribute, ast.Subscript)) else ":="
-                     # Slice: start = starred_idx, end = len - (total - 1 - starred_idx)
-                     trailing = len(target.elts) - 1 - starred_idx
-                     if trailing == 0:
-                          self.output.append(f"{self._indent()}{lhs_star} {op} {tmp_var}[{starred_idx}..]")
-                     else:
-                          self.output.append(f"{self._indent()}{lhs_star} {op} {tmp_var}[{starred_idx}..{tmp_var}.len-{trailing}]")
-
-                 # Post-star
-                 for i in range(starred_idx + 1, len(target.elts)):
-                     elt = target.elts[i]
-                     lhs_elt = self.visit(elt)
-                     op = "=" if isinstance(elt, (ast.Attribute, ast.Subscript)) else ":="
-                     offset = len(target.elts) - i
-                     self.output.append(f"{self._indent()}{lhs_elt} {op} {tmp_var}[{tmp_var}.len-{offset}]")
-
+        if not lhs:
+             # Should be covered by destructuring
              return
 
         if isinstance(node.value, ast.ListComp):
@@ -203,6 +164,67 @@ class VariablesMixin(TranslatorBase):
         else:
             rhs = self.visit(node.value)
             self.output.append(f"{self._indent()}{lhs} := {rhs}")
+
+    def _visit_destructuring(self, target: ast.AST, source_expr: str) -> None:
+        """
+        Recursively handles destructuring assignments, including nested tuples/lists.
+        target: The AST node for the target (Tuple, List, Name, etc.)
+        source_expr: The V expression representing the value to unpack (e.g. `_destruct_0`, `my_list[1]`)
+        """
+        if isinstance(target, (ast.Tuple, ast.List)):
+             # Assign source to a temporary variable to avoid repeated evaluation
+             # and allow slicing
+             tmp_var = f"_destruct_{self._zip_counter}"
+             self._zip_counter += 1
+             self.output.append(f"{self._indent()}{tmp_var} := {source_expr}")
+
+             starred_idx = -1
+             for i, elt in enumerate(target.elts):
+                 if isinstance(elt, ast.Starred):
+                     starred_idx = i
+                     break
+
+             if starred_idx == -1:
+                 # Simple unpacking: a, b = l
+                 for i, elt in enumerate(target.elts):
+                     # Recursive call for each element
+                     self._visit_destructuring(elt, f"{tmp_var}[{i}]")
+             else:
+                 # Starred unpacking
+                 # Pre-star
+                 for i in range(starred_idx):
+                     elt = target.elts[i]
+                     self._visit_destructuring(elt, f"{tmp_var}[{i}]")
+
+                 # Star
+                 star_elt = target.elts[starred_idx]
+                 if isinstance(star_elt, ast.Starred):
+                     # Slice: start = starred_idx, end = len - (total - 1 - starred_idx)
+                     trailing = len(target.elts) - 1 - starred_idx
+                     slice_expr = ""
+                     if trailing == 0:
+                          slice_expr = f"{tmp_var}[{starred_idx}..]"
+                     else:
+                          slice_expr = f"{tmp_var}[{starred_idx}..{tmp_var}.len-{trailing}]"
+
+                     self._visit_destructuring(star_elt.value, slice_expr)
+
+                 # Post-star
+                 for i in range(starred_idx + 1, len(target.elts)):
+                     elt = target.elts[i]
+                     offset = len(target.elts) - i
+                     self._visit_destructuring(elt, f"{tmp_var}[{tmp_var}.len-{offset}]")
+
+        elif isinstance(target, ast.Name):
+            lhs = self.visit(target)
+            self.output.append(f"{self._indent()}{lhs} := {source_expr}")
+
+        elif isinstance(target, (ast.Attribute, ast.Subscript)):
+             lhs = self.visit(target)
+             self.output.append(f"{self._indent()}{lhs} = {source_expr}")
+
+        else:
+             self.output.append(f"{self._indent()}// Unsupported destructuring target: {type(target)}")
 
     def visit_AugAssign(self, node: ast.AugAssign) -> None:
         target = self.visit(node.target)
@@ -258,4 +280,6 @@ class VariablesMixin(TranslatorBase):
     def visit_Name(self, node: ast.Name) -> str:
         if node.id in self.name_remap:
             return self.name_remap[node.id]
-        return node.id
+
+        # Name mangling for class-private attributes
+        return self._mangle_name(node.id, self.current_class)

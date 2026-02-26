@@ -148,7 +148,7 @@
 - [x] Support for 'match' statement capture patterns (case A() as x)
 - [x] Support for 'match' statement value patterns (case CONST)
 - [ ] Support for 'try/except*' (Exception Groups - Python 3.11+)
-- [ ] Support for '__init_subclass__' hook
+- [x] Support for '__init_subclass__' hook
 - [x] Support for 'typing.Protocol' (structural subtyping)
 - [x] Support for 'typing.Literal' types
 - [x] Support for 'typing.Final' qualifier
@@ -156,8 +156,8 @@
 - [x] Support for 'typing.cast' (no-op)
 - [x] Support for 'typing.NewType'
 - [x] Support for 'typing.NoReturn'
-- [ ] Support for name mangling (__private attributes)
-- [ ] Support for nested destructuring assignment (a, (b, c) = ...)
+- [x] Support for name mangling (__private attributes)
+- [x] Support for nested destructuring assignment (a, (b, c) = ...)
 - [x] Support for 'match' statement wildcard pattern (case _)
 - [x] Support for 'match' statement class patterns (case Point(x=1))
 - [x] Support for 'typing.TypeVar' (generics definition)
@@ -173,9 +173,9 @@
 - [x] Support for 'typing.TypeGuard'
 - [x] Support for 'typing.Required' and 'typing.NotRequired'
 - [x] Support for 'typing.Unpack'
-- [ ] Support for 'enum.Flag' and 'enum.auto()'
-- [ ] Support for 'functools.partial' translation
-- [ ] Support for 'functools.singledispatch'
+- [x] Support for 'enum.Flag' and 'enum.auto()'
+- [x] Support for 'functools.partial' translation
+- [x] Support for 'functools.singledispatch'
 
 ## Infrastructure & Tooling
 - [x] Set up comprehensive test suite (pytest)

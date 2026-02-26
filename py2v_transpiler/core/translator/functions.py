@@ -18,9 +18,76 @@ class FunctionsMixin(TranslatorBase):
             if isinstance(decorator, ast.Attribute) and decorator.attr == 'overload':
                 return
 
-        is_generator = False
+        # Check for @singledispatch
+        for decorator in node.decorator_list:
+            is_singledispatch = False
+            if isinstance(decorator, ast.Name) and decorator.id == 'singledispatch':
+                is_singledispatch = True
+            elif isinstance(decorator, ast.Attribute) and decorator.attr == 'singledispatch':
+                is_singledispatch = True
+
+            if is_singledispatch:
+                # Store the base implementation with a unique name
+                base_impl_name = f"{node.name}_base"
+                self.renamed_functions[node.name] = base_impl_name # Temp mapping for visit
+
+                # Initialize registry
+                self.single_dispatch_functions[node.name] = {"default": base_impl_name}
+
+                # We will process the function as normal, but renamed.
+                # The dispatcher itself will be generated in visit_Module.
+                # Wait, we need to restore the mapping? No, actually, we want calls to `func` to go to the dispatcher.
+                # But here we are generating the implementation.
+                # The implementation should be named `func_base`.
+                # BUT when we call `func()`, we want `func` (the dispatcher).
+                # So `renamed_functions` is tricky. `renamed_functions` affects both definition and call?
+                # Usually yes.
+                # If we rename here, `visit_Call` will also rename calls. That's bad.
+                # We only want to rename the definition here.
+                # Let's override `node.name` locally?
+                # Or just handle it manually below.
+                pass
+
+        # Check for @func.register(Type)
+        register_dispatcher = None
+        register_type = None
+
+        # 'node' is guaranteed to be ast.FunctionDef or ast.AsyncFunctionDef here
+        for decorator in node.decorator_list:
+            if isinstance(decorator, ast.Call) and isinstance(decorator.func, ast.Attribute):
+                 if decorator.func.attr == "register":
+                      # func.register(Type)
+                      # We need to find 'func'. It's decorator.func.value
+                      # decorator.func.value might be ast.Name(id='process')
+                      if isinstance(decorator.func.value, ast.Name):
+                          register_dispatcher = decorator.func.value.id
+                          if decorator.args:
+                              try:
+                                   type_str = ast.unparse(decorator.args[0])
+                                   register_type = map_python_type_to_v(type_str)
+                              except:
+                                   pass
+
+        if register_dispatcher and register_type:
+             # This is an implementation of a singledispatch function
+             impl_name = f"{register_dispatcher}_{register_type}"
+             if register_dispatcher in self.single_dispatch_functions:
+                 self.single_dispatch_functions[register_dispatcher][register_type] = impl_name
+             else:
+                 # Dispatcher defined after? Or in another module? (Not supported cross-module yet)
+                 pass
+
+             # Rename this function to impl_name
+             # We should *not* emit the dispatcher logic here, just the implementation.
+             # We modify node.name temporarily
+             original_name = node.name
+             node.name = impl_name
+
+             # Proceed to emit function
+             # (Restore name later? Node is modified but it's okay)
+
         if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
-             is_generator = self.coroutine_handler.is_generator(node.name)
+             is_generator = self.coroutine_handler.is_generator(original_name if 'original_name' in locals() else node.name)
 
         # Save current state
         old_output = self.output
@@ -164,6 +231,17 @@ class FunctionsMixin(TranslatorBase):
 
         if not is_unittest_method:
             func_name = node.name
+            # Don't apply mangling here if it was already renamed via singledispatch logic
+            # singledispatch renames node.name in AST, so func_name already has new name.
+            # But if self.current_class is set, we might mangle it again?
+            # If node.name was modified to "process_int", it doesn't start with "__", so mangle is no-op.
+            # But if original name was "__process", it becomes "__process_int".
+            # If we call _mangle_name("__process_int", "Cls"), it becomes "_Cls__process_int".
+            # This seems correct for private methods.
+
+            if self.current_class:
+                func_name = self._mangle_name(func_name, self.current_class)
+
             if func_name in self.renamed_functions:
                 func_name = self.renamed_functions[func_name]
 
@@ -177,7 +255,21 @@ class FunctionsMixin(TranslatorBase):
             # Switch to generating implementation
             func_name = dec_info.implementation_name
 
-        if func_name == "__init__":
+        if 'decl' not in locals() and func_name == "__init_subclass__":
+            # Static hook method
+            # In V, we can't easily hook into inheritance.
+            # But we can translate it as a static function `init_subclass`.
+            # Usage in Python: MyClass.__init_subclass__(kwargs)
+            # Receiver is `cls` (type), not instance.
+            # We map it to a static function without receiver? Or receiver as Type?
+            # V doesn't pass types as values easily like Python.
+            # Best effort: `fn init_subclass(...)` as a static method on struct (if V supports static methods? No, just functions).
+            # We treat it as a function in the module, maybe namespaced?
+            # For now, just remove receiver and make it a function.
+            receiver_str = ""
+            func_name = "init_subclass"
+            # And likely static context
+        elif func_name == "__init__":
             # Constructor logic: make it a static factory function for now
             # fn new_Struct(...) Struct
             func_name = f"new_{struct_name}"

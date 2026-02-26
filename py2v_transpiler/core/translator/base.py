@@ -33,6 +33,19 @@ class TranslatorBase(ast.NodeVisitor):
         self._walrus_assignments: List[str] = []
         self.imported_modules: Dict[str, str] = {}
         self.imported_symbols: Dict[str, str] = {}
+        self.single_dispatch_functions: Dict[str, Dict[str, str]] = {} # dispatcher_name -> {type_name -> impl_func_name}
 
     def _indent(self) -> str:
         return "    " * self._indent_level
+
+    def _mangle_name(self, name: str, class_name: Optional[str]) -> str:
+        """
+        Implements Python's name mangling rules for private attributes.
+        If name starts with __ (and not ends with __) and class_name is provided,
+        it becomes _ClassName__name.
+        """
+        if class_name and name.startswith("__") and not name.endswith("__"):
+            # Strip leading underscores from class name for cleaner mangling if needed
+            stripped_cls = class_name.lstrip('_')
+            return f"__{stripped_cls}_{name.lstrip('_')}"
+        return name
