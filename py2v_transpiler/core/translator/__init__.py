@@ -47,6 +47,7 @@ class VNodeVisitor(
         self.name_remap = {} # Temporary variable renaming (e.g. x -> it in generators)
         self._walrus_assignments: List[str] = [] # Buffer for walrus operator assignments
         self.single_dispatch_functions: Dict[str, Dict[str, str]] = {} # dispatcher_name -> {type_name -> impl_func_name}
+        self.function_names: Set[str] = set()
 
         self.mapper = StdLibMapper()
         self.imported_modules: Dict[str, str] = {} # alias -> module_name

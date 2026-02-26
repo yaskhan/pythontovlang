@@ -98,11 +98,15 @@ class ClassesMixin(TranslatorBase):
                     self.current_class_bases.append(base_name)
 
             elif isinstance(base, ast.Name):
-                if base.id != "Generic" and base.id != "Protocol" and base.id != "NamedTuple":
+                if base.id != "Generic" and base.id != "Protocol" and base.id != "NamedTuple" and base.id != "TypedDict":
                     fields.append(f"    {base.id}")
                     self.current_class_bases.append(base.id)
             elif isinstance(base, ast.Attribute):
                 val = self.visit(base)
+                # Ignore TypedDict base
+                if val == "TypedDict" or val == "typing.TypedDict":
+                     continue
+
                 fields.append(f"    {val}")
                 self.current_class_bases.append(base.attr)
 
