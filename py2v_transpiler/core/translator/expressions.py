@@ -76,6 +76,12 @@ class ExpressionsMixin(TranslatorBase):
             elif func_node.id in ("hasattr", "getattr", "setattr", "type", "super"):
                  module_name = "builtins" # synthetic
                  func_name = func_node.id
+            elif func_node.id == "cast":
+                # typing.cast(type, value) -> value (with type annotation in V)
+                # In V, we just return the value as-is
+                if len(args) >= 2:
+                    return args[1]
+                return "/* cast with no args */"
 
         if module_name == "os" and func_name == "open":
              # Handle open() -> os.open()

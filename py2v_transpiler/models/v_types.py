@@ -120,13 +120,40 @@ def _map_ast_type(node: ast.AST) -> str:
         elif value_id == 'Literal':
             # Literal[1] -> int, Literal['a'] -> string
             if args:
-                arg = args[0]
-                if isinstance(arg, ast.Constant):
-                    if isinstance(arg.value, int): return 'int'
-                    if isinstance(arg.value, float): return 'f64'
-                    if isinstance(arg.value, str): return 'string'
-                    if isinstance(arg.value, bool): return 'bool'
+                # Check all args to determine the type
+                types_seen = set()
+                for arg in args:
+                    if isinstance(arg, ast.Constant):
+                        if isinstance(arg.value, int): types_seen.add('int')
+                        elif isinstance(arg.value, float): types_seen.add('f64')
+                        elif isinstance(arg.value, str): types_seen.add('string')
+                        elif isinstance(arg.value, bool): types_seen.add('bool')
+                # Return the common type
+                if len(types_seen) == 1:
+                    return types_seen.pop()
+                elif 'string' in types_seen:
+                    return 'string'
+                elif 'f64' in types_seen:
+                    return 'f64'
+                elif 'int' in types_seen:
+                    return 'int'
             return 'string' # default?
+
+        elif value_id in ('ClassVar', 'Final', 'Required'):
+            # ClassVar[int] -> int, Final[int] -> int, Required[int] -> int
+            if mapped_args:
+                return mapped_args[0]
+            return 'int'
+
+        elif value_id == 'NotRequired':
+            # NotRequired[int] -> ?int
+            if mapped_args:
+                return f"?{mapped_args[0]}"
+            return '?int'
+
+        elif value_id == 'TypeGuard':
+            # TypeGuard[T] -> bool
+            return 'bool'
 
         elif value_id == 'Type':
             # Type[C] -> C
@@ -166,5 +193,7 @@ def _map_basic_type(name: str) -> str:
         'TextIO': 'os.File',
         'BinaryIO': 'os.File',
         'NoReturn': 'void',
+        'object': 'any',
+        'Self': 'Self',
     }
     return mapping.get(name, name)

@@ -5,6 +5,15 @@ from .base import TranslatorBase
 
 class FunctionsMixin(TranslatorBase):
     def visit_FunctionDef(self, node: ast.FunctionDef) -> None:
+        # Check for overload decorator - skip overloaded signatures
+        for dec in node.decorator_list:
+            if isinstance(dec, ast.Name) and dec.id == 'overload':
+                # Skip overloaded function signature
+                return
+            elif isinstance(dec, ast.Attribute) and dec.attr == 'overload':
+                # typing.overload or similar
+                return
+        
         self._visit_function_common(node)
 
     def visit_AsyncFunctionDef(self, node: ast.AsyncFunctionDef) -> None:
@@ -133,11 +142,25 @@ class FunctionsMixin(TranslatorBase):
         args_str = ", ".join(args_str_list)
 
         ret_type = "void"
+        is_noreturn = False
         if not is_generator and node.returns:
-             if isinstance(node.returns, ast.Name):
-                  ret_type = node.returns.id
-             elif isinstance(node.returns, ast.Constant) and isinstance(node.returns.value, str):
-                  ret_type = node.returns.value
+            try:
+                type_str = ast.unparse(node.returns)
+                ret_type = map_python_type_to_v(type_str)
+                # Check for NoReturn
+                if ret_type == 'NoReturn' or type_str == 'NoReturn':
+                    is_noreturn = True
+                    ret_type = 'void'
+                # Check for Self
+                elif type_str == 'Self' or ret_type == 'Self':
+                    ret_type = struct_name if struct_name else 'void'
+            except Exception:
+                if isinstance(node.returns, ast.Name):
+                    ret_type = node.returns.id
+                    if ret_type == 'Self':
+                        ret_type = struct_name if struct_name else 'void'
+                elif isinstance(node.returns, ast.Constant) and isinstance(node.returns.value, str):
+                    ret_type = node.returns.value
 
         if not is_unittest_method:
             func_name = node.name
@@ -203,6 +226,10 @@ class FunctionsMixin(TranslatorBase):
         if ret_type == "void":
              decl = f"fn {receiver_str}{func_name}({args_str}) {{"
 
+        # Add [noreturn] attribute for NoReturn functions
+        if is_noreturn:
+            self.output.append(f"[noreturn]")
+        
         self.output.append(f"{decl}") # No indent for top level function
         self._indent_level += 1
 

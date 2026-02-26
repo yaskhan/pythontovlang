@@ -34,6 +34,7 @@ class ClassesMixin(TranslatorBase):
         is_enum = False
         is_int_enum = False
         is_unittest = False
+        is_protocol = False
 
         # Handle inheritance (bases)
         for base in node.bases:
@@ -47,12 +48,17 @@ class ClassesMixin(TranslatorBase):
                      # Check if it's likely unittest.TestCase
                      # Or check if base is Attribute unittest.TestCase
                      is_unittest = True
+                elif base.id == "Protocol":
+                    is_protocol = True
 
             elif isinstance(base, ast.Attribute):
                 # Check for unittest.TestCase
                 val = self.visit(base)
                 if val == "unittest.TestCase" or (isinstance(base.value, ast.Name) and base.value.id == "unittest" and base.attr == "TestCase"):
                      is_unittest = True
+                # Check for Protocol
+                elif base.attr == "Protocol":
+                    is_protocol = True
 
             # Handle Generic[T]
             if isinstance(base, ast.Subscript):
@@ -71,6 +77,9 @@ class ClassesMixin(TranslatorBase):
                     elif isinstance(base.slice, ast.Name):
                         self.current_class_generics.append(base.slice.id)
                     # Don't add Generic to fields
+                    continue
+                elif base_name == "Protocol":
+                    is_protocol = True
                     continue
                 else:
                     # Regular generic base: Parent[T]
@@ -116,6 +125,50 @@ class ClassesMixin(TranslatorBase):
              # Do NOT emit struct for unittest class, just methods
              for method in methods:
                  self.visit(method)
+        elif is_protocol:
+            # Protocol classes -> V interface
+            interface_def = ""
+            if decorators:
+                interface_def += "\n".join(decorators) + "\n"
+            
+            interface_def += f"interface {struct_name} {{\n"
+            for method in methods:
+                # Extract method signature
+                method_name = method.name
+                args_str_list = []
+                ret_type = "void"
+                
+                # Skip self argument
+                args = method.args.args
+                if args and args[0].arg == "self":
+                    args = args[1:]
+                
+                for arg in args:
+                    arg_name = arg.arg
+                    arg_type = "int"
+                    if arg.annotation:
+                        try:
+                            type_str = ast.unparse(arg.annotation)
+                            arg_type = map_python_type_to_v(type_str)
+                        except:
+                            pass
+                    args_str_list.append(f"{arg_name} {arg_type}")
+                
+                if method.returns:
+                    try:
+                        type_str = ast.unparse(method.returns)
+                        ret_type = map_python_type_to_v(type_str)
+                    except:
+                        pass
+                
+                args_str = ", ".join(args_str_list)
+                if ret_type == "void":
+                    interface_def += f"    {method_name}({args_str})\n"
+                else:
+                    interface_def += f"    {method_name}({args_str}) {ret_type}\n"
+            
+            interface_def += "}"
+            self.emitter.add_struct(interface_def)
         else:
             struct_def = ""
             if decorators:
