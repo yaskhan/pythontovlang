@@ -10,6 +10,20 @@ class VariablesMixin(TranslatorBase):
         if isinstance(target, ast.Name):
             lhs = target.id
 
+            # Check for NewType: UserId = NewType('UserId', int)
+            if isinstance(node.value, ast.Call) and isinstance(node.value.func, ast.Name) and node.value.func.id == "NewType":
+                if len(node.value.args) == 2:
+                    # Arg 1 is name, Arg 2 is base type
+                    # we use lhs as name
+                    try:
+                        if hasattr(ast, 'unparse'):
+                             base_str = ast.unparse(node.value.args[1])
+                             mapped_base = map_python_type_to_v(base_str)
+                             self.emitter.add_struct(f"type {lhs} = {mapped_base}")
+                             return
+                    except:
+                        pass
+
             # Check for TypeVar: T = TypeVar("T", int, str)
             if isinstance(node.value, ast.Call) and isinstance(node.value.func, ast.Name) and node.value.func.id == "TypeVar":
                 # Check args for constraints
