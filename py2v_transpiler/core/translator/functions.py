@@ -339,7 +339,44 @@ class FunctionsMixin(TranslatorBase):
         return f"/* yield {val} */"
 
     def visit_YieldFrom(self, node: ast.YieldFrom) -> Optional[str]:
+        # Note: 'yield from' as an expression (capturing return value) is not supported.
+        # It is transpiled only as a statement to delegate iteration.
         if self.coroutine_handler.active_channel:
+             # Check if we are yielding from another generator
+             is_generator = False
+             if isinstance(node.value, ast.Call) and isinstance(node.value.func, ast.Name):
+                 if self.coroutine_handler.is_generator(node.value.func.id):
+                     is_generator = True
+
+             if is_generator:
+                 # It's a generator call. We need to spawn it and pass a channel.
+                 # 1. Create temp channel
+                 ch_name = self.coroutine_handler.get_temp_channel_name()
+                 yield_type = self.coroutine_handler.get_generator_type(node.value.func.id)
+                 self.output.append(f"{self._indent()}{ch_name} := chan {yield_type}{{cap: 0}}")
+
+                 # 2. Spawn generator
+                 # We need args. node.value is Call.
+                 # We assume args are visited correctly by self.visit if we extract them?
+                 # No, we must construct the call string with ch_name as first arg.
+                 func_name = node.value.func.id
+                 args = [ch_name] + [str(self.visit(a)) for a in node.value.args]
+                 for kw in node.value.keywords:
+                     val = self.visit(kw.value)
+                     args.append(f"{kw.arg}: {val}")
+
+                 call_str = f"spawn {func_name}({', '.join(args)})"
+                 self.output.append(f"{self._indent()}{call_str}")
+
+                 # 3. Loop over channel
+                 self.output.append(f"{self._indent()}for v in {ch_name} {{")
+                 self._indent_level += 1
+                 self.output.append(f"{self._indent()}{self.coroutine_handler.active_channel} <- v")
+                 self._indent_level -= 1
+                 self.output.append(f"{self._indent()}}}")
+                 return None
+
+             # Standard iterable (list, etc.)
              val = self.visit(node.value)
              self.output.append(f"{self._indent()}for v in {val} {{")
              self._indent_level += 1
