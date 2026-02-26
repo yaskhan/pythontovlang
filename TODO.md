@@ -80,20 +80,20 @@
 - [ ] Support for statistics module mapping
 - [ ] Support for contextlib module mapping
 - [ ] Support for typing module mapping
-- [ ] Support for star arguments in function calls (*args)
-- [ ] Support for double star arguments in function calls (**kwargs)
-- [ ] Support for variadic arguments in definitions (*args)
-- [ ] Support for keyword arguments in definitions (**kwargs)
-- [ ] Support for keyword-only arguments (*, arg)
-- [ ] Support for positional-only arguments (arg, /)
-- [ ] Support for destructuring assignment (a, *b = l)
-- [ ] Support for chained comparisons (a < b < c)
-- [ ] Support for dictionary comprehensions
-- [ ] Support for set comprehensions
-- [ ] Support for generator expressions (independent)
-- [ ] Support for complex numbers
-- [ ] Support for matrix multiplication operator (@)
-- [ ] Support for bytes and bytearray literals
+- [x] Support for star arguments in function calls (*args)
+- [x] Support for double star arguments in function calls (**kwargs)
+- [x] Support for variadic arguments in definitions (*args)
+- [x] Support for keyword arguments in definitions (**kwargs)
+- [x] Support for keyword-only arguments (*, arg)
+- [x] Support for positional-only arguments (arg, /)
+- [x] Support for destructuring assignment (a, *b = l)
+- [x] Support for chained comparisons (a < b < c)
+- [x] Support for dictionary comprehensions
+- [x] Support for set comprehensions
+- [x] Support for generator expressions (independent)
+- [x] Support for complex numbers
+- [x] Support for matrix multiplication operator (@)
+- [x] Support for bytes and bytearray literals
 - [x] Implement Import Topology Analyzer (Dependency Graph)
 - [x] Analyze dependencies to identify unsupported libraries
 - [x] Support for reproducing module structure (directories/files)

@@ -68,6 +68,12 @@ class FunctionsMixin(TranslatorBase):
             self.coroutine_handler.enter_generator("ch")
 
         args = node.args.args
+        if hasattr(node.args, 'posonlyargs'):
+             args = node.args.posonlyargs + args
+
+        if hasattr(node.args, 'kwonlyargs'):
+             args = args + node.args.kwonlyargs
+
         if is_method and args and args[0].arg == "self":
             # Handle 'self' - it becomes the receiver in V
             # UNLESS it is static
@@ -99,6 +105,30 @@ class FunctionsMixin(TranslatorBase):
                 arg_type = self.type_inference.type_map.get(arg_name, "int")
 
             args_str_list.append(f"{arg_name} {arg_type}")
+
+        if node.args.vararg:
+            arg_name = node.args.vararg.arg
+            arg_type = "int" # Default
+            if node.args.vararg.annotation:
+                try:
+                    type_str = ast.unparse(node.args.vararg.annotation)
+                    arg_type = map_python_type_to_v(type_str)
+                except Exception:
+                    pass
+            args_str_list.append(f"{arg_name} ...{arg_type}")
+            args_names.append(arg_name)
+
+        if node.args.kwarg:
+            arg_name = node.args.kwarg.arg
+            arg_type = "map[string]string"
+            if node.args.kwarg.annotation:
+                try:
+                    type_str = ast.unparse(node.args.kwarg.annotation)
+                    arg_type = map_python_type_to_v(type_str)
+                except Exception:
+                    pass
+            args_str_list.append(f"{arg_name} {arg_type}")
+            args_names.append(arg_name)
 
         args_str = ", ".join(args_str_list)
 
