@@ -272,35 +272,225 @@ class ControlFlowMixin(TranslatorBase):
 
     def visit_Match(self, node: "ast.Match") -> None:
         subject = self.visit(node.subject)
-        self.output.append(f"{self._indent()}match {subject} {{")
-        self._indent_level += 1
+        self._zip_counter += 1
+        match_id = self._zip_counter
+        subject_var = f"_match_subject_{match_id}"
+
+        self.output.append(f"{self._indent()}// Match statement converted to if-else chain")
+        self.output.append(f"{self._indent()}{subject_var} := {subject}")
+        # Create an 'any' alias for type checking
+        subject_any = f"_match_subject_any_{match_id}"
+        self.output.append(f"{self._indent()}{subject_any} := any({subject_var})")
+
+        # Flatten MatchOr patterns to simplify code generation
+        expanded_cases = []
         for case in node.cases:
-            self._visit_match_case(case)
-        self._indent_level -= 1
-        self.output.append(f"{self._indent()}}}")
+            if isinstance(case.pattern, ast.MatchOr):
+                for p in case.pattern.patterns:
+                    # Create a new case for each alternative
+                    # We reuse the same body and guard
+                    expanded_cases.append(ast.match_case(pattern=p, guard=case.guard, body=case.body))
+            else:
+                expanded_cases.append(case)
 
-    def _visit_match_case(self, node: "ast.match_case") -> None:
-        pattern_str = self._translate_pattern(node.pattern)
-        if node.guard:
-            self.output.append(f"{self._indent()}// Guard condition '{self.visit(node.guard)}' ignored in match case")
-        self.output.append(f"{self._indent()}{pattern_str} {{")
-        self._indent_level += 1
-        for stmt in node.body:
-            self.visit(stmt)
-        self._indent_level -= 1
-        self.output.append(f"{self._indent()}}}")
+        is_first = True
+        for case in expanded_cases:
+            cond, bindings = self._compile_pattern(case.pattern, subject_any)
 
-    def _translate_pattern(self, pattern: ast.AST) -> str:
+            if case.guard:
+                guard_expr = self.visit(case.guard)
+                cond = f"({cond}) && ({guard_expr})"
+
+            prefix = "if" if is_first else "else if"
+            if cond == "true":
+                # Wildcard or fallback
+                prefix = "else"
+                self.output.append(f"{self._indent()}{prefix} {{")
+            else:
+                self.output.append(f"{self._indent()}{prefix} {cond} {{")
+
+            self._indent_level += 1
+            for binding in bindings:
+                self.output.append(f"{self._indent()}{binding}")
+            for stmt in case.body:
+                self.visit(stmt)
+            self._indent_level -= 1
+            self.output.append(f"{self._indent()}}}")
+
+            if cond == "true":
+                break # Stop processing further cases as this one matches everything
+            is_first = False
+
+    def _compile_pattern(self, pattern: ast.AST, subject_expr: str) -> "tuple[str, list[str]]":
+        bindings: list[str] = []
+
         if isinstance(pattern, ast.MatchValue):
-            return str(self.visit(pattern.value))
+            val = self.visit(pattern.value)
+            # Use strict equality if types match, or just equality
+            return f"{subject_expr} == {val}", bindings
+
         elif isinstance(pattern, ast.MatchSingleton):
-            return str(pattern.value).lower()
+            val = str(pattern.value).lower()
+            if pattern.value is None:
+                 return f"{subject_expr} is none", bindings # V uses 'none' not 'None'
+            return f"{subject_expr} == {val}", bindings
+
+        elif isinstance(pattern, ast.MatchSequence):
+            # Support basic array types
+            array_types = ["[]int", "[]f64", "[]string", "[]bool", "[]any"]
+
+            # Identify parts
+            patterns = pattern.patterns
+            star_idx = -1
+            for i, p in enumerate(patterns):
+                if isinstance(p, ast.MatchStar):
+                    star_idx = i
+                    break
+
+            checks = []
+            or_parts = []
+
+            # Helper to generate extraction code
+            def gen_extract(idx, is_rest=False, from_end=False):
+                # Returns expression to get element at idx handling types
+                branches = []
+                for t in array_types:
+                     if is_rest:
+                         # Rest slicing: [idx .. len-end]
+                         num_trailing = len(patterns) - 1 - idx
+                         end_expr = f"(({subject_expr} as {t}).len - {num_trailing})"
+                         if num_trailing == 0:
+                             slice_expr = f"[{idx}..]"
+                         else:
+                             slice_expr = f"[{idx}..{end_expr}]"
+
+                         branches.append(f"{subject_expr} is {t} {{ any(({subject_expr} as {t}){slice_expr}) }}")
+                     elif from_end:
+                         # Index from end: len - offset
+                         branches.append(f"{subject_expr} is {t} {{ any(({subject_expr} as {t})[({subject_expr} as {t}).len - {idx}]) }}")
+                     else:
+                         branches.append(f"{subject_expr} is {t} {{ any(({subject_expr} as {t})[{idx}]) }}")
+                branches.append("else { any(0) }") # Fallback
+                return f"if {' else if '.join(branches)}"
+
+            # Generate condition
+            num_patterns = len(patterns)
+
+            for i, p in enumerate(patterns):
+                if isinstance(p, ast.MatchStar):
+                    if p.name:
+                        binding_val = gen_extract(i, is_rest=True)
+                        bindings.append(f"{p.name} := {binding_val}")
+                    continue
+
+                # Determine index extraction method
+                if star_idx != -1 and i > star_idx:
+                    # After star: Index from end
+                    offset = num_patterns - i
+                    sub_expr = gen_extract(offset, from_end=True)
+                else:
+                    # Before star or no star: Direct index
+                    sub_expr = gen_extract(i)
+
+                sub_cond, sub_binds = self._compile_pattern(p, sub_expr)
+                checks.append(f"({sub_cond})")
+                bindings.extend(sub_binds)
+
+            # Combine length checks and type checks
+            for t in array_types:
+                cast = f"({subject_expr} as {t})"
+                if star_idx == -1:
+                    l_chk = f"{cast}.len == {len(patterns)}"
+                else:
+                    l_chk = f"{cast}.len >= {len(patterns) - 1}"
+                or_parts.append(f"({subject_expr} is {t} && {l_chk})")
+
+            type_len_condition = "(" + " || ".join(or_parts) + ")"
+
+            if checks:
+                full_condition = f"{type_len_condition} && {' && '.join(checks)}"
+            else:
+                full_condition = type_len_condition
+
+            return full_condition, bindings
+
+        elif isinstance(pattern, ast.MatchMapping):
+             # Simplified: Check if map[string]any or similar
+             # V maps are specific.
+             # We assume map[string]int, map[string]string, map[string]any.
+             map_types = ["map[string]int", "map[string]string", "map[string]any"]
+
+             keys = pattern.keys
+             patterns = pattern.patterns
+             rest = pattern.rest
+
+             or_parts = []
+             for t in map_types:
+                 # Check type
+                 chk = f"({subject_expr} is {t})"
+                 # Check keys exist
+                 for k in keys:
+                     k_val = self.visit(k) # literal string usually
+                     chk += f" && ({k_val} in ({subject_expr} as {t}))"
+                 or_parts.append(chk)
+
+             cond = "(" + " || ".join(or_parts) + ")"
+
+             # Sub patterns
+             for i, p in enumerate(patterns):
+                 k_val = self.visit(keys[i])
+
+                 # Extract
+                 branches = []
+                 for t in map_types:
+                     branches.append(f"{subject_expr} is {t} {{ any(({subject_expr} as {t})[{k_val}]) }}")
+                 branches.append("else { any(0) }")
+                 extract_expr = f"if {' else if '.join(branches)}"
+
+                 sub_cond, sub_binds = self._compile_pattern(p, extract_expr)
+                 cond += f" && ({sub_cond})"
+                 bindings.extend(sub_binds)
+
+             if rest:
+                 # Capture rest? Complex. Ignore for now.
+                 pass
+
+             return cond, bindings
+
+        elif isinstance(pattern, ast.MatchClass):
+             cls_name = self.visit(pattern.cls)
+             cond = f"({subject_expr} is {cls_name})"
+
+             for attr, sub_pat in zip(pattern.kwd_attrs, pattern.kwd_patterns):
+                 cast_expr = f"({subject_expr} as {cls_name})"
+                 # Need to wrap in any() for recursive generic check?
+                 # _compile_pattern expects subject_expr to be any if it does type checks.
+                 # If we pass `${cast_expr}.attr`, it is typed.
+                 # So we wrap it: `any(...)`.
+                 val_expr = f"any({cast_expr}.{attr})"
+                 sub_cond, sub_bindings = self._compile_pattern(sub_pat, val_expr)
+                 cond += f" && ({sub_cond})"
+                 bindings.extend(sub_bindings)
+
+             return cond, bindings
+
         elif isinstance(pattern, ast.MatchOr):
-            parts = [self._translate_pattern(p) for p in pattern.patterns]
-            return ", ".join(parts)
+            parts = []
+            # bindings must be identical
+            for p in pattern.patterns:
+                c, b = self._compile_pattern(p, subject_expr)
+                parts.append(f"({c})")
+                if not bindings: bindings.extend(b)
+            return " || ".join(parts), bindings
+
         elif isinstance(pattern, ast.MatchAs):
-             if pattern.name is None:
-                 return "else"
-             else:
-                 return f"else /* bound to {pattern.name} */"
-        return "else"
+             if pattern.name:
+                 bindings.append(f"{pattern.name} := {subject_expr}")
+             return "true", bindings
+
+        elif isinstance(pattern, ast.MatchStar):
+             if pattern.name:
+                 bindings.append(f"{pattern.name} := {subject_expr}")
+             return "true", bindings
+
+        return "false", bindings
