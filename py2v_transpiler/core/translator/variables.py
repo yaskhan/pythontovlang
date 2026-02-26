@@ -169,6 +169,8 @@ class VariablesMixin(TranslatorBase):
         op_str = op_map.get(type(node.op))
         if op_str:
              self.output.append(f"{self._indent()}{target} {op_str} {value}")
+        elif isinstance(node.op, ast.MatMult):
+             self.output.append(f"{self._indent()}{target} = {target}.matmul({value})")
         else:
              self.output.append(f"{self._indent()}// Unsupported AugAssign operator: {type(node.op)}")
 

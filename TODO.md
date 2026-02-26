@@ -92,7 +92,7 @@
 - [x] Support for set comprehensions
 - [x] Support for generator expressions (independent)
 - [x] Support for complex numbers
-- [ ] Support for matrix multiplication operator (@)
+- [x] Support for matrix multiplication operator (@)
 - [x] Support for bytes and bytearray literals
 - [x] Implement Import Topology Analyzer (Dependency Graph)
 - [x] Analyze dependencies to identify unsupported libraries

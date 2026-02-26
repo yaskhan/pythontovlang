@@ -316,6 +316,9 @@ class ExpressionsMixin(TranslatorBase):
         elif right_type == "PyComplex" and left_type != "PyComplex":
              left = f"py_complex(f64({left}), 0.0)"
 
+        if isinstance(node.op, ast.MatMult):
+             return f"{left}.matmul({right})"
+
         op_map = {
             ast.Add: "+", ast.Sub: "-", ast.Mult: "*", ast.Div: "/",
             ast.Mod: "%", ast.Pow: "**"
