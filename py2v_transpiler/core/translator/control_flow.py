@@ -191,7 +191,18 @@ class ControlFlowMixin(TranslatorBase):
             self.visit(stmt)
         self.output.append(f"{self._indent()}// }} except {{")
         for handler in node.handlers:
-            self.output.append(f"{self._indent()}// Handler: {handler.type}")
+            type_str = ""
+            if handler.type:
+                if isinstance(handler.type, ast.Tuple):
+                    types = [str(self.visit(t)) for t in handler.type.elts]
+                    type_str = ", ".join(types)
+                else:
+                    type_str = str(self.visit(handler.type))
+            else:
+                type_str = "Exception"
+
+            name_str = f" as {handler.name}" if handler.name else ""
+            self.output.append(f"{self._indent()}// Handler: {type_str}{name_str}")
             self.output.append(f"{self._indent()}// ... exception handling logic ...")
         if node.finalbody:
              self.output.append(f"{self._indent()}// }} finally {{")

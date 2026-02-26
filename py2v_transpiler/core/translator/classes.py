@@ -16,7 +16,19 @@ class ClassesMixin(TranslatorBase):
         decorators = []
         is_dataclass = False
         for decorator in node.decorator_list:
-            dec_str = self.visit(decorator)
+            if isinstance(decorator, ast.Call):
+                 # Decorator with args: @dec(arg)
+                 func = self.visit(decorator.func)
+                 dec_args_list = []
+                 for dec_arg in decorator.args:
+                     dec_args_list.append(str(self.visit(dec_arg)))
+                 for kw in decorator.keywords:
+                     val = self.visit(kw.value)
+                     dec_args_list.append(f"{kw.arg}={val}")
+                 dec_str = f"{func}({', '.join(dec_args_list)})"
+            else:
+                 dec_str = self.visit(decorator)
+
             decorators.append(f"// @{dec_str}")
             if dec_str.startswith("dataclass") or dec_str.startswith("dataclasses.dataclass"):
                 is_dataclass = True
@@ -109,7 +121,20 @@ class ClassesMixin(TranslatorBase):
 
         methods = []
 
-        for stmt in node.body:
+        # Check for docstring (emit as comment before struct?)
+        # Or inside? V structs don't strictly have docstrings inside unless fields have them.
+        # But we can emit a comment before the struct definition.
+        # However, visit_ClassDef builds struct_def string.
+
+        body = node.body
+        doc_comment = ""
+        if body and isinstance(body[0], ast.Expr) and isinstance(body[0].value, ast.Constant) and isinstance(body[0].value.value, str):
+             doc = body[0].value.value.strip()
+             lines = [f"// {line}" for line in doc.splitlines()]
+             doc_comment = "\n".join(lines) + "\n"
+             body = body[1:]
+
+        for stmt in body:
             if isinstance(stmt, (ast.FunctionDef, ast.AsyncFunctionDef)):
                 methods.append(stmt)
             elif isinstance(stmt, ast.AnnAssign) and isinstance(stmt.target, ast.Name):
@@ -164,11 +189,16 @@ class ClassesMixin(TranslatorBase):
         if is_unittest:
              self.current_class_is_unittest = True
              # Do NOT emit struct for unittest class, just methods
+             if doc_comment:
+                 # No place to put doc comment for unittest class as it has no struct
+                 pass
              for method in methods:
                  self.visit(method)
         elif is_protocol:
              # Emit interface
              interface_def = ""
+             if doc_comment:
+                 interface_def += doc_comment
              if decorators:
                  interface_def += "\n".join(decorators) + "\n"
 
@@ -212,6 +242,8 @@ class ClassesMixin(TranslatorBase):
 
         else:
             struct_def = ""
+            if doc_comment:
+                struct_def += doc_comment
             if decorators:
                 struct_def += "\n".join(decorators) + "\n"
 
