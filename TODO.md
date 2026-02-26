@@ -156,6 +156,16 @@
 - [ ] Support for 'typing.cast' (no-op)
 - [ ] Support for 'typing.NewType'
 - [ ] Support for 'typing.NoReturn'
+- [ ] Support for name mangling (__private attributes)
+- [ ] Support for nested destructuring assignment (a, (b, c) = ...)
+- [ ] Support for 'match' statement wildcard pattern (case _)
+- [ ] Support for 'match' statement class patterns (case Point(x=1))
+- [ ] Support for 'typing.TypeVar' (generics definition)
+- [ ] Support for 'typing.ClassVar'
+- [ ] Support for 'typing.Self' (Python 3.11+)
+- [ ] Support for 'typing.Annotated'
+- [ ] Support for multiple targets in 'del' statement (del a, b)
+- [ ] Support for bitwise operators (&, |, ^, ~, <<, >>)
 
 ## Infrastructure & Tooling
 - [x] Set up comprehensive test suite (pytest)
