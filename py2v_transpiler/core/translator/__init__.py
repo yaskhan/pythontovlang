@@ -88,6 +88,12 @@ class VNodeVisitor(
             self.emitter.add_function(
                 "fn py_reversed[T](a []T) []T {\n    mut b := a.clone()\n    b.reverse()\n    return b\n}"
             )
+        if "slice_assign" in self.used_builtins:
+            self.emitter.add_function(
+                "fn py_slice_assign[T](mut arr []T, start int, end int, val []T) {\n    // Delete elements in range [start, end)\n    for _ in start..end {\n        if start < arr.len {\n            arr.delete(start)\n        }\n    }\n    // Insert new elements at start position\n    for i, v in val {\n        arr.insert(start + i, v)\n    }\n}"
+            )
+        if "sprintf" in self.used_builtins:
+            pass  # sprintf is a builtin in V
 
         if self.used_complex:
              self.emitter.add_struct("struct PyComplex {\n    re f64\n    im f64\n}")

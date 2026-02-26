@@ -6,7 +6,17 @@ from .base import TranslatorBase
 class ClassesMixin(TranslatorBase):
     def visit_ClassDef(self, node: ast.ClassDef) -> None:
         # Map Python class to V struct
-        struct_name = node.name
+        # Store parent class name for nested classes
+        parent_class = self.current_class
+        parent_generics = self.current_class_generics.copy()
+        parent_bases = self.current_class_bases.copy()
+        
+        # Generate struct name - prefix with parent class for nested classes
+        if parent_class:
+            struct_name = f"{parent_class}_{node.name}"
+        else:
+            struct_name = node.name
+        
         self.current_class = struct_name
         self.current_class_generics = []
         self.current_class_bases = []
@@ -80,10 +90,14 @@ class ClassesMixin(TranslatorBase):
                 self.current_class_bases.append(base.attr)
 
         methods = []
+        nested_classes = []
 
         for stmt in node.body:
             if isinstance(stmt, (ast.FunctionDef, ast.AsyncFunctionDef)):
                 methods.append(stmt)
+            elif isinstance(stmt, ast.ClassDef):
+                # Collect nested classes
+                nested_classes.append(stmt)
             elif isinstance(stmt, ast.AnnAssign) and isinstance(stmt.target, ast.Name):
                 # Class attribute with annotation -> struct field
                 field_name = stmt.target.id
@@ -122,6 +136,10 @@ class ClassesMixin(TranslatorBase):
                 struct_def += f"enum {struct_name} {{\n" + "\n".join(enum_fields) + "\n}"
                 self.emitter.add_struct(struct_def)
                 # Skip method generation for simple enums for now
+                # Restore parent class context
+                self.current_class = parent_class
+                self.current_class_generics = parent_generics
+                self.current_class_bases = parent_bases
                 return
 
             generics_str = ""
@@ -138,7 +156,12 @@ class ClassesMixin(TranslatorBase):
             for method in methods:
                 self.visit(method)
 
-        self.current_class = None
-        self.current_class_generics = []
-        self.current_class_bases = []
+        # Visit nested classes
+        for nested_class in nested_classes:
+            self.visit(nested_class)
+
+        # Restore parent class context
+        self.current_class = parent_class
+        self.current_class_generics = parent_generics
+        self.current_class_bases = parent_bases
         self.current_class_is_unittest = False

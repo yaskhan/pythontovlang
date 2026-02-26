@@ -1,11 +1,32 @@
 import ast
+import re as regex
 from .base import TranslatorBase
 
 class LiteralsMixin(TranslatorBase):
     def visit_Constant(self, node: ast.Constant) -> str:
         val = node.value
         if isinstance(val, str):
-            return f"'{val}'"
+            # Check if this is a raw string (r"...")
+            # In Python AST, raw strings are stored with their backslashes intact
+            # We detect them by checking if the raw representation starts with 'r"'
+            is_raw = False
+            if hasattr(node, 'raw_value'):
+                # Python 3.12+ might have this
+                is_raw = True
+            else:
+                # Heuristic: check if string contains backslashes that look like
+                # regex patterns or Windows paths
+                # Common patterns: \d, \w, \s, \., \/, C:\, \\
+                if '\\' in val and self._looks_like_raw_string(val):
+                    is_raw = True
+            
+            if is_raw:
+                # V raw strings use r'...' syntax
+                # Escape single quotes only
+                escaped = val.replace("'", "\\'")
+                return f"r'{escaped}'"
+            else:
+                return f"'{val}'"
         elif isinstance(val, bool):
             return str(val).lower()
         elif isinstance(val, bytes):
@@ -16,15 +37,28 @@ class LiteralsMixin(TranslatorBase):
             return f"[{', '.join(elements)}]"
         elif val is None:
             return "none"
-        elif isinstance(val, bytes):
-            elements = [f"u8(0x{b:02x})" for b in val]
-            if not elements:
-                return "[]u8{}"
-            return f"[{', '.join(elements)}]"
         elif isinstance(val, complex):
             self.used_complex = True
             return f"py_complex({val.real}, {val.imag})"
         return str(val)
+
+    def _looks_like_raw_string(self, s: str) -> bool:
+        """Heuristic to detect if a string should be a raw string in V."""
+        # Common regex patterns
+        regex_patterns = [r'\d', r'\w', r'\s', r'\S', r'\b', r'\B', 
+                         r'\D', r'\W', r'\A', r'\Z', r'\.', r'\*',
+                         r'\+', r'\?', r'\[', r'\]', r'\(', r'\)',
+                         r'\|', r'\^', r'\$', r'\{', r'\}']
+        # Windows path patterns
+        path_patterns = [r'[A-Za-z]:\\', r'\\\\']
+        
+        for pattern in regex_patterns:
+            if '\\' + pattern in s:
+                return True
+        for pattern in path_patterns:
+            if regex.search(pattern, s):
+                return True
+        return False
 
     def visit_List(self, node: ast.List) -> str:
         elements = [str(self.visit(elt)) for elt in node.elts]
@@ -77,7 +111,26 @@ class LiteralsMixin(TranslatorBase):
         return f"'{''.join(parts)}'"
 
     def visit_FormattedValue(self, node: ast.FormattedValue) -> str:
+        # Handle f-string debug expressions: f"{x=}"
+        # In Python 3.8+, the conversion field can be 'r', 's', or 'a'
+        # For debug expressions, we need to check if the value is a Name
+        # and if there's an '=' in the original source
+        # The AST doesn't directly tell us about debug expressions,
+        # but we can detect them by checking the conversion field
+        
         val = self.visit(node.value)
+        
+        # Check for debug expression (conversion == ord('=') which is 61)
+        # Python uses CONVERSION_FMT constant for this
+        if node.conversion == ord('='):
+            # f"{x=}" -> 'x=<value>'
+            # Get the expression as a string
+            if hasattr(ast, 'unparse'):
+                expr_str = ast.unparse(node.value)
+            else:
+                expr_str = val
+            return f"'{expr_str}=${{{val}}}'"
+        
         if isinstance(node.format_spec, ast.JoinedStr):
             spec_parts = []
             for v in node.format_spec.values:

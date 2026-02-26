@@ -98,6 +98,10 @@ class VariablesMixin(TranslatorBase):
             # obj.attr = value
             lhs = f"{self.visit(target.value)}.{target.attr}"
         elif isinstance(target, ast.Subscript):
+            # Check if this is a slice assignment: l[x:y] = value
+            if isinstance(target.slice, ast.Slice):
+                self._handle_slice_assignment(target, node.value)
+                return
             # list[index] = value
             lhs = self.visit(target)
         elif isinstance(target, (ast.Tuple, ast.List)):
@@ -190,6 +194,33 @@ class VariablesMixin(TranslatorBase):
             rhs = self.visit(node.value)
             self.output.append(f"{self._indent()}{lhs} := {rhs}")
 
+    def _handle_slice_assignment(self, target: ast.Subscript, value_node: ast.AST) -> None:
+        """Handle slice assignment: l[x:y] = [1, 2, 3]"""
+        # Get the list/sequence being assigned to
+        seq = self.visit(target.value)
+        
+        # Get slice bounds
+        slice_node = target.slice
+        lower = "0"
+        upper = f"{seq}.len"
+        if isinstance(slice_node, ast.Slice):
+            lower = self.visit(slice_node.lower) if slice_node.lower else "0"
+            upper = self.visit(slice_node.upper) if slice_node.upper else f"{seq}.len"
+        
+        # Get the value being assigned
+        rhs = self.visit(value_node)
+        
+        # In V, we need to:
+        # 1. Delete elements in the slice range
+        # 2. Insert new elements at the start position
+        
+        # Use a helper function for slice assignment
+        self.used_builtins.add("slice_assign")
+        
+        # Emit the slice assignment using a helper
+        # l[x:y] = val -> slice_assign(mut l, x, y, val)
+        self.output.append(f"{self._indent()}py_slice_assign(mut {seq}, {lower}, {upper}, {rhs})")
+
     def visit_AugAssign(self, node: ast.AugAssign) -> None:
         target = self.visit(node.target)
         value = self.visit(node.value)
@@ -238,8 +269,70 @@ class VariablesMixin(TranslatorBase):
             self.output.append(f"{self._indent()}{target} := {rhs}")
         else:
             # Declaration only: x: int
-            # V needs initialization.
-            self.output.append(f"{self._indent()}// {target} declared (annotation ignored)")
+            # V needs initialization, so we use default values based on type annotation
+            type_str = "int"
+            default_val = "0"
+            if node.annotation:
+                try:
+                    if hasattr(ast, 'unparse'):
+                        type_str = ast.unparse(node.annotation)
+                    elif isinstance(node.annotation, ast.Name):
+                        type_str = node.annotation.id
+                    elif isinstance(node.annotation, ast.Subscript):
+                        # Handle generic types like List[int], Dict[str, int]
+                        if isinstance(node.annotation.value, ast.Name):
+                            base_type = node.annotation.value.id
+                            if base_type in ("List", "list"):
+                                type_str = "[]int"
+                                default_val = "[]int{}"
+                            elif base_type in ("Dict", "dict"):
+                                type_str = "map[string]int"
+                                default_val = "map[string]int{}"
+                            elif base_type in ("Set", "set"):
+                                type_str = "map[int]bool"
+                                default_val = "map[int]bool{}"
+                        else:
+                            type_str = ast.unparse(node.annotation) if hasattr(ast, 'unparse') else "int"
+                    # Map Python types to V types and default values
+                    v_type = map_python_type_to_v(type_str)
+                    default_val = self._get_default_for_type(v_type)
+                    type_str = v_type
+                except Exception:
+                    pass
+            
+            self.output.append(f"{self._indent()}mut {target} := {default_val}  // type: {type_str}")
+
+    def _get_default_for_type(self, v_type: str) -> str:
+        """Get a default value for a V type."""
+        defaults = {
+            "int": "0",
+            "i8": "0",
+            "i16": "0",
+            "i64": "0",
+            "f64": "0.0",
+            "f32": "0.0",
+            "bool": "false",
+            "string": "''",
+            "rune": "0",
+            "byte": "0",
+            "u8": "0",
+            "u16": "0",
+            "u32": "0",
+            "u64": "0",
+        }
+        if v_type in defaults:
+            return defaults[v_type]
+        # Check for array types
+        if v_type.startswith("[]"):
+            return f"{v_type}{{}}"
+        # Check for map types
+        if v_type.startswith("map["):
+            return f"{v_type}{{}}"
+        # Check for optional types
+        if v_type.startswith("?"):
+            return "none"
+        # Default: empty struct initialization or none
+        return f"{v_type}{{}}"
 
     def visit_Name(self, node: ast.Name) -> str:
         if node.id in self.name_remap:

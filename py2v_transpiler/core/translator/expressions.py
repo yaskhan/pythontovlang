@@ -333,12 +333,41 @@ class ExpressionsMixin(TranslatorBase):
         if isinstance(node.op, ast.MatMult):
              return f"{left}.matmul({right})"
 
+        # Handle legacy string formatting (% operator)
+        if isinstance(node.op, ast.Mod) and left_type == "string":
+            return self._handle_string_format(left, node.right)
+
         op_map = {
             ast.Add: "+", ast.Sub: "-", ast.Mult: "*", ast.Div: "/",
             ast.Mod: "%", ast.Pow: "**"
         }
         op_str = op_map.get(type(node.op), "?")
         return f"{left} {op_str} {right}"
+
+    def _handle_string_format(self, format_str: str, right_node: ast.AST) -> str:
+        """Handle Python's legacy string formatting: 'Hello %s' % name"""
+        self.used_builtins.add("sprintf")
+
+        # If right side is a tuple, we need to handle multiple arguments
+        if isinstance(right_node, ast.Tuple):
+            args = [str(self.visit(elt)) for elt in right_node.elts]
+            # Convert format string from Python % style to V {} style
+            v_format = self._convert_printf_format(format_str)
+            if args:
+                return f"sprintf({v_format}, {', '.join(args)})"
+            return v_format
+        else:
+            # Single argument
+            arg = self.visit(right_node)
+            v_format = self._convert_printf_format(format_str)
+            return f"sprintf({v_format}, {arg})"
+
+    def _convert_printf_format(self, format_str: str) -> str:
+        """Convert Python printf-style format to V string interpolation format."""
+        # The format_str is already a V string literal like 'Hello %s'
+        # We need to convert %s, %d, %f, etc. to ${...}
+        # For simplicity, we'll use sprintf which supports printf format
+        return format_str
 
     def visit_BoolOp(self, node: ast.BoolOp) -> str:
         op_map = {ast.And: "&&", ast.Or: "||"}
