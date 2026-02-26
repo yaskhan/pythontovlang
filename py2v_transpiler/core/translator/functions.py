@@ -106,6 +106,18 @@ class FunctionsMixin(TranslatorBase):
 
             args_str_list.append(f"{arg_name} {arg_type}")
 
+        if node.args.vararg:
+            arg_name = node.args.vararg.arg
+            arg_type = "int" # Default
+            if node.args.vararg.annotation:
+                try:
+                    type_str = ast.unparse(node.args.vararg.annotation)
+                    arg_type = map_python_type_to_v(type_str)
+                except Exception:
+                    pass
+            args_str_list.append(f"{arg_name} ...{arg_type}")
+            args_names.append(arg_name)
+
         args_str = ", ".join(args_str_list)
 
         ret_type = "void"
