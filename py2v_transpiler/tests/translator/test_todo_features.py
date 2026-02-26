@@ -1,4 +1,4 @@
-from py2v_transpiler.tests.translator.utils import TranspilerTest
+from .utils import TranspilerTest
 
 class TestTodoFeatures(TranspilerTest):
     def test_legacy_string_formatting(self):
