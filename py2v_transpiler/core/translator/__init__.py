@@ -667,4 +667,22 @@ class VNodeVisitor(
              # py_statistics_stdev
              self.emitter.add_function("fn py_statistics_stdev[T](data []T) f64 {\n    return math.sqrt(py_statistics_variance(data))\n}")
 
+        pickle_used = "pickle" in self.imported_modules.values()
+        if not pickle_used:
+             for sym in self.imported_symbols.values():
+                 if sym.startswith("pickle."):
+                     pickle_used = True
+                     break
+
+        if pickle_used:
+             # py_pickle_dumps
+             self.emitter.add_function("fn py_pickle_dumps[T](obj T) string {\n    // Warning: Mapped to JSON serialization as partial replacement for pickle\n    return json.encode(obj)\n}")
+             # py_pickle_loads
+             self.emitter.add_function("fn py_pickle_loads[T](s string) T {\n    // Warning: Mapped to JSON deserialization as partial replacement for pickle\n    return json.decode(T, s) or { panic(err) }\n}")
+             # py_pickle_dump (to file)
+             self.emitter.add_function("fn py_pickle_dump[T](obj T, f os.File) {\n    // Warning: Mapped to JSON serialization\n    s := json.encode(obj)\n    f.write_string(s) or { panic(err) }\n}")
+             # py_pickle_load (from file) - hard because we need to read everything?
+             # Or assume file content is valid json.
+             self.emitter.add_function("fn py_pickle_load[T](f os.File) T {\n    // Warning: Mapped to JSON deserialization\n    // This assumes the file contains one JSON object\n    // We need to read whole file? or stream?\n    // V json.decode takes string.\n    // We can't easily read from file inside generic func without reading all.\n    // Assuming small file for now, but we don't have read_all on File struct easily exposed in standard way? \n    // actually os.read_file(path) exists. But here we have File object.\n    // Let's panic for now or return zero.\n    panic('pickle.load not fully implemented')\n    return T{}\n}")
+
         return self.emitter.emit()

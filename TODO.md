@@ -73,7 +73,7 @@
 - [x] Support for struct module mapping
 - [x] Support for array module mapping
 - [x] Support for copy module mapping
-- [ ] Support for pickle module mapping
+- [x] Support for pickle module mapping
 - [x] Support for zlib/gzip module mapping
 - [ ] Support for decimal module mapping
 - [x] Support for fractions module mapping

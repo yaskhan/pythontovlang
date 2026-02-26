@@ -224,6 +224,12 @@ class StdLibMapper:
                 "mode": "py_statistics_mode",
                 "stdev": "py_statistics_stdev",
                 "variance": "py_statistics_variance",
+            },
+            "pickle": {
+                "dumps": "py_pickle_dumps",
+                "loads": "py_pickle_loads",
+                "dump": "py_pickle_dump",
+                "load": "py_pickle_load",
             }
         }
 
@@ -266,6 +272,7 @@ class StdLibMapper:
             "array": [],
             "fractions": ["math.fractions"],
             "statistics": ["math"],
+            "pickle": ["json"],
         }
 
     def get_mapping(self, module: str, func: str, args: List[str]) -> Optional[str]:
