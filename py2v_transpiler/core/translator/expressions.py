@@ -389,8 +389,11 @@ class ExpressionsMixin(TranslatorBase):
         if isinstance(node.slice, ast.Constant) and node.slice.value is Ellipsis:
              return f"{value}[/* ... */]"
         # For Python < 3.9 where Ellipsis might be Index(Ellipsis)
-        if isinstance(node.slice, ast.Index) and isinstance(node.slice.value, ast.Constant) and node.slice.value.value is Ellipsis:
-             return f"{value}[/* ... */]"
+        # mypy complains about ast.Index.value on newer python versions where ast.Index might be deprecated/removed in stubs
+        if isinstance(node.slice, getattr(ast, 'Index', type(None))) and isinstance(getattr(node.slice, 'value', None), ast.Constant):
+             slice_val = getattr(node.slice, 'value')
+             if slice_val.value is Ellipsis:
+                 return f"{value}[/* ... */]"
 
         # Handle Ellipsis directly if node.slice is Ellipsis node (not Constant, unlikely in recent python ast but possible)
         # In 3.12, it is usually Constant(value=Ellipsis)

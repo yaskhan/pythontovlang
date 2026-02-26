@@ -2,6 +2,8 @@ from py2v_transpiler.core.parser import PyASTParser
 from py2v_transpiler.core.translator import VNodeVisitor
 from py2v_transpiler.core.analyzer import TypeInference
 import textwrap
+import ast
+from typing import cast
 
 class TranspilerTest:
     def assert_transpilation(self, python_code: str, v_code: str):
@@ -14,7 +16,8 @@ class TranspilerTest:
         analyzer.analyze(tree)
         translator = VNodeVisitor(analyzer)
 
-        result = translator.visit_Module(tree)
+        # Cast to Module to satisfy mypy, assuming parser returns a Module for code string
+        result = translator.visit_Module(cast(ast.Module, tree))
 
         # Normalize whitespace for comparison
         result = self._normalize(result)
