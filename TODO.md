@@ -75,7 +75,7 @@
 - [x] Support for copy module mapping
 - [x] Support for pickle module mapping
 - [x] Support for zlib/gzip module mapping
-- [ ] Support for decimal module mapping
+- [x] Support for decimal module mapping
 - [x] Support for fractions module mapping
 - [x] Support for statistics module mapping
 - [ ] Support for contextlib module mapping

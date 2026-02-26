@@ -667,6 +667,19 @@ class VNodeVisitor(
              # py_statistics_stdev
              self.emitter.add_function("fn py_statistics_stdev[T](data []T) f64 {\n    return math.sqrt(py_statistics_variance(data))\n}")
 
+        decimal_used = "decimal" in self.imported_modules.values()
+        if not decimal_used:
+             for sym in self.imported_symbols.values():
+                 if sym.startswith("decimal."):
+                     decimal_used = True
+                     break
+
+        if decimal_used:
+             # py_decimal helper
+             # Map Decimal to f64 for now
+             self.emitter.add_main_statement("type Decimal = f64")
+             self.emitter.add_function("fn py_decimal(val any) Decimal {\n    $if val is $float {\n        return f64(val)\n    } $else $if val is $int {\n        return f64(val)\n    } $else $if val is string {\n        return val.f64()\n    }\n    return 0.0\n}")
+
         pickle_used = "pickle" in self.imported_modules.values()
         if not pickle_used:
              for sym in self.imported_symbols.values():

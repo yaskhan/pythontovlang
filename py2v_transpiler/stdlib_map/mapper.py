@@ -225,6 +225,9 @@ class StdLibMapper:
                 "stdev": "py_statistics_stdev",
                 "variance": "py_statistics_variance",
             },
+            "decimal": {
+                "Decimal": "py_decimal",
+            },
             "pickle": {
                 "dumps": "py_pickle_dumps",
                 "loads": "py_pickle_loads",
@@ -272,6 +275,7 @@ class StdLibMapper:
             "array": [],
             "fractions": ["math.fractions"],
             "statistics": ["math"],
+            "decimal": [],
             "pickle": ["json"],
         }
 
