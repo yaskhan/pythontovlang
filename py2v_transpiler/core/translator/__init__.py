@@ -46,6 +46,7 @@ class VNodeVisitor(
         self.renamed_functions = {"main": "py_main"} # Map to rename functions (e.g. main -> py_main)
         self.name_remap = {} # Temporary variable renaming (e.g. x -> it in generators)
         self._walrus_assignments: List[str] = [] # Buffer for walrus operator assignments
+        self.single_dispatch_functions: Dict[str, Dict[str, str]] = {} # dispatcher_name -> {type_name -> impl_func_name}
 
         self.mapper = StdLibMapper()
         self.imported_modules: Dict[str, str] = {} # alias -> module_name
@@ -79,6 +80,56 @@ class VNodeVisitor(
                     # Because generator adds indentation for main()
                     self.emitter.add_main_statement(line.strip())
                 self.output = []
+
+        # Generate single dispatchers
+        for func_name, registry in self.single_dispatch_functions.items():
+            # fn func_name(arg any) {
+            #     match typeof(arg).name {
+            #         'int' { func_name_int(arg) }
+            #         'string' { func_name_string(arg) }
+            #         else { func_name_base(arg) }
+            #     }
+            # }
+            # Note: arguments matching is tricky because V `any` loses static info?
+            # Actually, `typeof(arg).name` works on `any`.
+            # But calling specific impl needs cast if it expects specific type.
+            # `func_name_int(arg)` expects `int`, but arg is `any`.
+            # We need `func_name_int(arg as int)`.
+            # V syntax for casting from interface/any: `if arg is int { func_name_int(arg) }`
+
+            lines = []
+            lines.append(f"fn {func_name}(arg any) {{")
+            lines.append("    // Singledispatch implementation")
+
+            # Default implementation
+            default_impl = registry.get("default")
+
+            first = True
+            for type_name, impl_name in registry.items():
+                if type_name == "default": continue
+
+                # Check for supported types map
+                v_type = type_name # Already mapped in register decorator handling
+
+                check = f"if arg is {v_type}"
+                if not first:
+                    check = f" else {check}"
+
+                lines.append(f"    {check} {{")
+                lines.append(f"        {impl_name}(arg)")
+                lines.append("    }")
+                first = False
+
+            if default_impl:
+                if first:
+                     lines.append(f"    {default_impl}(arg)")
+                else:
+                     lines.append("    else {")
+                     lines.append(f"        {default_impl}(arg)")
+                     lines.append("    }")
+
+            lines.append("}")
+            self.emitter.add_function("\n".join(lines))
 
         if "sorted" in self.used_builtins:
             self.emitter.add_function(

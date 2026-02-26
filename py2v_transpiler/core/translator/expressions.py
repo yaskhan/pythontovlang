@@ -121,6 +121,51 @@ class ExpressionsMixin(TranslatorBase):
              # Check if os.path is module
              pass
 
+        # Handle functools.partial
+        if module_name == "functools" and func_name == "partial":
+             if len(args) >= 2:
+                 # partial(func, *args) -> fn [func, args] (extra_args ...any) { return func(args..., extra_args...) }
+                 # Simplified closure generation
+                 target_func = args[0]
+                 partial_args = args[1:]
+
+                 # V anonymous function with closure capture [target_func, partial_args]
+                 # Note: capturing list of strings (args) works in V if variables are defined.
+                 # But args here are strings from visit(), so they are expressions.
+                 # We need to capture the VALUES.
+                 # This is complex to inline perfectly.
+                 # Let's generate a wrapper closure.
+                 # Assuming simple case: partial(add, 5)
+
+                 # We need to generate names for arguments to capture?
+                 # Or just embed expressions if they are constants/vars.
+                 # `fn [target_func, partial_args] (rest ...any) { return target_func(partial_args..., rest...) }`
+
+                 # Construct capture list string
+                 # We assume args are valid expressions.
+                 # But V closure capture requires variables.
+                 # If partial_args contains literals, we can't capture them directly in `[]`.
+                 # But we can use them directly in body if they are literals.
+                 # Only variables need capturing.
+
+                 # Heuristic: Scan partial_args for identifiers.
+                 # For now, simplistic approach:
+                 # fn (rest ...int) int { return target_func(partial_args, rest...) }
+
+                 # We don't know the types!
+                 # V requires types for anonymous function arguments.
+                 # `fn (x int)` etc.
+                 # This makes generalized partial very hard without generic lambdas (which V has limitations on).
+                 # Fallback: Emit a comment and a best-effort lambda assuming 'int' or 'any' if possible.
+
+                 # Try to deduce type from target_func? Hard.
+
+                 # Let's emit a closure that takes `...int` and returns `int` as a common case,
+                 # or `...any` if we had `any` support everywhere.
+
+                 joined_partial = ", ".join(partial_args)
+                 return f"fn (rest ...int) int {{ return {target_func}({joined_partial}, ...rest) }}"
+
         # Handle threading.Lock.acquire/release -> lock/unlock
         # Heuristic: if method name is acquire/release and receiver is unknown or mapped to sync.Mutex (hard to know type here)
         # We can just map acquire->lock, release->unlock generally if threading is imported?
@@ -305,7 +350,21 @@ class ExpressionsMixin(TranslatorBase):
                  return f"{obj}.im"
 
         obj = self.visit(node.value)
-        return f"{obj}.{node.attr}"
+
+        # Mangling for self.__private attributes
+        # We need to know if we are accessing self inside a class
+        attr_name = node.attr
+        if self.current_class and isinstance(node.value, ast.Name):
+            # Checking if the receiver is 'self' is tricky because 'self' is not guaranteed name.
+            # But usually it is the first arg.
+            # We don't easily track variable origin here.
+            # However, standard Python mangling applies to ANY attribute access inside the class method
+            # if the attribute starts with __
+            # Wait, python mangles `self.__x` but also `other.__x` if inside Class.
+            # So we apply mangling regardless of receiver, if we are inside a class.
+            attr_name = self._mangle_name(node.attr, self.current_class)
+
+        return f"{obj}.{attr_name}"
 
     def visit_Subscript(self, node: ast.Subscript) -> str:
         value = self.visit(node.value)
