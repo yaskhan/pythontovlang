@@ -93,7 +93,7 @@
 - [ ] Support for generator expressions (independent)
 - [ ] Support for complex numbers
 - [ ] Support for matrix multiplication operator (@)
-- [ ] Support for bytes and bytearray literals
+- [x] Support for bytes and bytearray literals
 - [x] Implement Import Topology Analyzer (Dependency Graph)
 - [x] Analyze dependencies to identify unsupported libraries
 - [x] Support for reproducing module structure (directories/files)
