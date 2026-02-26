@@ -451,6 +451,30 @@ class ExpressionsMixin(TranslatorBase):
             ast.BitAnd: "&", ast.BitOr: "|", ast.BitXor: "^",
             ast.LShift: "<<", ast.RShift: ">>"
         }
+
+        # Check for string formatting: "string" % (args)
+        if isinstance(node.op, ast.Mod):
+             # Check if left is string
+             is_string_fmt = False
+             if isinstance(node.left, ast.Constant) and isinstance(node.left.value, str):
+                 is_string_fmt = True
+             elif left_type == "string":
+                 is_string_fmt = True
+
+             if is_string_fmt:
+                 self.used_string_format = True
+                 # Flatten arguments if tuple
+                 fmt_args = right
+                 if isinstance(node.right, ast.Tuple):
+                      # We need individual args from visit(Tuple) which returns "[a, b]"
+                      # This is tricky because visit(Tuple) returns a string representation of an array.
+                      # We need the values.
+                      # Re-visit elements of tuple individually.
+                      arg_vals = [str(self.visit(elt)) for elt in node.right.elts]
+                      fmt_args = ", ".join(arg_vals)
+
+                 return f"py_string_format({left}, {fmt_args})"
+
         op_str = op_map.get(type(node.op), "?")
         return f"{left} {op_str} {right}"
 

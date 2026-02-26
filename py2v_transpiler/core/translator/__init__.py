@@ -43,6 +43,7 @@ class VNodeVisitor(
         self._zip_counter = 0 # Counter for unique variable names in zip loops
         self.used_builtins = set() # Track used built-in helpers (sorted, reversed, etc)
         self.used_complex = False
+        self.used_string_format = False
         self.renamed_functions = {"main": "py_main"} # Map to rename functions (e.g. main -> py_main)
         self.name_remap = {} # Temporary variable renaming (e.g. x -> it in generators)
         self._walrus_assignments: List[str] = [] # Buffer for walrus operator assignments
@@ -788,5 +789,50 @@ class VNodeVisitor(
 
         # Helper for bytes formatting
         self.emitter.add_function("fn py_bytes_format(fmt []u8, args any) []u8 {\n    // Simplistic implementation for b'%s' % b'val'\n    // Converts bytes to string, formats, and converts back.\n    // This is not efficient or correct for non-ASCII bytes but works for simple cases.\n    fmt_str := fmt.bytestr()\n    // TODO: handle args properly. V's string interpolation/formatting expects distinct args.\n    // If args is []u8, treat as string.\n    arg_str := if args is []u8 { args.bytestr() } else { '${args}' }\n    \n    // Manual substitution of %s\n    // V does not have sprintf for runtime strings easily available in core without C interop.\n    // Simple replace for %s\n    res := fmt_str.replace('%s', arg_str)\n    return res.bytes()\n}")
+        # String formatting helper
+        if self.used_string_format:
+            self.emitter.add_function("""fn py_string_format(fmt string, args ...any) string {
+    // Basic implementation of %-formatting
+    mut res := ''
+    mut arg_idx := 0
+    mut i := 0
+    for i < fmt.len {
+        if fmt[i] == `%` {
+            if i + 1 < fmt.len {
+                spec := fmt[i+1]
+                if spec == `%` {
+                    res += '%'
+                    i += 2
+                    continue
+                }
+                if arg_idx >= args.len {
+                    // Not enough args
+                    res += '%'
+                    i++
+                    continue
+                }
+                arg := args[arg_idx]
+                arg_idx++
+                if spec == `s` {
+                    res += '${arg}'
+                } else if spec == `d` {
+                    res += '${arg}'
+                } else if spec == `f` {
+                     res += '${arg}'
+                } else if spec == `r` {
+                     res += '${arg}'
+                } else {
+                     // Unknown spec, just print arg
+                     res += '${arg}'
+                }
+                i += 2
+                continue
+            }
+        }
+        res += fmt[i].ascii_str()
+        i++
+    }
+    return res
+}""")
 
         return self.emitter.emit()
