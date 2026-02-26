@@ -99,7 +99,19 @@ class FunctionsMixin(TranslatorBase):
 
         # Handle decorators comments (emit all for clarity)
         for decorator in node.decorator_list:
-             dec_str = self.visit(decorator)
+             if isinstance(decorator, ast.Call):
+                 # Decorator with args: @dec(arg)
+                 func = self.visit(decorator.func)
+                 args = []
+                 for arg in decorator.args:
+                     args.append(str(self.visit(arg)))
+                 for kw in decorator.keywords:
+                     val = self.visit(kw.value)
+                     args.append(f"{kw.arg}={val}")
+                 dec_str = f"{func}({', '.join(args)})"
+             else:
+                 dec_str = self.visit(decorator)
+
              # Avoid duplicating if in handled list?
              # Just emit comments for all decorators as metadata
              self.output.append(f"// @{dec_str}")
@@ -331,7 +343,15 @@ class FunctionsMixin(TranslatorBase):
         for line in dec_info.injected_end:
              self.output.append(f"{self._indent()}{line}")
 
-        for stmt in node.body:
+        # Check for docstring
+        body = node.body
+        if body and isinstance(body[0], ast.Expr) and isinstance(body[0].value, ast.Constant) and isinstance(body[0].value.value, str):
+             doc = body[0].value.value.strip()
+             for line in doc.splitlines():
+                 self.output.append(f"{self._indent()}// {line}")
+             body = body[1:]
+
+        for stmt in body:
             self.visit(stmt)
 
         if is_generator:
