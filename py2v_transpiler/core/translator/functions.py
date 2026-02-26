@@ -118,6 +118,18 @@ class FunctionsMixin(TranslatorBase):
             args_str_list.append(f"{arg_name} ...{arg_type}")
             args_names.append(arg_name)
 
+        if node.args.kwarg:
+            arg_name = node.args.kwarg.arg
+            arg_type = "map[string]string"
+            if node.args.kwarg.annotation:
+                try:
+                    type_str = ast.unparse(node.args.kwarg.annotation)
+                    arg_type = map_python_type_to_v(type_str)
+                except Exception:
+                    pass
+            args_str_list.append(f"{arg_name} {arg_type}")
+            args_names.append(arg_name)
+
         args_str = ", ".join(args_str_list)
 
         ret_type = "void"
