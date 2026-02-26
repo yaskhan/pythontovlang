@@ -169,7 +169,22 @@ def _map_ast_type(node: ast.AST, self_name: str = "Self") -> str:
                 return f"?{right}"
             if right == 'none':
                 return f"?{left}"
-            return f"{left} | {right}"
+
+            # V does not support anonymous sum types in function signatures (e.g. fn foo(x int | string))
+            # It requires named sum types.
+            # To avoid generating invalid V code, we map complex unions to 'any'.
+            # Note: ?T is supported (Option type).
+
+            # Heuristic: if it's not an Option type (checked above), return 'any'
+            # OR return the sum type string if we assume the user will define the alias?
+            # The safer default for a transpiler targeting compilable code is 'any'.
+            # However, for TypeVar bound or alias definition, 'A | B' IS valid.
+            # Context matters. But we don't have context here easily.
+            # Let's check if we are in a TypeVar context? No easy way.
+            # But usually type annotations in args/returns are the most common case.
+            # Mapping `int | str` -> `any` is safe.
+            # Mapping `int | str` -> `int | string` breaks compilation.
+            return "any"
 
     return "void"
 

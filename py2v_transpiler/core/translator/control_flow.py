@@ -185,6 +185,92 @@ class ControlFlowMixin(TranslatorBase):
         self._indent_level -= 1
         self.output.append(f"{self._indent()}}}")
 
+    def visit_AsyncFor(self, node: ast.AsyncFor) -> None:
+         # Reuse the generator detection logic from visit_For
+         # In Python, async for works on async iterables.
+         # For transpilation purposes, we assume async iterators are mapped to channels if they are generators.
+
+         iter_node = node.iter
+         if isinstance(iter_node, ast.Call) and isinstance(iter_node.func, ast.Name):
+            if self.coroutine_handler.is_generator(iter_node.func.id):
+                 # Generate setup
+                 ch_name = self.coroutine_handler.get_temp_channel_name()
+                 yield_type = self.coroutine_handler.get_generator_type(iter_node.func.id)
+                 self.output.append(f"{self._indent()}{ch_name} := chan {yield_type}{{cap: 0}}")
+
+                 # Call spawn
+                 # Construct args
+                 func_name = iter_node.func.id
+                 spawn_args = [ch_name] + [str(self.visit(a)) for a in iter_node.args]
+                 for kw in iter_node.keywords:
+                     val = self.visit(kw.value)
+                     spawn_args.append(f"{kw.arg}: {val}")
+
+                 call_str = f"spawn {func_name}({', '.join(spawn_args)})"
+                 self.output.append(f"{self._indent()}{call_str}")
+
+                 # Now loop over channel
+                 target = self.visit(node.target)
+                 self.output.append(f"{self._indent()}for {target} in {ch_name} {{")
+                 self._indent_level += 1
+                 for stmt in node.body:
+                     self.visit(stmt)
+                 self._indent_level -= 1
+                 self.output.append(f"{self._indent()}}}")
+                 return
+
+         # Fallback for generic async iterable
+         target = self.visit(node.target)
+         iter_expr = self.visit(node.iter)
+         self.output.append(f"{self._indent()}for {target} in {iter_expr} {{")
+         self._indent_level += 1
+         for stmt in node.body:
+            self.visit(stmt)
+         self._indent_level -= 1
+         self.output.append(f"{self._indent()}}}")
+
+    def visit_AsyncWith(self, node: ast.AsyncWith) -> None:
+        # Map to standard visit_With, assuming context managers are compatible (defer)
+        # Note: We need to cast node to ast.With-like structure or just duplicate logic.
+        # Duplicating logic is safer.
+        self._zip_counter += 1
+        counter = self._zip_counter
+
+        for i, item in enumerate(node.items):
+            context_expr = self.visit(item.context_expr)
+
+            # We must capture the context manager in a variable to close it
+            temp_var = f"_async_with_{counter}_{i}"
+
+            if item.optional_vars:
+                # Check if destructuring (Tuple or List)
+                if isinstance(item.optional_vars, (ast.Tuple, ast.List)):
+                     # Destructuring case: `async with CM() as (a, b):`
+                     # We use a temp var for the context manager to ensure we can close it.
+                     # Then we destructure the temp var into user variables.
+                     self.output.append(f"{self._indent()}{temp_var} := {context_expr}")
+                     self.output.append(f"{self._indent()}defer {{ {temp_var}.close() }}")
+
+                     # Destructure temp_var into user vars using VariablesMixin logic
+                     # We assume self._visit_destructuring is available via VariablesMixin
+                     if hasattr(self, '_visit_destructuring'):
+                         self._visit_destructuring(item.optional_vars, temp_var)
+                     else:
+                         self.output.append(f"{self._indent()}// Error: Destructuring support missing for async with")
+                else:
+                     # Simple case: `async with CM() as var:`
+                     var = self.visit(item.optional_vars)
+                     self.output.append(f"{self._indent()}{var} := {context_expr}")
+                     self.output.append(f"{self._indent()}defer {{ {var}.close() }}")
+            else:
+                # No variable bound: `async with CM():`
+                # We MUST still close it.
+                self.output.append(f"{self._indent()}{temp_var} := {context_expr}")
+                self.output.append(f"{self._indent()}defer {{ {temp_var}.close() }}")
+
+        for stmt in node.body:
+            self.visit(stmt)
+
     def visit_Try(self, node: ast.Try) -> None:
         self.output.append(f"{self._indent()}// try {{")
         for stmt in node.body:
@@ -472,13 +558,33 @@ class ControlFlowMixin(TranslatorBase):
              cls_name = self.visit(pattern.cls)
              cond = f"({subject_expr} is {cls_name})"
 
+             # Handle positional patterns (if class is known dataclass)
+             if pattern.patterns:
+                 # Check if we have field info
+                 field_order = []
+                 if hasattr(self, 'dataclasses') and cls_name in self.dataclasses:
+                     field_order = self.dataclasses[cls_name]
+
+                 for i, sub_pat in enumerate(pattern.patterns):
+                     if i < len(field_order):
+                         attr = field_order[i]
+                         cast_expr = f"({subject_expr} as {cls_name})"
+                         # Unwrap to access field directly
+                         val_expr = f"{cast_expr}.{attr}"
+                         sub_cond, sub_bindings = self._compile_pattern(sub_pat, val_expr)
+                         cond += f" && ({sub_cond})"
+                         bindings.extend(sub_bindings)
+                     else:
+                         # No field info or out of bounds - can't verify
+                         # Just fail match? Or emit warning?
+                         # Safe to just ignore or emit False?
+                         # If user wrote valid python, there must be a field.
+                         # If we don't know it, we can't generate V code.
+                         cond += " && false /* Unknown positional field */"
+
              for attr, sub_pat in zip(pattern.kwd_attrs, pattern.kwd_patterns):
                  cast_expr = f"({subject_expr} as {cls_name})"
-                 # Need to wrap in any() for recursive generic check?
-                 # _compile_pattern expects subject_expr to be any if it does type checks.
-                 # If we pass `${cast_expr}.attr`, it is typed.
-                 # So we wrap it: `any(...)`.
-                 val_expr = f"any({cast_expr}.{attr})"
+                 val_expr = f"{cast_expr}.{attr}"
                  sub_cond, sub_bindings = self._compile_pattern(sub_pat, val_expr)
                  cond += f" && ({sub_cond})"
                  bindings.extend(sub_bindings)
