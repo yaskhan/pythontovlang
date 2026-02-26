@@ -19,7 +19,8 @@ compressed = zlib.compress(b'hello')
 """
     v_code = translate(source)
     assert "import compress.zlib" in v_code
-    assert "compressed := py_zlib_compress(b'hello')" in v_code
+    # b'hello' -> [u8(0x68), u8(0x65), u8(0x6c), u8(0x6c), u8(0x6f)]
+    assert "compressed := py_zlib_compress([u8(0x68), u8(0x65), u8(0x6c), u8(0x6c), u8(0x6f)])" in v_code
 
 def test_zlib_decompress():
     source = """
@@ -28,7 +29,8 @@ decompressed = zlib.decompress(b'compressed')
 """
     v_code = translate(source)
     assert "import compress.zlib" in v_code
-    assert "decompressed := py_zlib_decompress(b'compressed')" in v_code
+    # b'compressed' -> [u8(0x63), u8(0x6f), u8(0x6d), u8(0x70), u8(0x72), u8(0x65), u8(0x73), u8(0x73), u8(0x65), u8(0x64)]
+    assert "decompressed := py_zlib_decompress([u8(0x63), u8(0x6f), u8(0x6d), u8(0x70), u8(0x72), u8(0x65), u8(0x73), u8(0x73), u8(0x65), u8(0x64)])" in v_code
 
 def test_gzip_compress():
     source = """
@@ -37,7 +39,7 @@ compressed = gzip.compress(b'hello')
 """
     v_code = translate(source)
     assert "import compress.gzip" in v_code
-    assert "compressed := py_gzip_compress(b'hello')" in v_code
+    assert "compressed := py_gzip_compress([u8(0x68), u8(0x65), u8(0x6c), u8(0x6c), u8(0x6f)])" in v_code
 
 def test_gzip_decompress():
     source = """
@@ -46,4 +48,4 @@ decompressed = gzip.decompress(b'compressed')
 """
     v_code = translate(source)
     assert "import compress.gzip" in v_code
-    assert "decompressed := py_gzip_decompress(b'compressed')" in v_code
+    assert "decompressed := py_gzip_decompress([u8(0x63), u8(0x6f), u8(0x6d), u8(0x70), u8(0x72), u8(0x65), u8(0x73), u8(0x73), u8(0x65), u8(0x64)])" in v_code
