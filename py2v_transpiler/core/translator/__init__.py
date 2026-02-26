@@ -47,6 +47,8 @@ class VNodeVisitor(
         self.name_remap = {} # Temporary variable renaming (e.g. x -> it in generators)
         self._walrus_assignments: List[str] = [] # Buffer for walrus operator assignments
         self.single_dispatch_functions: Dict[str, Dict[str, str]] = {} # dispatcher_name -> {type_name -> impl_func_name}
+        self.function_names: Set[str] = set()
+        self.finally_stack: List[ast.Try] = [] # Stack of active try-finally blocks
 
         self.mapper = StdLibMapper()
         self.imported_modules: Dict[str, str] = {} # alias -> module_name
@@ -780,5 +782,11 @@ class VNodeVisitor(
              # py_pickle_load (from file) - hard because we need to read everything?
              # Or assume file content is valid json.
              self.emitter.add_function("fn py_pickle_load[T](f os.File) T {\n    // Warning: Mapped to JSON deserialization\n    // This assumes the file contains one JSON object\n    // We need to read whole file? or stream?\n    // V json.decode takes string.\n    // We can't easily read from file inside generic func without reading all.\n    // Assuming small file for now, but we don't have read_all on File struct easily exposed in standard way? \n    // actually os.read_file(path) exists. But here we have File object.\n    // Let's panic for now or return zero.\n    panic('pickle.load not fully implemented')\n    return T{}\n}")
+
+        # Helper for dynamic format specifiers
+        self.emitter.add_function("fn py_format(val any, spec string) string {\n    // Dynamic format specifier support is limited.\n    // V does not support runtime format string construction easily.\n    // We fallback to standard string representation.\n    return '${val}'\n}")
+
+        # Helper for bytes formatting
+        self.emitter.add_function("fn py_bytes_format(fmt []u8, args any) []u8 {\n    // Simplistic implementation for b'%s' % b'val'\n    // Converts bytes to string, formats, and converts back.\n    // This is not efficient or correct for non-ASCII bytes but works for simple cases.\n    fmt_str := fmt.bytestr()\n    // TODO: handle args properly. V's string interpolation/formatting expects distinct args.\n    // If args is []u8, treat as string.\n    arg_str := if args is []u8 { args.bytestr() } else { '${args}' }\n    \n    // Manual substitution of %s\n    // V does not have sprintf for runtime strings easily available in core without C interop.\n    // Simple replace for %s\n    res := fmt_str.replace('%s', arg_str)\n    return res.bytes()\n}")
 
         return self.emitter.emit()

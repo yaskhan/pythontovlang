@@ -225,6 +225,7 @@ class FunctionsMixin(TranslatorBase):
 
         if not is_unittest_method:
             func_name = node.name
+            self.function_names.add(func_name)
 
             # Descriptor protocol renaming
             if func_name == "__get__":

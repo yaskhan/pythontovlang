@@ -110,7 +110,12 @@ class VariablesMixin(TranslatorBase):
 
         elif isinstance(target, ast.Attribute):
             # obj.attr = value
-            lhs = f"{self.visit(target.value)}.{target.attr}"
+            # Check for function attribute assignment
+            obj_name = self.visit(target.value)
+            if obj_name in self.function_names:
+                 lhs = f"{obj_name}__{target.attr}"
+            else:
+                 lhs = f"{obj_name}.{target.attr}"
         elif isinstance(target, ast.Subscript):
             # list[index] = value
             lhs = self.visit(target)

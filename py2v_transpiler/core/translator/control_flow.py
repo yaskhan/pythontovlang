@@ -187,8 +187,15 @@ class ControlFlowMixin(TranslatorBase):
 
     def visit_Try(self, node: ast.Try) -> None:
         self.output.append(f"{self._indent()}// try {{")
+        if node.finalbody:
+            self.finally_stack.append(node)
+
         for stmt in node.body:
             self.visit(stmt)
+
+        if node.finalbody:
+            self.finally_stack.pop()
+
         self.output.append(f"{self._indent()}// }} except {{")
         for handler in node.handlers:
             type_str = ""
@@ -206,12 +213,31 @@ class ControlFlowMixin(TranslatorBase):
             self.output.append(f"{self._indent()}// ... exception handling logic ...")
         if node.finalbody:
              self.output.append(f"{self._indent()}// }} finally {{")
-             self.output.append(f"{self._indent()}defer {{")
-             self._indent_level += 1
+
+             # Check if finally block contains continue
+             has_continue = False
              for stmt in node.finalbody:
-                 self.visit(stmt)
-             self._indent_level -= 1
-             self.output.append(f"{self._indent()}}}")
+                 for sub in ast.walk(stmt):
+                     if isinstance(sub, ast.Continue):
+                         has_continue = True
+                         break
+                 if has_continue: break
+
+             if has_continue:
+                 self.output.append(f"{self._indent()}// Warning: 'continue' in 'finally' detected. 'defer' cannot be used.")
+                 self.output.append(f"{self._indent()}// Inlining finally block (exception handling semantics might be lost for this block).")
+                 # Just inline the body without defer
+                 for stmt in node.finalbody:
+                     self.in_finally = True
+                     self.visit(stmt)
+                     self.in_finally = False
+             else:
+                 self.output.append(f"{self._indent()}defer {{")
+                 self._indent_level += 1
+                 for stmt in node.finalbody:
+                     self.visit(stmt)
+                 self._indent_level -= 1
+                 self.output.append(f"{self._indent()}}}")
 
     def visit_With(self, node: ast.With) -> None:
         for item in node.items:
@@ -279,6 +305,91 @@ class ControlFlowMixin(TranslatorBase):
         self.output.append(f"{self._indent()}break")
 
     def visit_Continue(self, node: ast.Continue) -> None:
+        # Check if we are inside a finally block that needs to be inlined
+        if self.finally_stack:
+            # Inline all active finally blocks from stack top down to ... ?
+            # 'continue' exits the loop. So it exits all surrounding try/finally blocks inside the loop.
+            # We need to inline ALL finally blocks that are inside the loop being continued.
+            # But we don't track which loop we are in relative to finally stack easily here.
+            # Assuming 'finally_stack' contains finally blocks for try-statements that we are currently inside.
+            # If we 'continue', we exit all of them.
+            # So we should emit all of them in reverse order (inner to outer).
+
+            # Wait, 'finally_stack' contains `Try` nodes.
+            # We need to emit their `finalbody`.
+            # But we need to be careful not to emit finally blocks that are OUTSIDE the loop.
+            # But `visit_For` / `visit_While` don't manage `finally_stack`.
+            # If we are in a loop, `finally_stack` only contains `try` blocks entered *inside* that loop
+            # (assuming we clear/save stack on loop entry? No, we don't).
+            # If `try` is outside loop, `continue` inside loop doesn't trigger its finally (because continue just jumps to next iteration, staying inside outer try).
+            # So we only care about `try` blocks that are *inside* the current loop scope.
+
+            # We need to know which finally blocks are "active" for this continue.
+            # Generally, any `try` entered since the innermost loop started.
+            # We can track loop depth?
+            # Or simplified: Inline *all* finally blocks currently in stack.
+            # Because if we are in a loop, and there is a `try` in stack, it must be inside the loop (or the loop is inside the try).
+            # If loop is inside try (`try { while { continue } }`), `continue` does NOT exit `try`.
+            # So we must NOT inline `finally` of outer `try`.
+
+            # Implementation Detail:
+            # We need to mark `finally_stack` entries with loop depth or scope ID.
+            # Or `visit_For`/`visit_While` can mark the stack size on entry.
+            # Only inline finally blocks pushed *after* the current loop started.
+
+            # Let's add `loop_depth` to `TranslatorBase`.
+            # But `loop_depth` isn't tracked yet.
+            # For this task, I will implement a simplified version:
+            # Emit a warning if finally stack is not empty, and attempt to inline all (risky) or just warn.
+            # "Support for 'continue' in 'finally'" usually refers to `continue` statements appearing *inside* the `finally` block itself.
+            # "Support for 'continue' in 'finally' block (Python 3.8+)"
+            # This feature allows `continue` to be used *inside* the `finally` clause.
+            # Previous Python versions forbade it.
+            # If `continue` is *inside* `finally`, it swallows the exception (if any) and continues the loop.
+            # My logic above was about `continue` inside `try` triggering `finally`.
+            # The task is about `continue` appearing IN `finally`.
+
+            # If `continue` is in `finally`:
+            # It executes when `finally` executes.
+            # If `finally` executes due to normal flow, `continue` runs.
+            # If `finally` executes due to exception, `continue` swallows exception and continues loop.
+            # V `defer` does NOT support `continue`.
+            # So if we are visiting `finally` block (which is in `defer` usually), we find `continue`.
+            # We need to know if we are currently visiting a `finally` block.
+
+            # Re-read plan step: "In visit_Continue, check if finally_stack is non-empty."
+            # Actually, `finally_stack` as implemented tracks `try` blocks we are *inside*.
+            # But we are visiting the `finalbody` of a `try`.
+            # We are *inside* the `finally` block logic.
+            # Does `finally_stack` include the `try` whose `finally` we are visiting?
+            # My `visit_Try` pops before visiting handlers/finalbody?
+            # `visit_Try` logic above:
+            # push
+            # visit body
+            # pop
+            # visit handlers
+            # visit finalbody (inside defer)
+
+            # So if we are in `finalbody`, `finally_stack` does NOT contain the current `try`.
+            # So `finally_stack` is not useful for detecting if we are *in* a finally block of the current try.
+            # We need a flag `in_finally`.
+            pass
+
+        if getattr(self, 'in_finally', False):
+             # We are inside a finally block.
+             # V `defer` cannot contain `continue`.
+             # We must rely on the fact that we emitted `defer`?
+             # If we emit `continue` inside `defer`, V compiler error.
+             # We should emit `// Warning: continue inside finally (defer) is not supported in V`.
+             # Or we try to emit the `continue` and let user handle it?
+             # The task is "Support".
+             # If we can't use `defer`, we must inline `finally` logic at all exit points of `try` and `except`.
+             # This requires rewriting the whole `try/finally` logic which is complex (AST transformation).
+             # Given the scope, detecting and warning or emitting unsafe code is plausible.
+             # But wait, I can modify `visit_Try` to check if `finalbody` contains `continue`.
+             # If so, do NOT use `defer`. Instead, emit `finalbody` manually.
+             pass
+
         self.output.append(f"{self._indent()}continue")
 
     def visit_Match(self, node: "ast.Match") -> None:

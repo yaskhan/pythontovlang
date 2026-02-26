@@ -380,6 +380,14 @@ class ExpressionsMixin(TranslatorBase):
             # So we apply mangling regardless of receiver, if we are inside a class.
             attr_name = self._mangle_name(node.attr, self.current_class)
 
+        # Check if obj corresponds to a known function (Function Attributes)
+        # obj is already visited code, e.g. "func_name".
+        # We check if `obj` is in `self.function_names`.
+        # Note: obj might be scoped (e.g. mod.func). We only track simple names for now.
+        if obj in self.function_names:
+            # Map func.attr -> func__attr
+            return f"{obj}__{attr_name}"
+
         return f"{obj}.{attr_name}"
 
     def visit_Subscript(self, node: ast.Subscript) -> str:
@@ -417,6 +425,16 @@ class ExpressionsMixin(TranslatorBase):
 
         if isinstance(node.op, ast.MatMult):
              return f"{left}.matmul({right})"
+
+        # Check for bytes formatting: b"%s" % b"a"
+        if isinstance(node.op, ast.Mod):
+             # Heuristic: check if left operand is likely bytes
+             # We can check if `left_type` (from _guess_type) starts with `[]u8`?
+             # `_guess_type` returns `int` usually unless constant bytes.
+             # visit_Constant bytes returns `[{...}]`
+             # Let's check `left_type`.
+             if left_type == "[]u8" or (isinstance(node.left, ast.Constant) and isinstance(node.left.value, bytes)):
+                 return f"py_bytes_format({left}, {right})"
 
         op_map = {
             ast.Add: "+", ast.Sub: "-", ast.Mult: "*", ast.Div: "/",
