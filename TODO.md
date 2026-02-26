@@ -112,14 +112,14 @@
 - [x] Support for 'match' statement guard clauses
 - [ ] Support for nested classes
 - [ ] Support for underscores in numeric literals (e.g. 1_000)
-- [ ] Support for 'del' on slices (del l[x:y])
-- [ ] Support for chained assignment (a = b = c)
-- [ ] Support for 'else' clause in loops (for/else, while/else)
-- [ ] Support for 'else' and 'finally' clauses in try/except blocks
-- [ ] Support for 'raise from' syntax
-- [ ] Support for no-argument super() calls
-- [ ] Support for * unpacking in list/tuple/set literals
-- [ ] Support for ** unpacking in dict literals
+- [x] Support for 'del' on slices (del l[x:y])
+- [x] Support for chained assignment (a = b = c)
+- [x] Support for 'else' clause in loops (for/else, while/else)
+- [x] Support for 'else' and 'finally' clauses in try/except blocks
+- [x] Support for 'raise from' syntax
+- [x] Support for no-argument super() calls
+- [x] Support for * unpacking in list/tuple/set literals
+- [x] Support for ** unpacking in dict literals
 - [ ] Support for relative imports (from . import module)
 - [ ] Support for docstrings (emit as V comments)
 - [ ] Support for decorators with arguments
