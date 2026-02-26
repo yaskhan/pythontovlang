@@ -380,6 +380,14 @@ class ExpressionsMixin(TranslatorBase):
             # So we apply mangling regardless of receiver, if we are inside a class.
             attr_name = self._mangle_name(node.attr, self.current_class)
 
+        # Check if obj corresponds to a known function (Function Attributes)
+        # obj is already visited code, e.g. "func_name".
+        # We check if `obj` is in `self.function_names`.
+        # Note: obj might be scoped (e.g. mod.func). We only track simple names for now.
+        if obj in self.function_names:
+            # Map func.attr -> func__attr
+            return f"{obj}__{attr_name}"
+
         return f"{obj}.{attr_name}"
 
     def visit_Subscript(self, node: ast.Subscript) -> str:
@@ -389,13 +397,17 @@ class ExpressionsMixin(TranslatorBase):
         if isinstance(node.slice, ast.Constant) and node.slice.value is Ellipsis:
              return f"{value}[/* ... */]"
         # For Python < 3.9 where Ellipsis might be Index(Ellipsis)
-        # ast.Index is deprecated/removed in 3.10+ but might still be in typeshed or parsed code
-        if isinstance(node.slice, ast.Index):
-             # Mypy might complain about ast.Index not having value in newer python versions, but it does in < 3.9.
-             # We use getattr to be safe or type ignore.
-             idx_val = getattr(node.slice, 'value', None)
-             if isinstance(idx_val, ast.Constant) and idx_val.value is Ellipsis:
-                  return f"{value}[/* ... */]"
+        # Mypy complaint: "<subclass of "ast.expr" and "ast.Index">" has no attribute "value"
+        # ast.Index is deprecated/removed in 3.10+, but might exist in older stubs or runtime.
+        # In 3.10+, subscript slice is just the node.
+        # We should check hasattr or try/except, or ignore type.
+        # Or better: check isinstance(node.slice, ast.Index) only if ast.Index exists.
+        # But we import ast.
+        # We can cast node.slice to Any to silence mypy if we are sure.
+        if hasattr(ast, "Index") and isinstance(node.slice, getattr(ast, "Index")):
+             idx = node.slice # type: ignore
+             if isinstance(idx.value, ast.Constant) and idx.value.value is Ellipsis:
+                 return f"{value}[/* ... */]"
 
         # Handle Ellipsis directly if node.slice is Ellipsis node (not Constant, unlikely in recent python ast but possible)
         # In 3.12, it is usually Constant(value=Ellipsis)
@@ -422,6 +434,16 @@ class ExpressionsMixin(TranslatorBase):
 
         if isinstance(node.op, ast.MatMult):
              return f"{left}.matmul({right})"
+
+        # Check for bytes formatting: b"%s" % b"a"
+        if isinstance(node.op, ast.Mod):
+             # Heuristic: check if left operand is likely bytes
+             # We can check if `left_type` (from _guess_type) starts with `[]u8`?
+             # `_guess_type` returns `int` usually unless constant bytes.
+             # visit_Constant bytes returns `[{...}]`
+             # Let's check `left_type`.
+             if left_type == "[]u8" or (isinstance(node.left, ast.Constant) and isinstance(node.left.value, bytes)):
+                 return f"py_bytes_format({left}, {right})"
 
         op_map = {
             ast.Add: "+", ast.Sub: "-", ast.Mult: "*", ast.Div: "/",
