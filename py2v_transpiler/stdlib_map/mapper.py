@@ -206,6 +206,11 @@ class StdLibMapper:
             "copy": {
                 "copy": "py_copy",
                 "deepcopy": "py_deepcopy",
+            },
+            "struct": {
+                "pack": self._struct_pack,
+                "unpack": self._struct_unpack,
+                "calcsize": "py_struct_calcsize",
             }
         }
 
@@ -244,6 +249,7 @@ class StdLibMapper:
             "zlib": ["compress.zlib"],
             "gzip": ["compress.gzip"],
             "copy": [],
+            "struct": ["encoding.binary"],
         }
 
     def get_mapping(self, module: str, func: str, args: List[str]) -> Optional[str]:
@@ -446,3 +452,48 @@ class StdLibMapper:
 
     def _threading_lock(self, args: List[str]) -> str:
         return "sync.new_mutex()"
+
+    def _struct_pack(self, args: List[str]) -> str:
+        if len(args) < 2:
+            return "/* struct.pack missing args */"
+        fmt = args[0]
+        # Check for string literal
+        if fmt.startswith("'") and fmt.endswith("'"):
+            fmt_str = fmt[1:-1]
+            val = args[1]
+            if fmt_str == "<I": return f"py_struct_pack_I_le(u32({val}))"
+            if fmt_str == ">I": return f"py_struct_pack_I_be(u32({val}))"
+            if fmt_str == "<i": return f"py_struct_pack_i_le(int({val}))"
+            if fmt_str == ">i": return f"py_struct_pack_i_be(int({val}))"
+            if fmt_str == "<H": return f"py_struct_pack_H_le(u16({val}))"
+            if fmt_str == ">H": return f"py_struct_pack_H_be(u16({val}))"
+            if fmt_str == "<h": return f"py_struct_pack_h_le(i16({val}))"
+            if fmt_str == ">h": return f"py_struct_pack_h_be(i16({val}))"
+            if fmt_str == "<Q": return f"py_struct_pack_Q_le(u64({val}))"
+            if fmt_str == ">Q": return f"py_struct_pack_Q_be(u64({val}))"
+            if fmt_str == "<q": return f"py_struct_pack_q_le(i64({val}))"
+            if fmt_str == ">q": return f"py_struct_pack_q_be(i64({val}))"
+
+        return f"py_struct_pack({', '.join(args)})"
+
+    def _struct_unpack(self, args: List[str]) -> str:
+        if len(args) < 2:
+            return "/* struct.unpack missing args */"
+        fmt = args[0]
+        buf = args[1]
+        if fmt.startswith("'") and fmt.endswith("'"):
+            fmt_str = fmt[1:-1]
+            if fmt_str == "<I": return f"py_struct_unpack_I_le({buf})"
+            if fmt_str == ">I": return f"py_struct_unpack_I_be({buf})"
+            if fmt_str == "<i": return f"py_struct_unpack_i_le({buf})"
+            if fmt_str == ">i": return f"py_struct_unpack_i_be({buf})"
+            if fmt_str == "<H": return f"py_struct_unpack_H_le({buf})"
+            if fmt_str == ">H": return f"py_struct_unpack_H_be({buf})"
+            if fmt_str == "<h": return f"py_struct_unpack_h_le({buf})"
+            if fmt_str == ">h": return f"py_struct_unpack_h_be({buf})"
+            if fmt_str == "<Q": return f"py_struct_unpack_Q_le({buf})"
+            if fmt_str == ">Q": return f"py_struct_unpack_Q_be({buf})"
+            if fmt_str == "<q": return f"py_struct_unpack_q_le({buf})"
+            if fmt_str == ">q": return f"py_struct_unpack_q_be({buf})"
+
+        return f"py_struct_unpack({', '.join(args)})"

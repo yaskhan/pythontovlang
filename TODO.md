@@ -70,7 +70,7 @@
 - [x] Support for uuid module mapping
 - [x] Support for base64 module mapping
 - [x] Support for urllib.parse module mapping
-- [ ] Support for struct module mapping
+- [x] Support for struct module mapping
 - [ ] Support for array module mapping
 - [x] Support for copy module mapping
 - [ ] Support for pickle module mapping
