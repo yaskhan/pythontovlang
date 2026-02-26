@@ -60,7 +60,25 @@ class VNodeVisitor(
         # Actually, literals might be nested. `self.visit` updates `used_complex`.
         # But we emit helpers at the end. Correct.
 
-        for stmt in node.body:
+        # Check module docstring
+        if node.body and isinstance(node.body[0], ast.Expr) and isinstance(node.body[0].value, ast.Constant) and isinstance(node.body[0].value.value, str):
+            # This is a docstring
+            doc = node.body[0].value.value.strip()
+            # Emit as comments at top of file (via main statements, but main comes last usually)
+            # Actually, `add_main_statement` appends to main block.
+            # Ideally docstrings should be at top of file.
+            # Emitter has imports, structs, functions. Does it have "header comments"?
+            # Let's emit it as a comment in main for now or try to put it in imports?
+            # Emitter doesn't seem to have a dedicated header slot.
+            # Let's put it as comment in main.
+            for line in doc.splitlines():
+                self.emitter.add_main_statement(f"// {line}")
+            # Skip first statement
+            body = node.body[1:]
+        else:
+            body = node.body
+
+        for stmt in body:
             # Check if statement is top-level expression or assignment
             if isinstance(stmt, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef, ast.Import, ast.ImportFrom)):
                 self.in_main = False

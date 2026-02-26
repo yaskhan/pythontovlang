@@ -36,3 +36,22 @@ class ImportsMixin(TranslatorBase):
                 name = alias.name
                 as_name = alias.asname if alias.asname else name
                 self.imported_symbols[as_name] = f"{module_name}.{name}"
+        elif node.level > 0:
+            # Relative import: from . import x
+            # Since we don't know the full package context, we can't fully resolve it to a V module.
+            # But we can try to emit it as a local import or assume it maps to current module.
+            # V doesn't have "from . import x" syntax, imports are package-level.
+            # Best effort: ignored or emit TODO.
+
+            # If we import a submodule: from . import submodule
+            # In V: import submodule (if in same folder and submodule is a folder)
+            # or nothing if it's just another file in the same module.
+            # Let's map it to local symbols if names are provided.
+
+            for alias in node.names:
+                name = alias.name
+                as_name = alias.asname if alias.asname else name
+                # Just mark as imported symbol without prefix, assuming it's in the same scope/package
+                self.imported_symbols[as_name] = name
+                # Also try to import it if it looks like a module
+                self.emitter.add_import(name)

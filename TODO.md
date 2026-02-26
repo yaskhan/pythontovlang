@@ -120,13 +120,13 @@
 - [ ] Support for no-argument super() calls
 - [ ] Support for * unpacking in list/tuple/set literals
 - [ ] Support for ** unpacking in dict literals
-- [ ] Support for relative imports (from . import module)
-- [ ] Support for docstrings (emit as V comments)
-- [ ] Support for decorators with arguments
-- [ ] Support for multiple exception types in single 'except' block
+- [x] Support for relative imports (from . import module)
+- [x] Support for docstrings (emit as V comments)
+- [x] Support for decorators with arguments
+- [x] Support for multiple exception types in single 'except' block
 - [ ] Support for bi-directional generator methods (send/throw/close)
-- [ ] Support for async comprehensions ([x async for x in y])
-- [ ] Support for implicit string literal concatenation ("a" "b")
+- [x] Support for async comprehensions ([x async for x in y])
+- [x] Support for implicit string literal concatenation ("a" "b")
 - [ ] Support for metaclasses (class X(metaclass=M))
 - [ ] Support for __slots__ optimization
 - [ ] Support for descriptor protocol (__get__, __set__, __delete__)

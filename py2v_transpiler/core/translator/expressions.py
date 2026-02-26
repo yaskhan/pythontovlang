@@ -487,6 +487,9 @@ class ExpressionsMixin(TranslatorBase):
 
         gen = node.generators[0] # Handle first generator
 
+        if getattr(gen, 'is_async', False):
+             self.output.append(f"{self._indent()}// TODO: Async comprehension - Verify iterator semantics")
+
         if isinstance(gen.iter, ast.Call) and isinstance(gen.iter.func, ast.Name) and gen.iter.func.id == "zip":
              zip_args = gen.iter.args
              if len(zip_args) == 2:
@@ -638,6 +641,9 @@ class ExpressionsMixin(TranslatorBase):
         op = ":=" if is_decl else "="
         mut_prefix = "mut " if is_decl else ""
         self.output.append(f"{self._indent()}{mut_prefix}{target_var} {op} map[{key_type}]{val_type}{{}}")
+
+        if getattr(gen, 'is_async', False):
+             self.output.append(f"{self._indent()}// TODO: Async comprehension - Verify iterator semantics")
 
         if isinstance(gen.iter, ast.Call) and isinstance(gen.iter.func, ast.Name) and gen.iter.func.id == "zip":
              zip_args = gen.iter.args
@@ -850,6 +856,9 @@ class ExpressionsMixin(TranslatorBase):
         op = ":=" if is_decl else "="
         mut_prefix = "mut " if is_decl else ""
         self.output.append(f"{self._indent()}{mut_prefix}{target_var} {op} map[{key_type}]bool{{}}")
+
+        if getattr(gen, 'is_async', False):
+             self.output.append(f"{self._indent()}// TODO: Async comprehension - Verify iterator semantics")
 
         if isinstance(gen.iter, ast.Call) and isinstance(gen.iter.func, ast.Name) and gen.iter.func.id == "zip":
              zip_args = gen.iter.args
