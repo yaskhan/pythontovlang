@@ -109,7 +109,7 @@
 - [ ] Support for f-string debug expressions (f"{x=}")
 - [ ] Support for multiple context managers in single 'with' statement
 - [ ] Support for slice assignment (l[x:y] = [1, 2])
-- [ ] Support for 'match' statement guard clauses
+- [x] Support for 'match' statement guard clauses
 - [ ] Support for nested classes
 - [ ] Support for underscores in numeric literals (e.g. 1_000)
 - [ ] Support for 'del' on slices (del l[x:y])
@@ -135,9 +135,9 @@
 - [ ] Support for postponed type annotation evaluation (from __future__ import annotations)
 - [ ] Support for augmented matrix multiplication (@=)
 - [ ] Support for custom __format__ methods
-- [ ] Support for 'match' statement sequence patterns ([x, y, *rest])
-- [ ] Support for 'match' statement mapping patterns ({'k': v})
-- [ ] Support for 'match' statement OR patterns (A | B)
+- [x] Support for 'match' statement sequence patterns ([x, y, *rest])
+- [x] Support for 'match' statement mapping patterns ({'k': v})
+- [x] Support for 'match' statement OR patterns (A | B)
 - [ ] Support for nested f-strings
 - [ ] Support for dynamic format specifiers in f-strings (f"{x:{y}}")
 - [ ] Support for bytes formatting (b"%s" % b"a")
@@ -145,8 +145,8 @@
 - [ ] Support for 'continue' in 'finally' block (Python 3.8+)
 - [ ] Support for recursive type aliases
 - [ ] Support for TypedDict class-based syntax
-- [ ] Support for 'match' statement capture patterns (case A() as x)
-- [ ] Support for 'match' statement value patterns (case CONST)
+- [x] Support for 'match' statement capture patterns (case A() as x)
+- [x] Support for 'match' statement value patterns (case CONST)
 - [ ] Support for 'try/except*' (Exception Groups - Python 3.11+)
 - [ ] Support for '__init_subclass__' hook
 - [ ] Support for 'typing.Protocol' (structural subtyping)
@@ -158,8 +158,8 @@
 - [ ] Support for 'typing.NoReturn'
 - [ ] Support for name mangling (__private attributes)
 - [ ] Support for nested destructuring assignment (a, (b, c) = ...)
-- [ ] Support for 'match' statement wildcard pattern (case _)
-- [ ] Support for 'match' statement class patterns (case Point(x=1))
+- [x] Support for 'match' statement wildcard pattern (case _)
+- [x] Support for 'match' statement class patterns (case Point(x=1))
 - [ ] Support for 'typing.TypeVar' (generics definition)
 - [ ] Support for 'typing.ClassVar'
 - [ ] Support for 'typing.Self' (Python 3.11+)
