@@ -194,6 +194,14 @@ class StdLibMapper:
                 "unquote": "py_urllib_unquote",
                 "unquote_plus": "py_urllib_unquote",
                 "urlencode": "py_urlencode",
+            },
+            "zlib": {
+                "compress": "py_zlib_compress",
+                "decompress": "py_zlib_decompress",
+            },
+            "gzip": {
+                "compress": "py_gzip_compress",
+                "decompress": "py_gzip_decompress",
             }
         }
 
@@ -229,6 +237,8 @@ class StdLibMapper:
             "hashlib": ["crypto.sha256", "crypto.md5", "encoding.hex"],
             "base64": ["encoding.base64"],
             "urllib.parse": ["net.urllib"],
+            "zlib": ["compress.zlib"],
+            "gzip": ["compress.gzip"],
         }
 
     def get_mapping(self, module: str, func: str, args: List[str]) -> Optional[str]:

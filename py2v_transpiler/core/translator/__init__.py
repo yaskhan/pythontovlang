@@ -501,4 +501,30 @@ class VNodeVisitor(
              # Helper handles the result unwrapping.
              self.emitter.add_function("fn py_urlparse(url string) urllib.URL {\n    return urllib.parse(url) or { urllib.URL{} }\n}")
 
+        zlib_used = "zlib" in self.imported_modules.values()
+        if not zlib_used:
+             for sym in self.imported_symbols.values():
+                 if sym.startswith("zlib."):
+                     zlib_used = True
+                     break
+
+        if zlib_used:
+             # py_zlib_compress
+             self.emitter.add_function("fn py_zlib_compress(data []u8) []u8 {\n    return zlib.compress(data) or { panic(err) }\n}")
+             # py_zlib_decompress
+             self.emitter.add_function("fn py_zlib_decompress(data []u8) []u8 {\n    return zlib.decompress(data) or { panic(err) }\n}")
+
+        gzip_used = "gzip" in self.imported_modules.values()
+        if not gzip_used:
+             for sym in self.imported_symbols.values():
+                 if sym.startswith("gzip."):
+                     gzip_used = True
+                     break
+
+        if gzip_used:
+             # py_gzip_compress
+             self.emitter.add_function("fn py_gzip_compress(data []u8) []u8 {\n    return gzip.compress(data) or { panic(err) }\n}")
+             # py_gzip_decompress
+             self.emitter.add_function("fn py_gzip_decompress(data []u8) []u8 {\n    return gzip.decompress(data) or { panic(err) }\n}")
+
         return self.emitter.emit()
