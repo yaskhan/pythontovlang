@@ -68,7 +68,7 @@
 - [x] Support for platform module mapping
 - [x] Support for hashlib module mapping
 - [x] Support for uuid module mapping
-- [ ] Support for base64 module mapping
+- [x] Support for base64 module mapping
 - [ ] Support for urllib.parse module mapping
 - [ ] Support for struct module mapping
 - [ ] Support for array module mapping

@@ -178,6 +178,14 @@ class StdLibMapper:
             "hashlib": {
                 "sha256": "py_hash_sha256",
                 "md5": "py_hash_md5",
+            },
+            "base64": {
+                "b64encode": "base64.encode",
+                "b64decode": "base64.decode",
+                "standard_b64encode": "base64.encode",
+                "standard_b64decode": "base64.decode",
+                "urlsafe_b64encode": "base64.url_encode",
+                "urlsafe_b64decode": "base64.url_decode",
             }
         }
 
@@ -211,6 +219,7 @@ class StdLibMapper:
             "subprocess": ["os"],
             "platform": ["os"],
             "hashlib": ["crypto.sha256", "crypto.md5", "encoding.hex"],
+            "base64": ["encoding.base64"],
         }
 
     def get_mapping(self, module: str, func: str, args: List[str]) -> Optional[str]:
