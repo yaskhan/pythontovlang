@@ -97,6 +97,15 @@
 - [x] Implement Import Topology Analyzer (Dependency Graph)
 - [x] Analyze dependencies to identify unsupported libraries
 - [x] Support for reproducing module structure (directories/files)
+- [ ] Support for 'yield from' syntax (generator delegation)
+- [ ] Support for 'async for' loops
+- [ ] Support for 'async with' context managers
+- [ ] Support for Union types syntax (X | Y) (Python 3.10+)
+- [ ] Support for complex structural pattern matching (class patterns)
+- [ ] Support for legacy string formatting (%) operator
+- [ ] Support for raw string literals (r"...")
+- [ ] Support for variable annotations without assignment (x: int)
+- [ ] Support for generic type alias syntax (type T = ...) (Python 3.12+)
 
 ## Infrastructure & Tooling
 - [x] Set up comprehensive test suite (pytest)
