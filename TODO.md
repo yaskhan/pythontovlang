@@ -145,6 +145,17 @@
 - [ ] Support for 'continue' in 'finally' block (Python 3.8+)
 - [ ] Support for recursive type aliases
 - [ ] Support for TypedDict class-based syntax
+- [ ] Support for 'match' statement capture patterns (case A() as x)
+- [ ] Support for 'match' statement value patterns (case CONST)
+- [ ] Support for 'try/except*' (Exception Groups - Python 3.11+)
+- [ ] Support for '__init_subclass__' hook
+- [ ] Support for 'typing.Protocol' (structural subtyping)
+- [ ] Support for 'typing.Literal' types
+- [ ] Support for 'typing.Final' qualifier
+- [ ] Support for 'typing.overload' decorator
+- [ ] Support for 'typing.cast' (no-op)
+- [ ] Support for 'typing.NewType'
+- [ ] Support for 'typing.NoReturn'
 
 ## Infrastructure & Tooling
 - [x] Set up comprehensive test suite (pytest)
