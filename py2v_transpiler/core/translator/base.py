@@ -35,6 +35,9 @@ class TranslatorBase(ast.NodeVisitor):
         self.imported_symbols: Dict[str, str] = {}
         self.single_dispatch_functions: Dict[str, Dict[str, str]] = {} # dispatcher_name -> {type_name -> impl_func_name}
 
+        # Track function names for attribute assignment mangling
+        self.function_names: Set[str] = set()
+
         # Stack for loop context (for break handling with else blocks)
         # Each element: {'has_else': bool, 'flag_var': str}
         self._loop_stack: List[Dict[str, Any]] = []
