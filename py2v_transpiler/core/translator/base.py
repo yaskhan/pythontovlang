@@ -35,6 +35,10 @@ class TranslatorBase(ast.NodeVisitor):
         self.imported_symbols: Dict[str, str] = {}
         self.single_dispatch_functions: Dict[str, Dict[str, str]] = {} # dispatcher_name -> {type_name -> impl_func_name}
 
+        # Stack for loop context (for break handling with else blocks)
+        # Each element: {'has_else': bool, 'flag_var': str}
+        self._loop_stack: List[Dict[str, Any]] = []
+
     def _indent(self) -> str:
         return "    " * self._indent_level
 

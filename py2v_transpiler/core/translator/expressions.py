@@ -108,6 +108,7 @@ class ExpressionsMixin(TranslatorBase):
                 if len(args) >= 1:
                     return f"typeof({args[0]}).name"
             elif func_name == "super":
+                 # Handled below
                  pass
 
         if module_name and func_name:
@@ -128,52 +129,10 @@ class ExpressionsMixin(TranslatorBase):
                  # Simplified closure generation
                  target_func = args[0]
                  partial_args = args[1:]
-
-                 # V anonymous function with closure capture [target_func, partial_args]
-                 # Note: capturing list of strings (args) works in V if variables are defined.
-                 # But args here are strings from visit(), so they are expressions.
-                 # We need to capture the VALUES.
-                 # This is complex to inline perfectly.
-                 # Let's generate a wrapper closure.
-                 # Assuming simple case: partial(add, 5)
-
-                 # We need to generate names for arguments to capture?
-                 # Or just embed expressions if they are constants/vars.
-                 # `fn [target_func, partial_args] (rest ...any) { return target_func(partial_args..., rest...) }`
-
-                 # Construct capture list string
-                 # We assume args are valid expressions.
-                 # But V closure capture requires variables.
-                 # If partial_args contains literals, we can't capture them directly in `[]`.
-                 # But we can use them directly in body if they are literals.
-                 # Only variables need capturing.
-
-                 # Heuristic: Scan partial_args for identifiers.
-                 # For now, simplistic approach:
-                 # fn (rest ...int) int { return target_func(partial_args, rest...) }
-
-                 # We don't know the types!
-                 # V requires types for anonymous function arguments.
-                 # `fn (x int)` etc.
-                 # This makes generalized partial very hard without generic lambdas (which V has limitations on).
-                 # Fallback: Emit a comment and a best-effort lambda assuming 'int' or 'any' if possible.
-
-                 # Try to deduce type from target_func? Hard.
-
-                 # Let's emit a closure that takes `...int` and returns `int` as a common case,
-                 # or `...any` if we had `any` support everywhere.
-
                  joined_partial = ", ".join(partial_args)
                  return f"fn (rest ...int) int {{ return {target_func}({joined_partial}, ...rest) }}"
 
         # Handle threading.Lock.acquire/release -> lock/unlock
-        # Heuristic: if method name is acquire/release and receiver is unknown or mapped to sync.Mutex (hard to know type here)
-        # We can just map acquire->lock, release->unlock generally if threading is imported?
-        # Or check if receiver name suggests lock?
-        # Safe approach: if threading is used, and method is acquire/release, map it.
-        # But this might conflict with other classes.
-        # Let's check mapped type? We don't have robust type inference for variables yet.
-        # Just map it for now if threading is imported.
         if "threading" in self.imported_modules.values() and isinstance(func_node, ast.Attribute):
              if func_node.attr == "acquire":
                  receiver = self.visit(func_node.value)
@@ -181,6 +140,26 @@ class ExpressionsMixin(TranslatorBase):
              elif func_node.attr == "release":
                  receiver = self.visit(func_node.value)
                  return f"{receiver}.unlock()"
+
+        # Handle super() call (no args or with args)
+        if (isinstance(func_node, ast.Name) and func_node.id == "super") or \
+           (isinstance(func_node, ast.Call) and isinstance(func_node.func, ast.Name) and func_node.func.id == "super"):
+            # It's a bare super() call (unlikely in expression except as super().method)
+            # OR super() inside an Attribute access (handled below).
+            # But if we are here, it means we visited a Call node.
+            # If the call is `super()`, then func_node is `Name(super)`.
+            # If the call is `super().foo()`, the AST structure is Call(Attribute(value=Call(super), attr='foo')).
+            # THIS visit_Call handles the OUTER call.
+            # If we are visiting `super()`, node is Call(func=Name(super)).
+            if isinstance(func_node, ast.Name) and func_node.id == "super":
+                # Bare `super()` call. Return reference to parent?
+                # In V, we can cast to parent struct? `(self.Parent)`
+                if self.current_class_bases:
+                    parent = self.current_class_bases[0]
+                    # We assume 'self' is the receiver name. We might need to track it properly.
+                    # But for now, 'self' is standard.
+                    return f"self.{parent}"
+                return "/* super() */"
 
         # Handle super().method()
         if isinstance(func_node, ast.Attribute) and isinstance(func_node.value, ast.Call) and \
@@ -194,8 +173,6 @@ class ExpressionsMixin(TranslatorBase):
                  return f"/* super().{method_name} call without known parent */"
 
         # Handle unittest assertions
-        # Strictly check for self.assertX if possible to avoid regressions
-        # We check if receiver is "self"
         is_self_assertion = False
         if isinstance(func_node, ast.Attribute) and func_node.attr.startswith("assert"):
              if isinstance(func_node.value, ast.Name) and func_node.value.id == "self":

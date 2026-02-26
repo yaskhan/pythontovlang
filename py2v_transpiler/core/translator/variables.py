@@ -5,165 +5,205 @@ from .base import TranslatorBase
 
 class VariablesMixin(TranslatorBase):
     def visit_Assign(self, node: ast.Assign) -> None:
-        target = node.targets[0]
-        lhs = ""
-        if isinstance(target, ast.Name):
-            lhs = target.id
+        targets = node.targets
 
-            # Check for NewType: UserId = NewType('UserId', int)
-            if isinstance(node.value, ast.Call) and isinstance(node.value.func, ast.Name) and node.value.func.id == "NewType":
-                if len(node.value.args) == 2:
-                    # Arg 1 is name, Arg 2 is base type
-                    # we use lhs as name
-                    try:
-                        if hasattr(ast, 'unparse'):
-                             base_str = ast.unparse(node.value.args[1])
-                             mapped_base = map_python_type_to_v(base_str)
-                             self.emitter.add_struct(f"type {lhs} = {mapped_base}")
-                             return
-                    except:
-                        pass
+        # Handle chained assignment: a = b = 1
+        # Python evaluates RHS once.
+        # If multiple targets, we need to assign RHS to temp (if complex) and then assign temp to targets.
 
-            # Check for TypeVar: T = TypeVar("T", int, str)
-            if isinstance(node.value, ast.Call) and isinstance(node.value.func, ast.Name) and node.value.func.id == "TypeVar":
-                # Check args for constraints
-                # args[0] is name
-                constraints = []
-                for arg in node.value.args[1:]:
-                    if isinstance(arg, ast.Name):
-                        constraints.append(map_python_type_to_v(arg.id))
-                    elif isinstance(arg, ast.Constant) and isinstance(arg.value, str):
-                        constraints.append(map_python_type_to_v(arg.value))
+        # If single target, proceed as normal
+        if len(targets) == 1:
+            target = targets[0]
+            lhs = ""
+            if isinstance(target, ast.Name):
+                lhs = target.id
 
-                # Check keyword bound
-                for kw in node.value.keywords:
-                    if kw.arg == "bound":
-                        # bound=Union[int, str] or bound=int
-                        # We can use ast.unparse and map
+                # Check for NewType: UserId = NewType('UserId', int)
+                if isinstance(node.value, ast.Call) and isinstance(node.value.func, ast.Name) and node.value.func.id == "NewType":
+                    if len(node.value.args) == 2:
+                        # Arg 1 is name, Arg 2 is base type
+                        # we use lhs as name
+                        try:
+                            if hasattr(ast, 'unparse'):
+                                 base_str = ast.unparse(node.value.args[1])
+                                 mapped_base = map_python_type_to_v(base_str)
+                                 self.emitter.add_struct(f"type {lhs} = {mapped_base}")
+                                 return
+                        except:
+                            pass
+
+                # Check for TypeVar: T = TypeVar("T", int, str)
+                if isinstance(node.value, ast.Call) and isinstance(node.value.func, ast.Name) and node.value.func.id == "TypeVar":
+                    # Check args for constraints
+                    # args[0] is name
+                    constraints = []
+                    for arg in node.value.args[1:]:
+                        if isinstance(arg, ast.Name):
+                            constraints.append(map_python_type_to_v(arg.id))
+                        elif isinstance(arg, ast.Constant) and isinstance(arg.value, str):
+                            constraints.append(map_python_type_to_v(arg.value))
+
+                    # Check keyword bound
+                    for kw in node.value.keywords:
+                        if kw.arg == "bound":
+                            # bound=Union[int, str] or bound=int
+                            # We can use ast.unparse and map
+                             try:
+                                 bound_str = ast.unparse(kw.value)
+                                 mapped = map_python_type_to_v(bound_str)
+                                 # If mapped is "int | string", we use it
+                                 constraints.append(mapped)
+                             except:
+                                 pass
+
+                    if constraints:
+                        # Emit sum type
+                        # Sanitize lhs?
+                        sanitized_lhs = lhs.lstrip('_')
+                        # If multiple constraints, join with |
+                        # But mapped bound might already be a union string "A | B"
+                        # We need to be careful not to create "A | B | C" if they are distinct
+
+                        final_type = " | ".join(constraints)
+                        self.emitter.add_struct(f"type {sanitized_lhs} = {final_type}")
+                    return
+
+                # Check for type alias: MyType = int or MyType = OtherType or MyType = List[int]
+                if self.in_main:
+                    is_type_alias = False
+                    type_alias_val = ""
+
+                    # Check if LHS is capitalized (heuristic)
+                    if lhs[0].isupper():
+                         # Try to map RHS as a type
                          try:
-                             bound_str = ast.unparse(kw.value)
-                             mapped = map_python_type_to_v(bound_str)
-                             # If mapped is "int | string", we use it
-                             constraints.append(mapped)
+                             # Unparse RHS to string
+                             if hasattr(ast, 'unparse'):
+                                 rhs_source = ast.unparse(node.value)
+                                 mapped = map_python_type_to_v(rhs_source)
+                                 # Check if mapped value looks like a type and not void/same-as-input-expression
+                                 # map_python_type_to_v returns input if it fails to map usually, unless it parses successfully via _map_ast_type
+                                 # For List[int], it returns []int. List[int] != []int.
+                                 # For int, it returns int.
+                                 # For "unknown", it returns "unknown".
+
+                                 if mapped != "void" and mapped != rhs_source:
+                                      is_type_alias = True
+                                      type_alias_val = mapped
+                                 elif mapped == "int" and rhs_source == "int": # Primitive
+                                      is_type_alias = True
+                                      type_alias_val = "int"
+                                 elif mapped == "f64" and rhs_source == "float":
+                                      is_type_alias = True
+                                      type_alias_val = "f64"
+                                 elif mapped == "string" and rhs_source == "str":
+                                      is_type_alias = True
+                                      type_alias_val = "string"
+                                 elif mapped == "bool" and rhs_source == "bool":
+                                      is_type_alias = True
+                                      type_alias_val = "bool"
+                                 # For MyType = OtherType (Name = Name)
+                                 elif isinstance(node.value, ast.Name) and node.value.id[0].isupper():
+                                      is_type_alias = True
+                                      type_alias_val = node.value.id
+                             else:
+                                 # Fallback for older python without ast.unparse (unlikely in this env)
+                                 pass
                          except:
                              pass
 
-                if constraints:
-                    # Emit sum type
-                    # Sanitize lhs?
-                    sanitized_lhs = lhs.lstrip('_')
-                    # If multiple constraints, join with |
-                    # But mapped bound might already be a union string "A | B"
-                    # We need to be careful not to create "A | B | C" if they are distinct
+                    if is_type_alias:
+                         self.emitter.add_struct(f"type {lhs} = {type_alias_val}")
+                         return
 
-                    final_type = " | ".join(constraints)
-                    self.emitter.add_struct(f"type {sanitized_lhs} = {final_type}")
-                return
+            elif isinstance(target, ast.Attribute):
+                # obj.attr = value
+                lhs = f"{self.visit(target.value)}.{target.attr}"
+            elif isinstance(target, ast.Subscript):
+                # list[index] = value
+                lhs = self.visit(target)
+            elif isinstance(target, (ast.Tuple, ast.List)):
+                 # Destructuring assignment with nested support
+                 rhs = self.visit(node.value)
 
-            # Check for type alias: MyType = int or MyType = OtherType or MyType = List[int]
-            if self.in_main:
-                is_type_alias = False
-                type_alias_val = ""
+                 # Optimization: If simple unpacking a, b = 1, 2 (RHS is Tuple/List literal) and no starred elements
+                 # And no nested targets!
+                 def is_simple(targets):
+                     return not any(isinstance(elt, (ast.Tuple, ast.List, ast.Starred)) for elt in targets)
 
-                # Check if LHS is capitalized (heuristic)
-                if lhs[0].isupper():
-                     # Try to map RHS as a type
-                     try:
-                         # Unparse RHS to string
-                         if hasattr(ast, 'unparse'):
-                             rhs_source = ast.unparse(node.value)
-                             mapped = map_python_type_to_v(rhs_source)
-                             # Check if mapped value looks like a type and not void/same-as-input-expression
-                             # map_python_type_to_v returns input if it fails to map usually, unless it parses successfully via _map_ast_type
-                             # For List[int], it returns []int. List[int] != []int.
-                             # For int, it returns int.
-                             # For "unknown", it returns "unknown".
+                 if is_simple(target.elts) and isinstance(node.value, (ast.Tuple, ast.List)) and len(node.value.elts) == len(target.elts):
+                      lhs_parts = [self.visit(t) for t in target.elts]
+                      rhs_parts = [self.visit(v) for v in node.value.elts]
+                      self.output.append(f"{self._indent()}{', '.join(lhs_parts)} := {', '.join(rhs_parts)}")
+                      return
 
-                             if mapped != "void" and mapped != rhs_source:
-                                  is_type_alias = True
-                                  type_alias_val = mapped
-                             elif mapped == "int" and rhs_source == "int": # Primitive
-                                  is_type_alias = True
-                                  type_alias_val = "int"
-                             elif mapped == "f64" and rhs_source == "float":
-                                  is_type_alias = True
-                                  type_alias_val = "f64"
-                             elif mapped == "string" and rhs_source == "str":
-                                  is_type_alias = True
-                                  type_alias_val = "string"
-                             elif mapped == "bool" and rhs_source == "bool":
-                                  is_type_alias = True
-                                  type_alias_val = "bool"
-                             # For MyType = OtherType (Name = Name)
-                             elif isinstance(node.value, ast.Name) and node.value.id[0].isupper():
-                                  is_type_alias = True
-                                  type_alias_val = node.value.id
-                         else:
-                             # Fallback for older python without ast.unparse (unlikely in this env)
-                             pass
-                     except:
-                         pass
+                 # Use recursive destructuring helper
+                 self._visit_destructuring(target, rhs)
+                 return
 
-                if is_type_alias:
-                     self.emitter.add_struct(f"type {lhs} = {type_alias_val}")
-                     return
+            if not lhs:
+                 # Should be covered by destructuring
+                 return
 
-        elif isinstance(target, ast.Attribute):
-            # obj.attr = value
-            lhs = f"{self.visit(target.value)}.{target.attr}"
-        elif isinstance(target, ast.Subscript):
-            # list[index] = value
-            lhs = self.visit(target)
-        elif isinstance(target, (ast.Tuple, ast.List)):
-             # Destructuring assignment with nested support
-             rhs = self.visit(node.value)
-
-             # Optimization: If simple unpacking a, b = 1, 2 (RHS is Tuple/List literal) and no starred elements
-             # And no nested targets!
-             def is_simple(targets):
-                 return not any(isinstance(elt, (ast.Tuple, ast.List, ast.Starred)) for elt in targets)
-
-             if is_simple(target.elts) and isinstance(node.value, (ast.Tuple, ast.List)) and len(node.value.elts) == len(target.elts):
-                  lhs_parts = [self.visit(t) for t in target.elts]
-                  rhs_parts = [self.visit(v) for v in node.value.elts]
-                  self.output.append(f"{self._indent()}{', '.join(lhs_parts)} := {', '.join(rhs_parts)}")
-                  return
-
-             # Use recursive destructuring helper
-             self._visit_destructuring(target, rhs)
-             return
-
-        if not lhs:
-             # Should be covered by destructuring
-             return
-
-        if isinstance(node.value, ast.ListComp):
-            # visit_ListComp is defined in ExpressionsMixin, but available on self at runtime
-            if hasattr(self, 'visit_ListComp'):
-                 self.visit_ListComp(node.value, target_var=lhs) # type: ignore
+            if isinstance(node.value, ast.ListComp):
+                # visit_ListComp is defined in ExpressionsMixin, but available on self at runtime
+                if hasattr(self, 'visit_ListComp'):
+                     self.visit_ListComp(node.value, target_var=lhs) # type: ignore
+                else:
+                     self.output.append(f"{self._indent()}// Error: List comprehension support missing")
+            elif isinstance(node.value, ast.SetComp):
+                # visit_SetComp is defined in ExpressionsMixin, but available on self at runtime
+                if hasattr(self, 'visit_SetComp'):
+                     self.visit_SetComp(node.value, target_var=lhs) # type: ignore
+                else:
+                     self.output.append(f"{self._indent()}// Error: Set comprehension support missing")
+            elif isinstance(node.value, ast.DictComp):
+                # visit_DictComp is defined in ExpressionsMixin, but available on self at runtime
+                if hasattr(self, 'visit_DictComp'):
+                     self.visit_DictComp(node.value, target_var=lhs) # type: ignore
+                else:
+                     self.output.append(f"{self._indent()}// Error: Dict comprehension support missing")
+            elif isinstance(node.value, ast.GeneratorExp):
+                # Treat generator expression as list comprehension (eager evaluation)
+                if hasattr(self, 'visit_ListComp'):
+                     self.visit_ListComp(node.value, target_var=lhs) # type: ignore
+                else:
+                     self.output.append(f"{self._indent()}// Error: Generator expression support missing")
             else:
-                 self.output.append(f"{self._indent()}// Error: List comprehension support missing")
-        elif isinstance(node.value, ast.SetComp):
-            # visit_SetComp is defined in ExpressionsMixin, but available on self at runtime
-            if hasattr(self, 'visit_SetComp'):
-                 self.visit_SetComp(node.value, target_var=lhs) # type: ignore
-            else:
-                 self.output.append(f"{self._indent()}// Error: Set comprehension support missing")
-        elif isinstance(node.value, ast.DictComp):
-            # visit_DictComp is defined in ExpressionsMixin, but available on self at runtime
-            if hasattr(self, 'visit_DictComp'):
-                 self.visit_DictComp(node.value, target_var=lhs) # type: ignore
-            else:
-                 self.output.append(f"{self._indent()}// Error: Dict comprehension support missing")
-        elif isinstance(node.value, ast.GeneratorExp):
-            # Treat generator expression as list comprehension (eager evaluation)
-            if hasattr(self, 'visit_ListComp'):
-                 self.visit_ListComp(node.value, target_var=lhs) # type: ignore
-            else:
-                 self.output.append(f"{self._indent()}// Error: Generator expression support missing")
+                rhs = self.visit(node.value)
+                self.output.append(f"{self._indent()}{lhs} := {rhs}")
+
         else:
+            # Chained assignment: a = b = 1
+            # Generate temporary for RHS
             rhs = self.visit(node.value)
-            self.output.append(f"{self._indent()}{lhs} := {rhs}")
+
+            # Simple constant or name can be used directly?
+            # If mutable (like list), Python semantics: same object assigned to all.
+            # V semantics: Assignment copies for structs, but arrays/maps are references?
+            # V arrays are value types but copy-on-write or similar.
+            # But let's stick to simple logic: assign to temp variable, then assign temp to targets.
+
+            self._zip_counter += 1
+            temp_var = f"_assign_tmp_{self._zip_counter}"
+            self.output.append(f"{self._indent()}{temp_var} := {rhs}")
+
+            for target in targets:
+                # Reuse logic for single assignment from temp_var
+                if isinstance(target, ast.Name):
+                    lhs = target.id
+                    self.output.append(f"{self._indent()}{lhs} := {temp_var}")
+                elif isinstance(target, ast.Attribute):
+                    lhs = f"{self.visit(target.value)}.{target.attr}"
+                    self.output.append(f"{self._indent()}{lhs} = {temp_var}")
+                elif isinstance(target, ast.Subscript):
+                    lhs = self.visit(target)
+                    self.output.append(f"{self._indent()}{lhs} = {temp_var}")
+                elif isinstance(target, (ast.Tuple, ast.List)):
+                     self._visit_destructuring(target, temp_var)
+                else:
+                     self.output.append(f"{self._indent()}// Unsupported target in chained assignment")
+
 
     def _visit_destructuring(self, target: ast.AST, source_expr: str) -> None:
         """
@@ -247,10 +287,35 @@ class VariablesMixin(TranslatorBase):
         # Support for multiple delete targets (e.g. del a, b)
         for target in node.targets:
             if isinstance(target, ast.Subscript):
-                # del l[i] -> l.delete(i)
-                value = self.visit(target.value)
-                index = self.visit(target.slice)
-                self.output.append(f"{self._indent()}{value}.delete({index})")
+                # Check for slice deletion: del l[x:y]
+                if isinstance(target.slice, ast.Slice):
+                    # l.delete_many(start, count)
+                    value = self.visit(target.value)
+
+                    lower = target.slice.lower
+                    upper = target.slice.upper
+
+                    start_val = "0"
+                    if lower:
+                        start_val = self.visit(lower)
+
+                    # We need count = end - start
+                    # If upper is missing (None), it means len(value)
+
+                    if upper:
+                        end_val = self.visit(upper)
+                        count_expr = f"{end_val} - {start_val}"
+                    else:
+                        count_expr = f"{value}.len - {start_val}"
+
+                    self.output.append(f"{self._indent()}{value}.delete_many({start_val}, {count_expr})")
+
+                else:
+                    # del l[i] -> l.delete(i)
+                    value = self.visit(target.value)
+                    index = self.visit(target.slice)
+                    self.output.append(f"{self._indent()}{value}.delete({index})")
+
             elif isinstance(target, ast.Name):
                 self.output.append(f"{self._indent()}/* del {target.id} */")
             elif isinstance(target, ast.Attribute):
