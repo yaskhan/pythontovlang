@@ -109,7 +109,7 @@
 - [x] Support for f-string debug expressions (f"{x=}")
 - [x] Support for multiple context managers in single 'with' statement
 - [x] Support for slice assignment (l[x:y] = [1, 2])
-- [ ] Support for 'match' statement guard clauses
+- [x] Support for 'match' statement guard clauses
 - [x] Support for nested classes
 - [ ] Support for underscores in numeric literals (e.g. 1_000)
 - [ ] Support for 'del' on slices (del l[x:y])
@@ -120,24 +120,24 @@
 - [ ] Support for no-argument super() calls
 - [ ] Support for * unpacking in list/tuple/set literals
 - [ ] Support for ** unpacking in dict literals
-- [ ] Support for relative imports (from . import module)
-- [ ] Support for docstrings (emit as V comments)
-- [ ] Support for decorators with arguments
-- [ ] Support for multiple exception types in single 'except' block
+- [x] Support for relative imports (from . import module)
+- [x] Support for docstrings (emit as V comments)
+- [x] Support for decorators with arguments
+- [x] Support for multiple exception types in single 'except' block
 - [ ] Support for bi-directional generator methods (send/throw/close)
-- [ ] Support for async comprehensions ([x async for x in y])
-- [ ] Support for implicit string literal concatenation ("a" "b")
-- [ ] Support for metaclasses (class X(metaclass=M))
-- [ ] Support for __slots__ optimization
-- [ ] Support for descriptor protocol (__get__, __set__, __delete__)
-- [ ] Support for __new__ method (custom instance creation)
-- [ ] Support for Ellipsis (...) literal in slicing and stubs
-- [ ] Support for postponed type annotation evaluation (from __future__ import annotations)
-- [ ] Support for augmented matrix multiplication (@=)
-- [ ] Support for custom __format__ methods
-- [ ] Support for 'match' statement sequence patterns ([x, y, *rest])
-- [ ] Support for 'match' statement mapping patterns ({'k': v})
-- [ ] Support for 'match' statement OR patterns (A | B)
+- [x] Support for metaclasses (class X(metaclass=M))
+- [x] Support for __slots__ optimization
+- [x] Support for descriptor protocol (__get__, __set__, __delete__)
+- [x] Support for __new__ method (custom instance creation)
+- [x] Support for Ellipsis (...) literal in slicing and stubs
+- [x] Support for postponed type annotation evaluation (from __future__ import annotations)
+- [x] Support for async comprehensions ([x async for x in y])
+- [x] Support for implicit string literal concatenation ("a" "b")
+- [x] Support for augmented matrix multiplication (@=)
+- [x] Support for custom __format__ methods
+- [x] Support for 'match' statement sequence patterns ([x, y, *rest])
+- [x] Support for 'match' statement mapping patterns ({'k': v})
+- [x] Support for 'match' statement OR patterns (A | B)
 - [ ] Support for nested f-strings
 - [ ] Support for dynamic format specifiers in f-strings (f"{x:{y}}")
 - [ ] Support for bytes formatting (b"%s" % b"a")
@@ -145,37 +145,37 @@
 - [ ] Support for 'continue' in 'finally' block (Python 3.8+)
 - [ ] Support for recursive type aliases
 - [ ] Support for TypedDict class-based syntax
-- [ ] Support for 'match' statement capture patterns (case A() as x)
-- [ ] Support for 'match' statement value patterns (case CONST)
+- [x] Support for 'match' statement capture patterns (case A() as x)
+- [x] Support for 'match' statement value patterns (case CONST)
 - [ ] Support for 'try/except*' (Exception Groups - Python 3.11+)
-- [ ] Support for '__init_subclass__' hook
-- [ ] Support for 'typing.Protocol' (structural subtyping)
-- [ ] Support for 'typing.Literal' types
-- [ ] Support for 'typing.Final' qualifier
-- [ ] Support for 'typing.overload' decorator
-- [ ] Support for 'typing.cast' (no-op)
-- [ ] Support for 'typing.NewType'
-- [ ] Support for 'typing.NoReturn'
-- [ ] Support for name mangling (__private attributes)
-- [ ] Support for nested destructuring assignment (a, (b, c) = ...)
-- [ ] Support for 'match' statement wildcard pattern (case _)
-- [ ] Support for 'match' statement class patterns (case Point(x=1))
-- [ ] Support for 'typing.TypeVar' (generics definition)
-- [ ] Support for 'typing.ClassVar'
-- [ ] Support for 'typing.Self' (Python 3.11+)
-- [ ] Support for 'typing.Annotated'
-- [ ] Support for multiple targets in 'del' statement (del a, b)
-- [ ] Support for bitwise operators (&, |, ^, ~, <<, >>)
-- [ ] Support for conditional expressions (x if y else z)
-- [ ] Support for 'dataclasses' module (transform to V structs)
-- [ ] Support for 'typing.NamedTuple'
-- [ ] Support for 'typing.ParamSpec'
-- [ ] Support for 'typing.TypeGuard'
-- [ ] Support for 'typing.Required' and 'typing.NotRequired'
-- [ ] Support for 'typing.Unpack'
-- [ ] Support for 'enum.Flag' and 'enum.auto()'
-- [ ] Support for 'functools.partial' translation
-- [ ] Support for 'functools.singledispatch'
+- [x] Support for '__init_subclass__' hook
+- [x] Support for 'typing.Protocol' (structural subtyping)
+- [x] Support for 'typing.Literal' types
+- [x] Support for 'typing.Final' qualifier
+- [x] Support for 'typing.overload' decorator
+- [x] Support for 'typing.cast' (no-op)
+- [x] Support for 'typing.NewType'
+- [x] Support for 'typing.NoReturn'
+- [x] Support for name mangling (__private attributes)
+- [x] Support for nested destructuring assignment (a, (b, c) = ...)
+- [x] Support for 'match' statement wildcard pattern (case _)
+- [x] Support for 'match' statement class patterns (case Point(x=1))
+- [x] Support for 'typing.TypeVar' (generics definition)
+- [x] Support for 'typing.ClassVar'
+- [x] Support for 'typing.Self' (Python 3.11+)
+- [x] Support for 'typing.Annotated'
+- [x] Support for multiple targets in 'del' statement (del a, b)
+- [x] Support for bitwise operators (&, |, ^, ~, <<, >>)
+- [x] Support for conditional expressions (x if y else z)
+- [x] Support for 'dataclasses' module (transform to V structs)
+- [x] Support for 'typing.NamedTuple'
+- [x] Support for 'typing.ParamSpec'
+- [x] Support for 'typing.TypeGuard'
+- [x] Support for 'typing.Required' and 'typing.NotRequired'
+- [x] Support for 'typing.Unpack'
+- [x] Support for 'enum.Flag' and 'enum.auto()'
+- [x] Support for 'functools.partial' translation
+- [x] Support for 'functools.singledispatch'
 
 ## Infrastructure & Tooling
 - [x] Set up comprehensive test suite (pytest)

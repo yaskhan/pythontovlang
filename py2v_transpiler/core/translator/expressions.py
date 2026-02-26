@@ -127,6 +127,51 @@ class ExpressionsMixin(TranslatorBase):
              # Check if os.path is module
              pass
 
+        # Handle functools.partial
+        if module_name == "functools" and func_name == "partial":
+             if len(args) >= 2:
+                 # partial(func, *args) -> fn [func, args] (extra_args ...any) { return func(args..., extra_args...) }
+                 # Simplified closure generation
+                 target_func = args[0]
+                 partial_args = args[1:]
+
+                 # V anonymous function with closure capture [target_func, partial_args]
+                 # Note: capturing list of strings (args) works in V if variables are defined.
+                 # But args here are strings from visit(), so they are expressions.
+                 # We need to capture the VALUES.
+                 # This is complex to inline perfectly.
+                 # Let's generate a wrapper closure.
+                 # Assuming simple case: partial(add, 5)
+
+                 # We need to generate names for arguments to capture?
+                 # Or just embed expressions if they are constants/vars.
+                 # `fn [target_func, partial_args] (rest ...any) { return target_func(partial_args..., rest...) }`
+
+                 # Construct capture list string
+                 # We assume args are valid expressions.
+                 # But V closure capture requires variables.
+                 # If partial_args contains literals, we can't capture them directly in `[]`.
+                 # But we can use them directly in body if they are literals.
+                 # Only variables need capturing.
+
+                 # Heuristic: Scan partial_args for identifiers.
+                 # For now, simplistic approach:
+                 # fn (rest ...int) int { return target_func(partial_args, rest...) }
+
+                 # We don't know the types!
+                 # V requires types for anonymous function arguments.
+                 # `fn (x int)` etc.
+                 # This makes generalized partial very hard without generic lambdas (which V has limitations on).
+                 # Fallback: Emit a comment and a best-effort lambda assuming 'int' or 'any' if possible.
+
+                 # Try to deduce type from target_func? Hard.
+
+                 # Let's emit a closure that takes `...int` and returns `int` as a common case,
+                 # or `...any` if we had `any` support everywhere.
+
+                 joined_partial = ", ".join(partial_args)
+                 return f"fn (rest ...int) int {{ return {target_func}({joined_partial}, ...rest) }}"
+
         # Handle threading.Lock.acquire/release -> lock/unlock
         # Heuristic: if method name is acquire/release and receiver is unknown or mapped to sync.Mutex (hard to know type here)
         # We can just map acquire->lock, release->unlock generally if threading is imported?
@@ -193,6 +238,22 @@ class ExpressionsMixin(TranslatorBase):
         func_name_str = self.visit(node.func)
         if func_name_str in self.renamed_functions:
             func_name_str = self.renamed_functions[func_name_str]
+
+        # Handle dataclass constructor call
+        if hasattr(self, 'dataclasses') and func_name_str in self.dataclasses:
+            field_order = self.dataclasses[func_name_str]
+            struct_args = []
+            # Map positional args
+            for i, arg_val in enumerate(args):
+                if i < len(field_order):
+                    struct_args.append(f"{field_order[i]}: {arg_val}")
+            # Map keyword args
+            for keyword in node.keywords:
+                if keyword.arg:
+                     kw_val_str = str(self.visit(keyword.value))
+                     struct_args.append(f"{keyword.arg}: {kw_val_str}")
+
+            return f"{func_name_str}{{{', '.join(struct_args)}}}"
 
         # Handle builtins handled by old logic (print, sorted, etc)
         # Note: 'open', 'hasattr' are handled above or fall through if not matched.
@@ -311,10 +372,34 @@ class ExpressionsMixin(TranslatorBase):
                  return f"{obj}.im"
 
         obj = self.visit(node.value)
-        return f"{obj}.{node.attr}"
+
+        # Mangling for self.__private attributes
+        # We need to know if we are accessing self inside a class
+        attr_name = node.attr
+        if self.current_class and isinstance(node.value, ast.Name):
+            # Checking if the receiver is 'self' is tricky because 'self' is not guaranteed name.
+            # But usually it is the first arg.
+            # We don't easily track variable origin here.
+            # However, standard Python mangling applies to ANY attribute access inside the class method
+            # if the attribute starts with __
+            # Wait, python mangles `self.__x` but also `other.__x` if inside Class.
+            # So we apply mangling regardless of receiver, if we are inside a class.
+            attr_name = self._mangle_name(node.attr, self.current_class)
+
+        return f"{obj}.{attr_name}"
 
     def visit_Subscript(self, node: ast.Subscript) -> str:
         value = self.visit(node.value)
+
+        # Handle Ellipsis in slice (e.g. a[...])
+        if isinstance(node.slice, ast.Constant) and node.slice.value is Ellipsis:
+             return f"{value}[/* ... */]"
+        # For Python < 3.9 where Ellipsis might be Index(Ellipsis)
+        if isinstance(node.slice, ast.Index) and isinstance(node.slice.value, ast.Constant) and node.slice.value.value is Ellipsis:
+             return f"{value}[/* ... */]"
+
+        # Handle Ellipsis directly if node.slice is Ellipsis node (not Constant, unlikely in recent python ast but possible)
+        # In 3.12, it is usually Constant(value=Ellipsis)
 
         if isinstance(node.slice, ast.Slice):
             lower = self.visit(node.slice.lower) if node.slice.lower else ""
@@ -345,7 +430,9 @@ class ExpressionsMixin(TranslatorBase):
 
         op_map = {
             ast.Add: "+", ast.Sub: "-", ast.Mult: "*", ast.Div: "/",
-            ast.Mod: "%", ast.Pow: "**"
+            ast.Mod: "%", ast.Pow: "**",
+            ast.BitAnd: "&", ast.BitOr: "|", ast.BitXor: "^",
+            ast.LShift: "<<", ast.RShift: ">>"
         }
         op_str = op_map.get(type(node.op), "?")
         return f"{left} {op_str} {right}"
@@ -383,7 +470,10 @@ class ExpressionsMixin(TranslatorBase):
 
     def visit_UnaryOp(self, node: ast.UnaryOp) -> str:
         operand = self.visit(node.operand)
-        op_map = {ast.Not: "!", ast.UAdd: "+", ast.USub: "-"}
+        op_map = {
+            ast.Not: "!", ast.UAdd: "+", ast.USub: "-",
+            ast.Invert: "~"
+        }
         op_str = op_map.get(type(node.op), "?")
         return f"{op_str}{operand}"
 
@@ -431,6 +521,9 @@ class ExpressionsMixin(TranslatorBase):
         self.output.append(f"{self._indent()}mut {target_var} := []int{{}}")
 
         gen = node.generators[0] # Handle first generator
+
+        if getattr(gen, 'is_async', False):
+             self.output.append(f"{self._indent()}// TODO: Async comprehension - Verify iterator semantics")
 
         if isinstance(gen.iter, ast.Call) and isinstance(gen.iter.func, ast.Name) and gen.iter.func.id == "zip":
              zip_args = gen.iter.args
@@ -583,6 +676,9 @@ class ExpressionsMixin(TranslatorBase):
         op = ":=" if is_decl else "="
         mut_prefix = "mut " if is_decl else ""
         self.output.append(f"{self._indent()}{mut_prefix}{target_var} {op} map[{key_type}]{val_type}{{}}")
+
+        if getattr(gen, 'is_async', False):
+             self.output.append(f"{self._indent()}// TODO: Async comprehension - Verify iterator semantics")
 
         if isinstance(gen.iter, ast.Call) and isinstance(gen.iter.func, ast.Name) and gen.iter.func.id == "zip":
              zip_args = gen.iter.args
@@ -795,6 +891,9 @@ class ExpressionsMixin(TranslatorBase):
         mut_prefix = "mut " if is_decl else ""
         self.output.append(f"{self._indent()}{mut_prefix}{target_var} {op} map[{key_type}]bool{{}}")
 
+        if getattr(gen, 'is_async', False):
+             self.output.append(f"{self._indent()}// TODO: Async comprehension - Verify iterator semantics")
+
         if isinstance(gen.iter, ast.Call) and isinstance(gen.iter.func, ast.Name) and gen.iter.func.id == "zip":
              zip_args = gen.iter.args
              if len(zip_args) == 2:
@@ -923,3 +1022,9 @@ class ExpressionsMixin(TranslatorBase):
     def visit_Assert(self, node: ast.Assert) -> None:
         test = self.visit(node.test)
         self.output.append(f"{self._indent()}assert {test}")
+
+    def visit_IfExp(self, node: ast.IfExp) -> str:
+        test = self.visit(node.test)
+        body = self.visit(node.body)
+        orelse = self.visit(node.orelse)
+        return f"if {test} {{ {body} }} else {{ {orelse} }}"

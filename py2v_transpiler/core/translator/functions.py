@@ -21,8 +21,63 @@ class FunctionsMixin(TranslatorBase):
 
     def _visit_function_common(self, node: Any, is_async: bool = False) -> None:
         is_generator = False
+        # Check for @overload
+        for decorator in node.decorator_list:
+            if isinstance(decorator, ast.Name) and decorator.id == 'overload':
+                return
+            if isinstance(decorator, ast.Attribute) and decorator.attr == 'overload':
+                return
+
+        # Check for @singledispatch
+        for decorator in node.decorator_list:
+            is_singledispatch = False
+            if isinstance(decorator, ast.Name) and decorator.id == 'singledispatch':
+                is_singledispatch = True
+            elif isinstance(decorator, ast.Attribute) and decorator.attr == 'singledispatch':
+                is_singledispatch = True
+
+            if is_singledispatch:
+                # Store the base implementation with a unique name
+                base_impl_name = f"{node.name}_base"
+                self.renamed_functions[node.name] = base_impl_name # Temp mapping for visit
+
+                # Initialize registry
+                self.single_dispatch_functions[node.name] = {"default": base_impl_name}
+
+        # Check for @func.register(Type)
+        register_dispatcher = None
+        register_type = None
+
+        # 'node' is guaranteed to be ast.FunctionDef or ast.AsyncFunctionDef here
+        for decorator in node.decorator_list:
+            if isinstance(decorator, ast.Call) and isinstance(decorator.func, ast.Attribute):
+                 if decorator.func.attr == "register":
+                      # func.register(Type)
+                      if isinstance(decorator.func.value, ast.Name):
+                          register_dispatcher = decorator.func.value.id
+                          if decorator.args:
+                              try:
+                                   type_str = ast.unparse(decorator.args[0])
+                                   register_type = map_python_type_to_v(type_str)
+                              except:
+                                   pass
+
+        if register_dispatcher and register_type:
+             # This is an implementation of a singledispatch function
+             impl_name = f"{register_dispatcher}_{register_type}"
+             if register_dispatcher in self.single_dispatch_functions:
+                 self.single_dispatch_functions[register_dispatcher][register_type] = impl_name
+             else:
+                 # Dispatcher defined after? Or in another module? (Not supported cross-module yet)
+                 pass
+
+             # Rename this function to impl_name
+             # We modify node.name temporarily
+             original_name = node.name
+             node.name = impl_name
+
         if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
-             is_generator = self.coroutine_handler.is_generator(node.name)
+             is_generator = self.coroutine_handler.is_generator(original_name if 'original_name' in locals() else node.name)
 
         # Save current state
         old_output = self.output
@@ -34,7 +89,19 @@ class FunctionsMixin(TranslatorBase):
 
         # Handle decorators comments (emit all for clarity)
         for decorator in node.decorator_list:
-             dec_str = self.visit(decorator)
+             if isinstance(decorator, ast.Call):
+                 # Decorator with args: @dec(arg)
+                 func = self.visit(decorator.func)
+                 dec_args_list = []
+                 for dec_arg in decorator.args:
+                     dec_args_list.append(str(self.visit(dec_arg)))
+                 for kw in decorator.keywords:
+                     val = self.visit(kw.value)
+                     dec_args_list.append(f"{kw.arg}={val}")
+                 dec_str = f"{func}({', '.join(dec_args_list)})"
+             else:
+                 dec_str = self.visit(decorator)
+
              # Avoid duplicating if in handled list?
              # Just emit comments for all decorators as metadata
              self.output.append(f"// @{dec_str}")
@@ -48,30 +115,19 @@ class FunctionsMixin(TranslatorBase):
         args_names: List[str] = []
 
         # Special handling for unittest methods: flatten to function calls
-        # We detect if we are inside a unittest class (flag set in visit_ClassDef)
         is_unittest_method = False
         if hasattr(self, 'current_class_is_unittest') and self.current_class_is_unittest:
             if node.name.startswith("test_"):
                 is_unittest_method = True
-                # Rename function to include class name
                 func_name = f"{node.name}_{struct_name}"
-                # Remove self argument and receiver
                 is_method = False
                 receiver_str = ""
             elif node.name in ("setUp", "tearDown"):
-                 # Skip setup/teardown for now or map to V test hooks if possible
-                 # V supports test_setup() but it's global per module usually?
-                 # For now, comment them out
                  self.output.append(f"// {node.name} method in unittest class ignored")
                  return
-            else:
-                 # Helper method?
-                 # Keep as function but maybe private?
-                 pass
 
         if is_generator:
             # Inject channel argument
-            # Attempt to infer type from return annotation
             yield_type = self.coroutine_handler.get_yield_type(node)
             args_str_list.append(f"ch chan {yield_type}")
             self.coroutine_handler.enter_generator("ch")
@@ -82,6 +138,19 @@ class FunctionsMixin(TranslatorBase):
 
         if hasattr(node.args, 'kwonlyargs'):
              args = args + node.args.kwonlyargs
+
+        # Check for __new__ or other static-like methods that might have 'cls'
+        is_new_method = False
+        if node.name == "__new__":
+             is_new_method = True
+             # Rename __new__
+             node.name = f"new_{struct_name}_new"
+             # Remove 'cls' argument if present
+             if args and args[0].arg == "cls":
+                 args = args[1:]
+             # Treat as static
+             is_method = False
+             receiver_str = ""
 
         if is_method and args and args[0].arg == "self":
             # Handle 'self' - it becomes the receiver in V
@@ -164,6 +233,18 @@ class FunctionsMixin(TranslatorBase):
 
         if not is_unittest_method:
             func_name = node.name
+
+            # Descriptor protocol renaming
+            if func_name == "__get__":
+                 func_name = "get"
+            elif func_name == "__set__":
+                 func_name = "set"
+            elif func_name == "__delete__":
+                 func_name = "delete"
+
+            if self.current_class and not is_new_method:
+                func_name = self._mangle_name(func_name, self.current_class)
+
             if func_name in self.renamed_functions:
                 func_name = self.renamed_functions[func_name]
 
@@ -177,30 +258,21 @@ class FunctionsMixin(TranslatorBase):
             # Switch to generating implementation
             func_name = dec_info.implementation_name
 
-        if func_name == "__init__":
-            # Constructor logic: make it a static factory function for now
-            # fn new_Struct(...) Struct
+        if 'decl' not in locals() and func_name == "__init_subclass__":
+            receiver_str = ""
+            func_name = "init_subclass"
+        elif func_name == "__init__":
             func_name = f"new_{struct_name}"
             receiver_str = "" # Factory is static
             ret_type = struct_name
             if self.current_class_generics:
-                # new_Struct[T](...) Struct[T]
-                # Wait, generic functions in V: fn foo[T](...)
-                # Factory: fn new_Struct[T](...) Struct[T]
-                # We need to add [T] to function name?
-                # V syntax: fn new_Struct[T](...) Struct[T]
-                # func_name should be new_Struct[T]
-                # ret_type should be Struct[T]
                 sanitized_gens = [g.lstrip('_') for g in self.current_class_generics]
                 gen_str = f"[{', '.join(sanitized_gens)}]"
                 func_name += gen_str
                 ret_type += gen_str
 
-            # We need to implicitly return the struct instance, but that's complex logic.
-            # For now, just change the name.
         elif is_method and func_name in ("__add__", "__sub__", "__mul__", "__truediv__", "__mod__", "__lt__", "__le__", "__eq__", "__ne__"):
              # Operator overloading
-             # fn (a Type) + (b Type) Type
              op_map = {
                  "__add__": "+", "__sub__": "-", "__mul__": "*", "__truediv__": "/",
                  "__mod__": "%", "__lt__": "<", "__le__": "<=", "__eq__": "==",
@@ -209,15 +281,8 @@ class FunctionsMixin(TranslatorBase):
              op = op_map.get(func_name)
              if op:
                  func_name = op
-                 # In V, operator overloading syntax is: fn (a Type) + (b Type) RetType
-                 # Our args_str is "b Type". We need to format it as "(b Type)".
-                 # receiver_str is "(a Type) ".
-                 # So: fn (a Type) + (b Type) RetType
-                 # We need to ensure args_str is wrapped in parens if not already (it isn't, it's a comma list)
                  decl = f"fn {receiver_str}{op} ({args_str}) {ret_type} {{"
-                 # Skip the default decl assignment below
         elif func_name in ("__str__", "__repr__"):
-             # String representation
              func_name = "str"
              decl = f"fn {receiver_str}{func_name}() string {{"
 
@@ -233,15 +298,21 @@ class FunctionsMixin(TranslatorBase):
         self.output.append(f"{decl}") # No indent for top level function
         self._indent_level += 1
 
-        # Injected start code
         for line in dec_info.injected_start:
              self.output.append(f"{self._indent()}{line}")
 
-        # Injected end code (defer)
         for line in dec_info.injected_end:
              self.output.append(f"{self._indent()}{line}")
 
-        for stmt in node.body:
+        # Check for docstring
+        body = node.body
+        if body and isinstance(body[0], ast.Expr) and isinstance(body[0].value, ast.Constant) and isinstance(body[0].value.value, str):
+             doc = body[0].value.value.strip()
+             for line in doc.splitlines():
+                 self.output.append(f"{self._indent()}// {line}")
+             body = body[1:]
+
+        for stmt in body:
             self.visit(stmt)
 
         if is_generator:
@@ -251,10 +322,8 @@ class FunctionsMixin(TranslatorBase):
         self._indent_level -= 1
         self.output.append("}")
 
-        # Add function to emitter
         self.emitter.add_function("\n".join(self.output))
 
-        # Restore state
         self.output = old_output
 
     def visit_Lambda(self, node: ast.Lambda) -> str:
@@ -268,15 +337,12 @@ class FunctionsMixin(TranslatorBase):
         args_str = ", ".join(args_str_list)
         body = self.visit(node.body)
 
-        # Assuming return type is inferred or int for now
-        # V anonymous functions: fn (a int) int { return a + 1 }
         return f"fn ({args_str}) int {{ return {body} }}"
 
     def visit_Yield(self, node: ast.Yield) -> str:
         if self.coroutine_handler.active_channel:
              val = self.visit(node.value) if node.value else "0"
              return f"{self.coroutine_handler.active_channel} <- {val}"
-        # yield expr -> /* yield expr */
         val = ""
         if node.value:
             val = self.visit(node.value)
@@ -296,7 +362,6 @@ class FunctionsMixin(TranslatorBase):
         return f"/* yield from {val} */"
 
     def visit_Await(self, node: ast.Await) -> str:
-        # await foo() -> // await foo()
         val = self.visit(node.value)
         return f"/* await */ {val}"
 

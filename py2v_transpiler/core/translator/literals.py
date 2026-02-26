@@ -27,6 +27,8 @@ class LiteralsMixin(TranslatorBase):
                 return f"r'{escaped}'"
             else:
                 return f"'{val}'"
+        elif val is Ellipsis:
+             return "/* ... */"
         elif isinstance(val, bool):
             return str(val).lower()
         elif isinstance(val, bytes):
@@ -37,6 +39,11 @@ class LiteralsMixin(TranslatorBase):
             return f"[{', '.join(elements)}]"
         elif val is None:
             return "none"
+        elif isinstance(val, bytes):	
+            elements = [f"u8(0x{b:02x})" for b in val]	
+            if not elements:	
+                return "[]u8{}"	
+            return f"[{', '.join(elements)}]"
         elif isinstance(val, complex):
             self.used_complex = True
             return f"py_complex({val.real}, {val.imag})"
