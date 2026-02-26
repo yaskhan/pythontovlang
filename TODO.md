@@ -106,6 +106,14 @@
 - [ ] Support for raw string literals (r"...")
 - [ ] Support for variable annotations without assignment (x: int)
 - [ ] Support for generic type alias syntax (type T = ...) (Python 3.12+)
+- [ ] Support for f-string debug expressions (f"{x=}")
+- [ ] Support for multiple context managers in single 'with' statement
+- [ ] Support for slice assignment (l[x:y] = [1, 2])
+- [ ] Support for 'match' statement guard clauses
+- [ ] Support for nested classes
+- [ ] Support for underscores in numeric literals (e.g. 1_000)
+- [ ] Support for 'del' on slices (del l[x:y])
+- [ ] Support for chained assignment (a = b = c)
 
 ## Infrastructure & Tooling
 - [x] Set up comprehensive test suite (pytest)
