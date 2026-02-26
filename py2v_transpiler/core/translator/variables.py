@@ -113,6 +113,53 @@ class VariablesMixin(TranslatorBase):
             lhs = f"{self.visit(target.value)}.{target.attr}"
         elif isinstance(target, ast.Subscript):
             # list[index] = value
+            # Check for slice assignment: l[1:3] = [4, 5]
+            if isinstance(target.slice, ast.Slice):
+                # We need to access the list and range
+                # target.value is the list
+                list_obj = self.visit(target.value)
+
+                # target.slice is the range
+                lower = self.visit(target.slice.lower) if target.slice.lower else "0"
+                upper = self.visit(target.slice.upper) if target.slice.upper else f"{list_obj}.len"
+
+                # Check if upper is omitted or None
+                # If upper is empty string from visit, it usually means "up to end".
+                # But V range [a..b] works?
+                # Actually visit_Subscript emits [lower..upper].
+                # Here we need values for delete_many/insert_many.
+
+                # We need to know 'count' for delete_many.
+                # count = upper - lower.
+                # If upper is relative to len, we need runtime calculation?
+                # V Arrays: delete_many(start, count)
+                # insert_many(index, val)
+
+                # We assume RHS is an array.
+                rhs = self.visit(node.value)
+
+                # We need to handle mutability. 'list_obj' should be mutable.
+                # Assuming it is declared as mut.
+
+                # Logic:
+                # start = lower
+                # end = upper
+                # count = end - start
+                # list_obj.delete_many(start, count)
+                # list_obj.insert_many(start, rhs)
+
+                # Handle missing bounds
+                start_expr = lower
+                end_expr = upper
+
+                # If we emit multiple statements, we need self.output.append.
+                # But visit_Assign does that at the end based on lhs.
+                # Here we handle it manually and return.
+
+                self.output.append(f"{self._indent()}{list_obj}.delete_many({start_expr}, ({end_expr}) - ({start_expr}))")
+                self.output.append(f"{self._indent()}{list_obj}.insert_many({start_expr}, {rhs})")
+                return
+
             lhs = self.visit(target)
         elif isinstance(target, (ast.Tuple, ast.List)):
              # Destructuring assignment with nested support
@@ -275,8 +322,25 @@ class VariablesMixin(TranslatorBase):
             self.output.append(f"{self._indent()}{target} := {rhs}")
         else:
             # Declaration only: x: int
-            # V needs initialization.
-            self.output.append(f"{self._indent()}// {target} declared (annotation ignored)")
+            # V needs initialization. We map type to default value.
+            try:
+                type_str = ast.unparse(node.annotation)
+                v_type = map_python_type_to_v(type_str)
+                default_val = "0"
+                if v_type == "int": default_val = "0"
+                elif v_type == "f64": default_val = "0.0"
+                elif v_type == "bool": default_val = "false"
+                elif v_type == "string": default_val = "''"
+                elif v_type.startswith("[]"): default_val = f"{v_type}{{}}"
+                elif v_type.startswith("map["): default_val = f"{v_type}{{}}"
+                elif v_type.startswith("?"): default_val = "none"
+                else:
+                    # Fallback for structs? or unknowns
+                    pass
+
+                self.output.append(f"{self._indent()}{target} := {default_val}")
+            except:
+                self.output.append(f"{self._indent()}// {target} declared (annotation processing failed)")
 
     def visit_Name(self, node: ast.Name) -> str:
         if node.id in self.name_remap:
