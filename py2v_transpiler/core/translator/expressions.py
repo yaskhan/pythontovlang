@@ -352,10 +352,6 @@ class ExpressionsMixin(TranslatorBase):
              if mapped:
                  return mapped
 
-        # Check for function attribute access: func.attr
-        if isinstance(node.value, ast.Name) and node.value.id in self.function_names:
-             return f"{node.value.id}__{node.attr}"
-
         if node.attr == "__class__":
              obj = self.visit(node.value)
              return f"typeof({obj})"
@@ -389,6 +385,16 @@ class ExpressionsMixin(TranslatorBase):
     def visit_Subscript(self, node: ast.Subscript) -> str:
         value = self.visit(node.value)
 
+        # Handle Ellipsis in slice (e.g. a[...])
+        if isinstance(node.slice, ast.Constant) and node.slice.value is Ellipsis:
+             return f"{value}[/* ... */]"
+        # For Python < 3.9 where Ellipsis might be Index(Ellipsis)
+        if isinstance(node.slice, ast.Index) and isinstance(node.slice.value, ast.Constant) and node.slice.value.value is Ellipsis:
+             return f"{value}[/* ... */]"
+
+        # Handle Ellipsis directly if node.slice is Ellipsis node (not Constant, unlikely in recent python ast but possible)
+        # In 3.12, it is usually Constant(value=Ellipsis)
+
         if isinstance(node.slice, ast.Slice):
             lower = self.visit(node.slice.lower) if node.slice.lower else ""
             upper = self.visit(node.slice.upper) if node.slice.upper else ""
@@ -411,12 +417,6 @@ class ExpressionsMixin(TranslatorBase):
 
         if isinstance(node.op, ast.MatMult):
              return f"{left}.matmul({right})"
-
-        if isinstance(node.op, ast.Mod):
-             # Check for bytes formatting: b"%s" % b"a"
-             l_type = self._guess_type(node.left)
-             if l_type == "bytes":
-                  return f"py_bytes_format({left}, {right})"
 
         op_map = {
             ast.Add: "+", ast.Sub: "-", ast.Mult: "*", ast.Div: "/",
@@ -779,7 +779,6 @@ class ExpressionsMixin(TranslatorBase):
              if isinstance(node.value, float): return "f64"
              if isinstance(node.value, str): return "string"
              if isinstance(node.value, bool): return "bool"
-             if isinstance(node.value, bytes): return "bytes"
              if isinstance(node.value, complex): return "PyComplex"
              return "int"
         elif isinstance(node, ast.Name):

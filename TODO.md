@@ -125,14 +125,14 @@
 - [x] Support for decorators with arguments
 - [x] Support for multiple exception types in single 'except' block
 - [ ] Support for bi-directional generator methods (send/throw/close)
+- [x] Support for metaclasses (class X(metaclass=M))
+- [x] Support for __slots__ optimization
+- [x] Support for descriptor protocol (__get__, __set__, __delete__)
+- [x] Support for __new__ method (custom instance creation)
+- [x] Support for Ellipsis (...) literal in slicing and stubs
+- [x] Support for postponed type annotation evaluation (from __future__ import annotations)
 - [x] Support for async comprehensions ([x async for x in y])
 - [x] Support for implicit string literal concatenation ("a" "b")
-- [ ] Support for metaclasses (class X(metaclass=M))
-- [ ] Support for __slots__ optimization
-- [ ] Support for descriptor protocol (__get__, __set__, __delete__)
-- [ ] Support for __new__ method (custom instance creation)
-- [ ] Support for Ellipsis (...) literal in slicing and stubs
-- [ ] Support for postponed type annotation evaluation (from __future__ import annotations)
 - [x] Support for augmented matrix multiplication (@=)
 - [x] Support for custom __format__ methods
 - [x] Support for 'match' statement sequence patterns ([x, y, *rest])
@@ -140,11 +140,11 @@
 - [x] Support for 'match' statement OR patterns (A | B)
 - [ ] Support for nested f-strings
 - [ ] Support for dynamic format specifiers in f-strings (f"{x:{y}}")
-- [x] Support for bytes formatting (b"%s" % b"a")
-- [x] Support for function attributes (func.attr = val)
+- [ ] Support for bytes formatting (b"%s" % b"a")
+- [ ] Support for function attributes (func.attr = val)
 - [ ] Support for 'continue' in 'finally' block (Python 3.8+)
-- [x] Support for recursive type aliases
-- [x] Support for TypedDict class-based syntax
+- [ ] Support for recursive type aliases
+- [ ] Support for TypedDict class-based syntax
 - [x] Support for 'match' statement capture patterns (case A() as x)
 - [x] Support for 'match' statement value patterns (case CONST)
 - [ ] Support for 'try/except*' (Exception Groups - Python 3.11+)

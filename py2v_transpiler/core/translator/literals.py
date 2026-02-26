@@ -6,6 +6,8 @@ class LiteralsMixin(TranslatorBase):
         val = node.value
         if isinstance(val, str):
             return f"'{val}'"
+        elif val is Ellipsis:
+             return "/* ... */"
         elif isinstance(val, bool):
             return str(val).lower()
         elif isinstance(val, bytes):
@@ -78,7 +80,6 @@ class LiteralsMixin(TranslatorBase):
 
     def visit_FormattedValue(self, node: ast.FormattedValue) -> str:
         val = self.visit(node.value)
-        spec = ""
         if isinstance(node.format_spec, ast.JoinedStr):
             spec_parts = []
             for v in node.format_spec.values:
@@ -88,12 +89,5 @@ class LiteralsMixin(TranslatorBase):
                     # Best effort for dynamic format specs
                     spec_parts.append(str(self.visit(v)))
             spec = "".join(spec_parts)
-
-        if spec:
-             # Check if we should use custom __format__ method
-             if hasattr(self, '_guess_type'):
-                  type_name = self._guess_type(node.value)
-                  if type_name not in ('int', 'f64', 'bool', 'string', 'void', 'PyComplex', 'unknown'):
-                       return f"${{{val}.__format__(\"{spec}\")}}"
-             return f"${{{val}:{spec}}}"
+            return f"${{{val}:{spec}}}"
         return f"${{{val}}}"
