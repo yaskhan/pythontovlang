@@ -10,7 +10,9 @@ class LiteralsMixin(TranslatorBase):
             return str(val).lower()
         elif isinstance(val, bytes):
             # Transpile bytes to V byte array [u8(0x..), ...]
-            elements = [f"u8({hex(b)})" for b in val]
+            if not val:
+                return "[]u8{}"
+            elements = [f"u8(0x{b:02x})" for b in val]
             return f"[{', '.join(elements)}]"
         elif val is None:
             return "none"
