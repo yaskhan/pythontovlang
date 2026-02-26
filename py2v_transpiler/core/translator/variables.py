@@ -46,21 +46,54 @@ class VariablesMixin(TranslatorBase):
                     self.emitter.add_struct(f"type {sanitized_lhs} = {final_type}")
                 return
 
-            # Check for type alias: MyType = int or MyType = OtherType
-            if self.in_main and isinstance(node.value, ast.Name):
-                # Basic heuristic: if it looks like a type assignment
-                # Allow primitive types and potentially other class names (capitalized)
-                # But be careful not to catch variable assignment.
-                # In Python, `x = y` is var assignment. `Type = int` is type alias.
-                # We can restrict to known primitives OR if the LHS is capitalized (heuristic for Type)
-                # and RHS is a Name.
-                if node.value.id in ("int", "str", "bool", "float"):
-                    self.emitter.add_struct(f"type {lhs} = {node.value.id}")
-                    return
-                elif lhs[0].isupper() and node.value.id[0].isupper():
-                     # Heuristic: MyType = OtherType
-                     self.emitter.add_struct(f"type {lhs} = {node.value.id}")
+            # Check for type alias: MyType = int or MyType = OtherType or MyType = List[int]
+            if self.in_main:
+                is_type_alias = False
+                type_alias_val = ""
+
+                # Check if LHS is capitalized (heuristic)
+                if lhs[0].isupper():
+                     # Try to map RHS as a type
+                     try:
+                         # Unparse RHS to string
+                         if hasattr(ast, 'unparse'):
+                             rhs_source = ast.unparse(node.value)
+                             mapped = map_python_type_to_v(rhs_source)
+                             # Check if mapped value looks like a type and not void/same-as-input-expression
+                             # map_python_type_to_v returns input if it fails to map usually, unless it parses successfully via _map_ast_type
+                             # For List[int], it returns []int. List[int] != []int.
+                             # For int, it returns int.
+                             # For "unknown", it returns "unknown".
+
+                             if mapped != "void" and mapped != rhs_source:
+                                  is_type_alias = True
+                                  type_alias_val = mapped
+                             elif mapped == "int" and rhs_source == "int": # Primitive
+                                  is_type_alias = True
+                                  type_alias_val = "int"
+                             elif mapped == "f64" and rhs_source == "float":
+                                  is_type_alias = True
+                                  type_alias_val = "f64"
+                             elif mapped == "string" and rhs_source == "str":
+                                  is_type_alias = True
+                                  type_alias_val = "string"
+                             elif mapped == "bool" and rhs_source == "bool":
+                                  is_type_alias = True
+                                  type_alias_val = "bool"
+                             # For MyType = OtherType (Name = Name)
+                             elif isinstance(node.value, ast.Name) and node.value.id[0].isupper():
+                                  is_type_alias = True
+                                  type_alias_val = node.value.id
+                         else:
+                             # Fallback for older python without ast.unparse (unlikely in this env)
+                             pass
+                     except:
+                         pass
+
+                if is_type_alias:
+                     self.emitter.add_struct(f"type {lhs} = {type_alias_val}")
                      return
+
         elif isinstance(target, ast.Attribute):
             # obj.attr = value
             lhs = f"{self.visit(target.value)}.{target.attr}"
@@ -195,6 +228,18 @@ class VariablesMixin(TranslatorBase):
         value = self.visit(node.value)
         self._walrus_assignments.append(f"{target} := {value}")
         return target
+
+    def visit_AnnAssign(self, node: ast.AnnAssign) -> None:
+        target = self.visit(node.target)
+        if node.value:
+            rhs = self.visit(node.value)
+            # We ignore the annotation for now and rely on type inference and V's auto-typing
+            # But we could potentially use it to hint types for empty lists/maps
+            self.output.append(f"{self._indent()}{target} := {rhs}")
+        else:
+            # Declaration only: x: int
+            # V needs initialization.
+            self.output.append(f"{self._indent()}// {target} declared (annotation ignored)")
 
     def visit_Name(self, node: ast.Name) -> str:
         if node.id in self.name_remap:

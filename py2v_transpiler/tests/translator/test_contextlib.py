@@ -18,35 +18,50 @@ import contextlib
 with contextlib.suppress(Exception):
     print("hello")
 """
-    # This assumes 'visit_With' can handle contextlib.suppress or mapped to generic 'try/catch' equivalent?
-    # V doesn't have try/catch blocks.
-    # If mapped to nothing (ignored), that's valid for transpilation prototype.
-    # Or mapped to a comment?
     v_code = translate(source)
-    # We expect the body to be preserved.
-    assert 'println(\'hello\')' in v_code
-    # Ideally, we see some error handling artifact or just the body if suppress is best-effort.
-    # But `visit_With` usually generates `x := mgr; defer x.close(); body`.
-    # `suppress` returns a context manager.
-    # If we map `contextlib.suppress` to `py_suppress`, it returns a struct with `close`?
-    # `suppress` in Python handles exceptions in `__exit__`.
-    # V `defer` doesn't catch panics/errors from body.
-    # So `suppress` is hard to map perfectly.
-    # Let's see what happens.
+    # The suppress call should be emitted as a comment, and the body should be emitted
+    assert "/* contextlib.suppress(Exception) */" in v_code
+    assert "println('hello')" in v_code
+    # Should NOT contain defer
+    assert "defer" not in v_code
+
+def test_contextlib_nullcontext():
+    source = """
+from contextlib import nullcontext
+with nullcontext(1) as x:
+    print(x)
+"""
+    v_code = translate(source)
+    # nullcontext(1) maps to 1
+    # x := 1
+    # print(x)
+    assert "x := 1" in v_code
+    assert "println('${x}')" in v_code
+    # Should NOT contain defer
+    assert "defer" not in v_code
 
 def test_contextlib_closing():
     source = """
-import contextlib
-class A:
-    def close(self): pass
-
-with contextlib.closing(A()) as a:
+from contextlib import closing
+with closing(open("file.txt")) as f:
     pass
 """
     v_code = translate(source)
-    # This should work with standard `visit_With` if `closing` returns something with `.close()`.
-    # `closing(thing)` returns `thing` (mostly).
-    # If we map `contextlib.closing(x)` to `x`, `visit_With` will call `x.close()` (mapped from `__exit__` logic?
-    # Actually `visit_With` in this project assumes the context manager expression returns a resource, and calls `.close()` on it?
-    # Let's check `visit_With` logic later.
-    pass
+    # closing(x) maps to x
+    # f := os.open(...)
+    # defer { f.close() }
+    assert "os.open" in v_code
+    assert "defer { f.close() }" in v_code
+
+def test_contextlib_redirect_stdout():
+    source = """
+import contextlib
+import io
+f = io.StringIO()
+with contextlib.redirect_stdout(f):
+    print('foobar')
+"""
+    v_code = translate(source)
+    # redirect_stdout is ignored (comment)
+    assert "/* contextlib.redirect_stdout(f) ignored */" in v_code
+    assert "println('foobar')" in v_code
