@@ -13,7 +13,7 @@ class VType(Enum):
     NONE = auto()
     UNKNOWN = auto()
 
-def map_python_type_to_v(py_type: str) -> str:
+def map_python_type_to_v(py_type: str, self_name: str = "Self") -> str:
     """Maps a Python type name to its V equivalent."""
     if not py_type:
         return 'void'
@@ -25,16 +25,20 @@ def map_python_type_to_v(py_type: str) -> str:
     if py_type == 'bool': return 'bool'
     if py_type == 'None': return 'none'
     if py_type == 'Any': return 'any'
+    if py_type == 'object': return 'any' # Map object to any
+    if py_type == 'Self': return self_name
 
     try:
         # Use AST to parse complex types
         node = ast.parse(py_type, mode='eval').body
-        return _map_ast_type(node)
+        return _map_ast_type(node, self_name)
     except SyntaxError:
         return py_type
 
-def _map_ast_type(node: ast.AST) -> str:
+def _map_ast_type(node: ast.AST, self_name: str = "Self") -> str:
     if isinstance(node, ast.Name):
+        if node.id == "Self":
+            return self_name
         return _map_basic_type(node.id)
 
     elif isinstance(node, ast.Constant):
@@ -61,7 +65,7 @@ def _map_ast_type(node: ast.AST) -> str:
             args = [slice_node]
 
         # Helper to map args, handling nested types
-        mapped_args = [_map_ast_type(arg) for arg in args]
+        mapped_args = [_map_ast_type(arg, self_name) for arg in args]
 
         if value_id in ('List', 'list', 'Sequence', 'MutableSequence', 'Iterable', 'Iterator'):
             if mapped_args:
@@ -111,9 +115,9 @@ def _map_ast_type(node: ast.AST) -> str:
 
                 arg_types = []
                 if isinstance(arg_list_node, ast.List):
-                    arg_types = [_map_ast_type(a) for a in arg_list_node.elts]
+                    arg_types = [_map_ast_type(a, self_name) for a in arg_list_node.elts]
 
-                ret_type = _map_ast_type(ret_node)
+                ret_type = _map_ast_type(ret_node, self_name)
                 return f"fn ({', '.join(arg_types)}) {ret_type}"
             return "fn"
 
@@ -134,14 +138,33 @@ def _map_ast_type(node: ast.AST) -> str:
                 return mapped_args[0]
             return 'any'
 
+        elif value_id in ('Final', 'ClassVar', 'Annotated'):
+            # Strip
+            if mapped_args:
+                return mapped_args[0]
+            return 'any'
+
+        elif value_id == 'Required':
+            if mapped_args:
+                return mapped_args[0]
+            return 'any'
+
+        elif value_id == 'NotRequired':
+            if mapped_args:
+                return f"?{mapped_args[0]}"
+            return '?any'
+
+        elif value_id == 'TypeGuard':
+            return 'bool'
+
         # Default generic mapping: Name[T]
         return f"{value_id}[{', '.join(mapped_args)}]"
 
     elif isinstance(node, ast.BinOp):
         # A | B (Python 3.10+ Union)
         if isinstance(node.op, ast.BitOr):
-            left = _map_ast_type(node.left)
-            right = _map_ast_type(node.right)
+            left = _map_ast_type(node.left, self_name)
+            right = _map_ast_type(node.right, self_name)
             if left == 'none':
                 return f"?{right}"
             if right == 'none':
@@ -158,6 +181,7 @@ def _map_basic_type(name: str) -> str:
         'bool': 'bool',
         'None': 'none',
         'Any': 'any',
+        'object': 'any', # Map object to any
         'list': '[]int',
         'dict': 'map[string]int',
         'tuple': '[]int',
