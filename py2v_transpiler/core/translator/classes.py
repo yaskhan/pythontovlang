@@ -18,7 +18,7 @@ class ClassesMixin(TranslatorBase):
         for decorator in node.decorator_list:
             dec_str = self.visit(decorator)
             decorators.append(f"// @{dec_str}")
-            if dec_str == "dataclass" or dec_str == "dataclasses.dataclass":
+            if dec_str.startswith("dataclass") or dec_str.startswith("dataclasses.dataclass"):
                 is_dataclass = True
 
         # Extract fields from __init__ or class body annotations (simplified)

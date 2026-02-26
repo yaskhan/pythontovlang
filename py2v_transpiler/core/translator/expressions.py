@@ -22,12 +22,6 @@ class ExpressionsMixin(TranslatorBase):
             else:
                 args.append("/* unknown */")
 
-        # Do NOT include keyword values in args list yet for kwargs, handled separately or later.
-        # But visit_Call logic below relies on args containing everything for function calls?
-        # Actually existing logic appends kwargs to args if arg is None (double star).
-        # Keyword args (arg='val') are handled in node.keywords loop but not added to 'args' list
-        # unless we modify this loop. The existing code only adds **kwargs value.
-
         for keyword in node.keywords:
             if keyword.arg is None:
                 # **kwargs call -> pass dict as arg

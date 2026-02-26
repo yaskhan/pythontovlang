@@ -1,30 +1,34 @@
-from typing import List, Optional
-from .base import Translator
-from .models import VNode
+from py2v_transpiler.core.parser import PyASTParser
+from py2v_transpiler.core.translator import VNodeVisitor
+from py2v_transpiler.core.analyzer import TypeInference
+
+def _transpile(code: str) -> str:
+    parser = PyASTParser()
+    analyzer = TypeInference()
+    translator = VNodeVisitor(analyzer)
+    tree = parser.parse(code)
+    analyzer.analyze(tree)
+    return translator.visit_Module(tree)
 
 def test_del_multiple():
-    translator = Translator()
     code = "del a, b"
-    v_code = translator.translate(code)
+    v_code = _transpile(code)
     assert "/* del a */" in v_code
     assert "/* del b */" in v_code
 
 def test_bitwise_ops():
-    translator = Translator()
     code = "c = a & b | d ^ e"
-    v_code = translator.translate(code)
+    v_code = _transpile(code)
     assert "&" in v_code
     assert "|" in v_code
     assert "^" in v_code
 
 def test_if_exp():
-    translator = Translator()
     code = "x = 1 if y else 2"
-    v_code = translator.translate(code)
+    v_code = _transpile(code)
     assert "if y { 1 } else { 2 }" in v_code
 
 def test_dataclass():
-    translator = Translator()
     code = """
 from dataclasses import dataclass
 
@@ -35,8 +39,23 @@ class Point:
 
 p = Point(1, 2)
 """
-    v_code = translator.translate(code)
+    v_code = _transpile(code)
     assert "struct Point {" in v_code
     assert "x int" in v_code
     assert "y int" in v_code
     assert "Point{x: 1, y: 2}" in v_code
+
+def test_dataclass_with_args():
+    code = """
+from dataclasses import dataclass
+
+@dataclass(frozen=True)
+class FrozenPoint:
+    x: int
+
+p = FrozenPoint(1)
+"""
+    v_code = _transpile(code)
+    assert "struct FrozenPoint {" in v_code
+    assert "x int" in v_code
+    assert "FrozenPoint{x: 1}" in v_code
