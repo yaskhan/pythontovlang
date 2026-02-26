@@ -22,6 +22,12 @@ class ExpressionsMixin(TranslatorBase):
             else:
                 args.append("/* unknown */")
 
+        for keyword in node.keywords:
+            if keyword.arg is None:
+                # **kwargs call -> pass dict as arg
+                val = self.visit(keyword.value)
+                args.append(str(val))
+
         func_node = node.func
         module_name = None
         func_name = None

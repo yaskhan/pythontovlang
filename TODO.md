@@ -81,7 +81,7 @@
 - [ ] Support for contextlib module mapping
 - [ ] Support for typing module mapping
 - [x] Support for star arguments in function calls (*args)
-- [ ] Support for double star arguments in function calls (**kwargs)
+- [x] Support for double star arguments in function calls (**kwargs)
 - [x] Support for variadic arguments in definitions (*args)
 - [x] Support for keyword arguments in definitions (**kwargs)
 - [x] Support for keyword-only arguments (*, arg)
