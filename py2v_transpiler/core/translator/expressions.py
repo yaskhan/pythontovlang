@@ -397,8 +397,17 @@ class ExpressionsMixin(TranslatorBase):
         if isinstance(node.slice, ast.Constant) and node.slice.value is Ellipsis:
              return f"{value}[/* ... */]"
         # For Python < 3.9 where Ellipsis might be Index(Ellipsis)
-        if isinstance(node.slice, ast.Index) and isinstance(node.slice.value, ast.Constant) and node.slice.value.value is Ellipsis:
-             return f"{value}[/* ... */]"
+        # Mypy complaint: "<subclass of "ast.expr" and "ast.Index">" has no attribute "value"
+        # ast.Index is deprecated/removed in 3.10+, but might exist in older stubs or runtime.
+        # In 3.10+, subscript slice is just the node.
+        # We should check hasattr or try/except, or ignore type.
+        # Or better: check isinstance(node.slice, ast.Index) only if ast.Index exists.
+        # But we import ast.
+        # We can cast node.slice to Any to silence mypy if we are sure.
+        if hasattr(ast, "Index") and isinstance(node.slice, getattr(ast, "Index")):
+             idx = node.slice # type: ignore
+             if isinstance(idx.value, ast.Constant) and idx.value.value is Ellipsis:
+                 return f"{value}[/* ... */]"
 
         # Handle Ellipsis directly if node.slice is Ellipsis node (not Constant, unlikely in recent python ast but possible)
         # In 3.12, it is usually Constant(value=Ellipsis)
