@@ -186,6 +186,14 @@ class StdLibMapper:
                 "standard_b64decode": "base64.decode",
                 "urlsafe_b64encode": "base64.url_encode",
                 "urlsafe_b64decode": "base64.url_decode",
+            },
+            "urllib.parse": {
+                "urlparse": "py_urlparse",
+                "quote": "urllib.query_escape",
+                "quote_plus": "urllib.query_escape",
+                "unquote": "py_urllib_unquote",
+                "unquote_plus": "py_urllib_unquote",
+                "urlencode": "py_urlencode",
             }
         }
 
@@ -220,6 +228,7 @@ class StdLibMapper:
             "platform": ["os"],
             "hashlib": ["crypto.sha256", "crypto.md5", "encoding.hex"],
             "base64": ["encoding.base64"],
+            "urllib.parse": ["net.urllib"],
         }
 
     def get_mapping(self, module: str, func: str, args: List[str]) -> Optional[str]:

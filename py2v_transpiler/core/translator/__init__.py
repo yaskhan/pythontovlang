@@ -475,4 +475,30 @@ class VNodeVisitor(
              self.emitter.add_function("fn (h PyHashMd5) digest() []u8 {\n    return md5.sum(h.data)\n}")
              self.emitter.add_function("fn (h PyHashMd5) hexdigest() string {\n    return md5.hexhash(h.data)\n}")
 
+        urllib_parse_used = "urllib.parse" in self.imported_modules.values()
+        if not urllib_parse_used:
+             for sym in self.imported_symbols.values():
+                 if sym.startswith("urllib.parse."):
+                     urllib_parse_used = True
+                     break
+
+        if urllib_parse_used:
+             # py_urllib_unquote
+             self.emitter.add_function("fn py_urllib_unquote(s string) string {\n    return urllib.query_unescape(s) or { s }\n}")
+
+             # py_urlencode
+             # V's Values.add takes (key, val). urlencode takes map.
+             self.emitter.add_function("fn py_urlencode(params map[string]string) string {\n    mut v := urllib.new_values(map[string][]string{})\n    for key, val in params {\n        v.add(key, val)\n    }\n    return v.encode()\n}")
+
+             # py_urlparse
+             # Returns urllib.URL.
+             # Python urlparse returns ParseResult (named tuple).
+             # V's urllib.parse returns !URL.
+             # We can just return urllib.URL, but Python attributes might differ.
+             # Python: scheme, netloc, path, params, query, fragment
+             # V: scheme, host, path, raw_query, fragment. (netloc ~= host, query ~= raw_query).
+             # We might need a wrapper struct if we want exact field names, but for now let's return URL.
+             # Helper handles the result unwrapping.
+             self.emitter.add_function("fn py_urlparse(url string) urllib.URL {\n    return urllib.parse(url) or { urllib.URL{} }\n}")
+
         return self.emitter.emit()
