@@ -1,5 +1,5 @@
 import ast
-from typing import List, Optional
+from typing import List, Optional, Set
 from py2v_transpiler.models.v_types import map_python_type_to_v
 from .base import TranslatorBase
 
@@ -30,6 +30,7 @@ class ClassesMixin(TranslatorBase):
         # Extract fields from __init__ or class body annotations (simplified)
         fields = []
         dataclass_field_order = []
+        added_fields: Set[str] = set() # Track added fields to prevent duplicates
 
         is_enum = False
         is_int_enum = False
@@ -98,15 +99,11 @@ class ClassesMixin(TranslatorBase):
                     self.current_class_bases.append(base_name)
 
             elif isinstance(base, ast.Name):
-                if base.id != "Generic" and base.id != "Protocol" and base.id != "NamedTuple" and base.id != "TypedDict":
+                if base.id != "Generic" and base.id != "Protocol" and base.id != "NamedTuple":
                     fields.append(f"    {base.id}")
                     self.current_class_bases.append(base.id)
             elif isinstance(base, ast.Attribute):
                 val = self.visit(base)
-                # Ignore TypedDict base
-                if val == "TypedDict" or val == "typing.TypedDict":
-                     continue
-
                 fields.append(f"    {val}")
                 self.current_class_bases.append(base.attr)
 
@@ -118,6 +115,11 @@ class ClassesMixin(TranslatorBase):
             elif isinstance(stmt, ast.AnnAssign) and isinstance(stmt.target, ast.Name):
                 # Class attribute with annotation -> struct field
                 field_name = stmt.target.id
+
+                if field_name in added_fields:
+                    continue
+                added_fields.add(field_name)
+
                 field_type = "int" # default
                 if stmt.annotation:
                     try:
@@ -140,11 +142,19 @@ class ClassesMixin(TranslatorBase):
                  # Check for __slots__
                  for target in stmt.targets:
                      if isinstance(target, ast.Name) and target.id == "__slots__":
-                         # Parse value list
+                         # Parse value
+                         slots_list = []
                          if isinstance(stmt.value, (ast.List, ast.Tuple)):
                              for elt in stmt.value.elts:
                                  if isinstance(elt, ast.Constant) and isinstance(elt.value, str):
-                                      fields.append(f"    {elt.value} int") # Default to int
+                                      slots_list.append(elt.value)
+                         elif isinstance(stmt.value, ast.Constant) and isinstance(stmt.value.value, str):
+                             slots_list.append(stmt.value.value)
+
+                         for slot in slots_list:
+                             if slot not in added_fields:
+                                 fields.append(f"    {slot} int") # Default to int
+                                 added_fields.add(slot)
 
         if is_dataclass:
             if not hasattr(self, 'dataclasses'):

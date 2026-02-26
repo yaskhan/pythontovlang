@@ -35,6 +35,41 @@ class Point:
         self.assertIn("x int", result)
         self.assertIn("y int", result)
 
+    def test_slots_single_string(self):
+        source = """
+class Box:
+    __slots__ = "value"
+"""
+        result = self.transpile(source)
+        self.assertIn("struct Box {", result)
+        self.assertIn("value int", result)
+
+    def test_slots_duplication(self):
+        source = """
+class Point:
+    __slots__ = ['x', 'y']
+    x: int
+    def __init__(self):
+        self.y = 1
+"""
+        result = self.transpile(source)
+        # Should contain 'x int' only once
+        # Using count to verify
+        self.assertEqual(result.count("x int"), 1)
+        # y might be inferred or defaulted, but checking for duplicates in struct definition
+        # The struct definition block:
+        # struct Point {
+        #     x int
+        #     y int
+        # }
+        # Simple string count might match usage in methods, so be careful.
+        # But 'x int' is usually the field declaration.
+        # Or 'x: int' if ann assign was used?
+        # My implementation outputs '    field type' (indent + field + space + type).
+        # So "    x int"
+        self.assertEqual(result.count("    x int"), 1)
+        self.assertEqual(result.count("    y int"), 1)
+
     def test_descriptors(self):
         source = """
 class Descriptor:

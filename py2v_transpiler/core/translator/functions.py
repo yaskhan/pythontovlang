@@ -11,7 +11,6 @@ class FunctionsMixin(TranslatorBase):
         self._visit_function_common(node, is_async=True)
 
     def _visit_function_common(self, node: Any, is_async: bool = False) -> None:
-        self.function_names.add(node.name)
         # Check for @overload
         for decorator in node.decorator_list:
             if isinstance(decorator, ast.Name) and decorator.id == 'overload':

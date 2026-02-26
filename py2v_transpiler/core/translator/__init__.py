@@ -47,7 +47,6 @@ class VNodeVisitor(
         self.name_remap = {} # Temporary variable renaming (e.g. x -> it in generators)
         self._walrus_assignments: List[str] = [] # Buffer for walrus operator assignments
         self.single_dispatch_functions: Dict[str, Dict[str, str]] = {} # dispatcher_name -> {type_name -> impl_func_name}
-        self.function_names: Set[str] = set()
 
         self.mapper = StdLibMapper()
         self.imported_modules: Dict[str, str] = {} # alias -> module_name
@@ -179,7 +178,15 @@ class VNodeVisitor(
                      pathlib_used = True
                      break
 
-        if collections_used := "collections" in self.imported_modules.values():
+        # Check for collections usage
+        collections_used = "collections" in self.imported_modules.values()
+        if not collections_used:
+             for sym in self.imported_symbols.values():
+                 if sym.startswith("collections."):
+                     collections_used = True
+                     break
+
+        if collections_used:
              self.emitter.add_function("fn py_counter[T](a []T) map[T]int {\n    mut m := map[T]int{}\n    for x in a {\n        m[x]++\n    }\n    return m\n}")
 
         itertools_used = "itertools" in self.imported_modules.values()

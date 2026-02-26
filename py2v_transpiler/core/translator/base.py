@@ -34,7 +34,6 @@ class TranslatorBase(ast.NodeVisitor):
         self.imported_modules: Dict[str, str] = {}
         self.imported_symbols: Dict[str, str] = {}
         self.single_dispatch_functions: Dict[str, Dict[str, str]] = {} # dispatcher_name -> {type_name -> impl_func_name}
-        self.function_names: Set[str] = set()
 
     def _indent(self) -> str:
         return "    " * self._indent_level
