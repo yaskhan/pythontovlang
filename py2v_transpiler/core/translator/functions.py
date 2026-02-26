@@ -11,6 +11,13 @@ class FunctionsMixin(TranslatorBase):
         self._visit_function_common(node, is_async=True)
 
     def _visit_function_common(self, node: Any, is_async: bool = False) -> None:
+        # Check for @overload
+        for decorator in node.decorator_list:
+            if isinstance(decorator, ast.Name) and decorator.id == 'overload':
+                return
+            if isinstance(decorator, ast.Attribute) and decorator.attr == 'overload':
+                return
+
         is_generator = False
         if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
              is_generator = self.coroutine_handler.is_generator(node.name)
@@ -98,7 +105,7 @@ class FunctionsMixin(TranslatorBase):
             if arg.annotation:
                 try:
                     type_str = ast.unparse(arg.annotation)
-                    arg_type = map_python_type_to_v(type_str)
+                    arg_type = map_python_type_to_v(type_str, self_name=struct_name or "Self")
                 except Exception:
                     arg_type = self.type_inference.type_map.get(arg_name, "int")
             else:
@@ -112,7 +119,7 @@ class FunctionsMixin(TranslatorBase):
             if node.args.vararg.annotation:
                 try:
                     type_str = ast.unparse(node.args.vararg.annotation)
-                    arg_type = map_python_type_to_v(type_str)
+                    arg_type = map_python_type_to_v(type_str, self_name=struct_name or "Self")
                 except Exception:
                     pass
             args_str_list.append(f"{arg_name} ...{arg_type}")
@@ -124,7 +131,7 @@ class FunctionsMixin(TranslatorBase):
             if node.args.kwarg.annotation:
                 try:
                     type_str = ast.unparse(node.args.kwarg.annotation)
-                    arg_type = map_python_type_to_v(type_str)
+                    arg_type = map_python_type_to_v(type_str, self_name=struct_name or "Self")
                 except Exception:
                     pass
             args_str_list.append(f"{arg_name} {arg_type}")
@@ -134,10 +141,26 @@ class FunctionsMixin(TranslatorBase):
 
         ret_type = "void"
         if not is_generator and node.returns:
-             if isinstance(node.returns, ast.Name):
-                  ret_type = node.returns.id
-             elif isinstance(node.returns, ast.Constant) and isinstance(node.returns.value, str):
-                  ret_type = node.returns.value
+             try:
+                 type_str = ast.unparse(node.returns)
+                 ret_type = map_python_type_to_v(type_str, self_name=struct_name or "Self")
+             except:
+                 if isinstance(node.returns, ast.Name):
+                      ret_type = node.returns.id
+                 elif isinstance(node.returns, ast.Constant) and isinstance(node.returns.value, str):
+                      ret_type = node.returns.value
+
+        # Check for NoReturn
+        is_noreturn = False
+        if ret_type == "void":
+             # Check if original annotation was NoReturn
+             try:
+                 if hasattr(ast, 'unparse'):
+                      ret_str = ast.unparse(node.returns)
+                      if "NoReturn" in ret_str:
+                           is_noreturn = True
+             except:
+                 pass
 
         if not is_unittest_method:
             func_name = node.name
@@ -198,10 +221,12 @@ class FunctionsMixin(TranslatorBase):
              func_name = "str"
              decl = f"fn {receiver_str}{func_name}() string {{"
 
+        noreturn_attr = "[noreturn]\n" if is_noreturn else ""
+
         if 'decl' not in locals():
-            decl = f"fn {receiver_str}{func_name}({args_str}) {ret_type} {{"
+            decl = f"{noreturn_attr}fn {receiver_str}{func_name}({args_str}) {ret_type} {{"
         if ret_type == "void":
-             decl = f"fn {receiver_str}{func_name}({args_str}) {{"
+             decl = f"{noreturn_attr}fn {receiver_str}{func_name}({args_str}) {{"
 
         self.output.append(f"{decl}") # No indent for top level function
         self._indent_level += 1

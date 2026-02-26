@@ -24,6 +24,8 @@ class ClassesMixin(TranslatorBase):
         is_enum = False
         is_int_enum = False
         is_unittest = False
+        is_protocol = False
+        is_named_tuple = False
 
         # Handle inheritance (bases)
         for base in node.bases:
@@ -37,12 +39,20 @@ class ClassesMixin(TranslatorBase):
                      # Check if it's likely unittest.TestCase
                      # Or check if base is Attribute unittest.TestCase
                      is_unittest = True
+                elif base.id == "Protocol":
+                     is_protocol = True
+                elif base.id == "NamedTuple":
+                     is_named_tuple = True
 
             elif isinstance(base, ast.Attribute):
                 # Check for unittest.TestCase
                 val = self.visit(base)
                 if val == "unittest.TestCase" or (isinstance(base.value, ast.Name) and base.value.id == "unittest" and base.attr == "TestCase"):
                      is_unittest = True
+                elif val == "typing.Protocol":
+                     is_protocol = True
+                elif val == "typing.NamedTuple":
+                     is_named_tuple = True
 
             # Handle Generic[T]
             if isinstance(base, ast.Subscript):
@@ -71,7 +81,7 @@ class ClassesMixin(TranslatorBase):
                     self.current_class_bases.append(base_name)
 
             elif isinstance(base, ast.Name):
-                if base.id != "Generic":
+                if base.id != "Generic" and base.id != "Protocol" and base.id != "NamedTuple":
                     fields.append(f"    {base.id}")
                     self.current_class_bases.append(base.id)
             elif isinstance(base, ast.Attribute):
@@ -91,7 +101,7 @@ class ClassesMixin(TranslatorBase):
                 if stmt.annotation:
                     try:
                         type_str = ast.unparse(stmt.annotation)
-                        field_type = map_python_type_to_v(type_str)
+                        field_type = map_python_type_to_v(type_str, self_name=struct_name)
                     except Exception:
                         if isinstance(stmt.annotation, ast.Name):
                             field_type = stmt.annotation.id
@@ -102,6 +112,58 @@ class ClassesMixin(TranslatorBase):
              # Do NOT emit struct for unittest class, just methods
              for method in methods:
                  self.visit(method)
+        elif is_protocol:
+             # Emit interface
+             interface_def = ""
+             if decorators:
+                 interface_def += "\n".join(decorators) + "\n"
+
+             generics_str = ""
+             if self.current_class_generics:
+                sanitized = [g.lstrip('_') for g in self.current_class_generics]
+                self.current_class_generics = sanitized
+                generics_str = f"[{', '.join(sanitized)}]"
+
+             interface_def += f"interface {struct_name}{generics_str} {{\n"
+             # Emit method signatures
+             for method in methods:
+                 # Minimal signature extraction
+                 # fn name(args) ret
+                 # We can reuse visit_FunctionDef but it emits implementation.
+                 # Interfaces in V only have signatures.
+                 # We need to extract signature.
+                 # Simplified: parse method manually here or reuse logic?
+                 # Reusing logic is hard because visit_FunctionDef assumes struct context and emits body.
+
+                 # Manual extraction:
+                 m_name = method.name
+                 m_args = []
+                 for arg in method.args.args:
+                     if arg.arg == 'self': continue
+                     a_name = arg.arg
+                     a_type = "int"
+                     if arg.annotation:
+                          try:
+                               type_str = ast.unparse(arg.annotation)
+                               a_type = map_python_type_to_v(type_str, self_name=struct_name)
+                          except: pass
+                     m_args.append(f"{a_name} {a_type}")
+
+                 m_ret = "void"
+                 if method.returns:
+                      try:
+                           type_str = ast.unparse(method.returns)
+                           m_ret = map_python_type_to_v(type_str, self_name=struct_name)
+                      except: pass
+
+                 if m_ret == "void":
+                      interface_def += f"    {m_name}({', '.join(m_args)})\n"
+                 else:
+                      interface_def += f"    {m_name}({', '.join(m_args)}) {m_ret}\n"
+
+             interface_def += "}"
+             self.emitter.add_struct(interface_def)
+
         else:
             struct_def = ""
             if decorators:

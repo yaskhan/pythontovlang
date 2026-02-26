@@ -149,30 +149,30 @@
 - [x] Support for 'match' statement value patterns (case CONST)
 - [ ] Support for 'try/except*' (Exception Groups - Python 3.11+)
 - [ ] Support for '__init_subclass__' hook
-- [ ] Support for 'typing.Protocol' (structural subtyping)
-- [ ] Support for 'typing.Literal' types
-- [ ] Support for 'typing.Final' qualifier
-- [ ] Support for 'typing.overload' decorator
-- [ ] Support for 'typing.cast' (no-op)
-- [ ] Support for 'typing.NewType'
-- [ ] Support for 'typing.NoReturn'
+- [x] Support for 'typing.Protocol' (structural subtyping)
+- [x] Support for 'typing.Literal' types
+- [x] Support for 'typing.Final' qualifier
+- [x] Support for 'typing.overload' decorator
+- [x] Support for 'typing.cast' (no-op)
+- [x] Support for 'typing.NewType'
+- [x] Support for 'typing.NoReturn'
 - [ ] Support for name mangling (__private attributes)
 - [ ] Support for nested destructuring assignment (a, (b, c) = ...)
 - [x] Support for 'match' statement wildcard pattern (case _)
 - [x] Support for 'match' statement class patterns (case Point(x=1))
-- [ ] Support for 'typing.TypeVar' (generics definition)
-- [ ] Support for 'typing.ClassVar'
-- [ ] Support for 'typing.Self' (Python 3.11+)
-- [ ] Support for 'typing.Annotated'
+- [x] Support for 'typing.TypeVar' (generics definition)
+- [x] Support for 'typing.ClassVar'
+- [x] Support for 'typing.Self' (Python 3.11+)
+- [x] Support for 'typing.Annotated'
 - [ ] Support for multiple targets in 'del' statement (del a, b)
 - [ ] Support for bitwise operators (&, |, ^, ~, <<, >>)
 - [ ] Support for conditional expressions (x if y else z)
 - [ ] Support for 'dataclasses' module (transform to V structs)
-- [ ] Support for 'typing.NamedTuple'
-- [ ] Support for 'typing.ParamSpec'
-- [ ] Support for 'typing.TypeGuard'
-- [ ] Support for 'typing.Required' and 'typing.NotRequired'
-- [ ] Support for 'typing.Unpack'
+- [x] Support for 'typing.NamedTuple'
+- [x] Support for 'typing.ParamSpec'
+- [x] Support for 'typing.TypeGuard'
+- [x] Support for 'typing.Required' and 'typing.NotRequired'
+- [x] Support for 'typing.Unpack'
 - [ ] Support for 'enum.Flag' and 'enum.auto()'
 - [ ] Support for 'functools.partial' translation
 - [ ] Support for 'functools.singledispatch'

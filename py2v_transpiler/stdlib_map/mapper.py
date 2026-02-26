@@ -241,8 +241,7 @@ class StdLibMapper:
                 "redirect_stdout": self._contextlib_redirect_stdout,
             },
             "typing": {
-                # Mostly handled via static type analysis and type hints
-                # Symbols here are often used as type hints which are processed separately
+                "cast": self._typing_cast,
             }
         }
 
@@ -570,3 +569,9 @@ class StdLibMapper:
 
     def _contextlib_redirect_stdout(self, args: List[str]) -> str:
         return f"/* contextlib.redirect_stdout({', '.join(args)}) ignored */"
+
+    def _typing_cast(self, args: List[str]) -> str:
+        # cast(type, value) -> value
+        if len(args) >= 2:
+            return args[1]
+        return "/* typing.cast missing args */"
