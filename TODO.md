@@ -91,7 +91,7 @@
 - [x] Support for dictionary comprehensions
 - [x] Support for set comprehensions
 - [x] Support for generator expressions (independent)
-- [ ] Support for complex numbers
+- [x] Support for complex numbers
 - [ ] Support for matrix multiplication operator (@)
 - [x] Support for bytes and bytearray literals
 - [x] Implement Import Topology Analyzer (Dependency Graph)

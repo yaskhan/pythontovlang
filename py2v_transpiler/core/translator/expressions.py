@@ -281,6 +281,15 @@ class ExpressionsMixin(TranslatorBase):
              obj = self.visit(node.value)
              return f"typeof({obj})"
 
+        if node.attr == "real":
+             if self._guess_type(node.value) == "PyComplex":
+                 obj = self.visit(node.value)
+                 return f"{obj}.re"
+        elif node.attr == "imag":
+             if self._guess_type(node.value) == "PyComplex":
+                 obj = self.visit(node.value)
+                 return f"{obj}.im"
+
         obj = self.visit(node.value)
         return f"{obj}.{node.attr}"
 
@@ -296,8 +305,17 @@ class ExpressionsMixin(TranslatorBase):
             return f"{value}[{index}]"
 
     def visit_BinOp(self, node: ast.BinOp) -> str:
+        left_type = self._guess_type(node.left)
+        right_type = self._guess_type(node.right)
+
         left = self.visit(node.left)
         right = self.visit(node.right)
+
+        if left_type == "PyComplex" and right_type != "PyComplex":
+             right = f"py_complex(f64({right}), 0.0)"
+        elif right_type == "PyComplex" and left_type != "PyComplex":
+             left = f"py_complex(f64({left}), 0.0)"
+
         op_map = {
             ast.Add: "+", ast.Sub: "-", ast.Mult: "*", ast.Div: "/",
             ast.Mod: "%", ast.Pow: "**"
@@ -509,7 +527,10 @@ class ExpressionsMixin(TranslatorBase):
 
         key_type = self._guess_type(node.key)
         val_type = self._guess_type(node.value)
-        self.output.append(f"{self._indent()}mut {target_var} := map[{key_type}]{val_type}{{}}")
+        is_decl = target_var.isidentifier()
+        op = ":=" if is_decl else "="
+        mut_prefix = "mut " if is_decl else ""
+        self.output.append(f"{self._indent()}{mut_prefix}{target_var} {op} map[{key_type}]{val_type}{{}}")
 
         if isinstance(gen.iter, ast.Call) and isinstance(gen.iter.func, ast.Name) and gen.iter.func.id == "zip":
              zip_args = gen.iter.args
@@ -645,6 +666,7 @@ class ExpressionsMixin(TranslatorBase):
              if isinstance(node.value, float): return "f64"
              if isinstance(node.value, str): return "string"
              if isinstance(node.value, bool): return "bool"
+             if isinstance(node.value, complex): return "PyComplex"
              return "int"
         elif isinstance(node, ast.Name):
             # Try to resolve via type inference
@@ -654,10 +676,14 @@ class ExpressionsMixin(TranslatorBase):
             return "int" # Fallback
         elif isinstance(node, ast.BinOp):
             if isinstance(node.op, ast.Div):
+                left = self._guess_type(node.left)
+                right = self._guess_type(node.right)
+                if left == "PyComplex" or right == "PyComplex": return "PyComplex"
                 return "f64"
             # For Add/Sub/Mult/Mod/Pow, check operands
             left = self._guess_type(node.left)
             right = self._guess_type(node.right)
+            if left == "PyComplex" or right == "PyComplex": return "PyComplex"
             if left == "f64" or right == "f64": return "f64"
             if left == "string" or right == "string": return "string"
             return "int"
@@ -712,7 +738,10 @@ class ExpressionsMixin(TranslatorBase):
         self._infer_generator_types(gen)
 
         key_type = self._guess_type(node.elt)
-        self.output.append(f"{self._indent()}mut {target_var} := map[{key_type}]bool{{}}")
+        is_decl = target_var.isidentifier()
+        op = ":=" if is_decl else "="
+        mut_prefix = "mut " if is_decl else ""
+        self.output.append(f"{self._indent()}{mut_prefix}{target_var} {op} map[{key_type}]bool{{}}")
 
         if isinstance(gen.iter, ast.Call) and isinstance(gen.iter.func, ast.Name) and gen.iter.func.id == "zip":
              zip_args = gen.iter.args

@@ -42,6 +42,7 @@ class VNodeVisitor(
         self.current_class_is_unittest = False
         self._zip_counter = 0 # Counter for unique variable names in zip loops
         self.used_builtins = set() # Track used built-in helpers (sorted, reversed, etc)
+        self.used_complex = False
         self.renamed_functions = {"main": "py_main"} # Map to rename functions (e.g. main -> py_main)
         self.name_remap = {} # Temporary variable renaming (e.g. x -> it in generators)
         self._walrus_assignments: List[str] = [] # Buffer for walrus operator assignments
@@ -52,6 +53,10 @@ class VNodeVisitor(
 
     def visit_Module(self, node: ast.Module) -> str:
         self.coroutine_handler.scan_module(node)
+
+        # Pre-scan for complex numbers to ensure struct is emitted
+        # Actually, literals might be nested. `self.visit` updates `used_complex`.
+        # But we emit helpers at the end. Correct.
 
         for stmt in node.body:
             # Check if statement is top-level expression or assignment
@@ -83,6 +88,15 @@ class VNodeVisitor(
             self.emitter.add_function(
                 "fn py_reversed[T](a []T) []T {\n    mut b := a.clone()\n    b.reverse()\n    return b\n}"
             )
+
+        if self.used_complex:
+             self.emitter.add_struct("struct PyComplex {\n    re f64\n    im f64\n}")
+             self.emitter.add_function("fn py_complex(re f64, im f64) PyComplex {\n    return PyComplex{re: re, im: im}\n}")
+             self.emitter.add_function("fn (a PyComplex) + (b PyComplex) PyComplex {\n    return PyComplex{re: a.re + b.re, im: a.im + b.im}\n}")
+             self.emitter.add_function("fn (a PyComplex) - (b PyComplex) PyComplex {\n    return PyComplex{re: a.re - b.re, im: a.im - b.im}\n}")
+             self.emitter.add_function("fn (a PyComplex) * (b PyComplex) PyComplex {\n    return PyComplex{re: a.re * b.re - a.im * b.im, im: a.re * b.im + a.im * b.re}\n}")
+             self.emitter.add_function("fn (a PyComplex) / (b PyComplex) PyComplex {\n    denom := b.re * b.re + b.im * b.im\n    return PyComplex{re: (a.re * b.re + a.im * b.im) / denom, im: (a.im * b.re - a.re * b.im) / denom}\n}")
+             self.emitter.add_function("fn (z PyComplex) str() string {\n    sign := if z.im >= 0 { '+' } else { '-' }\n    im_abs := if z.im >= 0 { z.im } else { -z.im }\n    return '(${z.re}${sign}${im_abs}j)'\n}")
 
         # Simple check for tempfile usage. `imported_modules` values are module names.
         # But we also need to check if we actually used the helpers, which are returned by mapper.
