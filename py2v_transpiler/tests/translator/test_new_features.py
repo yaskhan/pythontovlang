@@ -1,3 +1,5 @@
+import ast
+from typing import cast
 from py2v_transpiler.core.parser import PyASTParser
 from py2v_transpiler.core.translator import VNodeVisitor
 from py2v_transpiler.core.analyzer import TypeInference
@@ -8,7 +10,8 @@ def _transpile(code: str) -> str:
     translator = VNodeVisitor(analyzer)
     tree = parser.parse(code)
     analyzer.analyze(tree)
-    return translator.visit_Module(tree)
+    module_tree = cast(ast.Module, tree)
+    return translator.visit_Module(module_tree)
 
 def test_del_multiple():
     code = "del a, b"

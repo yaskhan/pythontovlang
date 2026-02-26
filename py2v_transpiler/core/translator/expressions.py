@@ -193,14 +193,14 @@ class ExpressionsMixin(TranslatorBase):
             field_order = self.dataclasses[func_name_str]
             struct_args = []
             # Map positional args
-            for i, arg in enumerate(args):
+            for i, arg_val in enumerate(args):
                 if i < len(field_order):
-                    struct_args.append(f"{field_order[i]}: {arg}")
+                    struct_args.append(f"{field_order[i]}: {arg_val}")
             # Map keyword args
             for keyword in node.keywords:
                 if keyword.arg:
-                     kw_val = self.visit(keyword.value)
-                     struct_args.append(f"{keyword.arg}: {kw_val}")
+                     kw_val_str = str(self.visit(keyword.value))
+                     struct_args.append(f"{keyword.arg}: {kw_val_str}")
 
             return f"{func_name_str}{{{', '.join(struct_args)}}}"
 
