@@ -389,8 +389,13 @@ class ExpressionsMixin(TranslatorBase):
         if isinstance(node.slice, ast.Constant) and node.slice.value is Ellipsis:
              return f"{value}[/* ... */]"
         # For Python < 3.9 where Ellipsis might be Index(Ellipsis)
-        if isinstance(node.slice, ast.Index) and isinstance(node.slice.value, ast.Constant) and node.slice.value.value is Ellipsis:
-             return f"{value}[/* ... */]"
+        # ast.Index is deprecated/removed in 3.10+ but might still be in typeshed or parsed code
+        if isinstance(node.slice, ast.Index):
+             # Mypy might complain about ast.Index not having value in newer python versions, but it does in < 3.9.
+             # We use getattr to be safe or type ignore.
+             idx_val = getattr(node.slice, 'value', None)
+             if isinstance(idx_val, ast.Constant) and idx_val.value is Ellipsis:
+                  return f"{value}[/* ... */]"
 
         # Handle Ellipsis directly if node.slice is Ellipsis node (not Constant, unlikely in recent python ast but possible)
         # In 3.12, it is usually Constant(value=Ellipsis)
