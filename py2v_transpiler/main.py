@@ -33,6 +33,9 @@ def transpile_file(source_file: str, config: TranspilerConfig) -> bool:
 
     # 3. Analyze types
     analyzer = TypeInference()
+    # Always run internal type analysis first
+    analyzer.analyze(tree)
+
     if config.mypy_enabled:
         analyzer.run_mypy(source_file)
 

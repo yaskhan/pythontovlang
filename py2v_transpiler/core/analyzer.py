@@ -40,6 +40,24 @@ class TypeInference(ast.NodeVisitor):
 
         self.generic_visit(node)
 
+    def visit_Assign(self, node: ast.Assign) -> Any:
+        # Simple type inference for assignments: x = MyClass()
+        if len(node.targets) == 1 and isinstance(node.targets[0], ast.Name):
+            target_name = node.targets[0].id
+            if isinstance(node.value, ast.Call) and isinstance(node.value.func, ast.Name):
+                # Check if it looks like a class instantiation (Capitalized)
+                type_name = node.value.func.id
+                if type_name[0].isupper():
+                     self.type_map[target_name] = type_name
+            elif isinstance(node.value, ast.Constant):
+                 if isinstance(node.value.value, int): self.type_map[target_name] = "int"
+                 elif isinstance(node.value.value, float): self.type_map[target_name] = "f64"
+                 elif isinstance(node.value.value, str): self.type_map[target_name] = "string"
+                 elif isinstance(node.value.value, bool): self.type_map[target_name] = "bool"
+                 elif isinstance(node.value.value, bytes): self.type_map[target_name] = "bytes"
+
+        self.generic_visit(node)
+
     def visit_FunctionDef(self, node: ast.FunctionDef) -> Any:
         for arg in node.args.args:
             if arg.annotation:
