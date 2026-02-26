@@ -385,6 +385,16 @@ class ExpressionsMixin(TranslatorBase):
     def visit_Subscript(self, node: ast.Subscript) -> str:
         value = self.visit(node.value)
 
+        # Handle Ellipsis in slice (e.g. a[...])
+        if isinstance(node.slice, ast.Constant) and node.slice.value is Ellipsis:
+             return f"{value}[/* ... */]"
+        # For Python < 3.9 where Ellipsis might be Index(Ellipsis)
+        if isinstance(node.slice, ast.Index) and isinstance(node.slice.value, ast.Constant) and node.slice.value.value is Ellipsis:
+             return f"{value}[/* ... */]"
+
+        # Handle Ellipsis directly if node.slice is Ellipsis node (not Constant, unlikely in recent python ast but possible)
+        # In 3.12, it is usually Constant(value=Ellipsis)
+
         if isinstance(node.slice, ast.Slice):
             lower = self.visit(node.slice.lower) if node.slice.lower else ""
             upper = self.visit(node.slice.upper) if node.slice.upper else ""
@@ -746,9 +756,8 @@ class ExpressionsMixin(TranslatorBase):
             self.output.append(f"{self._indent()}if {cond} {{")
             self._indent_level += 1
 
-        key = self.visit(node.key)
-        val = self.visit(node.value)
-        self.output.append(f"{self._indent()}{target_var}[{key}] = {val}")
+        elt = self.visit(node.elt)
+        self.output.append(f"{self._indent()}{target_var}[{elt}] = true")
 
         for _ in gen.ifs:
             self._indent_level -= 1

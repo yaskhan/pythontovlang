@@ -21,6 +21,10 @@ class ImportsMixin(TranslatorBase):
         if node.module:
             module_name = node.module
 
+            # Suppress __future__ imports
+            if module_name == "__future__":
+                return
+
             # Add V imports
             v_imports = self.mapper.get_imports(module_name)
             if v_imports is not None:

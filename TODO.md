@@ -127,12 +127,12 @@
 - [ ] Support for bi-directional generator methods (send/throw/close)
 - [ ] Support for async comprehensions ([x async for x in y])
 - [ ] Support for implicit string literal concatenation ("a" "b")
-- [ ] Support for metaclasses (class X(metaclass=M))
-- [ ] Support for __slots__ optimization
-- [ ] Support for descriptor protocol (__get__, __set__, __delete__)
-- [ ] Support for __new__ method (custom instance creation)
-- [ ] Support for Ellipsis (...) literal in slicing and stubs
-- [ ] Support for postponed type annotation evaluation (from __future__ import annotations)
+- [x] Support for metaclasses (class X(metaclass=M))
+- [x] Support for __slots__ optimization
+- [x] Support for descriptor protocol (__get__, __set__, __delete__)
+- [x] Support for __new__ method (custom instance creation)
+- [x] Support for Ellipsis (...) literal in slicing and stubs
+- [x] Support for postponed type annotation evaluation (from __future__ import annotations)
 - [ ] Support for augmented matrix multiplication (@=)
 - [ ] Support for custom __format__ methods
 - [x] Support for 'match' statement sequence patterns ([x, y, *rest])

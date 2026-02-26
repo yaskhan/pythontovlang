@@ -173,20 +173,12 @@ class VNodeVisitor(
 
         pathlib_used = "pathlib" in self.imported_modules.values()
         if not pathlib_used:
-             # Check if used via from ... import ...
              for sym in self.imported_symbols.values():
                  if sym.startswith("pathlib."):
                      pathlib_used = True
                      break
 
-        collections_used = "collections" in self.imported_modules.values()
-        if not collections_used:
-             for sym in self.imported_symbols.values():
-                 if sym.startswith("collections."):
-                     collections_used = True
-                     break
-
-        if collections_used:
+        if collections_used := "collections" in self.imported_modules.values():
              self.emitter.add_function("fn py_counter[T](a []T) map[T]int {\n    mut m := map[T]int{}\n    for x in a {\n        m[x]++\n    }\n    return m\n}")
 
         itertools_used = "itertools" in self.imported_modules.values()

@@ -6,6 +6,8 @@ class LiteralsMixin(TranslatorBase):
         val = node.value
         if isinstance(val, str):
             return f"'{val}'"
+        elif val is Ellipsis:
+             return "/* ... */"
         elif isinstance(val, bool):
             return str(val).lower()
         elif isinstance(val, bytes):

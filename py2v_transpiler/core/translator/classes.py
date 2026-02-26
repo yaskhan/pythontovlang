@@ -21,6 +21,12 @@ class ClassesMixin(TranslatorBase):
             if dec_str.startswith("dataclass") or dec_str.startswith("dataclasses.dataclass"):
                 is_dataclass = True
 
+        # Support for Metaclasses (emit comment)
+        for keyword in node.keywords:
+            if keyword.arg == "metaclass":
+                meta_val = self.visit(keyword.value)
+                decorators.append(f"// Metaclass: {meta_val}")
+
         # Extract fields from __init__ or class body annotations (simplified)
         fields = []
         dataclass_field_order = []
@@ -126,6 +132,15 @@ class ClassesMixin(TranslatorBase):
                         fields.append(f"    {field_name} {field_type}")
                 else:
                     fields.append(f"    {field_name} {field_type}")
+            elif isinstance(stmt, ast.Assign):
+                 # Check for __slots__
+                 for target in stmt.targets:
+                     if isinstance(target, ast.Name) and target.id == "__slots__":
+                         # Parse value list
+                         if isinstance(stmt.value, (ast.List, ast.Tuple)):
+                             for elt in stmt.value.elts:
+                                 if isinstance(elt, ast.Constant) and isinstance(elt.value, str):
+                                      fields.append(f"    {elt.value} int") # Default to int
 
         if is_dataclass:
             if not hasattr(self, 'dataclasses'):
@@ -152,14 +167,6 @@ class ClassesMixin(TranslatorBase):
              interface_def += f"interface {struct_name}{generics_str} {{\n"
              # Emit method signatures
              for method in methods:
-                 # Minimal signature extraction
-                 # fn name(args) ret
-                 # We can reuse visit_FunctionDef but it emits implementation.
-                 # Interfaces in V only have signatures.
-                 # We need to extract signature.
-                 # Simplified: parse method manually here or reuse logic?
-                 # Reusing logic is hard because visit_FunctionDef assumes struct context and emits body.
-
                  # Manual extraction:
                  m_name = method.name
                  m_args = []
@@ -217,29 +224,10 @@ class ClassesMixin(TranslatorBase):
 
                                 if is_auto:
                                     if is_flag:
-                                        # For flags, auto() means next power of 2
-                                        # But V [flag] enum expects values like `a` or `b = 1`, `c = 2`.
-                                        # If we just emit `a`, V assigns sequential 0, 1, 2...
-                                        # Wait, V docs say:
-                                        # "[flag] enum Color { red green blue }" -> red=1, green=2, blue=4
-                                        # IF the first value is not 0.
-                                        # Actually, V's [flag] attribute changes auto-numbering to powers of 2.
-                                        # Let's verify this assumption.
-                                        # If so, `enum_fields.append(f"    {member_name}")` is correct IF V does it.
-                                        # Docs: "The [flag] attribute... makes the enum values powers of 2."
-                                        # So `red` becomes 1, `green` 2, `blue` 4.
-                                        # BUT the reviewer said: "In V, [flag] enums do not automatically assign powers of 2... they default to sequential integers (0, 1, 2...)."
-                                        # Let's double check standard V behavior.
-                                        # If reviewer is right, we MUST assign explicit values.
-                                        # Let's assume reviewer is correct and we need explicit assignment.
                                         val = f"1 << {_flag_counter}"
                                         enum_fields.append(f"    {member_name} = {val}")
                                         _flag_counter += 1
                                     else:
-                                        # Regular enum auto() -> sequential (handled by V if we omit value?)
-                                        # V enums start at 0. Python auto starts at 1.
-                                        # We should probably be explicit if mixed.
-                                        # But standard auto() implies "don't care".
                                         enum_fields.append(f"    {member_name}")
                                 else:
                                     value = self.visit(stmt.value)
