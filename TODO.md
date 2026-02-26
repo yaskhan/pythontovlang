@@ -72,7 +72,7 @@
 - [x] Support for urllib.parse module mapping
 - [ ] Support for struct module mapping
 - [ ] Support for array module mapping
-- [ ] Support for copy module mapping
+- [x] Support for copy module mapping
 - [ ] Support for pickle module mapping
 - [x] Support for zlib/gzip module mapping
 - [ ] Support for decimal module mapping

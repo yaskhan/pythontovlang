@@ -202,6 +202,10 @@ class StdLibMapper:
             "gzip": {
                 "compress": "py_gzip_compress",
                 "decompress": "py_gzip_decompress",
+            },
+            "copy": {
+                "copy": "py_copy",
+                "deepcopy": "py_deepcopy",
             }
         }
 
@@ -239,6 +243,7 @@ class StdLibMapper:
             "urllib.parse": ["net.urllib"],
             "zlib": ["compress.zlib"],
             "gzip": ["compress.gzip"],
+            "copy": [],
         }
 
     def get_mapping(self, module: str, func: str, args: List[str]) -> Optional[str]:

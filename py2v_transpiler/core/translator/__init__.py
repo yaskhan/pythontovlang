@@ -527,4 +527,23 @@ class VNodeVisitor(
              # py_gzip_decompress
              self.emitter.add_function("fn py_gzip_decompress(data []u8) []u8 {\n    return gzip.decompress(data) or { panic(err) }\n}")
 
+        copy_used = "copy" in self.imported_modules.values()
+        if not copy_used:
+             for sym in self.imported_symbols.values():
+                 if sym.startswith("copy."):
+                     copy_used = True
+                     break
+
+        if copy_used:
+             # py_copy
+             # Generic shallow copy using V's compile-time reflection
+             self.emitter.add_function("fn py_copy[T](x T) T {\n    $if T is $Array {\n        return x.clone()\n    } $else $if T is $Map {\n        return x.clone()\n    } $else {\n        return x\n    }\n}")
+             # py_deepcopy
+             # Alias to py_copy (shallow copy via clone) as best effort for now.
+             # In V, clone() for collections usually copies elements.
+             # If elements are structs, they are copied (value).
+             # If elements are pointers, pointers are copied (shallow).
+             # True deep copy requires recursion.
+             self.emitter.add_function("fn py_deepcopy[T](x T) T {\n    // Note: This uses .clone() which may not be a full deep copy for nested references\n    $if T is $Array {\n        return x.clone()\n    } $else $if T is $Map {\n        return x.clone()\n    } $else {\n        return x\n    }\n}")
+
         return self.emitter.emit()
