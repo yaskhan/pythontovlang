@@ -22,6 +22,12 @@ class ExpressionsMixin(TranslatorBase):
             else:
                 args.append("/* unknown */")
 
+        # Do NOT include keyword values in args list yet for kwargs, handled separately or later.
+        # But visit_Call logic below relies on args containing everything for function calls?
+        # Actually existing logic appends kwargs to args if arg is None (double star).
+        # Keyword args (arg='val') are handled in node.keywords loop but not added to 'args' list
+        # unless we modify this loop. The existing code only adds **kwargs value.
+
         for keyword in node.keywords:
             if keyword.arg is None:
                 # **kwargs call -> pass dict as arg
@@ -188,6 +194,22 @@ class ExpressionsMixin(TranslatorBase):
         if func_name_str in self.renamed_functions:
             func_name_str = self.renamed_functions[func_name_str]
 
+        # Handle dataclass constructor call
+        if hasattr(self, 'dataclasses') and func_name_str in self.dataclasses:
+            field_order = self.dataclasses[func_name_str]
+            struct_args = []
+            # Map positional args
+            for i, arg in enumerate(args):
+                if i < len(field_order):
+                    struct_args.append(f"{field_order[i]}: {arg}")
+            # Map keyword args
+            for keyword in node.keywords:
+                if keyword.arg:
+                     kw_val = self.visit(keyword.value)
+                     struct_args.append(f"{keyword.arg}: {kw_val}")
+
+            return f"{func_name_str}{{{', '.join(struct_args)}}}"
+
         # Handle builtins handled by old logic (print, sorted, etc)
         # Note: 'open', 'hasattr' are handled above or fall through if not matched.
         # But wait, open is not in existing logic.
@@ -335,7 +357,9 @@ class ExpressionsMixin(TranslatorBase):
 
         op_map = {
             ast.Add: "+", ast.Sub: "-", ast.Mult: "*", ast.Div: "/",
-            ast.Mod: "%", ast.Pow: "**"
+            ast.Mod: "%", ast.Pow: "**",
+            ast.BitAnd: "&", ast.BitOr: "|", ast.BitXor: "^",
+            ast.LShift: "<<", ast.RShift: ">>"
         }
         op_str = op_map.get(type(node.op), "?")
         return f"{left} {op_str} {right}"
@@ -348,7 +372,10 @@ class ExpressionsMixin(TranslatorBase):
 
     def visit_UnaryOp(self, node: ast.UnaryOp) -> str:
         operand = self.visit(node.operand)
-        op_map = {ast.Not: "!", ast.UAdd: "+", ast.USub: "-"}
+        op_map = {
+            ast.Not: "!", ast.UAdd: "+", ast.USub: "-",
+            ast.Invert: "~"
+        }
         op_str = op_map.get(type(node.op), "?")
         return f"{op_str}{operand}"
 
@@ -888,3 +915,9 @@ class ExpressionsMixin(TranslatorBase):
     def visit_Assert(self, node: ast.Assert) -> None:
         test = self.visit(node.test)
         self.output.append(f"{self._indent()}assert {test}")
+
+    def visit_IfExp(self, node: ast.IfExp) -> str:
+        test = self.visit(node.test)
+        body = self.visit(node.body)
+        orelse = self.visit(node.orelse)
+        return f"if {test} {{ {body} }} else {{ {orelse} }}"
