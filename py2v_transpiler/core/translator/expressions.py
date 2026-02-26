@@ -8,6 +8,10 @@ class ExpressionsMixin(TranslatorBase):
         if val:
             self.output.append(f"{self._indent()}{val}")
 
+    def visit_Starred(self, node: ast.Starred) -> str:
+        val = self.visit(node.value)
+        return f"...{val}"
+
     def visit_Call(self, node: ast.Call) -> str:
         # Check if we can resolve the call via mapper
         args = []
