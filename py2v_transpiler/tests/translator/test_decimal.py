@@ -1,0 +1,26 @@
+import ast
+from py2v_transpiler.core.parser import PyASTParser
+from py2v_transpiler.core.analyzer import TypeInference
+from py2v_transpiler.core.translator import VNodeVisitor
+
+def translate(source: str) -> str:
+    parser = PyASTParser()
+    tree = parser.parse(source)
+    if not isinstance(tree, ast.Module):
+        raise ValueError("Parsed AST is not a Module")
+    analyzer = TypeInference()
+    translator = VNodeVisitor(analyzer)
+    return translator.visit_Module(tree)
+
+def test_decimal_construction():
+    source = """
+import decimal
+d = decimal.Decimal('1.1')
+f = decimal.Decimal(1.1)
+i = decimal.Decimal(1)
+"""
+    v_code = translate(source)
+    # Expect Decimal alias or struct
+    # assert "d := decimal.Decimal('1.1')" in v_code # Raw translation
+    # If mapped:
+    assert "d := py_decimal('1.1')" in v_code

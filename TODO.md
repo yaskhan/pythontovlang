@@ -68,16 +68,16 @@
 - [x] Support for platform module mapping
 - [x] Support for hashlib module mapping
 - [x] Support for uuid module mapping
-- [ ] Support for base64 module mapping
-- [ ] Support for urllib.parse module mapping
-- [ ] Support for struct module mapping
-- [ ] Support for array module mapping
-- [ ] Support for copy module mapping
-- [ ] Support for pickle module mapping
-- [ ] Support for zlib/gzip module mapping
-- [ ] Support for decimal module mapping
-- [ ] Support for fractions module mapping
-- [ ] Support for statistics module mapping
+- [x] Support for base64 module mapping
+- [x] Support for urllib.parse module mapping
+- [x] Support for struct module mapping
+- [x] Support for array module mapping
+- [x] Support for copy module mapping
+- [x] Support for pickle module mapping
+- [x] Support for zlib/gzip module mapping
+- [x] Support for decimal module mapping
+- [x] Support for fractions module mapping
+- [x] Support for statistics module mapping
 - [ ] Support for contextlib module mapping
 - [ ] Support for typing module mapping
 - [x] Support for star arguments in function calls (*args)

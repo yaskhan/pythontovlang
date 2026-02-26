@@ -41,16 +41,20 @@ class ExpressionsMixin(TranslatorBase):
 
         if isinstance(curr, ast.Name):
             qualified_name_parts.insert(0, curr.id)
-            # Check if root is a known module
-            root_name = qualified_name_parts[0]
-            if root_name in self.imported_modules:
-                 module_name = self.imported_modules[root_name]
-                 # construct func_name from rest
-                 func_name = ".".join(qualified_name_parts[1:])
-            elif root_name == "os" and len(qualified_name_parts) > 1 and qualified_name_parts[1] == "path":
-                 # Special case for os.path
-                 module_name = "os"
-                 func_name = ".".join(qualified_name_parts[1:])
+            # Check if any prefix is a known module (longest match first)
+            for i in range(len(qualified_name_parts), 0, -1):
+                prefix = ".".join(qualified_name_parts[:i])
+                if prefix in self.imported_modules:
+                    module_name = self.imported_modules[prefix]
+                    func_name = ".".join(qualified_name_parts[i:])
+                    break
+
+            if not module_name:
+                root_name = qualified_name_parts[0]
+                if root_name == "os" and len(qualified_name_parts) > 1 and qualified_name_parts[1] == "path":
+                    # Special case for os.path
+                    module_name = "os"
+                    func_name = ".".join(qualified_name_parts[1:])
 
         if not module_name and isinstance(func_node, ast.Attribute):
             # obj.method() fallback

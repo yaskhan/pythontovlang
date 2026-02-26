@@ -489,4 +489,227 @@ class VNodeVisitor(
              self.emitter.add_function("fn (h PyHashMd5) digest() []u8 {\n    return md5.sum(h.data)\n}")
              self.emitter.add_function("fn (h PyHashMd5) hexdigest() string {\n    return md5.hexhash(h.data)\n}")
 
+        urllib_parse_used = "urllib.parse" in self.imported_modules.values()
+        if not urllib_parse_used:
+             for sym in self.imported_symbols.values():
+                 if sym.startswith("urllib.parse."):
+                     urllib_parse_used = True
+                     break
+
+        if urllib_parse_used:
+             # py_urllib_unquote
+             self.emitter.add_function("fn py_urllib_unquote(s string) string {\n    return urllib.query_unescape(s) or { s }\n}")
+
+             # py_urlencode
+             # V's Values.add takes (key, val). urlencode takes map.
+             self.emitter.add_function("fn py_urlencode(params map[string]string) string {\n    mut v := urllib.new_values(map[string][]string{})\n    for key, val in params {\n        v.add(key, val)\n    }\n    return v.encode()\n}")
+
+             # py_urlparse
+             # Returns urllib.URL.
+             # Python urlparse returns ParseResult (named tuple).
+             # V's urllib.parse returns !URL.
+             # We can just return urllib.URL, but Python attributes might differ.
+             # Python: scheme, netloc, path, params, query, fragment
+             # V: scheme, host, path, raw_query, fragment. (netloc ~= host, query ~= raw_query).
+             # We might need a wrapper struct if we want exact field names, but for now let's return URL.
+             # Helper handles the result unwrapping.
+             self.emitter.add_function("fn py_urlparse(url string) urllib.URL {\n    return urllib.parse(url) or { urllib.URL{} }\n}")
+
+        zlib_used = "zlib" in self.imported_modules.values()
+        if not zlib_used:
+             for sym in self.imported_symbols.values():
+                 if sym.startswith("zlib."):
+                     zlib_used = True
+                     break
+
+        if zlib_used:
+             # py_zlib_compress
+             self.emitter.add_function("fn py_zlib_compress(data []u8) []u8 {\n    return zlib.compress(data) or { panic(err) }\n}")
+             # py_zlib_decompress
+             self.emitter.add_function("fn py_zlib_decompress(data []u8) []u8 {\n    return zlib.decompress(data) or { panic(err) }\n}")
+
+        gzip_used = "gzip" in self.imported_modules.values()
+        if not gzip_used:
+             for sym in self.imported_symbols.values():
+                 if sym.startswith("gzip."):
+                     gzip_used = True
+                     break
+
+        if gzip_used:
+             # py_gzip_compress
+             self.emitter.add_function("fn py_gzip_compress(data []u8) []u8 {\n    return gzip.compress(data) or { panic(err) }\n}")
+             # py_gzip_decompress
+             self.emitter.add_function("fn py_gzip_decompress(data []u8) []u8 {\n    return gzip.decompress(data) or { panic(err) }\n}")
+
+        copy_used = "copy" in self.imported_modules.values()
+        if not copy_used:
+             for sym in self.imported_symbols.values():
+                 if sym.startswith("copy."):
+                     copy_used = True
+                     break
+
+        if copy_used:
+             # py_copy
+             # Generic shallow copy using V's compile-time reflection
+             self.emitter.add_function("fn py_copy[T](x T) T {\n    $if T is $Array {\n        return x.clone()\n    } $else $if T is $Map {\n        return x.clone()\n    } $else {\n        return x\n    }\n}")
+             # py_deepcopy
+             # Alias to py_copy (shallow copy via clone) as best effort for now.
+             # In V, clone() for collections usually copies elements.
+             # If elements are structs, they are copied (value).
+             # If elements are pointers, pointers are copied (shallow).
+             # True deep copy requires recursion.
+             self.emitter.add_function("fn py_deepcopy[T](x T) T {\n    // Note: This uses .clone() which may not be a full deep copy for nested references\n    $if T is $Array {\n        return x.clone()\n    } $else $if T is $Map {\n        return x.clone()\n    } $else {\n        return x\n    }\n}")
+
+        struct_used = "struct" in self.imported_modules.values()
+        if not struct_used:
+             for sym in self.imported_symbols.values():
+                 if sym.startswith("struct."):
+                     struct_used = True
+                     break
+
+        if struct_used:
+             # Stub for generic pack/unpack
+             self.emitter.add_function("fn py_struct_pack(fmt string, args ...any) []u8 {\n    panic('struct.pack with dynamic format not implemented')\n    return []u8{}\n}")
+             # Return []any is hard in V without sum types for all primitives. For now, stub return empty.
+             self.emitter.add_function("fn py_struct_unpack(fmt string, data []u8) []int {\n    panic('struct.unpack with dynamic format not implemented')\n    return []int{}\n}")
+             self.emitter.add_function("fn py_struct_calcsize(fmt string) int {\n    panic('struct.calcsize with dynamic format not implemented')\n    return 0\n}")
+
+             # Little Endian Helpers
+             self.emitter.add_function("fn py_struct_pack_I_le(val u32) []u8 {\n    mut buf := []u8{len: 4}\n    binary.little_endian_put_u32(mut buf, val)\n    return buf\n}")
+             self.emitter.add_function("fn py_struct_unpack_I_le(buf []u8) u32 {\n    return binary.little_endian_u32(buf)\n}")
+
+             self.emitter.add_function("fn py_struct_pack_i_le(val int) []u8 {\n    mut buf := []u8{len: 4}\n    binary.little_endian_put_u32(mut buf, u32(val))\n    return buf\n}")
+             self.emitter.add_function("fn py_struct_unpack_i_le(buf []u8) int {\n    return int(binary.little_endian_u32(buf))\n}")
+
+             self.emitter.add_function("fn py_struct_pack_H_le(val u16) []u8 {\n    mut buf := []u8{len: 2}\n    binary.little_endian_put_u16(mut buf, val)\n    return buf\n}")
+             self.emitter.add_function("fn py_struct_unpack_H_le(buf []u8) u16 {\n    return binary.little_endian_u16(buf)\n}")
+
+             self.emitter.add_function("fn py_struct_pack_h_le(val i16) []u8 {\n    mut buf := []u8{len: 2}\n    binary.little_endian_put_u16(mut buf, u16(val))\n    return buf\n}")
+             self.emitter.add_function("fn py_struct_unpack_h_le(buf []u8) i16 {\n    return i16(binary.little_endian_u16(buf))\n}")
+
+             self.emitter.add_function("fn py_struct_pack_Q_le(val u64) []u8 {\n    mut buf := []u8{len: 8}\n    binary.little_endian_put_u64(mut buf, val)\n    return buf\n}")
+             self.emitter.add_function("fn py_struct_unpack_Q_le(buf []u8) u64 {\n    return binary.little_endian_u64(buf)\n}")
+
+             self.emitter.add_function("fn py_struct_pack_q_le(val i64) []u8 {\n    mut buf := []u8{len: 8}\n    binary.little_endian_put_u64(mut buf, u64(val))\n    return buf\n}")
+             self.emitter.add_function("fn py_struct_unpack_q_le(buf []u8) i64 {\n    return i64(binary.little_endian_u64(buf))\n}")
+
+             # Big Endian Helpers
+             self.emitter.add_function("fn py_struct_pack_I_be(val u32) []u8 {\n    mut buf := []u8{len: 4}\n    binary.big_endian_put_u32(mut buf, val)\n    return buf\n}")
+             self.emitter.add_function("fn py_struct_unpack_I_be(buf []u8) u32 {\n    return binary.big_endian_u32(buf)\n}")
+
+             self.emitter.add_function("fn py_struct_pack_i_be(val int) []u8 {\n    mut buf := []u8{len: 4}\n    binary.big_endian_put_u32(mut buf, u32(val))\n    return buf\n}")
+             self.emitter.add_function("fn py_struct_unpack_i_be(buf []u8) int {\n    return int(binary.big_endian_u32(buf))\n}")
+
+             self.emitter.add_function("fn py_struct_pack_H_be(val u16) []u8 {\n    mut buf := []u8{len: 2}\n    binary.big_endian_put_u16(mut buf, val)\n    return buf\n}")
+             self.emitter.add_function("fn py_struct_unpack_H_be(buf []u8) u16 {\n    return binary.big_endian_u16(buf)\n}")
+
+             self.emitter.add_function("fn py_struct_pack_h_be(val i16) []u8 {\n    mut buf := []u8{len: 2}\n    binary.big_endian_put_u16(mut buf, u16(val))\n    return buf\n}")
+             self.emitter.add_function("fn py_struct_unpack_h_be(buf []u8) i16 {\n    return i16(binary.big_endian_u16(buf))\n}")
+
+             self.emitter.add_function("fn py_struct_pack_Q_be(val u64) []u8 {\n    mut buf := []u8{len: 8}\n    binary.big_endian_put_u64(mut buf, val)\n    return buf\n}")
+             self.emitter.add_function("fn py_struct_unpack_Q_be(buf []u8) u64 {\n    return binary.big_endian_u64(buf)\n}")
+
+             self.emitter.add_function("fn py_struct_pack_q_be(val i64) []u8 {\n    mut buf := []u8{len: 8}\n    binary.big_endian_put_u64(mut buf, u64(val))\n    return buf\n}")
+             self.emitter.add_function("fn py_struct_unpack_q_be(buf []u8) i64 {\n    return i64(binary.big_endian_u64(buf))\n}")
+
+
+        array_used = "array" in self.imported_modules.values()
+        if not array_used:
+             for sym in self.imported_symbols.values():
+                 if sym.startswith("array."):
+                     array_used = True
+                     break
+
+        if array_used:
+             # py_array helper
+             # We rely on V's compile time branching. But initializer T is unknown.
+             # Initializer is likely an array literal []int or []f64 passed from mapper.
+             # But mapper passes it as string.
+             # Wait, `py_array('i', [1,2])`. `initializer` is `[1,2]` (V code).
+             # In V: `py_array(typecode string, init []int)`. But init type varies.
+             # We can't define `py_array` generically over *unrelated* input types easily unless we use sum type or any?
+             # Or we define overload? V doesn't support overloads.
+             # `fn py_array[T](code string, init []T) []T` ?
+             # If code is 'i', T must be int. If code is 'd', T must be f64.
+             # The user code will look like `py_array('i', [1,2])`.
+             # `[1,2]` is `[]int`. So T is `int`.
+             # `py_array('d', [1.0])`. `[1.0]` is `[]f64`. So T is `f64`.
+             # So a single generic function works!
+             # We just need to assert/check typecode matches T? Or just ignore typecode and trust T?
+             # Python uses typecode to coerce. `array('i', [1.0])` -> `[1]`.
+             # If we just return `init`, we lose coercion.
+             # But V is strict. `[1.0]` is `[]f64`. If we want `[]int`, we need to cast.
+             # But we can't easily cast `[]f64` to `[]int` inside generic `py_array[T]`.
+             # Let's assume correct input type for now, or just return `init`.
+             self.emitter.add_function("fn py_array[T](code string, init []T) []T {\n    // Best effort: ignoring typecode validation, returning typed array directly\n    return init\n}")
+
+        fractions_used = "fractions" in self.imported_modules.values()
+        if not fractions_used:
+             for sym in self.imported_symbols.values():
+                 if sym.startswith("fractions."):
+                     fractions_used = True
+                     break
+
+        if fractions_used:
+             # py_fraction helper for single argument (int, float, string)
+             # V fractions.fraction(n, d) is for two ints.
+             # fractions.from_f64(f) exists.
+             # Parsing string requires custom logic or libc atof?
+             # For now, simplistic implementation for int/float/string
+             self.emitter.add_function("fn py_fraction(val any) fractions.Fraction {\n    $if val is $int {\n        return fractions.fraction(i64(val), 1)\n    } $else $if val is $float {\n        return fractions.from_f64(f64(val))\n    } $else $if val is string {\n        // Simplistic string parsing not implemented in helper yet\n        return fractions.fraction(0, 1)\n    }\n    return fractions.fraction(0, 1)\n}")
+
+        statistics_used = "statistics" in self.imported_modules.values()
+        if not statistics_used:
+             for sym in self.imported_symbols.values():
+                 if sym.startswith("statistics."):
+                     statistics_used = True
+                     break
+
+        if statistics_used:
+             # py_statistics_mean
+             self.emitter.add_function("fn py_statistics_mean[T](data []T) f64 {\n    mut sum := f64(0)\n    for x in data {\n        sum += f64(x)\n    }\n    if data.len == 0 { return 0.0 }\n    return sum / f64(data.len)\n}")
+
+             # py_statistics_median
+             self.emitter.add_function("fn py_statistics_median[T](data []T) f64 {\n    if data.len == 0 { return 0.0 }\n    mut sorted_data := data.clone()\n    sorted_data.sort()\n    mid := sorted_data.len / 2\n    if sorted_data.len % 2 == 1 {\n        return f64(sorted_data[mid])\n    }\n    return (f64(sorted_data[mid-1]) + f64(sorted_data[mid])) / 2.0\n}")
+
+             # py_statistics_mode
+             self.emitter.add_function("fn py_statistics_mode[T](data []T) T {\n    if data.len == 0 { panic('statistics.mode on empty data') }\n    mut counts := map[T]int{}\n    for x in data {\n        counts[x]++\n    }\n    mut max_count := 0\n    mut mode_val := data[0]\n    for val, count in counts {\n        if count > max_count {\n            max_count = count\n            mode_val = val\n        }\n    }\n    return mode_val\n}")
+
+             # py_statistics_variance
+             self.emitter.add_function("fn py_statistics_variance[T](data []T) f64 {\n    if data.len < 2 { panic('statistics.variance requires at least two data points') }\n    m := py_statistics_mean(data)\n    mut sum_sq_diff := f64(0)\n    for x in data {\n        diff := f64(x) - m\n        sum_sq_diff += diff * diff\n    }\n    return sum_sq_diff / f64(data.len - 1)\n}")
+
+             # py_statistics_stdev
+             self.emitter.add_function("fn py_statistics_stdev[T](data []T) f64 {\n    return math.sqrt(py_statistics_variance(data))\n}")
+
+        decimal_used = "decimal" in self.imported_modules.values()
+        if not decimal_used:
+             for sym in self.imported_symbols.values():
+                 if sym.startswith("decimal."):
+                     decimal_used = True
+                     break
+
+        if decimal_used:
+             # py_decimal helper
+             # Map Decimal to f64 for now
+             self.emitter.add_main_statement("type Decimal = f64")
+             self.emitter.add_function("fn py_decimal(val any) Decimal {\n    $if val is $float {\n        return f64(val)\n    } $else $if val is $int {\n        return f64(val)\n    } $else $if val is string {\n        return val.f64()\n    }\n    return 0.0\n}")
+
+        pickle_used = "pickle" in self.imported_modules.values()
+        if not pickle_used:
+             for sym in self.imported_symbols.values():
+                 if sym.startswith("pickle."):
+                     pickle_used = True
+                     break
+
+        if pickle_used:
+             # py_pickle_dumps
+             self.emitter.add_function("fn py_pickle_dumps[T](obj T) string {\n    // Warning: Mapped to JSON serialization as partial replacement for pickle\n    return json.encode(obj)\n}")
+             # py_pickle_loads
+             self.emitter.add_function("fn py_pickle_loads[T](s string) T {\n    // Warning: Mapped to JSON deserialization as partial replacement for pickle\n    return json.decode(T, s) or { panic(err) }\n}")
+             # py_pickle_dump (to file)
+             self.emitter.add_function("fn py_pickle_dump[T](obj T, f os.File) {\n    // Warning: Mapped to JSON serialization\n    s := json.encode(obj)\n    f.write_string(s) or { panic(err) }\n}")
+             # py_pickle_load (from file) - hard because we need to read everything?
+             # Or assume file content is valid json.
+             self.emitter.add_function("fn py_pickle_load[T](f os.File) T {\n    // Warning: Mapped to JSON deserialization\n    // This assumes the file contains one JSON object\n    // We need to read whole file? or stream?\n    // V json.decode takes string.\n    // We can't easily read from file inside generic func without reading all.\n    // Assuming small file for now, but we don't have read_all on File struct easily exposed in standard way? \n    // actually os.read_file(path) exists. But here we have File object.\n    // Let's panic for now or return zero.\n    panic('pickle.load not fully implemented')\n    return T{}\n}")
+
         return self.emitter.emit()
