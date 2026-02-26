@@ -211,6 +211,9 @@ class StdLibMapper:
                 "pack": self._struct_pack,
                 "unpack": self._struct_unpack,
                 "calcsize": "py_struct_calcsize",
+            },
+            "array": {
+                "array": self._array_array,
             }
         }
 
@@ -250,6 +253,7 @@ class StdLibMapper:
             "gzip": ["compress.gzip"],
             "copy": [],
             "struct": ["encoding.binary"],
+            "array": [],
         }
 
     def get_mapping(self, module: str, func: str, args: List[str]) -> Optional[str]:
@@ -497,3 +501,10 @@ class StdLibMapper:
             if fmt_str == ">q": return f"py_struct_unpack_q_be({buf})"
 
         return f"py_struct_unpack({', '.join(args)})"
+
+    def _array_array(self, args: List[str]) -> str:
+        if len(args) < 1:
+            return "/* array.array missing args */"
+        typecode = args[0]
+        initializer = args[1] if len(args) > 1 else "[]"
+        return f"py_array({typecode}, {initializer})"

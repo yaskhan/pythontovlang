@@ -599,4 +599,34 @@ class VNodeVisitor(
              self.emitter.add_function("fn py_struct_unpack_q_be(buf []u8) i64 {\n    return i64(binary.big_endian_u64(buf))\n}")
 
 
+        array_used = "array" in self.imported_modules.values()
+        if not array_used:
+             for sym in self.imported_symbols.values():
+                 if sym.startswith("array."):
+                     array_used = True
+                     break
+
+        if array_used:
+             # py_array helper
+             # We rely on V's compile time branching. But initializer T is unknown.
+             # Initializer is likely an array literal []int or []f64 passed from mapper.
+             # But mapper passes it as string.
+             # Wait, `py_array('i', [1,2])`. `initializer` is `[1,2]` (V code).
+             # In V: `py_array(typecode string, init []int)`. But init type varies.
+             # We can't define `py_array` generically over *unrelated* input types easily unless we use sum type or any?
+             # Or we define overload? V doesn't support overloads.
+             # `fn py_array[T](code string, init []T) []T` ?
+             # If code is 'i', T must be int. If code is 'd', T must be f64.
+             # The user code will look like `py_array('i', [1,2])`.
+             # `[1,2]` is `[]int`. So T is `int`.
+             # `py_array('d', [1.0])`. `[1.0]` is `[]f64`. So T is `f64`.
+             # So a single generic function works!
+             # We just need to assert/check typecode matches T? Or just ignore typecode and trust T?
+             # Python uses typecode to coerce. `array('i', [1.0])` -> `[1]`.
+             # If we just return `init`, we lose coercion.
+             # But V is strict. `[1.0]` is `[]f64`. If we want `[]int`, we need to cast.
+             # But we can't easily cast `[]f64` to `[]int` inside generic `py_array[T]`.
+             # Let's assume correct input type for now, or just return `init`.
+             self.emitter.add_function("fn py_array[T](code string, init []T) []T {\n    // Best effort: ignoring typecode validation, returning typed array directly\n    return init\n}")
+
         return self.emitter.emit()
