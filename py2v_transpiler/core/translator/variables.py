@@ -289,7 +289,89 @@ class VariablesMixin(TranslatorBase):
         else:
              self.output.append(f"{self._indent()}// Unsupported destructuring target: {type(target)}")
 
+    def _create_temp(self) -> str:
+        self.unique_id_counter += 1
+        return f"_aug_tmp_{self.unique_id_counter}"
+
+    def _capture_value(self, node: ast.AST) -> tuple[str, list[str]]:
+        """
+        Captures an expression into a temporary variable if it's not simple (Name/Constant).
+        Returns (expr_string, setup_statements).
+        """
+        if isinstance(node, (ast.Name, ast.Constant)):
+            return self.visit(node), []
+
+        tmp = self._create_temp()
+        val_code = self.visit(node)
+        return tmp, [f"{self._indent()}{tmp} := {val_code}"]
+
+    def _capture_target(self, node: ast.AST) -> tuple[str, list[str]]:
+        """
+        Prepares a target for AugAssign by capturing its components.
+        Recurses on L-value bases (Attribute, Subscript) to preserve reference path.
+        Returns (new_target_string, setup_statements).
+        """
+        if isinstance(node, ast.Name):
+            return self.visit(node), []
+
+        elif isinstance(node, ast.Attribute):
+            # Recurse on base if it's an L-value container (Name, Attribute, Subscript)
+            # Otherwise capture value (Call, etc.)
+            if isinstance(node.value, (ast.Name, ast.Attribute, ast.Subscript)):
+                base_expr, base_setup = self._capture_target(node.value)
+            else:
+                base_expr, base_setup = self._capture_value(node.value)
+
+            return f"{base_expr}.{node.attr}", base_setup
+
+        elif isinstance(node, ast.Subscript):
+            # Recurse on base if it's an L-value container
+            if isinstance(node.value, (ast.Name, ast.Attribute, ast.Subscript)):
+                base_expr, base_setup = self._capture_target(node.value)
+            else:
+                base_expr, base_setup = self._capture_value(node.value)
+
+            idx_node = node.slice
+            # Handle Py < 3.9 ast.Index
+            if hasattr(ast, "Index") and isinstance(idx_node, getattr(ast, "Index")):
+                 idx_node = idx_node.value
+
+            idx_expr, idx_setup = self._capture_value(idx_node)
+            return f"{base_expr}[{idx_expr}]", base_setup + idx_setup
+
+        return self.visit(node), [] # Fallback
+
     def visit_AugAssign(self, node: ast.AugAssign) -> None:
+        if isinstance(node.op, (ast.Pow, ast.FloorDiv)):
+            # Handle special cases **= and //= which need expansion to target = func(target, value)
+            # We must ensure target components (e.g. index) are evaluated once.
+            new_target, setup_stmts = self._capture_target(node.target)
+            value = self.visit(node.value)
+
+            for stmt in setup_stmts:
+                self.output.append(stmt)
+
+            if isinstance(node.op, ast.Pow):
+                self.emitter.add_import("math")
+                target_type = self._guess_type(node.target) if hasattr(self, '_guess_type') else "unknown"
+                if target_type == "int":
+                     self.output.append(f"{self._indent()}{new_target} = int(math.pow({new_target}, {value}))")
+                else:
+                     self.output.append(f"{self._indent()}{new_target} = math.pow({new_target}, {value})")
+            elif isinstance(node.op, ast.FloorDiv):
+                # //= -> floor division
+                # If types are int, use /
+                # If types are float, use math.floor(a/b)
+                # We try to guess type.
+                target_type = self._guess_type(node.target) if hasattr(self, '_guess_type') else "unknown"
+                if target_type == "f64" or target_type == "float":
+                     self.emitter.add_import("math")
+                     self.output.append(f"{self._indent()}{new_target} = math.floor({new_target} / {value})")
+                else:
+                     # Default to integer division
+                     self.output.append(f"{self._indent()}{new_target} = {new_target} / {value}")
+            return
+
         target = self.visit(node.target)
         value = self.visit(node.value)
         op_map = {
@@ -297,7 +379,6 @@ class VariablesMixin(TranslatorBase):
             ast.Mod: "%="
         }
         # V supports +=, -=, *=, /=, %=
-        # V does not support **= (must use math.pow or similar, which is not AugAssign compatible directly)
         op_str = op_map.get(type(node.op))
         if op_str:
              self.output.append(f"{self._indent()}{target} {op_str} {value}")
