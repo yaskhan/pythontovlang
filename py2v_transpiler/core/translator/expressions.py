@@ -338,6 +338,33 @@ class ExpressionsMixin(TranslatorBase):
                 return f"os.input({args[0]})"
             return "os.input('')"
 
+        # String predicates
+        # isdigit, isalpha, isalnum, isspace, islower, isupper, istitle
+        # These are usually called as methods on strings: "s.isdigit()"
+        # But visit_Call handles method calls too.
+        # Check if the function name matches a known string predicate.
+        # And implicitly assume the receiver is a string (or we rely on V compiler error if not).
+        # We handle them if func_node is Attribute.
+        elif isinstance(func_node, ast.Attribute) and func_node.attr in (
+            "isdigit", "isalpha", "isalnum", "isspace", "islower", "isupper", "istitle"
+        ) and not module_name:
+             attr = func_node.attr
+             obj = self.visit(func_node.value)
+             if attr == "isdigit":
+                 return f"{obj}.bytes().all(it.is_digit())"
+             elif attr == "isalpha":
+                 return f"{obj}.bytes().all(it.is_letter())"
+             elif attr == "isalnum":
+                 return f"{obj}.bytes().all(it.is_alnum())"
+             elif attr == "isspace":
+                 return f"{obj}.bytes().all(it.is_space())"
+             elif attr == "islower":
+                 return f"{obj}.is_lower()"
+             elif attr == "isupper":
+                 return f"{obj}.is_upper()"
+             elif attr == "istitle":
+                 return f"{obj}.is_title()"
+
         elif func_name_str == "print":
             sep = " "
             end = "\\n"
