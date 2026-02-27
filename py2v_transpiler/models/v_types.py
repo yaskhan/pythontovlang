@@ -24,8 +24,8 @@ def map_python_type_to_v(py_type: str, self_name: str = "Self", allow_union: boo
     if py_type == 'str': return 'string'
     if py_type == 'bool': return 'bool'
     if py_type == 'None': return 'none'
-    if py_type == 'Any': return 'any'
-    if py_type == 'object': return 'any' # Map object to any
+    if py_type == 'Any': return 'Any'
+    if py_type == 'object': return 'Any' # Map object to Any
     if py_type == 'Self': return self_name
 
     try:
@@ -88,12 +88,12 @@ def _map_ast_type(node: ast.AST, self_name: str = "Self", allow_union: bool = Fa
                 return f"[]{mapped_args[0]}"
 
             # Tuple[int, int] -> []int (if all same)
-            first = mapped_args[0] if mapped_args else 'any'
+            first = mapped_args[0] if mapped_args else 'Any'
             if all(arg == first for arg in mapped_args):
                 return f"[]{first}"
 
-            # Tuple[int, str] -> []any
-            return "[]any"
+            # Tuple[int, str] -> []Any
+            return "[]Any"
 
         elif value_id == 'Optional':
             if mapped_args:
@@ -107,7 +107,7 @@ def _map_ast_type(node: ast.AST, self_name: str = "Self", allow_union: bool = Fa
                 return f"?{non_none[0]}"
             if allow_union:
                 return " | ".join(mapped_args)
-            return "any"
+            return "Any"
 
         elif value_id == 'Callable':
             # Callable[[Arg1, Arg2], Ret]
@@ -138,23 +138,23 @@ def _map_ast_type(node: ast.AST, self_name: str = "Self", allow_union: bool = Fa
             # Type[C] -> C
             if mapped_args:
                 return mapped_args[0]
-            return 'any'
+            return 'Any'
 
         elif value_id in ('Final', 'ClassVar', 'Annotated'):
             # Strip
             if mapped_args:
                 return mapped_args[0]
-            return 'any'
+            return 'Any'
 
         elif value_id == 'Required':
             if mapped_args:
                 return mapped_args[0]
-            return 'any'
+            return 'Any'
 
         elif value_id == 'NotRequired':
             if mapped_args:
                 return f"?{mapped_args[0]}"
-            return '?any'
+            return '?Any'
 
         elif value_id == 'TypeGuard':
             return 'bool'
@@ -173,7 +173,7 @@ def _map_ast_type(node: ast.AST, self_name: str = "Self", allow_union: bool = Fa
                 return f"?{left}"
             if allow_union:
                 return f"{left} | {right}"
-            return "any"
+            return "Any"
 
     return "void"
 
@@ -184,8 +184,8 @@ def _map_basic_type(name: str) -> str:
         'str': 'string',
         'bool': 'bool',
         'None': 'none',
-        'Any': 'any',
-        'object': 'any', # Map object to any
+        'Any': 'Any',
+        'object': 'Any', # Map object to Any
         'list': '[]int',
         'dict': 'map[string]int',
         'tuple': '[]int',

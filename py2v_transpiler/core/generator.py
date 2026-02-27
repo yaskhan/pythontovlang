@@ -28,6 +28,9 @@ class VCodeEmitter:
         """Generates the full V source code."""
         lines = ["module main\n"]
 
+        # Define custom Any type
+        lines.append("type Any = bool | int | i64 | f64 | string | []u8")
+
         if self.imports:
             for imp in self.imports:
                 lines.append(f"import {imp}")

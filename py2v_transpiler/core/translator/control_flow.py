@@ -511,7 +511,7 @@ class ControlFlowMixin(TranslatorBase):
         self.output.append(f"{self._indent()}{subject_var} := {subject}")
         # Create an 'any' alias for type checking
         subject_any = f"_match_subject_any_{match_id}"
-        self.output.append(f"{self._indent()}{subject_any} := any({subject_var})")
+        self.output.append(f"{self._indent()}{subject_any} := Any({subject_var})")
 
         # Flatten MatchOr patterns to simplify code generation
         expanded_cases = []
@@ -568,7 +568,7 @@ class ControlFlowMixin(TranslatorBase):
 
         elif isinstance(pattern, ast.MatchSequence):
             # Support basic array types
-            array_types = ["[]int", "[]f64", "[]string", "[]bool", "[]any"]
+            array_types = ["[]int", "[]f64", "[]string", "[]bool", "[]Any"]
 
             # Identify parts
             patterns = pattern.patterns
@@ -595,13 +595,13 @@ class ControlFlowMixin(TranslatorBase):
                          else:
                              slice_expr = f"[{idx}..{end_expr}]"
 
-                         branches.append(f"{subject_expr} is {t} {{ any(({subject_expr} as {t}){slice_expr}) }}")
+                         branches.append(f"{subject_expr} is {t} {{ Any(({subject_expr} as {t}){slice_expr}) }}")
                      elif from_end:
                          # Index from end: len - offset
-                         branches.append(f"{subject_expr} is {t} {{ any(({subject_expr} as {t})[({subject_expr} as {t}).len - {idx}]) }}")
+                         branches.append(f"{subject_expr} is {t} {{ Any(({subject_expr} as {t})[({subject_expr} as {t}).len - {idx}]) }}")
                      else:
-                         branches.append(f"{subject_expr} is {t} {{ any(({subject_expr} as {t})[{idx}]) }}")
-                branches.append("else { any(0) }") # Fallback
+                         branches.append(f"{subject_expr} is {t} {{ Any(({subject_expr} as {t})[{idx}]) }}")
+                branches.append("else { Any(0) }") # Fallback
                 return f"if {' else if '.join(branches)}"
 
             # Generate condition
@@ -646,10 +646,10 @@ class ControlFlowMixin(TranslatorBase):
             return full_condition, bindings
 
         elif isinstance(pattern, ast.MatchMapping):
-             # Simplified: Check if map[string]any or similar
+             # Simplified: Check if map[string]Any or similar
              # V maps are specific.
-             # We assume map[string]int, map[string]string, map[string]any.
-             map_types = ["map[string]int", "map[string]string", "map[string]any"]
+             # We assume map[string]int, map[string]string, map[string]Any.
+             map_types = ["map[string]int", "map[string]string", "map[string]Any"]
 
              keys = pattern.keys
              patterns = pattern.patterns
@@ -674,8 +674,8 @@ class ControlFlowMixin(TranslatorBase):
                  # Extract
                  branches = []
                  for t in map_types:
-                     branches.append(f"{subject_expr} is {t} {{ any(({subject_expr} as {t})[{k_val}]) }}")
-                 branches.append("else { any(0) }")
+                     branches.append(f"{subject_expr} is {t} {{ Any(({subject_expr} as {t})[{k_val}]) }}")
+                 branches.append("else { Any(0) }")
                  extract_expr = f"if {' else if '.join(branches)}"
 
                  sub_cond, sub_binds = self._compile_pattern(p, extract_expr)
@@ -694,11 +694,11 @@ class ControlFlowMixin(TranslatorBase):
 
              for attr, sub_pat in zip(pattern.kwd_attrs, pattern.kwd_patterns):
                  cast_expr = f"({subject_expr} as {cls_name})"
-                 # Need to wrap in any() for recursive generic check?
-                 # _compile_pattern expects subject_expr to be any if it does type checks.
+                 # Need to wrap in Any() for recursive generic check?
+                 # _compile_pattern expects subject_expr to be Any if it does type checks.
                  # If we pass `${cast_expr}.attr`, it is typed.
-                 # So we wrap it: `any(...)`.
-                 val_expr = f"any({cast_expr}.{attr})"
+                 # So we wrap it: `Any(...)`.
+                 val_expr = f"Any({cast_expr}.{attr})"
                  sub_cond, sub_bindings = self._compile_pattern(sub_pat, val_expr)
                  cond += f" && ({sub_cond})"
                  bindings.extend(sub_bindings)
