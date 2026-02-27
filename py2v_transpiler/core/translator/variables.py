@@ -1,5 +1,5 @@
 import ast
-from typing import Optional
+from typing import Optional, Any
 from py2v_transpiler.models.v_types import map_python_type_to_v
 from .base import TranslatorBase
 
@@ -365,7 +365,7 @@ class VariablesMixin(TranslatorBase):
         # Name mangling for class-private attributes
         return self._mangle_name(node.id, self.current_class)
 
-    def visit_TypeAlias(self, node: ast.TypeAlias) -> None:
+    def visit_TypeAlias(self, node: Any) -> None:
         name = node.name.id
         type_params = ""
         if node.type_params:
