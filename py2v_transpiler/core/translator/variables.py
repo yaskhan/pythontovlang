@@ -360,16 +360,15 @@ class VariablesMixin(TranslatorBase):
                      self.output.append(f"{self._indent()}{new_target} = math.pow({new_target}, {value})")
             elif isinstance(node.op, ast.FloorDiv):
                 # //= -> floor division
-                # If types are int, use /
+                # If types are int, use math.floor(f64(a)/f64(b)) cast to int to match Python
                 # If types are float, use math.floor(a/b)
-                # We try to guess type.
                 target_type = self._guess_type(node.target) if hasattr(self, '_guess_type') else "unknown"
+                self.emitter.add_import("math")
                 if target_type == "f64" or target_type == "float":
-                     self.emitter.add_import("math")
                      self.output.append(f"{self._indent()}{new_target} = math.floor({new_target} / {value})")
                 else:
-                     # Default to integer division
-                     self.output.append(f"{self._indent()}{new_target} = {new_target} / {value}")
+                     # Integer division (safe floor div)
+                     self.output.append(f"{self._indent()}{new_target} = int(math.floor(f64({new_target}) / f64({value})))")
             return
 
         target = self.visit(node.target)

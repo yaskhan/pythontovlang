@@ -562,6 +562,29 @@ class ExpressionsMixin(TranslatorBase):
                   # Integer power
                   return f"math.powi({left}, {right})"
 
+        if isinstance(node.op, ast.FloorDiv):
+             # Floor division //
+             # If float -> math.floor(a/b)
+             # If int -> logic to handle negative operands
+             self.emitter.add_import("math")
+             if left_type == "int" and right_type == "int":
+                  # Python's // on integers behaves like floor(a/b).
+                  # V's / truncates.
+                  # Formula: i64(math.floor(f64(a) / f64(b)))
+                  # We use i64 to ensure it fits (assuming int is 64-bit or we don't care about 32-bit overflow here for now)
+                  # or just cast to 'int' if V's int is 32-bit? V 'int' is 32-bit. 'i64' is 64-bit.
+                  # Python 3 ints are arbitrary precision.
+                  # Let's cast to `int` if inputs were `int` (as per guessing).
+                  # Or stick to `i64` if we want to be safer?
+                  # Let's use `int(...)` to match V's default int type.
+                  return f"int(math.floor(f64({left}) / f64({right})))"
+             else:
+                  # Float floor div
+                  # If we have floats, we return float.
+                  # Python: 7.0 // 2 -> 3.0
+                  # V: math.floor(7.0 / 2) -> 3.0
+                  return f"math.floor({left} / {right})"
+
         op_map = {
             ast.Add: "+", ast.Sub: "-", ast.Mult: "*", ast.Div: "/",
             ast.Mod: "%",
