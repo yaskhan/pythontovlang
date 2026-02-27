@@ -165,6 +165,11 @@ class VNodeVisitor(
                 "fn py_reversed[T](a []T) []T {\n    mut b := a.clone()\n    b.reverse()\n    return b\n}"
             )
 
+        if "round" in self.used_builtins:
+            self.emitter.add_function(
+                "fn py_round(number f64, ndigits int) f64 {\n    p := math.pow(10, f64(ndigits))\n    return math.round(number * p) / p\n}"
+            )
+
         if self.used_complex:
              self.emitter.add_struct("struct PyComplex {\n    re f64\n    im f64\n}")
              self.emitter.add_function("fn py_complex(re f64, im f64) PyComplex {\n    return PyComplex{re: re, im: im}\n}")

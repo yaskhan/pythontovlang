@@ -316,6 +316,14 @@ class ExpressionsMixin(TranslatorBase):
                     val = self.visit(arg)
                     return f"{val}.{func_name_str}(it)"
 
+        elif func_name_str == "round":
+            self.emitter.add_import("math")
+            if len(args) == 2:
+                self.used_builtins.add("round")
+                return f"py_round({args[0]}, {args[1]})"
+            elif len(args) == 1:
+                return f"math.round({args[0]})"
+
         elif func_name_str == "isinstance":
             if len(args) == 2:
                 obj = args[0]
