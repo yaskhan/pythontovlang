@@ -262,6 +262,22 @@ class ExpressionsMixin(TranslatorBase):
              obj = self.visit(func_node.value)
              return f"/* {obj}.clear() */ {obj} = {{}}"
 
+        # Handle list.sort(reverse=True)
+        if isinstance(func_node, ast.Attribute) and func_node.attr == "sort":
+             # We assume it is a list sort call if method name is 'sort'
+             # Check keywords for reverse=True
+             reverse = False
+             for keyword in node.keywords:
+                 if keyword.arg == "reverse":
+                     if isinstance(keyword.value, ast.Constant) and keyword.value.value is True:
+                         reverse = True
+
+             obj = self.visit(func_node.value)
+             if reverse:
+                 return f"{obj}.sort(a > b)"
+             else:
+                 return f"{obj}.sort()"
+
         if func_name_str == "sorted":
             self.used_builtins.add("sorted")
             return f"py_sorted({', '.join(args)})"
