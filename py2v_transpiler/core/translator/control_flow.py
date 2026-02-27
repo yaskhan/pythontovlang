@@ -279,7 +279,7 @@ class ControlFlowMixin(TranslatorBase):
                 cause_val = self.visit(node.cause)
                 self.output.append(f"{self._indent()}panic('${{{val}}} (Cause: ${{{cause_val}}})')")
             else:
-                self.output.append(f"{self._indent()}panic({val})")
+                self.output.append(f"{self._indent()}panic('${{{val}}}')")
         else:
             self.output.append(f"{self._indent()}panic('reraise not supported')")
 
@@ -308,7 +308,23 @@ class ControlFlowMixin(TranslatorBase):
 
             name_str = f" as {handler.name}" if handler.name else ""
             self.output.append(f"{self._indent()}// Handler: {type_str}{name_str}")
+            # Visit handler body but comment it out
+            # We must be careful because visit(stmt) appends to self.output
+            # We can capture it
             self.output.append(f"{self._indent()}// ... exception handling logic ...")
+
+            # Temporary logic: traverse handler body to show intent, but keep as comment
+            for stmt in handler.body:
+                 # Hack: visit and prefix lines with //
+                 # We need to capture output
+                 old_output = self.output
+                 self.output = []
+                 self.visit(stmt)
+                 captured = self.output
+                 self.output = old_output
+                 for line in captured:
+                     self.output.append(f"// {line}")
+
         if node.finalbody:
              self.output.append(f"{self._indent()}// }} finally {{")
 
