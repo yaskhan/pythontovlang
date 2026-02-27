@@ -124,7 +124,7 @@ class ExpressionsMixin(TranslatorBase):
         # Handle functools.partial
         if module_name == "functools" and func_name == "partial":
              if len(args) >= 2:
-                 # partial(func, *args) -> fn [func, args] (extra_args ...any) { return func(args..., extra_args...) }
+                 # partial(func, *args) -> fn [func, args] (extra_args ...Any) { return func(args..., extra_args...) }
                  # Simplified closure generation
                  target_func = args[0]
                  partial_args = args[1:]
@@ -139,7 +139,7 @@ class ExpressionsMixin(TranslatorBase):
 
                  # We need to generate names for arguments to capture?
                  # Or just embed expressions if they are constants/vars.
-                 # `fn [target_func, partial_args] (rest ...any) { return target_func(partial_args..., rest...) }`
+                 # `fn [target_func, partial_args] (rest ...Any) { return target_func(partial_args..., rest...) }`
 
                  # Construct capture list string
                  # We assume args are valid expressions.
@@ -156,12 +156,12 @@ class ExpressionsMixin(TranslatorBase):
                  # V requires types for anonymous function arguments.
                  # `fn (x int)` etc.
                  # This makes generalized partial very hard without generic lambdas (which V has limitations on).
-                 # Fallback: Emit a comment and a best-effort lambda assuming 'int' or 'any' if possible.
+                 # Fallback: Emit a comment and a best-effort lambda assuming 'int' or 'Any' if possible.
 
                  # Try to deduce type from target_func? Hard.
 
                  # Let's emit a closure that takes `...int` and returns `int` as a common case,
-                 # or `...any` if we had `any` support everywhere.
+                 # or `...Any` if we had `Any` support everywhere.
 
                  joined_partial = ", ".join(partial_args)
                  return f"fn (rest ...int) int {{ return {target_func}({joined_partial}, ...rest) }}"
@@ -328,6 +328,17 @@ class ExpressionsMixin(TranslatorBase):
             if len(args) == 2:
                 obj = args[0]
                 types = args[1]
+                # Check if second arg was a Tuple, visited as "[T1, T2]" string
+                # We need to access the original node to be sure
+                if isinstance(node.args[1], ast.Tuple):
+                    # It's a tuple of types: (int, float)
+                    # We need to generate (obj is int || obj is float)
+                    type_checks = []
+                    for elt in node.args[1].elts:
+                        t_name = str(self.visit(elt))
+                        type_checks.append(f"{obj} is {t_name}")
+                    return f"({' || '.join(type_checks)})"
+
                 if types.startswith("[") and types.endswith("]"):
                      return f"/* isinstance({obj}, {types}) - multi-type check not supported */ false"
                 return f"{obj} is {types}"

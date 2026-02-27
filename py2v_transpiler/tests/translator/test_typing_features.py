@@ -68,8 +68,8 @@ def is_str_list(val: List[object]) -> TypeGuard[List[str]]:
     return True
 """
     v_code = translate(source)
-    # object -> any
-    assert "fn is_str_list(val []any) bool" in v_code
+    # object -> Any
+    assert "fn is_str_list(val []Any) bool" in v_code
 
 def test_typing_no_return():
     source = """

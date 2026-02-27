@@ -108,7 +108,7 @@ class VNodeVisitor(
 
         # Generate single dispatchers
         for func_name, registry in self.single_dispatch_functions.items():
-            # fn func_name(arg any) {
+            # fn func_name(arg Any) {
             #     match typeof(arg).name {
             #         'int' { func_name_int(arg) }
             #         'string' { func_name_string(arg) }
@@ -123,7 +123,7 @@ class VNodeVisitor(
             # V syntax for casting from interface/any: `if arg is int { func_name_int(arg) }`
 
             lines = []
-            lines.append(f"fn {func_name}(arg any) {{")
+            lines.append(f"fn {func_name}(arg Any) {{")
             lines.append("    // Singledispatch implementation")
 
             # Default implementation
@@ -650,8 +650,8 @@ class VNodeVisitor(
 
         if struct_used:
              # Stub for generic pack/unpack
-             self.emitter.add_function("fn py_struct_pack(fmt string, args ...any) []u8 {\n    panic('struct.pack with dynamic format not implemented')\n    return []u8{}\n}")
-             # Return []any is hard in V without sum types for all primitives. For now, stub return empty.
+             self.emitter.add_function("fn py_struct_pack(fmt string, args ...Any) []u8 {\n    panic('struct.pack with dynamic format not implemented')\n    return []u8{}\n}")
+             # Return []Any is hard in V without sum types for all primitives. For now, stub return empty.
              self.emitter.add_function("fn py_struct_unpack(fmt string, data []u8) []int {\n    panic('struct.unpack with dynamic format not implemented')\n    return []int{}\n}")
              self.emitter.add_function("fn py_struct_calcsize(fmt string) int {\n    panic('struct.calcsize with dynamic format not implemented')\n    return 0\n}")
 
@@ -737,7 +737,7 @@ class VNodeVisitor(
              # fractions.from_f64(f) exists.
              # Parsing string requires custom logic or libc atof?
              # For now, simplistic implementation for int/float/string
-             self.emitter.add_function("fn py_fraction(val any) fractions.Fraction {\n    $if val is $int {\n        return fractions.fraction(i64(val), 1)\n    } $else $if val is $float {\n        return fractions.from_f64(f64(val))\n    } $else $if val is string {\n        // Simplistic string parsing not implemented in helper yet\n        return fractions.fraction(0, 1)\n    }\n    return fractions.fraction(0, 1)\n}")
+             self.emitter.add_function("fn py_fraction(val Any) fractions.Fraction {\n    $if val is $int {\n        return fractions.fraction(i64(val), 1)\n    } $else $if val is $float {\n        return fractions.from_f64(f64(val))\n    } $else $if val is string {\n        // Simplistic string parsing not implemented in helper yet\n        return fractions.fraction(0, 1)\n    }\n    return fractions.fraction(0, 1)\n}")
 
         statistics_used = "statistics" in self.imported_modules.values()
         if not statistics_used:
@@ -773,7 +773,7 @@ class VNodeVisitor(
              # py_decimal helper
              # Map Decimal to f64 for now
              self.emitter.add_main_statement("type Decimal = f64")
-             self.emitter.add_function("fn py_decimal(val any) Decimal {\n    $if val is $float {\n        return f64(val)\n    } $else $if val is $int {\n        return f64(val)\n    } $else $if val is string {\n        return val.f64()\n    }\n    return 0.0\n}")
+             self.emitter.add_function("fn py_decimal(val Any) Decimal {\n    $if val is $float {\n        return f64(val)\n    } $else $if val is $int {\n        return f64(val)\n    } $else $if val is string {\n        return val.f64()\n    }\n    return 0.0\n}")
 
         pickle_used = "pickle" in self.imported_modules.values()
         if not pickle_used:
@@ -794,13 +794,13 @@ class VNodeVisitor(
              self.emitter.add_function("fn py_pickle_load[T](f os.File) T {\n    // Warning: Mapped to JSON deserialization\n    // This assumes the file contains one JSON object\n    // We need to read whole file? or stream?\n    // V json.decode takes string.\n    // We can't easily read from file inside generic func without reading all.\n    // Assuming small file for now, but we don't have read_all on File struct easily exposed in standard way? \n    // actually os.read_file(path) exists. But here we have File object.\n    // Let's panic for now or return zero.\n    panic('pickle.load not fully implemented')\n    return T{}\n}")
 
         # Helper for dynamic format specifiers
-        self.emitter.add_function("fn py_format(val any, spec string) string {\n    // Dynamic format specifier support is limited.\n    // V does not support runtime format string construction easily.\n    // We fallback to standard string representation.\n    return '${val}'\n}")
+        self.emitter.add_function("fn py_format(val Any, spec string) string {\n    // Dynamic format specifier support is limited.\n    // V does not support runtime format string construction easily.\n    // We fallback to standard string representation.\n    return '${val}'\n}")
 
         # PyGenerator support
         # We need a generic struct to wrap channels for send/throw/close.
         # We use a wrapper struct for input to support throw (signaling exceptions).
         self.emitter.add_struct("""struct PyGeneratorInput {
-    val any
+    val Any
     is_exc bool
     exc_msg string
 }""")
@@ -818,7 +818,7 @@ mut:
     if res == none { g.open = false }
     return res
 }""")
-        self.emitter.add_function("""fn (mut g PyGenerator[T]) send(val any) ?T {
+        self.emitter.add_function("""fn (mut g PyGenerator[T]) send(val Any) ?T {
     if !g.open { panic('StopIteration') }
     g.in_ <- PyGeneratorInput{val: val}
     res := <-g.out
@@ -841,7 +841,7 @@ mut:
         # py_yield(ch_out, ch_in, val)
         # Returns the value sent back via send(), or none if next() was called.
         # Panics if throw() was called.
-        self.emitter.add_function("""fn py_yield[T](ch_out chan ?T, ch_in chan PyGeneratorInput, val T) any {
+        self.emitter.add_function("""fn py_yield[T](ch_out chan ?T, ch_in chan PyGeneratorInput, val T) Any {
     ch_out <- val
     inp := <-ch_in
     if inp.is_exc {
@@ -851,11 +851,11 @@ mut:
 }""")
 
         # Helper for bytes formatting
-        self.emitter.add_function("fn py_bytes_format(fmt []u8, args any) []u8 {\n    // Simplistic implementation for b'%s' % b'val'\n    // Converts bytes to string, formats, and converts back.\n    // This is not efficient or correct for non-ASCII bytes but works for simple cases.\n    fmt_str := fmt.bytestr()\n    // TODO: handle args properly. V's string interpolation/formatting expects distinct args.\n    // If args is []u8, treat as string.\n    arg_str := if args is []u8 { args.bytestr() } else { '${args}' }\n    \n    // Manual substitution of %s\n    // V does not have sprintf for runtime strings easily available in core without C interop.\n    // Simple replace for %s\n    res := fmt_str.replace('%s', arg_str)\n    return res.bytes()\n}")
+        self.emitter.add_function("fn py_bytes_format(fmt []u8, args Any) []u8 {\n    // Simplistic implementation for b'%s' % b'val'\n    // Converts bytes to string, formats, and converts back.\n    // This is not efficient or correct for non-ASCII bytes but works for simple cases.\n    fmt_str := fmt.bytestr()\n    // TODO: handle args properly. V's string interpolation/formatting expects distinct args.\n    // If args is []u8, treat as string.\n    arg_str := if args is []u8 { args.bytestr() } else { '${args}' }\n    \n    // Manual substitution of %s\n    // V does not have sprintf for runtime strings easily available in core without C interop.\n    // Simple replace for %s\n    res := fmt_str.replace('%s', arg_str)\n    return res.bytes()\n}")
         # String formatting helper
         if self.used_string_format:
             self.emitter.add_import("strings")
-            self.emitter.add_function("""fn py_string_format(fmt string, args ...any) string {
+            self.emitter.add_function("""fn py_string_format(fmt string, args ...Any) string {
     mut res := strings.new_builder(fmt.len + 16)
     mut arg_idx := 0
     mut i := 0

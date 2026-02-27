@@ -236,6 +236,9 @@ class FunctionsMixin(TranslatorBase):
             elif func_name == "__delete__":
                  func_name = "delete"
 
+            if dec_info.is_setter:
+                 func_name = f"set_{func_name}"
+
             if self.current_class and not is_new_method:
                 func_name = self._mangle_name(func_name, self.current_class)
 
