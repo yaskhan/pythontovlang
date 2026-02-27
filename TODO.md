@@ -124,7 +124,7 @@
 - [x] Support for docstrings (emit as V comments)
 - [x] Support for decorators with arguments
 - [x] Support for multiple exception types in single 'except' block
-- [ ] Support for bi-directional generator methods (send/throw/close)
+- [x] Support for bi-directional generator methods (send/throw/close)
 - [x] Support for metaclasses (class X(metaclass=M))
 - [x] Support for __slots__ optimization
 - [x] Support for descriptor protocol (__get__, __set__, __delete__)
