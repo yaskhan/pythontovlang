@@ -253,6 +253,11 @@ class ExpressionsMixin(TranslatorBase):
         # Note: 'open', 'hasattr' are handled above or fall through if not matched.
         # But wait, open is not in existing logic.
 
+        # Handle next(gen) -> gen.next()
+        if func_name_str == "next" and len(args) >= 1:
+             gen = args[0]
+             return f"{gen}.next()"
+
         if isinstance(func_node, ast.Attribute) and func_node.attr == "clear" and not module_name:
              obj = self.visit(func_node.value)
              return f"/* {obj}.clear() */ {obj} = {{}}"
@@ -340,6 +345,43 @@ class ExpressionsMixin(TranslatorBase):
                 return f"print('{joined_content}')"
             else:
                 return f"print('{joined_content}{end}')"
+
+        # Check if it is a generator call
+        if self.coroutine_handler.is_generator(func_name_str):
+             # Generate unique names
+             ch_out_name = self.coroutine_handler.get_temp_channel_name()
+             ch_in_name = ch_out_name.replace("ch_", "ch_in_")
+             gen_var_name = ch_out_name.replace("ch_", "gen_")
+
+             yield_type = self.coroutine_handler.get_generator_type(func_name_str)
+
+             # Emit setup code
+             # We must be careful about where we emit this.
+             # visit_Call is expression visitor, but we are emitting statements.
+             # self.output appends to current block.
+             # This works if visit_Call is called at statement level (Expr).
+             # If called inside expression (e.g. x = gen()), emitting statements before x = ... works in V?
+             # V allows `x := { stmts; val }` block expressions but syntax is specific (unsafe block or similar).
+             # Standard V does not support arbitrary statement blocks in expressions.
+             # However, our TranslatorBase usually visits statements.
+             # If we are inside `visit_Assign`, `visit(value)` is called.
+             # If we emit statements here, they appear BEFORE the assignment statement in `self.output`.
+             # So:
+             # ch := ...
+             # gen := ...
+             # spawn ...
+             # x := gen
+             # This order is CORRECT for V.
+
+             self.output.append(f"{self._indent()}{ch_out_name} := chan ?{yield_type}{{cap: 0}}")
+             self.output.append(f"{self._indent()}{ch_in_name} := chan PyGeneratorInput{{cap: 0}}")
+             self.output.append(f"{self._indent()}{gen_var_name} := PyGenerator[{yield_type}]{{out: {ch_out_name}, in_: {ch_in_name}}}")
+
+             # Construct spawn arguments
+             spawn_args = [ch_out_name, ch_in_name] + args
+             self.output.append(f"{self._indent()}spawn {func_name_str}({', '.join(spawn_args)})")
+
+             return gen_var_name
 
         return f"{func_name_str}({', '.join(args)})"
 

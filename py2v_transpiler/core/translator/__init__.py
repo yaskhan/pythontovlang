@@ -791,6 +791,60 @@ class VNodeVisitor(
         # Helper for dynamic format specifiers
         self.emitter.add_function("fn py_format(val any, spec string) string {\n    // Dynamic format specifier support is limited.\n    // V does not support runtime format string construction easily.\n    // We fallback to standard string representation.\n    return '${val}'\n}")
 
+        # PyGenerator support
+        # We need a generic struct to wrap channels for send/throw/close.
+        # We use a wrapper struct for input to support throw (signaling exceptions).
+        self.emitter.add_struct("""struct PyGeneratorInput {
+    val any
+    is_exc bool
+    exc_msg string
+}""")
+
+        self.emitter.add_struct("""struct PyGenerator[T] {
+mut:
+    out chan ?T
+    in_ chan PyGeneratorInput
+    open bool = true
+}""")
+        self.emitter.add_function("""fn (mut g PyGenerator[T]) next() ?T {
+    if !g.open { return none }
+    g.in_ <- PyGeneratorInput{val: 0} // Send dummy value
+    res := <-g.out
+    if res == none { g.open = false }
+    return res
+}""")
+        self.emitter.add_function("""fn (mut g PyGenerator[T]) send(val any) ?T {
+    if !g.open { panic('StopIteration') }
+    g.in_ <- PyGeneratorInput{val: val}
+    res := <-g.out
+    if res == none { g.open = false }
+    return res
+}""")
+        self.emitter.add_function("""fn (mut g PyGenerator[T]) throw(msg string) ?T {
+    if !g.open { panic('StopIteration') }
+    g.in_ <- PyGeneratorInput{is_exc: true, exc_msg: msg}
+    res := <-g.out
+    if res == none { g.open = false }
+    return res
+}""")
+        self.emitter.add_function("""fn (mut g PyGenerator[T]) close() {
+    g.open = false
+    g.in_.close()
+    // g.out will be closed by the generator function loop when it detects in_ closed or panic
+}""")
+        # Helper for yield expression: yield val
+        # py_yield(ch_out, ch_in, val)
+        # Returns the value sent back via send(), or none if next() was called.
+        # Panics if throw() was called.
+        self.emitter.add_function("""fn py_yield[T](ch_out chan ?T, ch_in chan PyGeneratorInput, val T) any {
+    ch_out <- val
+    inp := <-ch_in
+    if inp.is_exc {
+        panic(inp.exc_msg)
+    }
+    return inp.val
+}""")
+
         # Helper for bytes formatting
         self.emitter.add_function("fn py_bytes_format(fmt []u8, args any) []u8 {\n    // Simplistic implementation for b'%s' % b'val'\n    // Converts bytes to string, formats, and converts back.\n    // This is not efficient or correct for non-ASCII bytes but works for simple cases.\n    fmt_str := fmt.bytestr()\n    // TODO: handle args properly. V's string interpolation/formatting expects distinct args.\n    // If args is []u8, treat as string.\n    arg_str := if args is []u8 { args.bytestr() } else { '${args}' }\n    \n    // Manual substitution of %s\n    // V does not have sprintf for runtime strings easily available in core without C interop.\n    // Simple replace for %s\n    res := fmt_str.replace('%s', arg_str)\n    return res.bytes()\n}")
         # String formatting helper

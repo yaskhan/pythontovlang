@@ -18,9 +18,9 @@ def gen():
     result = translator.visit_Module(tree)
 
     # Yield translates to channel push
-    assert "ch <- 1" in result
-    assert "ch.close()" in result
-    assert "fn gen(ch chan int) {" in result
+    assert "py_yield(ch_out, ch_in, 1)" in result
+    assert "ch_out.close()" in result
+    assert "fn gen(ch_out chan ?int, ch_in chan PyGeneratorInput) {" in result
 
 def test_translator_list_indexing():
     parser = PyASTParser()

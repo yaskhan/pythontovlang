@@ -119,8 +119,9 @@ class FunctionsMixin(TranslatorBase):
         if is_generator:
             # Inject channel argument
             yield_type = self.coroutine_handler.get_yield_type(node)
-            args_str_list.append(f"ch chan {yield_type}")
-            self.coroutine_handler.enter_generator("ch")
+            args_str_list.append(f"ch_out chan ?{yield_type}")
+            args_str_list.append(f"ch_in chan PyGeneratorInput")
+            self.coroutine_handler.enter_generator("ch_out", "ch_in")
 
         args = node.args.args
         if hasattr(node.args, 'posonlyargs'):
@@ -306,6 +307,14 @@ class FunctionsMixin(TranslatorBase):
         for stmt in body:
             self.visit(stmt)
 
+        # We need to inject `_ = <- ch_in` at the start of generator execution.
+        # This corresponds to waiting for the first `next()` call.
+        if is_generator:
+             self.output.append(f"{self._indent()}_ := <-{self.coroutine_handler.active_in_channel}")
+
+        for stmt in body:
+            self.visit(stmt)
+
         if is_generator:
             self.output.append(f"{self._indent()}{self.coroutine_handler.active_channel}.close()")
             self.coroutine_handler.exit_generator()
@@ -333,7 +342,8 @@ class FunctionsMixin(TranslatorBase):
     def visit_Yield(self, node: ast.Yield) -> str:
         if self.coroutine_handler.active_channel:
              val = self.visit(node.value) if node.value else "0"
-             return f"{self.coroutine_handler.active_channel} <- {val}"
+             # Use helper to allow expression usage and handle bi-directional flow
+             return f"py_yield({self.coroutine_handler.active_channel}, {self.coroutine_handler.active_in_channel}, {val})"
         val = ""
         if node.value:
             val = self.visit(node.value)
@@ -342,9 +352,13 @@ class FunctionsMixin(TranslatorBase):
     def visit_YieldFrom(self, node: ast.YieldFrom) -> Optional[str]:
         if self.coroutine_handler.active_channel:
              val = self.visit(node.value)
+             # Basic delegation: iterate and yield.
+             # Note: This does not fully implement bidirectional delegation (send/throw forwarding)
+             # as V for loop over struct assumes simple iteration.
+             # However, using py_yield here enables at least yielding values out.
              self.output.append(f"{self._indent()}for v in {val} {{")
              self._indent_level += 1
-             self.output.append(f"{self._indent()}{self.coroutine_handler.active_channel} <- v")
+             self.output.append(f"{self._indent()}py_yield({self.coroutine_handler.active_channel}, {self.coroutine_handler.active_in_channel}, v)")
              self._indent_level -= 1
              self.output.append(f"{self._indent()}}}")
              return None
@@ -365,6 +379,9 @@ class FunctionsMixin(TranslatorBase):
         self.output.append(f"{self._indent()}// nonlocal {names}")
 
     def visit_Return(self, node: ast.Return) -> None:
+        if self.coroutine_handler.active_channel:
+             self.output.append(f"{self._indent()}{self.coroutine_handler.active_channel}.close()")
+
         if node.value:
             val = self.visit(node.value)
             self.output.append(f"{self._indent()}return {val}")

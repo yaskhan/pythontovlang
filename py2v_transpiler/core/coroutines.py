@@ -47,11 +47,13 @@ class CoroutineHandler:
     def is_generator(self, name: str) -> bool:
         return name in self.generators
 
-    def enter_generator(self, channel_name: str = "ch") -> None:
+    def enter_generator(self, channel_name: str = "ch", in_channel_name: str = "ch_in") -> None:
         self.active_channel = channel_name
+        self.active_in_channel = in_channel_name
 
     def exit_generator(self) -> None:
         self.active_channel = None
+        self.active_in_channel = None
 
     def get_temp_channel_name(self) -> str:
         self._temp_var_counter += 1

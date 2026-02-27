@@ -127,44 +127,6 @@ class ControlFlowMixin(TranslatorBase):
 
         self.loop_stack.append(loop_ctx)
 
-        # Check if iterating over generator
-        iter_node = node.iter
-        if isinstance(iter_node, ast.Call) and isinstance(iter_node.func, ast.Name):
-            if self.coroutine_handler.is_generator(iter_node.func.id):
-                 # Generate setup
-                 ch_name = self.coroutine_handler.get_temp_channel_name()
-                 yield_type = self.coroutine_handler.get_generator_type(iter_node.func.id)
-                 self.output.append(f"{self._indent()}{ch_name} := chan {yield_type}{{cap: 0}}")
-
-                 # Call spawn
-                 # Construct args
-                 # node.iter is Call(func, args, keywords)
-                 # We need to inject ch_name as first arg
-                 func_name = iter_node.func.id
-                 # self.visit(node.iter.args) ?
-                 spawn_args = [ch_name] + [str(self.visit(a)) for a in iter_node.args]
-                 call_str = f"spawn {func_name}({', '.join(spawn_args)})"
-                 self.output.append(f"{self._indent()}{call_str}")
-
-                 # Now loop over channel
-                 target = self.visit(node.target)
-                 self.output.append(f"{self._indent()}for {target} in {ch_name} {{")
-                 self._indent_level += 1
-                 for stmt in node.body:
-                     self.visit(stmt)
-                 self._indent_level -= 1
-                 self.output.append(f"{self._indent()}}}")
-
-                 self.loop_stack.pop()
-                 if node.orelse:
-                     self.output.append(f"{self._indent()}if {flag_name} {{")
-                     self._indent_level += 1
-                     for stmt in node.orelse:
-                         self.visit(stmt)
-                     self._indent_level -= 1
-                     self.output.append(f"{self._indent()}}}")
-                 return
-
         # Zip handling
         if isinstance(node.iter, ast.Call) and isinstance(node.iter.func, ast.Name) and node.iter.func.id == "zip":
             zip_args = node.iter.args
