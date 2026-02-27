@@ -308,17 +308,28 @@ class VariablesMixin(TranslatorBase):
     def _capture_target(self, node: ast.AST) -> tuple[str, list[str]]:
         """
         Prepares a target for AugAssign by capturing its components.
+        Recurses on L-value bases (Attribute, Subscript) to preserve reference path.
         Returns (new_target_string, setup_statements).
         """
         if isinstance(node, ast.Name):
             return self.visit(node), []
 
         elif isinstance(node, ast.Attribute):
-            base_expr, base_setup = self._capture_value(node.value)
+            # Recurse on base if it's an L-value container (Name, Attribute, Subscript)
+            # Otherwise capture value (Call, etc.)
+            if isinstance(node.value, (ast.Name, ast.Attribute, ast.Subscript)):
+                base_expr, base_setup = self._capture_target(node.value)
+            else:
+                base_expr, base_setup = self._capture_value(node.value)
+
             return f"{base_expr}.{node.attr}", base_setup
 
         elif isinstance(node, ast.Subscript):
-            base_expr, base_setup = self._capture_value(node.value)
+            # Recurse on base if it's an L-value container
+            if isinstance(node.value, (ast.Name, ast.Attribute, ast.Subscript)):
+                base_expr, base_setup = self._capture_target(node.value)
+            else:
+                base_expr, base_setup = self._capture_value(node.value)
 
             idx_node = node.slice
             # Handle Py < 3.9 ast.Index
@@ -342,7 +353,11 @@ class VariablesMixin(TranslatorBase):
 
             if isinstance(node.op, ast.Pow):
                 self.emitter.add_import("math")
-                self.output.append(f"{self._indent()}{new_target} = math.pow({new_target}, {value})")
+                target_type = self._guess_type(node.target) if hasattr(self, '_guess_type') else "unknown"
+                if target_type == "int":
+                     self.output.append(f"{self._indent()}{new_target} = int(math.pow({new_target}, {value}))")
+                else:
+                     self.output.append(f"{self._indent()}{new_target} = math.pow({new_target}, {value})")
             elif isinstance(node.op, ast.FloorDiv):
                 # //= -> floor division
                 # If types are int, use /
