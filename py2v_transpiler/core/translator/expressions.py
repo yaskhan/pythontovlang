@@ -285,9 +285,9 @@ class ExpressionsMixin(TranslatorBase):
                 arg = node.args[0]
                 if isinstance(arg, ast.GeneratorExp):
                     # any(expr for target in iter) -> iter.any(expr_with_it)
-                    gen = arg.generators[0]
-                    target = gen.target
-                    iter_expr = self.visit(gen.iter)
+                    comp_gen = arg.generators[0]
+                    target = comp_gen.target
+                    iter_expr = self.visit(comp_gen.iter)
 
                     if isinstance(target, ast.Name):
                         # Map target name to 'it'

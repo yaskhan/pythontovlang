@@ -1,16 +1,21 @@
 
-from typing import Iterator
+from typing import Iterator, Generator
 
 def simple_gen() -> Iterator[int]:
     yield 1
     yield 2
     yield 3
 
-def bi_directional_gen() -> Iterator[int]:
+def bi_directional_gen() -> Generator[int, int, None]:
     # Start
     x = yield 1 # Yields 1, expects value sent back
     # Received value (e.g. 10)
+    # Check types for mypy safety - x is int
+    if x is None:
+        x = 0
     y = yield x * 2 # Yields 20, expects value
+    if y is None:
+        y = 0
     yield y + 1 # Yields 11 (if 10 sent again? No, y is from previous send)
 
 def test_simple_iteration():
