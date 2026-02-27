@@ -368,11 +368,15 @@ class VariablesMixin(TranslatorBase):
     def visit_TypeAlias(self, node: Any) -> None:
         name = node.name.id
         type_params = ""
+
+        # Safe access to ast.TypeVar for Py < 3.12 compatibility
+        TypeVar = getattr(ast, 'TypeVar', type(None))
+
         if node.type_params:
             # Handle generics [T, U]
             params = []
             for param in node.type_params:
-                if isinstance(param, ast.TypeVar):
+                if isinstance(param, TypeVar):
                     params.append(param.name)
                 # Basic support for TypeVar only for now
             if params:
