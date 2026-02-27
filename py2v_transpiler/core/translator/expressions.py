@@ -262,6 +262,22 @@ class ExpressionsMixin(TranslatorBase):
              obj = self.visit(func_node.value)
              return f"/* {obj}.clear() */ {obj} = {{}}"
 
+        # Handle list.sort(reverse=True)
+        if isinstance(func_node, ast.Attribute) and func_node.attr == "sort":
+             # We assume it is a list sort call if method name is 'sort'
+             # Check keywords for reverse=True
+             reverse = False
+             for keyword in node.keywords:
+                 if keyword.arg == "reverse":
+                     if isinstance(keyword.value, ast.Constant) and keyword.value.value is True:
+                         reverse = True
+
+             obj = self.visit(func_node.value)
+             if reverse:
+                 return f"{obj}.sort(a > b)"
+             else:
+                 return f"{obj}.sort()"
+
         if func_name_str == "sorted":
             self.used_builtins.add("sorted")
             return f"py_sorted({', '.join(args)})"
@@ -300,6 +316,14 @@ class ExpressionsMixin(TranslatorBase):
                     val = self.visit(arg)
                     return f"{val}.{func_name_str}(it)"
 
+        elif func_name_str == "round":
+            self.emitter.add_import("math")
+            if len(args) == 2:
+                self.used_builtins.add("round")
+                return f"py_round(f64({args[0]}), {args[1]})"
+            elif len(args) == 1:
+                return f"math.round({args[0]})"
+
         elif func_name_str == "isinstance":
             if len(args) == 2:
                 obj = args[0]
@@ -313,6 +337,33 @@ class ExpressionsMixin(TranslatorBase):
             if args:
                 return f"os.input({args[0]})"
             return "os.input('')"
+
+        # String predicates
+        # isdigit, isalpha, isalnum, isspace, islower, isupper, istitle
+        # These are usually called as methods on strings: "s.isdigit()"
+        # But visit_Call handles method calls too.
+        # Check if the function name matches a known string predicate.
+        # And implicitly assume the receiver is a string (or we rely on V compiler error if not).
+        # We handle them if func_node is Attribute.
+        elif isinstance(func_node, ast.Attribute) and func_node.attr in (
+            "isdigit", "isalpha", "isalnum", "isspace", "islower", "isupper", "istitle"
+        ) and not module_name:
+             attr = func_node.attr
+             obj = self.visit(func_node.value)
+             if attr == "isdigit":
+                 return f"{obj}.bytes().all(it.is_digit())"
+             elif attr == "isalpha":
+                 return f"{obj}.bytes().all(it.is_letter())"
+             elif attr == "isalnum":
+                 return f"{obj}.bytes().all(it.is_alnum())"
+             elif attr == "isspace":
+                 return f"{obj}.bytes().all(it.is_space())"
+             elif attr == "islower":
+                 return f"{obj}.is_lower()"
+             elif attr == "isupper":
+                 return f"{obj}.is_upper()"
+             elif attr == "istitle":
+                 return f"{obj}.is_title()"
 
         elif func_name_str == "print":
             sep = " "
@@ -489,13 +540,50 @@ class ExpressionsMixin(TranslatorBase):
 
         if isinstance(node.op, ast.Pow):
              self.emitter.add_import("math")
+             # Check for negative exponent literal
+             is_negative_literal = False
+             if isinstance(node.right, ast.UnaryOp) and isinstance(node.right.op, ast.USub):
+                 if isinstance(node.right.operand, ast.Constant) and isinstance(node.right.operand.value, (int, float)):
+                      is_negative_literal = True
+             elif isinstance(node.right, ast.Constant) and isinstance(node.right.value, (int, float)) and node.right.value < 0:
+                  is_negative_literal = True
+
              # Check types
-             is_float_op = (left_type == "f64" or right_type == "f64")
+             is_float_op = (left_type == "f64" or right_type == "f64" or is_negative_literal)
              if is_float_op:
-                  return f"math.pow({left}, {right})"
+                  l_val = left
+                  r_val = right
+                  if left_type == "int":
+                       l_val = f"f64({left})"
+                  if right_type == "int":
+                       r_val = f"f64({right})"
+                  return f"math.pow({l_val}, {r_val})"
              else:
                   # Integer power
                   return f"math.powi({left}, {right})"
+
+        if isinstance(node.op, ast.FloorDiv):
+             # Floor division //
+             # If float -> math.floor(a/b)
+             # If int -> logic to handle negative operands
+             self.emitter.add_import("math")
+             if left_type == "int" and right_type == "int":
+                  # Python's // on integers behaves like floor(a/b).
+                  # V's / truncates.
+                  # Formula: i64(math.floor(f64(a) / f64(b)))
+                  # We use i64 to ensure it fits (assuming int is 64-bit or we don't care about 32-bit overflow here for now)
+                  # or just cast to 'int' if V's int is 32-bit? V 'int' is 32-bit. 'i64' is 64-bit.
+                  # Python 3 ints are arbitrary precision.
+                  # Let's cast to `int` if inputs were `int` (as per guessing).
+                  # Or stick to `i64` if we want to be safer?
+                  # Let's use `int(...)` to match V's default int type.
+                  return f"int(math.floor(f64({left}) / f64({right})))"
+             else:
+                  # Float floor div
+                  # If we have floats, we return float.
+                  # Python: 7.0 // 2 -> 3.0
+                  # V: math.floor(7.0 / 2) -> 3.0
+                  return f"math.floor({left} / {right})"
 
         op_map = {
             ast.Add: "+", ast.Sub: "-", ast.Mult: "*", ast.Div: "/",

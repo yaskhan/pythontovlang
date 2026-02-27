@@ -165,6 +165,11 @@ class VNodeVisitor(
                 "fn py_reversed[T](a []T) []T {\n    mut b := a.clone()\n    b.reverse()\n    return b\n}"
             )
 
+        if "round" in self.used_builtins:
+            self.emitter.add_function(
+                "fn py_round(number f64, ndigits int) f64 {\n    p := math.pow(10, f64(ndigits))\n    return math.round(number * p) / p\n}"
+            )
+
         if self.used_complex:
              self.emitter.add_struct("struct PyComplex {\n    re f64\n    im f64\n}")
              self.emitter.add_function("fn py_complex(re f64, im f64) PyComplex {\n    return PyComplex{re: re, im: im}\n}")
@@ -849,48 +854,135 @@ mut:
         self.emitter.add_function("fn py_bytes_format(fmt []u8, args any) []u8 {\n    // Simplistic implementation for b'%s' % b'val'\n    // Converts bytes to string, formats, and converts back.\n    // This is not efficient or correct for non-ASCII bytes but works for simple cases.\n    fmt_str := fmt.bytestr()\n    // TODO: handle args properly. V's string interpolation/formatting expects distinct args.\n    // If args is []u8, treat as string.\n    arg_str := if args is []u8 { args.bytestr() } else { '${args}' }\n    \n    // Manual substitution of %s\n    // V does not have sprintf for runtime strings easily available in core without C interop.\n    // Simple replace for %s\n    res := fmt_str.replace('%s', arg_str)\n    return res.bytes()\n}")
         # String formatting helper
         if self.used_string_format:
+            self.emitter.add_import("strings")
             self.emitter.add_function("""fn py_string_format(fmt string, args ...any) string {
-    // Basic implementation of %-formatting
-    mut res := ''
+    mut res := strings.new_builder(fmt.len + 16)
     mut arg_idx := 0
     mut i := 0
     for i < fmt.len {
         if fmt[i] == `%` {
             if i + 1 < fmt.len {
-                spec := fmt[i+1]
-                if spec == `%` {
-                    res += '%'
+                if fmt[i+1] == `%` {
+                    res.write_string('%')
                     i += 2
                     continue
                 }
-                if arg_idx >= args.len {
-                    // Not enough args
-                    res += '%'
-                    i++
+                // Parse flags
+                mut j := i + 1
+                mut flag_zero := false
+                mut flag_minus := false
+                for j < fmt.len {
+                    if fmt[j] == `0` {
+                        flag_zero = true
+                        j++
+                    } else if fmt[j] == `-` {
+                        flag_minus = true
+                        j++
+                    } else {
+                        break
+                    }
+                }
+                // Parse width
+                mut width := 0
+                mut width_str := ''
+                for j < fmt.len && fmt[j].is_digit() {
+                    width_str += fmt[j].ascii_str()
+                    j++
+                }
+                if width_str != '' {
+                    width = width_str.int()
+                }
+                // Parse precision
+                mut precision := -1
+                if j < fmt.len && fmt[j] == `.` {
+                    j++
+                    mut prec_str := ''
+                    for j < fmt.len && fmt[j].is_digit() {
+                        prec_str += fmt[j].ascii_str()
+                        j++
+                    }
+                    if prec_str != '' {
+                        precision = prec_str.int()
+                    } else {
+                        precision = 0
+                    }
+                }
+                // Parse specifier
+                if j < fmt.len {
+                    spec := fmt[j]
+                    if arg_idx >= args.len {
+                        res.write_string('%')
+                        i++
+                        continue
+                    }
+                    arg := args[arg_idx]
+                    arg_idx++
+
+                    mut s_val := ''
+                    if spec == `s` {
+                        s_val = '${arg}'
+                    } else if spec == `d` || spec == `i` || spec == `u` {
+                        // Integer formatting
+                        // If arg is float, cast to int?
+                        // Using V interpolation format if possible, but we need dynamic width/prec
+                        // Easier to manually format
+                        val_int := '${arg}'.int()
+                        s_val = '${val_int}'
+                        if flag_zero && width > s_val.len && !flag_minus {
+                             s_val = '0'.repeat(width - s_val.len) + s_val
+                        }
+                    } else if spec == `f` || spec == `F` {
+                        // Float formatting
+                        val_f := '${arg}'.f64()
+                        prec := if precision >= 0 { precision } else { 6 }
+                        s_val = '${val_f:.${prec}f}'
+                    } else if spec == `e` || spec == `E` {
+                        val_f := '${arg}'.f64()
+                        prec := if precision >= 0 { precision } else { 6 }
+                        s_val = '${val_f:.${prec}e}'
+                    } else if spec == `g` || spec == `G` {
+                        val_f := '${arg}'.f64()
+                        // V doesn't strictly support %g in interpolation same as C, but close enough
+                        s_val = '${val_f}'
+                    } else if spec == `x` {
+                        val_int := '${arg}'.int()
+                        s_val = '${val_int:x}'
+                    } else if spec == `X` {
+                        val_int := '${arg}'.int()
+                        s_val = '${val_int:X}'
+                    } else if spec == `o` {
+                        val_int := '${arg}'.int()
+                        s_val = '${val_int:o}'
+                    } else if spec == `r` {
+                        s_val = '${arg}'
+                    } else if spec == `c` {
+                         val_int := '${arg}'.int()
+                         s_val = u8(val_int).ascii_str()
+                    } else {
+                        s_val = '${arg}'
+                    }
+
+                    // Apply width/align
+                    if width > s_val.len {
+                        pad := width - s_val.len
+                        if flag_minus {
+                            s_val = s_val + ' '.repeat(pad)
+                        } else if !flag_zero || spec == `s` {
+                             // Zero padding handled for ints above if no minus
+                             // For string or default, space pad
+                             s_val = ' '.repeat(pad) + s_val
+                        }
+                    }
+                    res.write_string(s_val)
+                    i = j + 1
                     continue
                 }
-                arg := args[arg_idx]
-                arg_idx++
-                if spec == `s` {
-                    res += '${arg}'
-                } else if spec == `d` {
-                    res += '${arg}'
-                } else if spec == `f` {
-                     res += '${arg}'
-                } else if spec == `r` {
-                     res += '${arg}'
-                } else {
-                     // Unknown spec, just print arg
-                     res += '${arg}'
-                }
-                i += 2
-                continue
             }
         }
-        res += fmt[i].ascii_str()
+        res.write_u8(fmt[i])
         i++
     }
-    return res
+    return res.str()
 }""")
 
         if self.used_list_concat:
