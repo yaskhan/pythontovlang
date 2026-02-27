@@ -1,3 +1,4 @@
+
 import sys
 import os
 import argparse
@@ -8,6 +9,18 @@ from py2v_transpiler.core.parser import PyASTParser
 from py2v_transpiler.core.analyzer import TypeInference
 from py2v_transpiler.core.translator import VNodeVisitor
 from py2v_transpiler.core.dependencies import DependencyAnalyzer
+
+class Transpiler:
+    def transpile(self, source_code: str) -> str:
+        parser = PyASTParser()
+        tree = parser.parse(source_code)
+
+        analyzer = TypeInference()
+        # Enable basic type inference for test strings
+        analyzer.visit(tree)
+
+        translator = VNodeVisitor(analyzer)
+        return translator.visit_Module(tree)
 
 def transpile_file(source_file: str, config: TranspilerConfig) -> bool:
     print(f"Transpiling {source_file}...")
@@ -35,6 +48,9 @@ def transpile_file(source_file: str, config: TranspilerConfig) -> bool:
     analyzer = TypeInference()
     if config.mypy_enabled:
         analyzer.run_mypy(source_file)
+
+    # Run basic AST visitor for type inference regardless of mypy
+    analyzer.visit(tree)
 
     # 4. Translate
     translator = VNodeVisitor(analyzer)

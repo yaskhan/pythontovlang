@@ -445,9 +445,19 @@ class ExpressionsMixin(TranslatorBase):
              if left_type == "[]u8" or (isinstance(node.left, ast.Constant) and isinstance(node.left.value, bytes)):
                  return f"py_bytes_format({left}, {right})"
 
+        if isinstance(node.op, ast.Pow):
+             self.emitter.add_import("math")
+             # Check types
+             is_float_op = (left_type == "f64" or right_type == "f64")
+             if is_float_op:
+                  return f"math.pow({left}, {right})"
+             else:
+                  # Integer power
+                  return f"math.powi({left}, {right})"
+
         op_map = {
             ast.Add: "+", ast.Sub: "-", ast.Mult: "*", ast.Div: "/",
-            ast.Mod: "%", ast.Pow: "**",
+            ast.Mod: "%",
             ast.BitAnd: "&", ast.BitOr: "|", ast.BitXor: "^",
             ast.LShift: "<<", ast.RShift: ">>"
         }
