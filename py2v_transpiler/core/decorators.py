@@ -6,6 +6,7 @@ from typing import List, Optional, Any
 class DecoratorInfo:
     is_static: bool = False
     is_property: bool = False
+    is_setter: bool = False
     is_classmethod: bool = False
     decorators_to_handle: List[str] = field(default_factory=list)
     cache_wrapper_needed: bool = False
@@ -37,6 +38,12 @@ class DecoratorProcessor:
             elif dec_name == "property":
                 info.is_property = True
                 # Properties are methods in V
+                info.decorators_to_handle.append(dec_name)
+            elif dec_name == "setter":
+                # Check if it's an attribute access like @name.setter
+                # _get_decorator_name returns 'setter' for 'name.setter' because it recurses on Attribute.attr
+                # We assume any decorator ending in .setter is a property setter
+                info.is_setter = True
                 info.decorators_to_handle.append(dec_name)
             elif dec_name == "lru_cache":
                 info.cache_wrapper_needed = True
