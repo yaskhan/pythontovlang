@@ -489,10 +489,24 @@ class ExpressionsMixin(TranslatorBase):
 
         if isinstance(node.op, ast.Pow):
              self.emitter.add_import("math")
+             # Check for negative exponent literal
+             is_negative_literal = False
+             if isinstance(node.right, ast.UnaryOp) and isinstance(node.right.op, ast.USub):
+                 if isinstance(node.right.operand, ast.Constant) and isinstance(node.right.operand.value, (int, float)):
+                      is_negative_literal = True
+             elif isinstance(node.right, ast.Constant) and isinstance(node.right.value, (int, float)) and node.right.value < 0:
+                  is_negative_literal = True
+
              # Check types
-             is_float_op = (left_type == "f64" or right_type == "f64")
+             is_float_op = (left_type == "f64" or right_type == "f64" or is_negative_literal)
              if is_float_op:
-                  return f"math.pow({left}, {right})"
+                  l_val = left
+                  r_val = right
+                  if left_type == "int":
+                       l_val = f"f64({left})"
+                  if right_type == "int":
+                       r_val = f"f64({right})"
+                  return f"math.pow({l_val}, {r_val})"
              else:
                   # Integer power
                   return f"math.powi({left}, {right})"
