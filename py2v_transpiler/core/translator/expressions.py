@@ -320,7 +320,7 @@ class ExpressionsMixin(TranslatorBase):
             self.emitter.add_import("math")
             if len(args) == 2:
                 self.used_builtins.add("round")
-                return f"py_round({args[0]}, {args[1]})"
+                return f"py_round(f64({args[0]}), {args[1]})"
             elif len(args) == 1:
                 return f"math.round({args[0]})"
 
