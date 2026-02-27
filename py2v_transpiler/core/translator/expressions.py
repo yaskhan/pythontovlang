@@ -328,6 +328,17 @@ class ExpressionsMixin(TranslatorBase):
             if len(args) == 2:
                 obj = args[0]
                 types = args[1]
+                # Check if second arg was a Tuple, visited as "[T1, T2]" string
+                # We need to access the original node to be sure
+                if isinstance(node.args[1], ast.Tuple):
+                    # It's a tuple of types: (int, float)
+                    # We need to generate (obj is int || obj is float)
+                    type_checks = []
+                    for elt in node.args[1].elts:
+                        t_name = str(self.visit(elt))
+                        type_checks.append(f"{obj} is {t_name}")
+                    return f"({' || '.join(type_checks)})"
+
                 if types.startswith("[") and types.endswith("]"):
                      return f"/* isinstance({obj}, {types}) - multi-type check not supported */ false"
                 return f"{obj} is {types}"

@@ -11,7 +11,7 @@ if isinstance(y, (int, float)):
 """
     expected_fragments = [
         "if x is MyClass {",
-        "/* isinstance(y, [int, float]) - multi-type check not supported */ false"
+        "(y is int || y is float)"
     ]
 
     visitor = VNodeVisitor(TypeInference())
