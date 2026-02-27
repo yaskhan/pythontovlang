@@ -46,7 +46,7 @@ x //= 2
 """
     v_code = transpile(source)
     # Default to integer division for unknown type
-    assert "x = x / 2" in v_code
+    assert "x = int(math.floor(f64(x) / f64(2)))" in v_code
 
 def test_floordiv_assign_complex_attr():
     source = """
@@ -62,7 +62,7 @@ get_obj().x //= 2
     assert "_aug_tmp_" in v_code
     assert ":= get_obj()" in v_code
     # Assuming integer division or floor depending on inference, but here likely int
-    assert ".x =" in v_code and " / 2" in v_code
+    assert ".x = int(math.floor(f64(" in v_code
 
 def test_pow_assign_nested_subscript():
     source = """
