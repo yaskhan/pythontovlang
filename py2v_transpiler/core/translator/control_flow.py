@@ -291,6 +291,11 @@ class ControlFlowMixin(TranslatorBase):
         for stmt in node.body:
             self.visit(stmt)
 
+        if node.orelse:
+            self.output.append(f"{self._indent()}// Python 'else' block (executed if no exception occurred):")
+            for stmt in node.orelse:
+                self.visit(stmt)
+
         if node.finalbody:
             self.finally_stack.pop()
 
@@ -352,6 +357,24 @@ class ControlFlowMixin(TranslatorBase):
                      self.visit(stmt)
                  self._indent_level -= 1
                  self.output.append(f"{self._indent()}}}")
+
+    def visit_AsyncWith(self, node: ast.AsyncWith) -> None:
+        # Similar logic to visit_With, assuming mapped V types support .close()
+        for item in node.items:
+            context_expr = self.visit(item.context_expr)
+
+            if item.optional_vars:
+                var = self.visit(item.optional_vars)
+                self.output.append(f"{self._indent()}{var} := {context_expr}")
+                self.output.append(f"{self._indent()}defer {{ {var}.close() }}")
+            else:
+                tmp_var = f"_ctx_mgr_{self._zip_counter}"
+                self._zip_counter += 1
+                self.output.append(f"{self._indent()}{tmp_var} := {context_expr}")
+                self.output.append(f"{self._indent()}defer {{ {tmp_var}.close() }}")
+
+        for stmt in node.body:
+            self.visit(stmt)
 
     def visit_With(self, node: ast.With) -> None:
         for item in node.items:

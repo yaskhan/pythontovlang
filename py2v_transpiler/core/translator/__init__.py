@@ -43,6 +43,8 @@ class VNodeVisitor(
         self._zip_counter = 0 # Counter for unique variable names in zip loops
         self.used_builtins = set() # Track used built-in helpers (sorted, reversed, etc)
         self.used_complex = False
+        self.used_list_concat = False
+        self.used_dict_merge = False
         self.used_string_format = False
         self.renamed_functions = {"main": "py_main"} # Map to rename functions (e.g. main -> py_main)
         self.name_remap = {} # Temporary variable renaming (e.g. x -> it in generators)
@@ -833,6 +835,26 @@ class VNodeVisitor(
         }
         res += fmt[i].ascii_str()
         i++
+    }
+    return res
+}""")
+
+        if self.used_list_concat:
+            self.emitter.add_function("""fn py_list_concat[T](lists ...[]T) []T {
+    mut res := []T{}
+    for l in lists {
+        res << l
+    }
+    return res
+}""")
+
+        if self.used_dict_merge:
+            self.emitter.add_function("""fn py_dict_merge[K, V](dicts ...map[K]V) map[K]V {
+    mut res := map[K]V{}
+    for d in dicts {
+        for k, v in d {
+            res[k] = v
+        }
     }
     return res
 }""")

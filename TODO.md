@@ -99,27 +99,27 @@
 - [x] Support for reproducing module structure (directories/files)
 - [x] Support for 'yield from' syntax (generator delegation)
 - [x] Support for 'async for' loops
-- [ ] Support for 'async with' context managers
-- [ ] Support for Union types syntax (X | Y) (Python 3.10+)
-- [ ] Support for complex structural pattern matching (class patterns)
+- [x] Support for 'async with' context managers
+- [x] Support for Union types syntax (X | Y) (Python 3.10+)
+- [x] Support for complex structural pattern matching (class patterns)
 - [x] Support for legacy string formatting (%) operator
 - [x] Support for raw string literals (r"...")
 - [x] Support for variable annotations without assignment (x: int)
-- [ ] Support for generic type alias syntax (type T = ...) (Python 3.12+)
+- [x] Support for generic type alias syntax (type T = ...) (Python 3.12+)
 - [x] Support for f-string debug expressions (f"{x=}")
 - [x] Support for multiple context managers in single 'with' statement
 - [x] Support for slice assignment (l[x:y] = [1, 2])
 - [x] Support for 'match' statement guard clauses
 - [x] Support for nested classes
-- [ ] Support for underscores in numeric literals (e.g. 1_000)
+- [x] Support for underscores in numeric literals (e.g. 1_000)
 - [x] Support for 'del' on slices (del l[x:y])
 - [x] Support for chained assignment (a = b = c)
 - [x] Support for 'else' clause in loops (for/else, while/else)
-- [ ] Support for 'else' and 'finally' clauses in try/except blocks
+- [x] Support for 'else' and 'finally' clauses in try/except blocks
 - [x] Support for 'raise from' syntax
 - [x] Support for no-argument super() calls
-- [ ] Support for * unpacking in list/tuple/set literals
-- [ ] Support for ** unpacking in dict literals
+- [x] Support for * unpacking in list/tuple/set literals
+- [x] Support for ** unpacking in dict literals
 - [x] Support for relative imports (from . import module)
 - [x] Support for docstrings (emit as V comments)
 - [x] Support for decorators with arguments
