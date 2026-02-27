@@ -47,6 +47,16 @@ class ControlFlowMixin(TranslatorBase):
             self.output.append(f"{self._indent()}}}")
 
     def visit_While(self, node: ast.While) -> None:
+        loop_ctx = {}
+        flag_name = ""
+        if node.orelse:
+            flag_name = f"_loop_completed_{self.unique_id_counter}"
+            self.unique_id_counter += 1
+            self.output.append(f"{self._indent()}mut {flag_name} := true")
+            loop_ctx['flag'] = flag_name
+
+        self.loop_stack.append(loop_ctx)
+
         self._walrus_assignments = []
         test_expr = self.visit(node.test)
 
@@ -75,7 +85,48 @@ class ControlFlowMixin(TranslatorBase):
              self._indent_level -= 1
              self.output.append(f"{self._indent()}}}")
 
+        self.loop_stack.pop()
+
+        if node.orelse:
+            self.output.append(f"{self._indent()}if {flag_name} {{")
+            self._indent_level += 1
+            for stmt in node.orelse:
+                self.visit(stmt)
+            self._indent_level -= 1
+            self.output.append(f"{self._indent()}}}")
+
+    def visit_AsyncFor(self, node: ast.AsyncFor) -> None:
+        # Treat async for similar to for loop over channel
+        # Assuming node.iter returns a channel (async generator call)
+        target = self.visit(node.target)
+        iter_expr = self.visit(node.iter)
+
+        # Push loop context to stack for break handling
+        self.loop_stack.append({})
+
+        self.output.append(f"{self._indent()}for {target} in {iter_expr} {{")
+        self._indent_level += 1
+        for stmt in node.body:
+            self.visit(stmt)
+        self._indent_level -= 1
+        self.output.append(f"{self._indent()}}}")
+
+        self.loop_stack.pop()
+
+        if node.orelse:
+            self.output.append(f"{self._indent()}// else clause in async for not supported yet")
+
     def visit_For(self, node: ast.For) -> None:
+        loop_ctx = {}
+        flag_name = ""
+        if node.orelse:
+            flag_name = f"_loop_completed_{self.unique_id_counter}"
+            self.unique_id_counter += 1
+            self.output.append(f"{self._indent()}mut {flag_name} := true")
+            loop_ctx['flag'] = flag_name
+
+        self.loop_stack.append(loop_ctx)
+
         # Check if iterating over generator
         iter_node = node.iter
         if isinstance(iter_node, ast.Call) and isinstance(iter_node.func, ast.Name):
@@ -103,6 +154,15 @@ class ControlFlowMixin(TranslatorBase):
                      self.visit(stmt)
                  self._indent_level -= 1
                  self.output.append(f"{self._indent()}}}")
+
+                 self.loop_stack.pop()
+                 if node.orelse:
+                     self.output.append(f"{self._indent()}if {flag_name} {{")
+                     self._indent_level += 1
+                     for stmt in node.orelse:
+                         self.visit(stmt)
+                     self._indent_level -= 1
+                     self.output.append(f"{self._indent()}}}")
                  return
 
         # Zip handling
@@ -136,6 +196,15 @@ class ControlFlowMixin(TranslatorBase):
                     self.visit(stmt)
                 self._indent_level -= 1
                 self.output.append(f"{self._indent()}}}")
+
+                self.loop_stack.pop()
+                if node.orelse:
+                     self.output.append(f"{self._indent()}if {flag_name} {{")
+                     self._indent_level += 1
+                     for stmt in node.orelse:
+                         self.visit(stmt)
+                     self._indent_level -= 1
+                     self.output.append(f"{self._indent()}}}")
                 return
 
         target = self.visit(node.target)
@@ -160,6 +229,15 @@ class ControlFlowMixin(TranslatorBase):
                          self.visit(stmt)
                      self._indent_level -= 1
                      self.output.append(f"{self._indent()}}}")
+
+                     self.loop_stack.pop()
+                     if node.orelse:
+                         self.output.append(f"{self._indent()}if {flag_name} {{")
+                         self._indent_level += 1
+                         for stmt in node.orelse:
+                             self.visit(stmt)
+                         self._indent_level -= 1
+                         self.output.append(f"{self._indent()}}}")
                      return
                  start = "0"
                  stop = "0"
@@ -184,6 +262,26 @@ class ControlFlowMixin(TranslatorBase):
             self.visit(stmt)
         self._indent_level -= 1
         self.output.append(f"{self._indent()}}}")
+
+        self.loop_stack.pop()
+        if node.orelse:
+            self.output.append(f"{self._indent()}if {flag_name} {{")
+            self._indent_level += 1
+            for stmt in node.orelse:
+                self.visit(stmt)
+            self._indent_level -= 1
+            self.output.append(f"{self._indent()}}}")
+
+    def visit_Raise(self, node: ast.Raise) -> None:
+        if node.exc:
+            val = self.visit(node.exc)
+            if node.cause:
+                cause_val = self.visit(node.cause)
+                self.output.append(f"{self._indent()}panic('${{{val}}} (Cause: ${{{cause_val}}})')")
+            else:
+                self.output.append(f"{self._indent()}panic({val})")
+        else:
+            self.output.append(f"{self._indent()}panic('reraise not supported')")
 
     def visit_Try(self, node: ast.Try) -> None:
         self.output.append(f"{self._indent()}// try {{")
@@ -307,6 +405,11 @@ class ControlFlowMixin(TranslatorBase):
             self.visit(stmt)
 
     def visit_Break(self, node: ast.Break) -> None:
+        if self.loop_stack:
+            current_loop = self.loop_stack[-1]
+            if 'flag' in current_loop:
+                flag = current_loop['flag']
+                self.output.append(f"{self._indent()}{flag} = false")
         self.output.append(f"{self._indent()}break")
 
     def visit_Continue(self, node: ast.Continue) -> None:
