@@ -185,6 +185,17 @@ class VariablesMixin(TranslatorBase):
              self._visit_destructuring(target, rhs)
              return
 
+        if len(node.targets) > 1:
+            # chained assignment: a = b = c = 1
+            rhs = self.visit(node.value)
+            tmp = f"_assign_tmp_{self.unique_id_counter}"
+            self.unique_id_counter += 1
+            self.output.append(f"{self._indent()}{tmp} := {rhs}")
+
+            for t in node.targets:
+                self._visit_destructuring(t, tmp)
+            return
+
         if not lhs:
              # Should be covered by destructuring
              return

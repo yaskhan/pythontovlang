@@ -97,8 +97,8 @@
 - [x] Implement Import Topology Analyzer (Dependency Graph)
 - [x] Analyze dependencies to identify unsupported libraries
 - [x] Support for reproducing module structure (directories/files)
-- [ ] Support for 'yield from' syntax (generator delegation)
-- [ ] Support for 'async for' loops
+- [x] Support for 'yield from' syntax (generator delegation)
+- [x] Support for 'async for' loops
 - [ ] Support for 'async with' context managers
 - [ ] Support for Union types syntax (X | Y) (Python 3.10+)
 - [ ] Support for complex structural pattern matching (class patterns)
@@ -112,12 +112,12 @@
 - [x] Support for 'match' statement guard clauses
 - [x] Support for nested classes
 - [ ] Support for underscores in numeric literals (e.g. 1_000)
-- [ ] Support for 'del' on slices (del l[x:y])
-- [ ] Support for chained assignment (a = b = c)
-- [ ] Support for 'else' clause in loops (for/else, while/else)
+- [x] Support for 'del' on slices (del l[x:y])
+- [x] Support for chained assignment (a = b = c)
+- [x] Support for 'else' clause in loops (for/else, while/else)
 - [ ] Support for 'else' and 'finally' clauses in try/except blocks
-- [ ] Support for 'raise from' syntax
-- [ ] Support for no-argument super() calls
+- [x] Support for 'raise from' syntax
+- [x] Support for no-argument super() calls
 - [ ] Support for * unpacking in list/tuple/set literals
 - [ ] Support for ** unpacking in dict literals
 - [x] Support for relative imports (from . import module)

@@ -36,6 +36,8 @@ class TranslatorBase(ast.NodeVisitor):
         self.single_dispatch_functions: Dict[str, Dict[str, str]] = {} # dispatcher_name -> {type_name -> impl_func_name}
         self.function_names: Set[str] = set()
         self.finally_stack: List[ast.Try] = [] # Stack of active try-finally blocks
+        self.loop_stack: List[Dict[str, Any]] = [] # Stack of active loops for break/continue tracking
+        self.unique_id_counter: int = 0
 
     def _indent(self) -> str:
         return "    " * self._indent_level
