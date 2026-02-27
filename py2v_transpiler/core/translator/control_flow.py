@@ -291,6 +291,11 @@ class ControlFlowMixin(TranslatorBase):
         for stmt in node.body:
             self.visit(stmt)
 
+        if node.orelse:
+            self.output.append(f"{self._indent()}// Python 'else' block (executed if no exception occurred):")
+            for stmt in node.orelse:
+                self.visit(stmt)
+
         if node.finalbody:
             self.finally_stack.pop()
 

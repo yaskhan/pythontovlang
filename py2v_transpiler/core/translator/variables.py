@@ -364,3 +364,23 @@ class VariablesMixin(TranslatorBase):
 
         # Name mangling for class-private attributes
         return self._mangle_name(node.id, self.current_class)
+
+    def visit_TypeAlias(self, node: ast.TypeAlias) -> None:
+        name = node.name.id
+        type_params = ""
+        if node.type_params:
+            # Handle generics [T, U]
+            params = []
+            for param in node.type_params:
+                if isinstance(param, ast.TypeVar):
+                    params.append(param.name)
+                # Basic support for TypeVar only for now
+            if params:
+                type_params = f"[{', '.join(params)}]"
+
+        if hasattr(ast, 'unparse'):
+            val_str = ast.unparse(node.value)
+            v_type = map_python_type_to_v(val_str, allow_union=True)
+            self.emitter.add_struct(f"type {name}{type_params} = {v_type}")
+        else:
+            self.output.append(f"{self._indent()}// TypeAlias {name} skipped (no ast.unparse)")
