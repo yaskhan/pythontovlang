@@ -28,6 +28,8 @@ class TranslatorBase(ast.NodeVisitor):
         self._zip_counter: int = 0
         self.used_builtins: Set[str] = set()
         self.used_complex: bool = False
+        self.used_list_concat: bool = False
+        self.used_dict_merge: bool = False
         self.renamed_functions: Dict[str, str] = {"main": "py_main"}
         self.name_remap: Dict[str, str] = {}
         self._walrus_assignments: List[str] = []

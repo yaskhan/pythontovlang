@@ -13,7 +13,7 @@ class VType(Enum):
     NONE = auto()
     UNKNOWN = auto()
 
-def map_python_type_to_v(py_type: str, self_name: str = "Self") -> str:
+def map_python_type_to_v(py_type: str, self_name: str = "Self", allow_union: bool = False) -> str:
     """Maps a Python type name to its V equivalent."""
     if not py_type:
         return 'void'
@@ -31,11 +31,11 @@ def map_python_type_to_v(py_type: str, self_name: str = "Self") -> str:
     try:
         # Use AST to parse complex types
         node = ast.parse(py_type, mode='eval').body
-        return _map_ast_type(node, self_name)
+        return _map_ast_type(node, self_name, allow_union)
     except SyntaxError:
         return py_type
 
-def _map_ast_type(node: ast.AST, self_name: str = "Self") -> str:
+def _map_ast_type(node: ast.AST, self_name: str = "Self", allow_union: bool = False) -> str:
     if isinstance(node, ast.Name):
         if node.id == "Self":
             return self_name
@@ -65,7 +65,7 @@ def _map_ast_type(node: ast.AST, self_name: str = "Self") -> str:
             args = [slice_node]
 
         # Helper to map args, handling nested types
-        mapped_args = [_map_ast_type(arg, self_name) for arg in args]
+        mapped_args = [_map_ast_type(arg, self_name, allow_union) for arg in args]
 
         if value_id in ('List', 'list', 'Sequence', 'MutableSequence', 'Iterable', 'Iterator'):
             if mapped_args:
@@ -105,7 +105,9 @@ def _map_ast_type(node: ast.AST, self_name: str = "Self") -> str:
             non_none = [t for t in mapped_args if t != 'none']
             if len(non_none) == 1 and len(mapped_args) > 1:
                 return f"?{non_none[0]}"
-            return " | ".join(mapped_args)
+            if allow_union:
+                return " | ".join(mapped_args)
+            return "any"
 
         elif value_id == 'Callable':
             # Callable[[Arg1, Arg2], Ret]
@@ -115,9 +117,9 @@ def _map_ast_type(node: ast.AST, self_name: str = "Self") -> str:
 
                 arg_types = []
                 if isinstance(arg_list_node, ast.List):
-                    arg_types = [_map_ast_type(a, self_name) for a in arg_list_node.elts]
+                    arg_types = [_map_ast_type(a, self_name, allow_union) for a in arg_list_node.elts]
 
-                ret_type = _map_ast_type(ret_node, self_name)
+                ret_type = _map_ast_type(ret_node, self_name, allow_union)
                 return f"fn ({', '.join(arg_types)}) {ret_type}"
             return "fn"
 
@@ -163,13 +165,15 @@ def _map_ast_type(node: ast.AST, self_name: str = "Self") -> str:
     elif isinstance(node, ast.BinOp):
         # A | B (Python 3.10+ Union)
         if isinstance(node.op, ast.BitOr):
-            left = _map_ast_type(node.left, self_name)
-            right = _map_ast_type(node.right, self_name)
+            left = _map_ast_type(node.left, self_name, allow_union)
+            right = _map_ast_type(node.right, self_name, allow_union)
             if left == 'none':
                 return f"?{right}"
             if right == 'none':
                 return f"?{left}"
-            return f"{left} | {right}"
+            if allow_union:
+                return f"{left} | {right}"
+            return "any"
 
     return "void"
 

@@ -18,7 +18,7 @@ class VariablesMixin(TranslatorBase):
                     try:
                         if hasattr(ast, 'unparse'):
                              base_str = ast.unparse(node.value.args[1])
-                             mapped_base = map_python_type_to_v(base_str)
+                             mapped_base = map_python_type_to_v(base_str, allow_union=True)
                              self.emitter.add_struct(f"type {lhs} = {mapped_base}")
                              return
                     except:
@@ -72,7 +72,7 @@ class VariablesMixin(TranslatorBase):
                          # Unparse RHS to string
                          if hasattr(ast, 'unparse'):
                              rhs_source = ast.unparse(node.value)
-                             mapped = map_python_type_to_v(rhs_source)
+                             mapped = map_python_type_to_v(rhs_source, allow_union=True)
                              # Check if mapped value looks like a type and not void/same-as-input-expression
                              # map_python_type_to_v returns input if it fails to map usually, unless it parses successfully via _map_ast_type
                              # For List[int], it returns []int. List[int] != []int.

@@ -66,12 +66,58 @@ class LiteralsMixin(TranslatorBase):
         return str(val)
 
     def visit_List(self, node: ast.List) -> str:
+        # Check for starred elements
+        has_starred = any(isinstance(elt, ast.Starred) for elt in node.elts)
+        if has_starred:
+            self.used_list_concat = True
+            chunks = []
+            current_chunk = []
+            for elt in node.elts:
+                if isinstance(elt, ast.Starred):
+                    if current_chunk:
+                        chunks.append(f"[{', '.join(current_chunk)}]")
+                        current_chunk = []
+                    chunks.append(str(self.visit(elt.value)))
+                else:
+                    current_chunk.append(str(self.visit(elt)))
+            if current_chunk:
+                chunks.append(f"[{', '.join(current_chunk)}]")
+
+            return f"py_list_concat({', '.join(chunks)})"
+
         elements = [str(self.visit(elt)) for elt in node.elts]
         if not elements:
              return "[]int{}" # Placeholder for empty list
         return f"[{', '.join(elements)}]"
 
     def visit_Dict(self, node: ast.Dict) -> str:
+        # Check for None keys (unpacking)
+        has_unpacking = any(k is None for k in node.keys)
+        if has_unpacking:
+            self.used_dict_merge = True
+            chunks = []
+            current_chunk = []
+
+            for k, v in zip(node.keys, node.values):
+                if k is None:
+                    # Unpacking **expr
+                    if current_chunk:
+                        # Flush current chunk
+                        chunk_str = f"map[string]int{{{', '.join(current_chunk)}}}"
+                        chunks.append(chunk_str)
+                        current_chunk = []
+                    chunks.append(str(self.visit(v)))
+                else:
+                    key_str = self.visit(k)
+                    val_str = self.visit(v)
+                    current_chunk.append(f"{key_str}: {val_str}")
+
+            if current_chunk:
+                chunk_str = f"map[string]int{{{', '.join(current_chunk)}}}"
+                chunks.append(chunk_str)
+
+            return f"py_dict_merge({', '.join(chunks)})"
+
         if not node.keys:
             # Empty dict
             return "map[string]int{}" # Default fallback
@@ -85,6 +131,27 @@ class LiteralsMixin(TranslatorBase):
         return f"map[string]int{{{', '.join(pairs)}}}"
 
     def visit_Set(self, node: ast.Set) -> str:
+        # Check for starred elements
+        has_starred = any(isinstance(elt, ast.Starred) for elt in node.elts)
+        if has_starred:
+            self.used_dict_merge = True
+            chunks = []
+            current_chunk = []
+            for elt in node.elts:
+                if isinstance(elt, ast.Starred):
+                    if current_chunk:
+                        chunks.append(f"map[int]bool{{{', '.join(current_chunk)}}}")
+                        current_chunk = []
+                    chunks.append(str(self.visit(elt.value)))
+                else:
+                    val = self.visit(elt)
+                    current_chunk.append(f"{val}: true")
+
+            if current_chunk:
+                chunks.append(f"map[int]bool{{{', '.join(current_chunk)}}}")
+
+            return f"py_dict_merge({', '.join(chunks)})"
+
         # {1, 2} -> map[int]bool{1: true, 2: true}
         # Simplified assumption that elements are ints
         elements = []
@@ -96,6 +163,25 @@ class LiteralsMixin(TranslatorBase):
 
     def visit_Tuple(self, node: ast.Tuple) -> str:
         # Translate Tuple (a, b) to Array [a, b]
+        # Check for starred elements
+        has_starred = any(isinstance(elt, ast.Starred) for elt in node.elts)
+        if has_starred:
+            self.used_list_concat = True
+            chunks = []
+            current_chunk = []
+            for elt in node.elts:
+                if isinstance(elt, ast.Starred):
+                    if current_chunk:
+                        chunks.append(f"[{', '.join(current_chunk)}]")
+                        current_chunk = []
+                    chunks.append(str(self.visit(elt.value)))
+                else:
+                    current_chunk.append(str(self.visit(elt)))
+            if current_chunk:
+                chunks.append(f"[{', '.join(current_chunk)}]")
+
+            return f"py_list_concat({', '.join(chunks)})"
+
         elements = [str(self.visit(elt)) for elt in node.elts]
         return f"[{', '.join(elements)}]"
 
