@@ -1,4 +1,5 @@
 import ast
+from typing import List
 from .base import TranslatorBase
 
 class LiteralsMixin(TranslatorBase):
@@ -70,8 +71,8 @@ class LiteralsMixin(TranslatorBase):
         has_starred = any(isinstance(elt, ast.Starred) for elt in node.elts)
         if has_starred:
             self.used_list_concat = True
-            chunks = []
-            current_chunk = []
+            chunks: List[str] = []
+            current_chunk: List[str] = []
             for elt in node.elts:
                 if isinstance(elt, ast.Starred):
                     if current_chunk:
@@ -95,8 +96,8 @@ class LiteralsMixin(TranslatorBase):
         has_unpacking = any(k is None for k in node.keys)
         if has_unpacking:
             self.used_dict_merge = True
-            chunks = []
-            current_chunk = []
+            chunks: List[str] = []
+            current_chunk: List[str] = []
 
             for k, v in zip(node.keys, node.values):
                 if k is None:
@@ -135,8 +136,8 @@ class LiteralsMixin(TranslatorBase):
         has_starred = any(isinstance(elt, ast.Starred) for elt in node.elts)
         if has_starred:
             self.used_dict_merge = True
-            chunks = []
-            current_chunk = []
+            chunks: List[str] = []
+            current_chunk: List[str] = []
             for elt in node.elts:
                 if isinstance(elt, ast.Starred):
                     if current_chunk:
@@ -167,8 +168,8 @@ class LiteralsMixin(TranslatorBase):
         has_starred = any(isinstance(elt, ast.Starred) for elt in node.elts)
         if has_starred:
             self.used_list_concat = True
-            chunks = []
-            current_chunk = []
+            chunks: List[str] = []
+            current_chunk: List[str] = []
             for elt in node.elts:
                 if isinstance(elt, ast.Starred):
                     if current_chunk:
