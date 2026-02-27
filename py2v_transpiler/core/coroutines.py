@@ -26,6 +26,7 @@ class CoroutineHandler:
     def __init__(self):
         self.generators: Dict[str, str] = {} # name -> yield_type
         self.active_channel: Optional[str] = None
+        self.active_in_channel: Optional[str] = None
         self._temp_var_counter = 0
 
     def scan_module(self, node: ast.Module) -> None:
@@ -47,11 +48,13 @@ class CoroutineHandler:
     def is_generator(self, name: str) -> bool:
         return name in self.generators
 
-    def enter_generator(self, channel_name: str = "ch") -> None:
+    def enter_generator(self, channel_name: str = "ch", in_channel_name: str = "ch_in") -> None:
         self.active_channel = channel_name
+        self.active_in_channel = in_channel_name
 
     def exit_generator(self) -> None:
         self.active_channel = None
+        self.active_in_channel = None
 
     def get_temp_channel_name(self) -> str:
         self._temp_var_counter += 1
