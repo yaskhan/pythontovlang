@@ -15,6 +15,9 @@ class Transpiler:
         parser = PyASTParser()
         tree = parser.parse(source_code)
 
+        if not isinstance(tree, ast.Module):
+            raise ValueError("Expected a valid Python module")
+
         analyzer = TypeInference()
         # Enable basic type inference for test strings
         analyzer.visit(tree)
