@@ -45,6 +45,6 @@ def test_list_comp_step():
 squares = [x*x for x in range(0, 10, 2)]
 """
     v_code = translate(source)
-    assert "mut squares := []int{}" in v_code
+    assert "mut squares := []int{cap: 5}" in v_code
     assert "for x := 0; x < 10; x += 2 {" in v_code
     assert "squares << x * x" in v_code

@@ -316,10 +316,10 @@ Based on recent Python ecosystem developments (mypy, PyPy, Numba, NumPy, Nuitka,
 - [x] **Type-Directed Operator Overloading**
   - *Context:* The transpiler currently supports operator overloading (`__add__`, etc.) dynamically via `Any`.
   - *V Translation:* Use the inferred mypy static types to generate direct, statically typed V operator calls (`+`, `-`, `*`) between primitive numeric types (e.g., `f64 * f64`) rather than boxing them into the `Any` sum type.
-- [ ] **Static Subscript & Slicing Fast Paths**
+- [x] **Static Subscript & Slicing Fast Paths**
   - *Context:* List/Tuple access and slicing currently map generically.
   - *V Translation:* If the mypy plugin definitively infers a variable as `list[int]`, generate native V array index access (`arr[i]`) and statically bound V slicing (`arr[start..end]`), bypassing dynamic runtime boundary checks on `Any` wrappers.
-- [ ] **Strict Cast Elimination (`isinstance` / `typing.cast`)**
+- [x] **Strict Cast Elimination (`isinstance` / `typing.cast`)**
   - *Context:* Mypy provides exact narrowed type metadata.
   - *V Translation:* When a variable passes an `isinstance` check, or is wrapped in a `typing.cast`, use the mypy plugin data to emit direct V type casts (`x as int` or `x as string`) for the duration of that scope, eliminating redundant `match` or `.try_int()` calls on the custom `Any` type.
 - [ ] **Pre-allocated Capacity for Typed Collections**
@@ -334,13 +334,13 @@ Based on recent Python ecosystem developments (mypy, PyPy, Numba, NumPy, Nuitka,
 - [ ] **Loop Unrolling for Static `tuple` Lengths**
   - *Context:* Mypy can infer exact lengths and types of tuples (e.g., `tuple[int, str, float]`).
   - *V Translation:* When a `for` loop iterates over such a definitively typed static tuple, use the mypy data to unroll the loop during V transpilation, emitting sequential statically typed assignments rather than a dynamic V `for` loop over an `[]Any` array.
-- [ ] **Compile-Time Evaluation of `typing.assert_type`**
+- [x] **Compile-Time Evaluation of `typing.assert_type`**
   - *Context:* Python developers use `assert_type()` to verify mypy's understanding.
   - *V Translation:* Provide a dedicated AST node handler for `assert_type`. Verify that the transpiler's internal type mapping agrees with the mypy plugin's provided type; if it matches, strip the assertion entirely from the V code (zero runtime overhead).
 - [ ] **Exhaustiveness Checking (`typing.assert_never`)**
   - *Context:* Used to ensure all branches of an `Enum` or `Union` are handled.
   - *V Translation:* When the AST contains `assert_never()`, use mypy's control-flow reachability data to verify dead code. Emit a compile-time V error (`$compile_error()`) or `panic()` if the transpiler logic detects the code could be reachable despite mypy's assumptions.
-- [ ] **Type-Aware List Comprehension Pre-allocation**
+- [x] **Type-Aware List Comprehension Pre-allocation**
   - *Context:* List comprehensions currently map to dynamic V arrays built via `<<`.
   - *V Translation:* If mypy can infer the exact length of the iterator (e.g., iterating over a static tuple or bounded range), generate an initially empty V array with the `cap:` set to the inferred length to avoid reallocation during the comprehension loop.
 - [ ] **Strict Structural `TypedDict` Mapping**

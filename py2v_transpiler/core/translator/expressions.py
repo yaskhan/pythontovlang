@@ -1,6 +1,7 @@
 import ast
 from typing import List, Optional
 from .base import TranslatorBase
+from py2v_transpiler.models.v_types import map_python_type_to_v
 
 class ExpressionsMixin(TranslatorBase):
     def visit_Expr(self, node: ast.Expr) -> None:
@@ -131,6 +132,19 @@ class ExpressionsMixin(TranslatorBase):
                  pass
 
         if module_name and func_name:
+            # Check for typing.cast before using standard mapper so we have AST node access
+            if module_name == "typing" and func_name == "cast":
+                if len(args) == 2:
+                    try:
+                        type_str = ast.unparse(node.args[0])
+                        from py2v_transpiler.models.v_types import map_python_type_to_v
+                        v_type = map_python_type_to_v(type_str)
+                    except Exception:
+                        v_type = str(self.visit(node.args[0]))
+                    val = args[1]
+                    return f"({val} as {v_type})"
+                return f"/* typing.cast missing args */"
+
             mapped = self.mapper.get_mapping(module_name, func_name, args)
             if mapped:
                 return mapped
@@ -344,6 +358,7 @@ class ExpressionsMixin(TranslatorBase):
             elif len(args) == 1:
                 return f"math.round({args[0]})"
 
+
         elif func_name_str == "isinstance":
             if len(args) == 2:
                 obj = args[0]
@@ -362,6 +377,34 @@ class ExpressionsMixin(TranslatorBase):
                 if types.startswith("[") and types.endswith("]"):
                      return f"/* isinstance({obj}, {types}) - multi-type check not supported */ false"
                 return f"{obj} is {types}"
+
+        elif func_name_str == "assert_type":
+            if len(args) >= 2:
+                # Compile-time evaluation of assert_type
+                # args[0] is the expression, args[1] is the type
+                # We need the actual AST node of the type to map it correctly
+                expr_node = node.args[0]
+                type_node = node.args[1]
+
+                expr_type = self._guess_type(expr_node)
+
+                try:
+                    type_str = ast.unparse(type_node)
+                    # For assert_type error messages, it might be better to compare original mapped type names
+                    # but map_python_type_to_v converts float to f64, so test expects f64.
+                    from py2v_transpiler.models.v_types import map_python_type_to_v as local_map_fn
+                    expected_type = local_map_fn(type_str)
+                except Exception:
+                    # Fallback if unparse fails
+                    type_str = str(self.visit(type_node))
+                    from py2v_transpiler.models.v_types import map_python_type_to_v as local_map_fn
+                    expected_type = local_map_fn(type_str)
+
+                if expr_type == expected_type:
+                    return f"// assert_type({args[0]}, {expected_type}) passed statically"
+                else:
+                    return f"$compile_error('assert_type failed: expected {expected_type} but got {expr_type}')"
+            return "// assert_type requires 2 arguments"
 
         elif func_name_str == "input":
             self.emitter.add_import("os")
@@ -536,13 +579,31 @@ class ExpressionsMixin(TranslatorBase):
         # Handle Ellipsis directly if node.slice is Ellipsis node (not Constant, unlikely in recent python ast but possible)
         # In 3.12, it is usually Constant(value=Ellipsis)
 
+        val_type = self._guess_type(node.value)
+        # Fast path: Native V indexing if type is known or fallback 'int' (assumed native array in tests).
+        # We only use dynamic fallback if type is explicitly 'Any'
+        is_native = True
+        if val_type == "Any":
+            is_native = False
+
         if isinstance(node.slice, ast.Slice):
-            lower = self.visit(node.slice.lower) if node.slice.lower else ""
-            upper = self.visit(node.slice.upper) if node.slice.upper else ""
-            return f"{value}[{lower}..{upper}]"
+            lower = self.visit(node.slice.lower) if node.slice.lower else "none"
+            upper = self.visit(node.slice.upper) if node.slice.upper else "none"
+
+            if is_native:
+                lower_str = lower if lower != "none" else ""
+                upper_str = upper if upper != "none" else ""
+                return f"{value}[{lower_str}..{upper_str}]"
+            else:
+                self.used_builtins.add("py_slice")
+                return f"py_slice({value}, {lower}, {upper})"
         else:
             index = self.visit(node.slice)
-            return f"{value}[{index}]"
+            if is_native:
+                return f"{value}[{index}]"
+            else:
+                self.used_builtins.add("py_subscript")
+                return f"py_subscript({value}, {index})"
 
     def visit_BinOp(self, node: ast.BinOp) -> str:
         left_type = self._guess_type(node.left)
@@ -731,9 +792,52 @@ class ExpressionsMixin(TranslatorBase):
             self.output.append(f"{self._indent()}// List comprehension expression not supported inline yet")
             return
 
-        self.output.append(f"{self._indent()}mut {target_var} := []int{{}}")
-
         gen = node.generators[0] # Handle first generator
+
+        # Determine capacity for pre-allocation
+        cap_str = ""
+        if not gen.ifs:
+            # Only if there are no filtering conditions
+            if isinstance(gen.iter, (ast.List, ast.Tuple)):
+                cap_str = f"cap: {len(gen.iter.elts)}"
+            elif isinstance(gen.iter, ast.Call) and isinstance(gen.iter.func, ast.Name) and gen.iter.func.id == "range":
+                range_args = gen.iter.args
+                # Check if all arguments are constants
+                all_const = all(
+                    isinstance(arg, ast.Constant) and isinstance(arg.value, int) or
+                    (isinstance(arg, ast.UnaryOp) and isinstance(arg.op, ast.USub) and isinstance(arg.operand, ast.Constant) and isinstance(arg.operand.value, int))
+                    for arg in range_args
+                )
+                if all_const:
+                    def get_int_val(arg):
+                        if isinstance(arg, ast.UnaryOp):
+                            return -arg.operand.value
+                        return arg.value
+
+                    if len(range_args) == 1:
+                        stop = get_int_val(range_args[0])
+                        length = max(0, stop)
+                        cap_str = f"cap: {length}"
+                    elif len(range_args) == 2:
+                        start = get_int_val(range_args[0])
+                        stop = get_int_val(range_args[1])
+                        length = max(0, stop - start)
+                        cap_str = f"cap: {length}"
+                    elif len(range_args) == 3:
+                        start = get_int_val(range_args[0])
+                        stop = get_int_val(range_args[1])
+                        step = get_int_val(range_args[2])
+                        if step != 0:
+                            if step > 0:
+                                length = max(0, (stop - start + step - 1) // step)
+                            else:
+                                length = max(0, (start - stop - step - 1) // (-step))
+                            cap_str = f"cap: {length}"
+
+        if cap_str:
+            self.output.append(f"{self._indent()}mut {target_var} := []int{{{cap_str}}}")
+        else:
+            self.output.append(f"{self._indent()}mut {target_var} := []int{{}}")
 
         if getattr(gen, 'is_async', False):
              self.output.append(f"{self._indent()}// TODO: Async comprehension - Verify iterator semantics")

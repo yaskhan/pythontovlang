@@ -571,7 +571,5 @@ class StdLibMapper:
         return f"/* contextlib.redirect_stdout({', '.join(args)}) ignored */"
 
     def _typing_cast(self, args: List[str]) -> str:
-        # cast(type, value) -> value
-        if len(args) >= 2:
-            return args[1]
-        return "/* typing.cast missing args */"
+        # We handle this directly in expressions.py now for type resolution
+        return "/* typing.cast intercepted by expressions.py */"
