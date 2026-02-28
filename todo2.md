@@ -334,7 +334,7 @@ Based on recent Python ecosystem developments (mypy, PyPy, Numba, NumPy, Nuitka,
 - [ ] **Loop Unrolling for Static `tuple` Lengths**
   - *Context:* Mypy can infer exact lengths and types of tuples (e.g., `tuple[int, str, float]`).
   - *V Translation:* When a `for` loop iterates over such a definitively typed static tuple, use the mypy data to unroll the loop during V transpilation, emitting sequential statically typed assignments rather than a dynamic V `for` loop over an `[]Any` array.
-- [ ] **Compile-Time Evaluation of `typing.assert_type`**
+- [x] **Compile-Time Evaluation of `typing.assert_type`**
   - *Context:* Python developers use `assert_type()` to verify mypy's understanding.
   - *V Translation:* Provide a dedicated AST node handler for `assert_type`. Verify that the transpiler's internal type mapping agrees with the mypy plugin's provided type; if it matches, strip the assertion entirely from the V code (zero runtime overhead).
 - [ ] **Exhaustiveness Checking (`typing.assert_never`)**
