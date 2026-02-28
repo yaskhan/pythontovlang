@@ -64,7 +64,51 @@ class TypeInference(ast.NodeVisitor):
         if not mypy_api_module:
             return ("Mypy not installed.", "", 1)
 
-        result, error, exit_code = mypy_api_module.run([path])
+        import tempfile
+        import os
+        import json
+
+        # Create a temporary config file to load the plugin
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.ini', delete=False) as f:
+            f.write("[mypy]\nplugins = py2v_transpiler.core.mypy_plugin\n")
+            config_path = f.name
+
+        # Store original PYTHONPATH to restore it later
+        original_pythonpath = os.environ.get("PYTHONPATH")
+
+        try:
+            # Set PYTHONPATH so mypy can find the plugin
+            if original_pythonpath is not None:
+                os.environ["PYTHONPATH"] = f".:{original_pythonpath}"
+            else:
+                os.environ["PYTHONPATH"] = "."
+
+            result, error, exit_code = mypy_api_module.run([path, '--config-file', config_path])
+
+            # Read the generated types mapping
+            if os.path.exists("types_for_vlang.json"):
+                try:
+                    with open("types_for_vlang.json", "r") as json_file:
+                        collected_types = json.load(json_file)
+
+                    for fullname, types in collected_types.items():
+                        for location, typ in types.items():
+                            v_type = map_python_type_to_v(typ)
+                            # Extract the variable or function name from fullname if possible
+                            # For now, we will just store it by location as well, or we can use it during transpilation
+                            # but keeping it in self.type_map via a generic key might be tricky.
+                            # We map it by line:column string for potential later use.
+                            self.type_map[f"{fullname}@{location}"] = v_type
+                finally:
+                    os.remove("types_for_vlang.json")
+        finally:
+            if original_pythonpath is not None:
+                os.environ["PYTHONPATH"] = original_pythonpath
+            elif "PYTHONPATH" in os.environ:
+                del os.environ["PYTHONPATH"]
+
+            os.remove(config_path)
+
         return result, error, exit_code
 
     def resolve_type(self, node: ast.AST) -> str:
