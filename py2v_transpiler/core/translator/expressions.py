@@ -131,6 +131,19 @@ class ExpressionsMixin(TranslatorBase):
                  pass
 
         if module_name and func_name:
+            # Check for typing.cast before using standard mapper so we have AST node access
+            if module_name == "typing" and func_name == "cast":
+                if len(args) == 2:
+                    try:
+                        type_str = ast.unparse(node.args[0])
+                        from py2v_transpiler.models.v_types import map_python_type_to_v
+                        v_type = map_python_type_to_v(type_str)
+                    except Exception:
+                        v_type = str(self.visit(node.args[0]))
+                    val = args[1]
+                    return f"({val} as {v_type})"
+                return f"/* typing.cast missing args */"
+
             mapped = self.mapper.get_mapping(module_name, func_name, args)
             if mapped:
                 return mapped
@@ -343,6 +356,7 @@ class ExpressionsMixin(TranslatorBase):
                 return f"py_round(f64({args[0]}), {args[1]})"
             elif len(args) == 1:
                 return f"math.round({args[0]})"
+
 
         elif func_name_str == "isinstance":
             if len(args) == 2:
