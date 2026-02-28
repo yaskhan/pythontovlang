@@ -1,12 +1,12 @@
 from mypy.plugin import Plugin
-from typing import Any
+from typing import Any, Dict
 import json
 from collections import defaultdict
 import sys
 
 # Global dictionary to store types without relying on the filesystem
 # This is accessed from py2v_transpiler.core.analyzer
-_global_collected_types = defaultdict(dict)
+_global_collected_types: Dict[str, Dict[str, str]] = defaultdict(dict)
 
 class VlangPlugin(Plugin):
     """Mypy plugin for py2v_transpiler to extract type information."""
