@@ -385,6 +385,9 @@ class FunctionsMixin(TranslatorBase):
         if self.coroutine_handler.active_channel:
              self.output.append(f"{self._indent()}{self.coroutine_handler.active_channel}.close()")
 
+        for _ in range(self.vexc_depth):
+             self.output.append(f"{self._indent()}vexc.end_try()")
+
         if node.value:
             val = self.visit(node.value)
             self.output.append(f"{self._indent()}return {val}")

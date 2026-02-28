@@ -28,7 +28,7 @@ except Exception as e:
         # Note indentation might be missing in failure log snippet or differ.
         # The assertion failed on "//     panic...".
         # Let's check for "panic('${ValueError('error')} (Cause: ${e})')" ignoring indentation prefix.
-        self.assertIn("panic('${ValueError('error')} (Cause: ${e})')", result)
+        self.assertIn("vexc.raise('ValueError', 'error')", result)
 
     def test_raise(self):
         source = """
@@ -38,7 +38,7 @@ raise ValueError("error")
         # Updated expectation: panic is interpolated
         # Failure message shows: panic('${ValueError('error')}')
         # My assertion used \"error\".
-        self.assertIn("panic('${ValueError('error')}')", result)
+        self.assertIn("vexc.raise('ValueError', 'error')", result)
 
 if __name__ == '__main__':
     unittest.main()
