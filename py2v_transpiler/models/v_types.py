@@ -1,5 +1,51 @@
 import ast
+import os
+import configparser
 from enum import Enum, auto
+
+_STRICT_OPTIONAL_CACHE = True
+_strict_optional_loaded = False
+
+def get_strict_optional() -> bool:
+    global _STRICT_OPTIONAL_CACHE, _strict_optional_loaded
+    if _strict_optional_loaded:
+        return _STRICT_OPTIONAL_CACHE
+
+    strict_optional = True # Default mypy behavior
+    if os.path.exists('mypy.ini'):
+        config = configparser.ConfigParser()
+        config.read('mypy.ini')
+        if 'mypy' in config and 'strict_optional' in config['mypy']:
+            strict_optional = config.getboolean('mypy', 'strict_optional')
+    elif os.path.exists('setup.cfg'):
+        config = configparser.ConfigParser()
+        config.read('setup.cfg')
+        if 'mypy' in config and 'strict_optional' in config['mypy']:
+            strict_optional = config.getboolean('mypy', 'strict_optional')
+    elif os.path.exists('pyproject.toml'):
+        try:
+            import tomli as tomllib_compat
+        except ImportError:
+            try:
+                import tomllib as tomllib_compat # type: ignore
+            except ImportError:
+                tomllib_compat = None # type: ignore
+
+        if tomllib_compat is not None:
+            try:
+                with open('pyproject.toml', 'rb') as f:
+                    data = tomllib_compat.load(f)
+                    if 'tool' in data and 'mypy' in data['tool']:
+                        mypy_config = data['tool']['mypy']
+                        if 'strict_optional' in mypy_config:
+                            strict_optional = bool(mypy_config['strict_optional'])
+            except Exception:
+                pass
+
+    _STRICT_OPTIONAL_CACHE = strict_optional
+    _strict_optional_loaded = True
+    return _STRICT_OPTIONAL_CACHE
+
 
 class VType(Enum):
     INT = auto()
@@ -100,15 +146,21 @@ def _map_ast_type(node: ast.AST, self_name: str = "Self", allow_union: bool = Fa
             return "[]Any"
 
         elif value_id == 'Optional':
-            if mapped_args:
-                return f"?{mapped_args[0]}"
-            return "?int"
+            if get_strict_optional():
+                if mapped_args:
+                    return f"?{mapped_args[0]}"
+                return "?int"
+            else:
+                return "Any"
 
         elif value_id == 'Union':
             # Check for None to map to Optional
             non_none = [t for t in mapped_args if t != 'none']
             if len(non_none) == 1 and len(mapped_args) > 1:
-                return f"?{non_none[0]}"
+                if get_strict_optional():
+                    return f"?{non_none[0]}"
+                else:
+                    return "Any"
             if allow_union:
                 return " | ".join(mapped_args)
             return "Any"
@@ -172,9 +224,13 @@ def _map_ast_type(node: ast.AST, self_name: str = "Self", allow_union: bool = Fa
             left = _map_ast_type(node.left, self_name, allow_union)
             right = _map_ast_type(node.right, self_name, allow_union)
             if left == 'none':
-                return f"?{right}"
+                if get_strict_optional():
+                    return f"?{right}"
+                return "Any"
             if right == 'none':
-                return f"?{left}"
+                if get_strict_optional():
+                    return f"?{left}"
+                return "Any"
             if allow_union:
                 return f"{left} | {right}"
             return "Any"

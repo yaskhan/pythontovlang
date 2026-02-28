@@ -23,7 +23,7 @@ This transpiler supports a wide range of Python language features and standard l
 ## Installation
 
 ### Prerequisites
--   Python 3.10+
+-   Python 3.10+ (if using Python 3.10, `tomli` is recommended for parsing `pyproject.toml`)
 -   `mypy` (for type inference)
 
 ### From Source
@@ -75,6 +75,11 @@ py2v --analyze-deps path/to/project/
 -   `-r`, `--recursive`: Process directories recursively.
 -   `--analyze-deps`: Analyze import dependencies for a directory instead of transpiling.
 -   `--no-mypy`: Disable strict type inference via `mypy` (faster but less accurate types).
+
+### Configuration Options
+The transpiler respects `mypy` configuration files (`mypy.ini`, `setup.cfg`, `pyproject.toml`).
+-   **Config-Aware Nullability (`strict_optional`)**: If `strict_optional = False` is set in your `mypy` config, the transpiler will map union types like `int | None` and `Optional[int]` to Vlang's `Any` type to match legacy Python semantics. By default (`strict_optional = True`), they map strictly to V optionals (`?int`).
+  - *Note:* Parsing `pyproject.toml` requires Python 3.11+ (which includes `tomllib` natively) or the `tomli` package on older Python versions.
 
 ## Architecture
 
