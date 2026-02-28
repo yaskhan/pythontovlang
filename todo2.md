@@ -152,3 +152,29 @@ Based on recent Python ecosystem developments (mypy, PyPy, Numba, NumPy, Nuitka,
   - Recognize duck-typed dictionary literal assignments that structurally match a `TypedDict` and automatically cast them to the corresponding V `struct` without requiring explicit constructor calls.
 - [ ] **Overload Resolution Strictness**
   - When encountering overloaded functions, perform strict static resolution at transpilation time to emit a direct call to the exact V function variant, eliminating runtime type introspection.
+
+## From `ty` by Astral (Performance & Rust-based Tooling)
+- [ ] **First-Class Intersection Types**
+  - Expand the transpiler's type system mapping to support intersection types (e.g., `A & B`), resolving them to V interfaces that demand methods from both types.
+- [ ] **Redeclarations and Partially Typed Code Support**
+  - Improve the transpiler's robustness against partial typing by generating mixed static/dynamic V code (e.g., isolating fully typed regions into fast paths while allowing `Any` fallback in others) and allowing type redeclarations in consecutive scopes where standard Python permits it.
+- [ ] **Fine-Grained Incremental Transpilation**
+  - Shift the transpiler's architecture to support fine-grained incrementality (like `ty`'s Rust-based architecture), regenerating only specific functions or closures that have changed, rather than rewriting the entire V file on every run.
+
+## From pytype (Lenient Type Inference & Analysis)
+- [ ] **Lenient "Gradual Typing" via Pure Inference**
+  - Unlike strict type checkers, add an analysis pass that infers types purely from runtime semantics without requiring type hints, allowing dynamic idioms that don't contradict existing annotations to compile gracefully to V's `Any` wrappers where strict typing fails.
+- [ ] **Generating Standalone Type Stubs (`.pyi` equivalents)**
+  - Implement a feature to output a standalone mapping file or pseudo-`.pyi` file during transpilation that logs the inferred V types for all unannotated Python functions, allowing users to back-port these as explicit hints into their Python source.
+- [ ] **Cross-File Boundary Inference**
+  - Expand the AST analyzer to intelligently parse and infer types across `import` boundaries (resolving types from other transpiled modules) before emitting V code, rather than defaulting external dependencies to `Any`.
+
+## From py2many (Multi-Language Target & AST Rewriting)
+- [ ] **Generic Intermediate Analysis Passes**
+  - Structure the transpiler's core analysis into discrete, language-agnostic AST rewriting phases (e.g., "Configuration Rewriters" or "Incompatibility Handlers") before the final V emission, allowing complex Python idioms to be normalized into simpler AST structures first.
+- [ ] **Enhanced Python 3 Emitting (Auto-Annotator)**
+  - Similar to py2many's ability to emit enhanced Python code, add a mode to the transpiler that writes the fully type-inferred AST back out as Python code with added static type hints, serving as an auto-annotator tool prior to V translation.
+- [ ] **Standard Library Interoperability Maps**
+  - Build a declarative mapping or rule-based configuration system (like py2many's framework) to automatically translate complex Python standard library calls into their exact V standard library equivalents or injected polyfills, handling the impedance mismatch systemically rather than ad-hoc.
+- [ ] **LLM-Assisted Translation Mode**
+  - Provide an optional integration hook where the transpiler can query an LLM (like py2many's LLM-assisted mode) to resolve highly dynamic or complex Python logic that strictly defies static compilation into V.
