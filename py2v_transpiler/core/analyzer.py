@@ -83,24 +83,47 @@ class TypeInference(ast.NodeVisitor):
             else:
                 os.environ["PYTHONPATH"] = "."
 
+            # Ensure the global dict is clean before running mypy
+            try:
+                import py2v_transpiler.core.mypy_plugin as m_p
+                m_p._global_collected_types.clear()
+            except ImportError:
+                pass
+
             result, error, exit_code = mypy_api_module.run([path, '--config-file', config_path])
 
-            # Read the generated types mapping
-            if os.path.exists("types_for_vlang.json"):
+            collected_types = None
+            # First try to read from the memory (global state injected by the plugin)
+            try:
+                import py2v_transpiler.core.mypy_plugin as m_p
+                if m_p._global_collected_types:
+                    collected_types = dict(m_p._global_collected_types)
+            except ImportError:
+                pass
+
+            # Fallback to reading the generated types mapping from JSON
+            if not collected_types and os.path.exists("types_for_vlang.json"):
                 try:
                     with open("types_for_vlang.json", "r") as json_file:
                         collected_types = json.load(json_file)
+                except Exception:
+                    pass
 
-                    for fullname, types in collected_types.items():
-                        for location, typ in types.items():
-                            v_type = map_python_type_to_v(typ)
-                            # Extract the variable or function name from fullname if possible
-                            # For now, we will just store it by location as well, or we can use it during transpilation
-                            # but keeping it in self.type_map via a generic key might be tricky.
-                            # We map it by line:column string for potential later use.
-                            self.type_map[f"{fullname}@{location}"] = v_type
-                finally:
+            if collected_types:
+                for fullname, types in collected_types.items():
+                    for location, typ in types.items():
+                        v_type = map_python_type_to_v(typ)
+                        # Extract the variable or function name from fullname if possible
+                        # For now, we will just store it by location as well, or we can use it during transpilation
+                        # but keeping it in self.type_map via a generic key might be tricky.
+                        # We map it by line:column string for potential later use.
+                        self.type_map[f"{fullname}@{location}"] = v_type
+
+            if os.path.exists("types_for_vlang.json"):
+                try:
                     os.remove("types_for_vlang.json")
+                except Exception:
+                    pass
         finally:
             if original_pythonpath is not None:
                 os.environ["PYTHONPATH"] = original_pythonpath
