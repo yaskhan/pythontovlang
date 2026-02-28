@@ -307,6 +307,24 @@ Based on recent Python ecosystem developments (mypy, PyPy, Numba, NumPy, Nuitka,
   - *Context:* Python 3.12 introduced a low-impact monitoring API. While it is heavily CPython specific, the transpiler could use it conceptually.
   - *V Translation:* Provide a transpiler flag `--emit-tracing` that injects Vlang profiling/tracing hooks (like `println` or V's built-in `benchmark` tools) at the exact AST nodes corresponding to Python's `CALL`, `RETURN`, and `EXCEPTION` events.
 
+## Mypy Plugin Integration & Type-Driven Optimizations
+*(Leveraging the newly integrated `py2v_transpiler.core.mypy_plugin.VlangPlugin` and `types_for_vlang.json`)*
+- [ ] **Type-Directed Operator Overloading**
+  - *Context:* The transpiler currently supports operator overloading (`__add__`, etc.) dynamically via `Any`.
+  - *V Translation:* Use the inferred mypy static types to generate direct, statically typed V operator calls (`+`, `-`, `*`) between primitive numeric types (e.g., `f64 * f64`) rather than boxing them into the `Any` sum type.
+- [ ] **Static Subscript & Slicing Fast Paths**
+  - *Context:* List/Tuple access and slicing currently map generically.
+  - *V Translation:* If the mypy plugin definitively infers a variable as `list[int]`, generate native V array index access (`arr[i]`) and statically bound V slicing (`arr[start..end]`), bypassing dynamic runtime boundary checks on `Any` wrappers.
+- [ ] **Strict Cast Elimination (`isinstance` / `typing.cast`)**
+  - *Context:* Mypy provides exact narrowed type metadata.
+  - *V Translation:* When a variable passes an `isinstance` check, or is wrapped in a `typing.cast`, use the mypy plugin data to emit direct V type casts (`x as int` or `x as string`) for the duration of that scope, eliminating redundant `match` or `.try_int()` calls on the custom `Any` type.
+- [ ] **Pre-allocated Capacity for Typed Collections**
+  - *Context:* If a collection's type is strictly known and populated with a set length.
+  - *V Translation:* Utilize mypy's type inference on literals/tuples to initialize V arrays with exact capacities (`[]int{cap: N}`) during assignments like `arr = [x, y, z]`.
+- [ ] **Monomorphization of Generic Classes (Mypy Driven)**
+  - *Context:* Python doesn't inherently instantiate generic classes differently, but V requires it (e.g., `Box[int]`).
+  - *V Translation:* When the mypy plugin records instantiation metadata for generic user classes (e.g., `Box(1)`), use that data to correctly map and emit the explicit V generic instantiation type `Box[int]`.
+
 **Priority for Upcoming Releases:**
 1. PEP 695 + 696 (Most requested feature for 2024-2025)
 2. PEP 750 t-strings
