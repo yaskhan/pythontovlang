@@ -10,6 +10,7 @@ except ImportError:
 class TypeInference(ast.NodeVisitor):
     def __init__(self):
         self.type_map: Dict[str, str] = {}
+        self.location_map: Dict[str, str] = {}
 
     def analyze(self, tree: ast.AST) -> Dict[str, str]:
         """Analyzes the AST to infer variable types."""
@@ -118,6 +119,10 @@ class TypeInference(ast.NodeVisitor):
                         # but keeping it in self.type_map via a generic key might be tricky.
                         # We map it by line:column string for potential later use.
                         self.type_map[f"{fullname}@{location}"] = v_type
+
+                        # Populate location_map for O(1) lookups by location (handling potential float vs int overloads)
+                        if 'builtins.float' in fullname or location not in self.location_map:
+                             self.location_map[location] = v_type
 
             if os.path.exists("types_for_vlang.json"):
                 try:

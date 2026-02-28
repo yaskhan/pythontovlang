@@ -548,8 +548,34 @@ class ExpressionsMixin(TranslatorBase):
         left_type = self._guess_type(node.left)
         right_type = self._guess_type(node.right)
 
+        # Type-Directed Operator Overloading
+        # Use inferred mypy static types to cast if needed.
+        op_type = "void"
+        loc_key = f"{getattr(node, 'lineno', 0)}:{getattr(node, 'col_offset', 0)}"
+        if hasattr(self.type_inference, 'location_map') and loc_key in self.type_inference.location_map:
+            v_type = self.type_inference.location_map[loc_key]
+            if v_type != "void":
+                 op_type = v_type
+
         left = self.visit(node.left)
         right = self.visit(node.right)
+
+        # If mypy successfully inferred a concrete primitive numeric type (e.g. f64) for the operation,
+        # and the operands' inferred types are not correctly matching or they are unknown ('Any'),
+        # we can statically type the operator call by casting the operands.
+        # This prevents boxing into 'Any' and relies on direct V operator calls.
+        if op_type in ("int", "f64", "i64"):
+             # For 'Any', we use a sum type assertion `(x as type)`.
+             # For other unknown/primitive types, we use functional casting `type(x)`.
+             if left_type == "Any":
+                  left = f"({left} as {op_type})"
+             elif left_type != op_type:
+                  left = f"{op_type}({left})"
+
+             if right_type == "Any":
+                  right = f"({right} as {op_type})"
+             elif right_type != op_type:
+                  right = f"{op_type}({right})"
 
         if left_type == "PyComplex" and right_type != "PyComplex":
              right = f"py_complex(f64({right}), 0.0)"

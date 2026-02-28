@@ -27,6 +27,10 @@ def map_python_type_to_v(py_type: str, self_name: str = "Self", allow_union: boo
     if py_type == 'Any': return 'Any'
     if py_type == 'object': return 'Any' # Map object to Any
     if py_type == 'Self': return self_name
+    if py_type == 'builtins.int': return 'int'
+    if py_type == 'builtins.float': return 'f64'
+    if py_type == 'builtins.str': return 'string'
+    if py_type == 'builtins.bool': return 'bool'
 
     try:
         # Use AST to parse complex types
@@ -194,5 +198,9 @@ def _map_basic_type(name: str) -> str:
         'TextIO': 'os.File',
         'BinaryIO': 'os.File',
         'NoReturn': 'void',
+        'builtins.int': 'int',
+        'builtins.float': 'f64',
+        'builtins.str': 'string',
+        'builtins.bool': 'bool',
     }
     return mapping.get(name, name)
