@@ -14,7 +14,8 @@ def test_translator_list_comp():
     analyzer.analyze(tree)
     result = translator.visit_Module(tree)
 
-    assert "mut x := []int{}" in result
+    assert "mut x := []int{cap: 10}" in result
+    # x = [i for i in range(10) if i > 5] has ifs so no cap
     assert "for i in 0..10 {" in result
     assert "x << i" in result
 
@@ -29,6 +30,7 @@ def test_translator_list_comp_filter():
     result = translator.visit_Module(tree)
 
     assert "mut x := []int{}" in result
+    # x = [i for i in range(10) if i > 5] has ifs so no cap
     assert "for i in 0..10 {" in result
     assert "if i > 5 {" in result
     assert "x << i" in result

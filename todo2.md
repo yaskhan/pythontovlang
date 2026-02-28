@@ -340,7 +340,7 @@ Based on recent Python ecosystem developments (mypy, PyPy, Numba, NumPy, Nuitka,
 - [ ] **Exhaustiveness Checking (`typing.assert_never`)**
   - *Context:* Used to ensure all branches of an `Enum` or `Union` are handled.
   - *V Translation:* When the AST contains `assert_never()`, use mypy's control-flow reachability data to verify dead code. Emit a compile-time V error (`$compile_error()`) or `panic()` if the transpiler logic detects the code could be reachable despite mypy's assumptions.
-- [ ] **Type-Aware List Comprehension Pre-allocation**
+- [x] **Type-Aware List Comprehension Pre-allocation**
   - *Context:* List comprehensions currently map to dynamic V arrays built via `<<`.
   - *V Translation:* If mypy can infer the exact length of the iterator (e.g., iterating over a static tuple or bounded range), generate an initially empty V array with the `cap:` set to the inferred length to avoid reallocation during the comprehension loop.
 - [ ] **Strict Structural `TypedDict` Mapping**
