@@ -5,10 +5,16 @@ Based on recent Python ecosystem developments (mypy, PyPy, Numba, NumPy, Nuitka,
 ## From mypy Changelogs (Features & Syntax)
 - [ ] **PEP 747: Annotating Type Forms (`TypeForm[T]`)**
   - Needs AST parsing support and mapping `TypeForm` to an appropriate V type or skipping it gracefully.
+  - Parse `TypeForm[T]` in argument and return annotations.
+  - *V Translation:* Since V lacks type reification, generate overloaded functions or use `Any` with runtime checks (optionally behind an `--experimental` flag).
+  - Use `--enable-incomplete-feature=TypeForm` when running mypy for validation.
 - [ ] **PEP 800: Disjoint Base Classes (`@disjoint_base`)**
   - Add support for detecting `@disjoint_base` decorator.
-- [ ] **PEP 696: Type Variable Defaults**
-  - Support new Python 3.13 syntax for generic defaults: `class Box[T = int]: ...`
+- [ ] **PEP 742: TypeIs (mypy 1.10+)**
+  - *Context:* Improved type guard that narrows the type in both branches of a condition.
+  - Recognize functions returning `TypeIs[T]` instead of `bool`.
+  - *V Translation:* Generate an `if` with an automatic type cast inside the block (using narrowing info from mypy).
+  - Differentiate from `TypeGuard`: `TypeIs` narrows in the `else`-branch (to the negation). Implement handling for both branches.
 - [ ] **PEP 702: `@deprecated` Decorator**
   - Transpile `warnings.deprecated` to V's `[deprecated]` attribute on functions/structs.
 - [ ] **Property Setters and Getters with Different Types**
@@ -17,6 +23,31 @@ Based on recent Python ecosystem developments (mypy, PyPy, Numba, NumPy, Nuitka,
   - While V does not support fully dynamic attributes natively, consider adding a mechanism (e.g., a fallback `map[string]Any` inside the struct) to support dynamic attribute access where needed.
 - [ ] **Enum Membership Semantics (PEP 736/typing updates)**
   - Ensure transpiler correctly handles unannotated vs annotated Enum members based on new typing rules.
+- [ ] **PEP 705: ReadOnly in TypedDict (mypy 1.12+)**
+  - *Context:* Marking TypedDict fields as immutable.
+  - Detect the `ReadOnly` wrapper in field annotations.
+  - *V Translation:* Generate struct fields as `const` or use getter methods (since V lacks built-in read-only semantics at the field level).
+  - Emit a transpiler error if mypy complains about assignment to a `ReadOnly` field.
+- [ ] **PEP 675: LiteralString (improved support in mypy 1.14+)**
+  - *Context:* A type for strings known at compile time (injection protection).
+  - Detect `LiteralString` by tracking string origin: literal, literal concatenation, f-string without variables.
+  - *V Translation:* Mark as `const string` if possible for optimization and safety.
+  - Warn if a `LiteralString` variable receives a value from `input()` (loss of guarantee).
+
+## Type Narrowing Improvements (Based on mypy 1.14–1.19)
+- [ ] **Index Narrowing in for-loops (mypy 1.14)**
+  - *Context:* Mypy now preserves the literal type of loop variables (e.g., `for key in ("name", "age"):`).
+  - Retrieve the narrowed literal type of the loop variable from the mypy AST.
+  - *V Translation:* Generate more precise types instead of a generic `string`/`int`.
+  - Optimize collection access: if mypy guarantees the key exists, generate direct access without an `in` check.
+- [ ] **Narrowing in match/case with union types (mypy 1.19)**
+  - *Context:* Improved type narrowing inside class patterns with a union base.
+  - Synchronize with mypy CFG: use control-flow info to determine the exact type in each `case`.
+  - *V Translation:* Ensure V code uses the specific struct type inside `match` branches.
+  - Support capture patterns with type narrowing (e.g., `case Point(x=int() as x_val)` -> `x_val` must be `int` in V).
+- [ ] **Attribute and Descriptor Narrowing**
+  - If mypy narrowed an object's type, narrow the attribute's type during V generation (e.g., calling a subclass method after `isinstance`).
+  - Add narrowing for descriptors (`__get__`, `__set__`): if a descriptor returns a specific type, use it in V.
 
 ## From PyPy Changelogs (Optimizations & Runtime Behaviors)
 - [ ] **Atomic Groups and Possessive Repeats in Regex**
@@ -178,3 +209,107 @@ Based on recent Python ecosystem developments (mypy, PyPy, Numba, NumPy, Nuitka,
   - Build a declarative mapping or rule-based configuration system (like py2many's framework) to automatically translate complex Python standard library calls into their exact V standard library equivalents or injected polyfills, handling the impedance mismatch systemically rather than ad-hoc.
 - [ ] **LLM-Assisted Translation Mode**
   - Provide an optional integration hook where the transpiler can query an LLM (like py2many's LLM-assisted mode) to resolve highly dynamic or complex Python logic that strictly defies static compilation into V.
+
+## Language Features — High Priority (new syntax Python 3.12+)
+- [ ] **PEP 695: Full type parameter syntax**
+  - Support syntax like `def func[T](x: T) -> T: ...`, `class Box[T]: value: T`, `type Alias[T] = list[T]`.
+  - Handle new AST nodes: `TypeVar`, `ParamSpec`, `TypeVarTuple`, `type_params` list.
+- [ ] **PEP 696: Type parameter defaults (Python 3.13+)**
+  - Support generic defaults: `def foo[T = int](x: T): ...` or `class Container[T = list[int]]: ...`.
+- [ ] **PEP 750: Template string literals (`t-strings`)**
+  - Support `t"Hello {name=}"`, `T"Value: {value!r}"` by mapping the returned `Template` object to a custom string builder or interpolation mechanism in V.
+- [ ] **PEP 758: Bracketless `except` / `except*` clauses (Python 3.14)**
+  - Support multi-exception syntax without parenthesis: `except ValueError, TypeError:` and `except* OSError, IOError:`.
+- [ ] **PEP 649 / PEP 749: Deferred evaluation of annotations**
+  - Now default in 3.14. Correctly handle `__annotations__` as deferred objects without requiring `from __future__ import annotations`.
+
+## Advanced Syntax & Edge Cases
+- [ ] **Full generics scoping & nesting**
+  - Handle type params inside nested functions/classes and their interaction with closures.
+- [ ] **`ParamSpec` + `TypeVarTuple`**
+  - Support `**P` and `*Ts` in the new PEP 695 syntax.
+- [ ] **Generic `match` patterns with type parameters**
+  - E.g., `case Box[int](value=x):`.
+- [ ] **Async generators / comprehensions with type parameters**
+- [ ] **`__type_params__` runtime attribute support**
+  - Support this for introspection or metaclass-like features.
+- [ ] **Improved error recovery & source mapping for new syntax nodes**
+  - Provide better line/column tracking in the V output.
+- [ ] **Support for Python 3.14+ soft keywords / future syntax changes**
+- [ ] **Variance in PEP 695 syntax (mypy 1.12+)**
+  - *Context:* New syntax `class C[+T]` for covariance.
+  - Parse variance modifiers: detect `+T` (covariant) and `-T` (contravariant) in type parameters.
+  - *V Translation:* V generics do not explicitly support variance currently—document this limitation but preserve the annotation for future-proofing.
+  - Emit an error before generating V code if mypy reports a variance violation.
+- [ ] **Self types with generic context (PEP 673 + PEP 695)**
+  - Ensure correct resolution of `Self` inside generic classes (e.g., `Self` expands to `Builder[T]`, not `Builder[Any]`).
+  - *V Translation:* Methods must return the concrete `Builder[T]`, not a generic interface.
+- [ ] **Mapping patterns with `**rest` (PEP 634+)**
+  - Support `**kwargs` in pattern matching (e.g., `case {"host": str() as h, **rest}:`).
+  - Parse mapping patterns with unpacking.
+  - *V Translation:* Generate key extraction plus a residual `map[string]Any` for `**rest`.
+- [ ] **OR-patterns in nested positions**
+  - Recursive processing of `|` inside patterns (e.g., `case Point(0 | 1, y):`).
+  - *V Translation:* Generate nested `match` or `if x == 0 || x == 1`.
+- [ ] **Guard expressions with type narrowing**
+  - Link guard conditions with narrowing (e.g., `case User(name=n) if len(n) > 5:`).
+  - Use mypy to verify the guard doesn't contradict the type.
+  - *V Translation:* Generate an `if` inside the `match` branch while preserving the narrowed type.
+- [ ] **Type-directed code generation**
+  - Use inferred mypy types to optimize V code.
+  - If mypy infers `Literal[1, 2, 3]`, generate an `enum` in V instead of a generic `int`.
+  - If the type is `tuple[int, str]`, generate a `struct { int, string }` with named fields (if a NamedTuple annotation exists).
+- [ ] **"Strict syntax mode" for translation**
+  - A mode requiring Python 3.12+ syntax.
+  - Refuse to transpile old `Generic[T]` syntax, requiring the new `[T]` syntax (PEP 695).
+  - Require explicit annotations wherever mypy in strict mode infers `Any`.
+- [ ] **Better error mapping: mypy error codes → V tips**
+  - Translate mypy error codes into understandable messages.
+  - E.g., `[union-attr]` -> "In V, you must explicitly check the type before accessing a union attribute."
+  - E.g., `[misc]` for `TypeForm` -> "Experimental feature, use --experimental."
+- [ ] **F-string: New Python 3.12+ features**
+  - Parse complex format-specs (e.g., `=` inside format spec, not just debug `x=`).
+  - *V Translation:* V's `fmt` uses different specifiers—add a mapping table.
+- [ ] **Type narrowing through attribute assignment**
+  - Track mutations of narrowed variables.
+  - If a variable can be changed after narrowing, drop the narrowed type.
+  - *V Translation:* Generate a repeated check if V doesn't guarantee immutability.
+
+## Infrastructure & Tooling
+- [ ] **Documentation and Usage Examples**
+  - Include examples for the new syntax and a Vlang interop guide.
+- [ ] **Comprehensive test suite coverage for all new PEP syntax**
+  - e.g., add a `tests/syntax_3_12_3_14/` suite.
+- [ ] **CI matrix with Python 3.12–3.14**
+  - Ensure AST compatibility across modern Python versions.
+- [ ] **CLI flags for targets**
+  - E.g., `--target-python=3.14` or `--strict-generics`.
+
+## Nice-to-have (syntax only)
+- [ ] **Support for future Python 3.15+ syntax**
+  - Monitor the PEP queue for upcoming changes.
+- [ ] **Better V-specific optimizations for generics**
+  - E.g., monomorphization hints or inlining where possible.
+- [ ] **Source-to-source fidelity mode**
+  - Preserve original comments and formatting as much as possible.
+
+## Niche Syntax & Semantic Edge Cases (New Additions)
+- [ ] **Python 3.13 `global` and `nonlocal` in Comprehensions**
+  - *Context:* Python 3.13 allows `global` and `nonlocal` bindings inside list/dict/set comprehensions and generator expressions, removing the implicit function scope restrictions of older versions.
+  - *V Translation:* Map these variables directly to the outer V scope, ensuring the V compiler tracks mutations correctly without creating intermediate closures.
+- [ ] **PEP 688: Buffer Protocol Type Annotations (`collections.abc.Buffer`)**
+  - *Context:* Python 3.12+ formalizes the `Buffer` type for objects exposing the C-level buffer protocol.
+  - *V Translation:* Map `collections.abc.Buffer` to V's `[]u8` or a custom `unsafe { &u8 }` wrapper struct when transpiling systems-level Python code.
+- [ ] **Asynchronous generator `athrow()` and `aclose()` (PEP 525 specifics)**
+  - *Context:* While `async generators` are supported, the specific asynchronous injection methods `athrow` and `aclose` require careful handling in the generated V state machine.
+  - *V Translation:* Implement an extended `AsyncPyGenerator[T]` struct in V with `throw()` and `close()` channels/methods that mirror the asynchronous teardown logic.
+- [ ] **`sys.monitoring` API (PEP 669) Code Gen Markers**
+  - *Context:* Python 3.12 introduced a low-impact monitoring API. While it is heavily CPython specific, the transpiler could use it conceptually.
+  - *V Translation:* Provide a transpiler flag `--emit-tracing` that injects Vlang profiling/tracing hooks (like `println` or V's built-in `benchmark` tools) at the exact AST nodes corresponding to Python's `CALL`, `RETURN`, and `EXCEPTION` events.
+
+**Priority for Upcoming Releases:**
+1. PEP 695 + 696 (Most requested feature for 2024-2025)
+2. PEP 750 t-strings
+3. PEP 758 bracketless except
+4. Complete `try/except*` (Exception groups) emission
+5. Docs + Tests
