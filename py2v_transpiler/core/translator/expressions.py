@@ -253,6 +253,18 @@ class ExpressionsMixin(TranslatorBase):
 
         # Handle typing.assert_never
         if func_name_str in ("assert_never", "typing.assert_never"):
+             if len(node.args) == 1:
+                  arg_type = self._guess_type(node.args[0])
+                  # If mypy successfully proved dead code, the type of the variable should be narrowed to Never/NoReturn (void in V).
+                  # Wait, the analyzer might not be passing the map perfectly to `_guess_type` for `ast.Name`.
+                  # Actually, `_guess_type` falls back to "int".
+                  if isinstance(node.args[0], ast.Name):
+                       inferred = self.type_inference.type_map.get(node.args[0].id)
+                       if inferred is not None:
+                           arg_type = inferred
+
+                  if arg_type != "void" and arg_type != "Never" and arg_type != "Any":
+                       return f"$compile_error('assert_never reached: variable is typed as {arg_type} instead of void/Never')"
              return "panic('assert_never reached')"
 
         if func_name_str in self.renamed_functions:
