@@ -343,7 +343,7 @@ Based on recent Python ecosystem developments (mypy, PyPy, Numba, NumPy, Nuitka,
 - [x] **Type-Aware List Comprehension Pre-allocation**
   - *Context:* List comprehensions currently map to dynamic V arrays built via `<<`.
   - *V Translation:* If mypy can infer the exact length of the iterator (e.g., iterating over a static tuple or bounded range), generate an initially empty V array with the `cap:` set to the inferred length to avoid reallocation during the comprehension loop.
-- [ ] **Strict Structural `TypedDict` Mapping**
+- [x] **Strict Structural `TypedDict` Mapping**
   - *Context:* Python dictionaries can be highly dynamic, often falling back to `map[string]Any`.
   - *V Translation:* If mypy explicitly types a dictionary assignment/usage as a specific `TypedDict`, bypass the `map` entirely and emit it as an exact, unboxed V `struct` to ensure zero-overhead field access.
 - [ ] **Generic Type Aliases Mapping (PEP 695)**
