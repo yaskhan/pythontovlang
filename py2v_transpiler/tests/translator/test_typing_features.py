@@ -122,7 +122,7 @@ x = cast(int, "1")
 """
     v_code = translate(source)
     # V string literals use single quotes usually in emitted code if transpiled from py
-    assert "x := '1'" in v_code
+    assert "x := ('1' as int)" in v_code
 
 def test_typing_new_type():
     source = """
