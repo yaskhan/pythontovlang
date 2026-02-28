@@ -358,7 +358,7 @@ Based on recent Python ecosystem developments (mypy, PyPy, Numba, NumPy, Nuitka,
 - [ ] **Exact Mutability Mapping (`Final` / reassignments)**
   - *Context:* V variables default to immutable. Currently, the transpiler might over-use `mut` to be safe.
   - *V Translation:* Utilize mypy's reassignment tracking and `typing.Final` annotations. If mypy proves a variable is never reassigned after initialization, emit it without the `mut` keyword in V, relying on V's strict compiler to ensure immutability.
-- [ ] **Config-Aware Nullability (`strict_optional`)**
+- [x] **Config-Aware Nullability (`strict_optional`)**
   - *Context:* Mypy's `strict_optional` setting dictates whether `None` is a valid value for unannotated types.
   - *V Translation:* Hook into the user's `mypy.ini` or `pyproject.toml`. If `strict_optional = True`, map union types like `int | None` strictly to V optionals (`?int`). If `False`, rely on the `Any` wrapper with `none` tracking to match legacy Python semantics.
 - [ ] **`typing.Literal` Mapping to V Enums / Constants**
