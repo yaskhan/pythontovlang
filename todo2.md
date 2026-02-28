@@ -319,7 +319,7 @@ Based on recent Python ecosystem developments (mypy, PyPy, Numba, NumPy, Nuitka,
 - [x] **Static Subscript & Slicing Fast Paths**
   - *Context:* List/Tuple access and slicing currently map generically.
   - *V Translation:* If the mypy plugin definitively infers a variable as `list[int]`, generate native V array index access (`arr[i]`) and statically bound V slicing (`arr[start..end]`), bypassing dynamic runtime boundary checks on `Any` wrappers.
-- [ ] **Strict Cast Elimination (`isinstance` / `typing.cast`)**
+- [x] **Strict Cast Elimination (`isinstance` / `typing.cast`)**
   - *Context:* Mypy provides exact narrowed type metadata.
   - *V Translation:* When a variable passes an `isinstance` check, or is wrapped in a `typing.cast`, use the mypy plugin data to emit direct V type casts (`x as int` or `x as string`) for the duration of that scope, eliminating redundant `match` or `.try_int()` calls on the custom `Any` type.
 - [ ] **Pre-allocated Capacity for Typed Collections**
