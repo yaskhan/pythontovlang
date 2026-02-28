@@ -60,7 +60,10 @@ def test_run_mypy(mock_mypy):
     assert stdout == "Success"
     assert stderr == ""
     assert code == 0
-    mock_mypy.run.assert_called_with(["test.py"])
+
+    args = mock_mypy.run.call_args[0][0]
+    assert args[0] == "test.py"
+    assert args[1] == "--config-file"
 
 def test_run_mypy_no_module():
     # To test the ImportError case, we'd need to manipulate sys.modules or use a separate process.
