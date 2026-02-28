@@ -26,8 +26,6 @@ else:
         result = self.transpile(source)
         # Check that x := 1 is emitted and active
         self.assertIn("x := 1", result)
-        # Check for the comment
-        self.assertIn("// Python 'else' block", result)
         # Verify x := 1 is NOT commented out (simple check)
         self.assertNotIn("// x := 1", result)
 

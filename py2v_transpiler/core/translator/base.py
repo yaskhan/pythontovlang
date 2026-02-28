@@ -40,6 +40,7 @@ class TranslatorBase(ast.NodeVisitor):
         self.finally_stack: List[ast.Try] = [] # Stack of active try-finally blocks
         self.loop_stack: List[Dict[str, Any]] = [] # Stack of active loops for break/continue tracking
         self.unique_id_counter: int = 0
+        self.vexc_depth: int = 0
 
     def _indent(self) -> str:
         return "    " * self._indent_level

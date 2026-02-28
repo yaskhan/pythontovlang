@@ -1,5 +1,6 @@
 import ast
 from .base import TranslatorBase
+from typing import Dict, Any
 
 class ControlFlowMixin(TranslatorBase):
     def visit_If(self, node: ast.If) -> None:
@@ -47,13 +48,14 @@ class ControlFlowMixin(TranslatorBase):
             self.output.append(f"{self._indent()}}}")
 
     def visit_While(self, node: ast.While) -> None:
-        loop_ctx = {}
+        loop_ctx: Dict[str, Any] = {}
         flag_name = ""
         if node.orelse:
             flag_name = f"_loop_completed_{self.unique_id_counter}"
             self.unique_id_counter += 1
             self.output.append(f"{self._indent()}mut {flag_name} := true")
             loop_ctx['flag'] = flag_name
+        loop_ctx['vexc_depth'] = self.vexc_depth
 
         self.loop_stack.append(loop_ctx)
 
@@ -102,7 +104,7 @@ class ControlFlowMixin(TranslatorBase):
         iter_expr = self.visit(node.iter)
 
         # Push loop context to stack for break handling
-        self.loop_stack.append({})
+        self.loop_stack.append({'vexc_depth': self.vexc_depth})
 
         self.output.append(f"{self._indent()}for {target} in {iter_expr} {{")
         self._indent_level += 1
@@ -117,13 +119,14 @@ class ControlFlowMixin(TranslatorBase):
             self.output.append(f"{self._indent()}// else clause in async for not supported yet")
 
     def visit_For(self, node: ast.For) -> None:
-        loop_ctx = {}
+        loop_ctx: Dict[str, Any] = {}
         flag_name = ""
         if node.orelse:
             flag_name = f"_loop_completed_{self.unique_id_counter}"
             self.unique_id_counter += 1
             self.output.append(f"{self._indent()}mut {flag_name} := true")
             loop_ctx['flag'] = flag_name
+        loop_ctx['vexc_depth'] = self.vexc_depth
 
         self.loop_stack.append(loop_ctx)
 
@@ -235,90 +238,140 @@ class ControlFlowMixin(TranslatorBase):
             self.output.append(f"{self._indent()}}}")
 
     def visit_Raise(self, node: ast.Raise) -> None:
+        self.emitter.add_import('div72.vexc')
         if node.exc:
-            val = self.visit(node.exc)
-            if node.cause:
-                cause_val = self.visit(node.cause)
-                self.output.append(f"{self._indent()}panic('${{{val}}} (Cause: ${{{cause_val}}})')")
+            if isinstance(node.exc, ast.Call):
+                 exc_name = self.visit(node.exc.func)
+                 msg = ""
+                 if node.exc.args:
+                      msg = self.visit(node.exc.args[0])
+                      # Remove quotes if it's a string literal visit
+                      if msg.startswith("'") and msg.endswith("'"):
+                           msg = msg[1:-1]
+                      elif msg.startswith('"') and msg.endswith('"'):
+                           msg = msg[1:-1]
+                 self.output.append(f"{self._indent()}vexc.raise('{exc_name}', '{msg}')")
+            elif isinstance(node.exc, ast.Name):
+                 exc_name = self.visit(node.exc)
+                 self.output.append(f"{self._indent()}vexc.raise('{exc_name}', '')")
             else:
-                self.output.append(f"{self._indent()}panic('${{{val}}}')")
+                 val = self.visit(node.exc)
+                 self.output.append(f"{self._indent()}vexc.raise('Exception', '${{{val}}}')")
         else:
-            self.output.append(f"{self._indent()}panic('reraise not supported')")
+            # Reraise
+            self.output.append(f"{self._indent()}if vexc.get_curr_exc().name != '' {{")
+            self.output.append(f"{self._indent()}    vexc.raise(vexc.get_curr_exc().name, vexc.get_curr_exc().msg)")
+            self.output.append(f"{self._indent()}}} else {{")
+            self.output.append(f"{self._indent()}    panic('reraise not supported outside except block')")
+            self.output.append(f"{self._indent()}}}")
 
     def visit_Try(self, node: ast.Try) -> None:
-        self.output.append(f"{self._indent()}// try {{")
+        self.emitter.add_import('div72.vexc')
+
+        # Need to support finally using defer
         if node.finalbody:
             self.finally_stack.append(node)
+            # Check if finally block contains continue
+            has_continue = False
+            for stmt in node.finalbody:
+                for sub in ast.walk(stmt):
+                    if isinstance(sub, ast.Continue):
+                        has_continue = True
+                        break
+                if has_continue: break
+
+            if has_continue:
+                self.output.append(f"{self._indent()}// Warning: 'continue' in 'finally' detected. 'defer' cannot be used.")
+            else:
+                self.output.append(f"{self._indent()}{{")
+                self.output.append(f"{self._indent()}    defer {{")
+                self._indent_level += 2
+                for stmt in node.finalbody:
+                    self.visit(stmt)
+                self._indent_level -= 2
+                self.output.append(f"{self._indent()}    }}")
+
+        self.vexc_depth += 1
+        self.output.append(f"{self._indent()}if C.try() {{")
+        self._indent_level += 1
 
         for stmt in node.body:
             self.visit(stmt)
 
         if node.orelse:
-            self.output.append(f"{self._indent()}// Python 'else' block (executed if no exception occurred):")
             for stmt in node.orelse:
                 self.visit(stmt)
 
+        self.output.append(f"{self._indent()}vexc.end_try()")
+        self._indent_level -= 1
+        self.vexc_depth -= 1
+        self.output.append(f"{self._indent()}}} else {{")
+        self._indent_level += 1
+
+        if node.handlers:
+             exc_var = f"_exc_{self.unique_id_counter}"
+             self.unique_id_counter += 1
+             self.output.append(f"{self._indent()}{exc_var} := vexc.get_curr_exc()")
+
+             is_first = True
+             has_default = False
+
+             for handler in node.handlers:
+                 type_str = ""
+                 if handler.type:
+                     if isinstance(handler.type, ast.Tuple):
+                         types = [str(self.visit(t)) for t in handler.type.elts]
+                         type_str = " || ".join([f"{exc_var}.name == '{t}'" for t in types])
+                     else:
+                         type_str = f"{exc_var}.name == '{str(self.visit(handler.type))}'"
+                 else:
+                     has_default = True
+
+                 if has_default:
+                      prefix = "else"
+                 else:
+                      prefix = "if" if is_first else "else if"
+
+                 if has_default:
+                      self.output.append(f"{self._indent()}{prefix} {{")
+                 else:
+                      self.output.append(f"{self._indent()}{prefix} {type_str} {{")
+
+                 self._indent_level += 1
+                 if handler.name:
+                      self.output.append(f"{self._indent()}{handler.name} := {exc_var}")
+
+                 for stmt in handler.body:
+                      self.visit(stmt)
+
+                 self._indent_level -= 1
+                 self.output.append(f"{self._indent()}}}")
+
+                 is_first = False
+                 if has_default: break
+
+             if not has_default:
+                  self.output.append(f"{self._indent()}else {{")
+                  self.output.append(f"{self._indent()}    vexc.raise({exc_var}.name, {exc_var}.msg)")
+                  self.output.append(f"{self._indent()}}}")
+        else:
+             # Just try/finally
+             self.output.append(f"{self._indent()}_exc := vexc.get_curr_exc()")
+             self.output.append(f"{self._indent()}vexc.raise(_exc.name, _exc.msg)")
+
+        self._indent_level -= 1
+        self.output.append(f"{self._indent()}}}")
+
         if node.finalbody:
             self.finally_stack.pop()
-
-        self.output.append(f"{self._indent()}// }} except {{")
-        for handler in node.handlers:
-            type_str = ""
-            if handler.type:
-                if isinstance(handler.type, ast.Tuple):
-                    types = [str(self.visit(t)) for t in handler.type.elts]
-                    type_str = ", ".join(types)
-                else:
-                    type_str = str(self.visit(handler.type))
+            if not has_continue:
+                 self.output.append(f"{self._indent()}}}")
             else:
-                type_str = "Exception"
-
-            name_str = f" as {handler.name}" if handler.name else ""
-            self.output.append(f"{self._indent()}// Handler: {type_str}{name_str}")
-            # Visit handler body but comment it out
-            # We must be careful because visit(stmt) appends to self.output
-            # We can capture it
-            self.output.append(f"{self._indent()}// ... exception handling logic ...")
-
-            # Temporary logic: traverse handler body to show intent, but keep as comment
-            for stmt in handler.body:
-                 # Hack: visit and prefix lines with //
-                 # We need to capture output
-                 old_output = self.output
-                 self.output = []
-                 self.visit(stmt)
-                 captured = self.output
-                 self.output = old_output
-                 for line in captured:
-                     self.output.append(f"// {line}")
-
-        if node.finalbody:
-             self.output.append(f"{self._indent()}// }} finally {{")
-
-             # Check if finally block contains continue
-             has_continue = False
-             for stmt in node.finalbody:
-                 for sub in ast.walk(stmt):
-                     if isinstance(sub, ast.Continue):
-                         has_continue = True
-                         break
-                 if has_continue: break
-
-             if has_continue:
-                 self.output.append(f"{self._indent()}// Warning: 'continue' in 'finally' detected. 'defer' cannot be used.")
-                 self.output.append(f"{self._indent()}// Inlining finally block (exception handling semantics might be lost for this block).")
-                 # Just inline the body without defer
+                 # Inlining finally block
                  for stmt in node.finalbody:
                      self.in_finally = True
                      self.visit(stmt)
                      self.in_finally = False
-             else:
-                 self.output.append(f"{self._indent()}defer {{")
-                 self._indent_level += 1
-                 for stmt in node.finalbody:
-                     self.visit(stmt)
-                 self._indent_level -= 1
-                 self.output.append(f"{self._indent()}}}")
 
     def visit_AsyncWith(self, node: ast.AsyncWith) -> None:
         # Similar logic to visit_With, assuming mapped V types support .close()
@@ -411,6 +464,15 @@ class ControlFlowMixin(TranslatorBase):
             if 'flag' in current_loop:
                 flag = current_loop['flag']
                 self.output.append(f"{self._indent()}{flag} = false")
+
+            target_depth = current_loop.get('vexc_depth', 0)
+            diff = self.vexc_depth - target_depth
+            for _ in range(diff):
+                 self.output.append(f"{self._indent()}vexc.end_try()")
+        else:
+            for _ in range(self.vexc_depth):
+                 self.output.append(f"{self._indent()}vexc.end_try()")
+
         self.output.append(f"{self._indent()}break")
 
     def visit_Continue(self, node: ast.Continue) -> None:
@@ -498,6 +560,16 @@ class ControlFlowMixin(TranslatorBase):
              # But wait, I can modify `visit_Try` to check if `finalbody` contains `continue`.
              # If so, do NOT use `defer`. Instead, emit `finalbody` manually.
              pass
+
+        if self.loop_stack:
+            current_loop = self.loop_stack[-1]
+            target_depth = current_loop.get('vexc_depth', 0)
+            diff = self.vexc_depth - target_depth
+            for _ in range(diff):
+                 self.output.append(f"{self._indent()}vexc.end_try()")
+        else:
+            for _ in range(self.vexc_depth):
+                 self.output.append(f"{self._indent()}vexc.end_try()")
 
         self.output.append(f"{self._indent()}continue")
 

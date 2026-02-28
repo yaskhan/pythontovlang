@@ -19,10 +19,9 @@ except ZeroDivisionError:
     analyzer.analyze(tree)
     result = translator.visit_Module(tree)
 
-    assert "// try {" in result
+    assert "if C.try() {" in result
     assert "x := 1 / 0" in result
-    assert "// } except {" in result
-    assert "// Handler:" in result
+    assert "} else {" in result
 
 def test_translator_with():
     parser = PyASTParser()
