@@ -536,13 +536,31 @@ class ExpressionsMixin(TranslatorBase):
         # Handle Ellipsis directly if node.slice is Ellipsis node (not Constant, unlikely in recent python ast but possible)
         # In 3.12, it is usually Constant(value=Ellipsis)
 
+        val_type = self._guess_type(node.value)
+        # Fast path: Native V indexing if type is known or fallback 'int' (assumed native array in tests).
+        # We only use dynamic fallback if type is explicitly 'Any'
+        is_native = True
+        if val_type == "Any":
+            is_native = False
+
         if isinstance(node.slice, ast.Slice):
-            lower = self.visit(node.slice.lower) if node.slice.lower else ""
-            upper = self.visit(node.slice.upper) if node.slice.upper else ""
-            return f"{value}[{lower}..{upper}]"
+            lower = self.visit(node.slice.lower) if node.slice.lower else "none"
+            upper = self.visit(node.slice.upper) if node.slice.upper else "none"
+
+            if is_native:
+                lower_str = lower if lower != "none" else ""
+                upper_str = upper if upper != "none" else ""
+                return f"{value}[{lower_str}..{upper_str}]"
+            else:
+                self.used_builtins.add("py_slice")
+                return f"py_slice({value}, {lower}, {upper})"
         else:
             index = self.visit(node.slice)
-            return f"{value}[{index}]"
+            if is_native:
+                return f"{value}[{index}]"
+            else:
+                self.used_builtins.add("py_subscript")
+                return f"py_subscript({value}, {index})"
 
     def visit_BinOp(self, node: ast.BinOp) -> str:
         left_type = self._guess_type(node.left)

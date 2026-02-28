@@ -316,7 +316,7 @@ Based on recent Python ecosystem developments (mypy, PyPy, Numba, NumPy, Nuitka,
 - [ ] **Type-Directed Operator Overloading**
   - *Context:* The transpiler currently supports operator overloading (`__add__`, etc.) dynamically via `Any`.
   - *V Translation:* Use the inferred mypy static types to generate direct, statically typed V operator calls (`+`, `-`, `*`) between primitive numeric types (e.g., `f64 * f64`) rather than boxing them into the `Any` sum type.
-- [ ] **Static Subscript & Slicing Fast Paths**
+- [x] **Static Subscript & Slicing Fast Paths**
   - *Context:* List/Tuple access and slicing currently map generically.
   - *V Translation:* If the mypy plugin definitively infers a variable as `list[int]`, generate native V array index access (`arr[i]`) and statically bound V slicing (`arr[start..end]`), bypassing dynamic runtime boundary checks on `Any` wrappers.
 - [ ] **Strict Cast Elimination (`isinstance` / `typing.cast`)**

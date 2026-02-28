@@ -1006,4 +1006,62 @@ mut:
     return res
 }""")
 
+        if "py_subscript" in self.used_builtins:
+            self.emitter.add_function("""fn py_subscript(obj Any, idx Any) Any {
+    // Dynamic subscript fallback
+    if obj is string {
+        if idx is int {
+            mut i := idx
+            if i < 0 { i += obj.len }
+            if i >= 0 && i < obj.len { return obj[i].ascii_str() }
+        }
+    } else if obj is []u8 {
+        if idx is int {
+            mut i := idx
+            if i < 0 { i += obj.len }
+            if i >= 0 && i < obj.len { return obj[i] }
+        }
+    }
+    panic('py_subscript: unsupported type or index')
+    return false
+}""")
+
+        if "py_slice" in self.used_builtins:
+            self.emitter.add_function("""fn py_slice(obj Any, lower ?Any, upper ?Any) Any {
+    // Dynamic slice fallback
+    if obj is string {
+        mut l := 0
+        if lower_val := lower {
+            if lower_val is int { l = lower_val }
+        }
+        mut u := obj.len
+        if upper_val := upper {
+            if upper_val is int { u = upper_val }
+        }
+        if l < 0 { l += obj.len }
+        if u < 0 { u += obj.len }
+        if l < 0 { l = 0 }
+        if u > obj.len { u = obj.len }
+        if l > u { return '' }
+        return obj[l..u]
+    } else if obj is []u8 {
+        mut l := 0
+        if lower_val := lower {
+            if lower_val is int { l = lower_val }
+        }
+        mut u := obj.len
+        if upper_val := upper {
+            if upper_val is int { u = upper_val }
+        }
+        if l < 0 { l += obj.len }
+        if u < 0 { u += obj.len }
+        if l < 0 { l = 0 }
+        if u > obj.len { u = obj.len }
+        if l > u { return []u8{} }
+        return obj[l..u]
+    }
+    panic('py_slice: unsupported type or bounds')
+    return false
+}""")
+
         return self.emitter.emit()
