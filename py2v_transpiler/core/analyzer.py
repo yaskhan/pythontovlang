@@ -112,12 +112,15 @@ class TypeInference(ast.NodeVisitor):
             if collected_types:
                 for fullname, types in collected_types.items():
                     for location, typ in types.items():
-                        v_type = map_python_type_to_v(typ)
-                        # Extract the variable or function name from fullname if possible
-                        # For now, we will just store it by location as well, or we can use it during transpilation
-                        # but keeping it in self.type_map via a generic key might be tricky.
-                        # We map it by line:column string for potential later use.
-                        self.type_map[f"{fullname}@{location}"] = v_type
+                        if location.endswith("_proto_args"):
+                            self.type_map[location] = typ
+                        else:
+                            v_type = map_python_type_to_v(typ)
+                            # Extract the variable or function name from fullname if possible
+                            # For now, we will just store it by location as well, or we can use it during transpilation
+                            # but keeping it in self.type_map via a generic key might be tricky.
+                            # We map it by line:column string for potential later use.
+                            self.type_map[f"{fullname}@{location}"] = v_type
 
             if os.path.exists("types_for_vlang.json"):
                 try:
