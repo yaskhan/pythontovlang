@@ -337,7 +337,7 @@ Based on recent Python ecosystem developments (mypy, PyPy, Numba, NumPy, Nuitka,
 - [ ] **Compile-Time Evaluation of `typing.assert_type`**
   - *Context:* Python developers use `assert_type()` to verify mypy's understanding.
   - *V Translation:* Provide a dedicated AST node handler for `assert_type`. Verify that the transpiler's internal type mapping agrees with the mypy plugin's provided type; if it matches, strip the assertion entirely from the V code (zero runtime overhead).
-- [ ] **Exhaustiveness Checking (`typing.assert_never`)**
+- [x] **Exhaustiveness Checking (`typing.assert_never`)**
   - *Context:* Used to ensure all branches of an `Enum` or `Union` are handled.
   - *V Translation:* When the AST contains `assert_never()`, use mypy's control-flow reachability data to verify dead code. Emit a compile-time V error (`$compile_error()`) or `panic()` if the transpiler logic detects the code could be reachable despite mypy's assumptions.
 - [ ] **Type-Aware List Comprehension Pre-allocation**

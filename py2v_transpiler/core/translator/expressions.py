@@ -250,6 +250,11 @@ class ExpressionsMixin(TranslatorBase):
 
         # Fallback to existing logic
         func_name_str = self.visit(node.func)
+
+        # Handle typing.assert_never
+        if func_name_str in ("assert_never", "typing.assert_never"):
+             return "panic('assert_never reached')"
+
         if func_name_str in self.renamed_functions:
             func_name_str = self.renamed_functions[func_name_str]
 
