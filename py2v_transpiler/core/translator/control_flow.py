@@ -1,5 +1,6 @@
 import ast
 from .base import TranslatorBase
+from typing import Dict, Any
 
 class ControlFlowMixin(TranslatorBase):
     def visit_If(self, node: ast.If) -> None:
@@ -47,7 +48,7 @@ class ControlFlowMixin(TranslatorBase):
             self.output.append(f"{self._indent()}}}")
 
     def visit_While(self, node: ast.While) -> None:
-        loop_ctx = {}
+        loop_ctx: Dict[str, Any] = {}
         flag_name = ""
         if node.orelse:
             flag_name = f"_loop_completed_{self.unique_id_counter}"
@@ -118,7 +119,7 @@ class ControlFlowMixin(TranslatorBase):
             self.output.append(f"{self._indent()}// else clause in async for not supported yet")
 
     def visit_For(self, node: ast.For) -> None:
-        loop_ctx = {}
+        loop_ctx: Dict[str, Any] = {}
         flag_name = ""
         if node.orelse:
             flag_name = f"_loop_completed_{self.unique_id_counter}"
