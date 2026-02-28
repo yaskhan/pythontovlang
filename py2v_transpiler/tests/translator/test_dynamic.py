@@ -9,12 +9,55 @@ def test_hasattr():
     analyzer = TypeInference()
     translator = VNodeVisitor(analyzer)
 
+    # By default, obj is guessed as 'int' if unknown?
+    # Actually _guess_type returns 'int' as fallback.
+    # So obj_type is 'int', hasattr should return "false".
     code = "x = hasattr(obj, 'attr')"
     tree = parser.parse(code)
     analyzer.analyze(tree)
     result = translator.visit_Module(tree)
 
-    assert "x := /* hasattr(obj, 'attr') - reflection not fully supported */ false" in result
+    assert "x := false" in result
+
+def test_hasattr_any():
+    parser = PyASTParser()
+    analyzer = TypeInference()
+    translator = VNodeVisitor(analyzer)
+
+    # Set type to Any
+    analyzer.type_map = {"obj": "Any"}
+    code = "x = hasattr(obj, 'attr')"
+    tree = parser.parse(code)
+    result = translator.visit_Module(tree)
+
+    assert "x := $if obj.has_field('attr') { true } $else { false }" in result
+
+def test_hasattr_struct():
+    parser = PyASTParser()
+    analyzer = TypeInference()
+    translator = VNodeVisitor(analyzer)
+
+    analyzer.type_map = {"obj": "MyStruct"}
+    code = "x = hasattr(obj, 'attr')"
+    tree = parser.parse(code)
+    result = translator.visit_Module(tree)
+
+    assert "x := $if obj.has_field('attr') { true } $else { false }" in result
+
+def test_hasattr_known_dataclass():
+    parser = PyASTParser()
+    analyzer = TypeInference()
+    translator = VNodeVisitor(analyzer)
+
+    # We fake that we visited a dataclass earlier
+    translator.dataclasses = {"MyStruct": ["x", "attr"]}
+
+    analyzer.type_map = {"obj": "MyStruct"}
+    code = "b = hasattr(obj, 'attr')"
+    tree = parser.parse(code)
+    result = translator.visit_Module(tree)
+
+    assert "b := true" in result
 
 def test_getattr_literal():
     parser = PyASTParser()
