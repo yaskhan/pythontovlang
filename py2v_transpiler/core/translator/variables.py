@@ -229,17 +229,29 @@ class VariablesMixin(TranslatorBase):
             # Context: assignments like `arr = [x, y, z]`
             # If mypy inferred it as a list, or it's a list literal, and it has no starred items
             is_simple_list = False
+            is_simple_dict = False
             cap = 0
             if isinstance(node.value, (ast.List, ast.Tuple)):
                 has_starred = any(isinstance(elt, ast.Starred) for elt in node.value.elts)
                 if not has_starred:
                     is_simple_list = True
                     cap = len(node.value.elts)
+            elif isinstance(node.value, ast.Dict):
+                has_unpacking = any(k is None for k in node.value.keys)
+                if not has_unpacking:
+                    is_simple_dict = True
 
             # Determine type
             v_type = getattr(self, "_guess_type", lambda x: "unknown")(target)
 
-            if is_simple_list and v_type.startswith("[]") and cap > 0:
+            if is_simple_list and v_type and not v_type.startswith("[]") and "[" in v_type and cap > 0:
+                # Custom alias for list, e.g. ListAlias[int]
+                self.output.append(f"{self._indent()}mut {lhs} := {v_type}{{cap: {cap}}}")
+                value_node: Any = node.value
+                for elt in value_node.elts:
+                    val = self.visit(elt)
+                    self.output.append(f"{self._indent()}{lhs} << {val}")
+            elif is_simple_list and v_type and v_type.startswith("[]") and cap > 0:
                 # To initialize V arrays with exact capacities (`[]int{cap: N}`) during assignments like `arr = [x, y, z]`
                 # We emit:
                 # mut arr := []T{cap: N}
@@ -249,6 +261,14 @@ class VariablesMixin(TranslatorBase):
                 for elt in value_node.elts:
                     val = self.visit(elt)
                     self.output.append(f"{self._indent()}{lhs} << {val}")
+            elif is_simple_dict and v_type and not v_type.startswith("map[") and "[" in v_type:
+                # Custom alias for map, e.g. Alias[int]
+                pairs = []
+                for k, v in zip(node.value.keys, node.value.values):
+                    key_str = self.visit(k)
+                    val_str = self.visit(v)
+                    pairs.append(f"{key_str}: {val_str}")
+                self.output.append(f"{self._indent()}{lhs} := {v_type}{{{', '.join(pairs)}}}")
             else:
                 rhs = self.visit(node.value)
                 self.output.append(f"{self._indent()}{lhs} := {rhs}")
@@ -440,12 +460,17 @@ class VariablesMixin(TranslatorBase):
             # Pre-allocated Capacity for Typed Collections
             # Context: assignments like `arr: list[int] = [x, y, z]`
             is_simple_list = False
+            is_simple_dict = False
             cap = 0
             if isinstance(node.value, (ast.List, ast.Tuple)):
                 has_starred = any(isinstance(elt, ast.Starred) for elt in node.value.elts)
                 if not has_starred:
                     is_simple_list = True
                     cap = len(node.value.elts)
+            elif isinstance(node.value, ast.Dict):
+                has_unpacking = any(k is None for k in node.value.keys)
+                if not has_unpacking:
+                    is_simple_dict = True
 
             # Determine type
             v_type = None
@@ -459,12 +484,27 @@ class VariablesMixin(TranslatorBase):
             if not v_type:
                 v_type = getattr(self, "_guess_type", lambda x: "unknown")(node.target)
 
-            if is_simple_list and v_type.startswith("[]") and cap > 0:
+            if is_simple_list and v_type and not v_type.startswith("[]") and "[" in v_type and cap > 0:
+                # Custom alias for list, e.g. ListAlias[int]
                 self.output.append(f"{self._indent()}mut {target} := {v_type}{{cap: {cap}}}")
                 value_node: Any = node.value
                 for elt in value_node.elts:
                     val = self.visit(elt)
                     self.output.append(f"{self._indent()}{target} << {val}")
+            elif is_simple_list and v_type and v_type.startswith("[]") and cap > 0:
+                self.output.append(f"{self._indent()}mut {target} := {v_type}{{cap: {cap}}}")
+                value_node: Any = node.value
+                for elt in value_node.elts:
+                    val = self.visit(elt)
+                    self.output.append(f"{self._indent()}{target} << {val}")
+            elif is_simple_dict and v_type and not v_type.startswith("map[") and "[" in v_type:
+                # Custom alias for map, e.g. Alias[int]
+                pairs = []
+                for k, v in zip(node.value.keys, node.value.values):
+                    key_str = self.visit(k)
+                    val_str = self.visit(v)
+                    pairs.append(f"{key_str}: {val_str}")
+                self.output.append(f"{self._indent()}{target} := {v_type}{{{', '.join(pairs)}}}")
             else:
                 rhs = self.visit(node.value)
                 # We ignore the annotation for now and rely on type inference and V's auto-typing
