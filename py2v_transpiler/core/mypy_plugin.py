@@ -1,8 +1,9 @@
 from mypy.plugin import Plugin
 from typing import Any, Dict
-import json
 from collections import defaultdict
 
+# Global dictionary to store types without relying on the filesystem
+# This is accessed from py2v_transpiler.core.analyzer
 _global_collected_types: Dict[str, Dict[str, str]] = defaultdict(dict)
 
 class VlangPlugin(Plugin):
@@ -23,7 +24,7 @@ class VlangPlugin(Plugin):
                         if hasattr(arg_type, 'type') and getattr(arg_type.type, 'is_protocol', False):
                             proto_args[str(i)] = arg_type.type.name
                     if proto_args:
-                        self.collected_types[fullname][f"{key}_proto_args"] = json.dumps(proto_args)
+                        self.collected_types[fullname][f"{key}_proto_args"] = proto_args
             except Exception:
                 pass
 

@@ -18,11 +18,7 @@ class ExpressionsMixin(TranslatorBase):
         proto_args = {}
         location_key = f"{getattr(node, 'lineno', 0)}:{getattr(node, 'col_offset', 0)}_proto_args"
         if location_key in self.type_inference.type_map:
-            import json
-            try:
-                proto_args = json.loads(self.type_inference.type_map[location_key])
-            except Exception:
-                pass
+            proto_args = self.type_inference.type_map[location_key]
 
         for i, arg in enumerate(node.args):
             val = self.visit(arg)

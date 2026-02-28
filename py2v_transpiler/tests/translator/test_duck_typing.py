@@ -2,7 +2,6 @@ import ast
 import tempfile
 import os
 import textwrap
-import json
 from py2v_transpiler.core.parser import PyASTParser
 from py2v_transpiler.core.translator import VNodeVisitor
 from py2v_transpiler.core.analyzer import TypeInference
@@ -34,7 +33,7 @@ call_proto(impl)
         for node in ast.walk(tree):
             if isinstance(node, ast.Call) and getattr(node.func, "id", "") == "call_proto":
                 key = f"{node.lineno}:{node.col_offset}_proto_args"
-                analyzer.type_map[key] = json.dumps({"0": "Proto"})
+                analyzer.type_map[key] = {"0": "Proto"}
         return res
 
     monkeypatch.setattr(analyzer, "analyze", mock_analyze)
