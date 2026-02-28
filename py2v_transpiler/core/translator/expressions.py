@@ -87,9 +87,29 @@ class ExpressionsMixin(TranslatorBase):
 
         if module_name == "builtins":
             if func_name == "hasattr":
-                 # hasattr(obj, 'attr')
-                 # Best effort: comments
-                 return f"/* hasattr({', '.join(args)}) - reflection not fully supported */ false"
+                 if len(args) >= 2:
+                     obj_expr = args[0]
+                     obj_type = self._guess_type(node.args[0])
+
+                     if isinstance(node.args[1], ast.Constant) and isinstance(node.args[1].value, str):
+                         attr_name = node.args[1].value
+                         # Primitive types definitely don't have custom attributes
+                         if obj_type in ("int", "f64", "bool", "string", "[]u8"):
+                             return "false"
+
+                         # If we know it's a specific struct and know its fields (dataclass)
+                         if obj_type != "Any" and hasattr(self, 'dataclasses') and obj_type in self.dataclasses:
+                             if attr_name in self.dataclasses[obj_type]:
+                                 return "true"
+                             else:
+                                 # We don't have all fields stored, so fallback to compile-time introspection
+                                 return f"$if {obj_expr}.has_field('{attr_name}') {{ true }} $else {{ false }}"
+
+                         # Unknown struct or Any/Union -> compile-time introspection fallback
+                         return f"$if {obj_expr}.has_field('{attr_name}') {{ true }} $else {{ false }}"
+
+                     return f"/* hasattr({', '.join(args)}) - reflection not fully supported */ false"
+                 return "false"
             elif func_name == "getattr":
                  if len(args) >= 2:
                       # check if args[1] is string literal
