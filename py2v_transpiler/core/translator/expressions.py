@@ -761,9 +761,52 @@ class ExpressionsMixin(TranslatorBase):
             self.output.append(f"{self._indent()}// List comprehension expression not supported inline yet")
             return
 
-        self.output.append(f"{self._indent()}mut {target_var} := []int{{}}")
-
         gen = node.generators[0] # Handle first generator
+
+        # Determine capacity for pre-allocation
+        cap_str = ""
+        if not gen.ifs:
+            # Only if there are no filtering conditions
+            if isinstance(gen.iter, (ast.List, ast.Tuple)):
+                cap_str = f"cap: {len(gen.iter.elts)}"
+            elif isinstance(gen.iter, ast.Call) and isinstance(gen.iter.func, ast.Name) and gen.iter.func.id == "range":
+                range_args = gen.iter.args
+                # Check if all arguments are constants
+                all_const = all(
+                    isinstance(arg, ast.Constant) and isinstance(arg.value, int) or
+                    (isinstance(arg, ast.UnaryOp) and isinstance(arg.op, ast.USub) and isinstance(arg.operand, ast.Constant) and isinstance(arg.operand.value, int))
+                    for arg in range_args
+                )
+                if all_const:
+                    def get_int_val(arg):
+                        if isinstance(arg, ast.UnaryOp):
+                            return -arg.operand.value
+                        return arg.value
+
+                    if len(range_args) == 1:
+                        stop = get_int_val(range_args[0])
+                        length = max(0, stop)
+                        cap_str = f"cap: {length}"
+                    elif len(range_args) == 2:
+                        start = get_int_val(range_args[0])
+                        stop = get_int_val(range_args[1])
+                        length = max(0, stop - start)
+                        cap_str = f"cap: {length}"
+                    elif len(range_args) == 3:
+                        start = get_int_val(range_args[0])
+                        stop = get_int_val(range_args[1])
+                        step = get_int_val(range_args[2])
+                        if step != 0:
+                            if step > 0:
+                                length = max(0, (stop - start + step - 1) // step)
+                            else:
+                                length = max(0, (start - stop - step - 1) // (-step))
+                            cap_str = f"cap: {length}"
+
+        if cap_str:
+            self.output.append(f"{self._indent()}mut {target_var} := []int{{{cap_str}}}")
+        else:
+            self.output.append(f"{self._indent()}mut {target_var} := []int{{}}")
 
         if getattr(gen, 'is_async', False):
              self.output.append(f"{self._indent()}// TODO: Async comprehension - Verify iterator semantics")

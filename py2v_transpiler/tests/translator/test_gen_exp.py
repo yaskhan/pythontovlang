@@ -14,7 +14,8 @@ def test_gen_exp_assignment():
 g = (x for x in range(5))
 """
     v_code = transpile(code)
-    assert "mut g := []int{}" in v_code
+    assert "mut g := []int{cap: 5}" in v_code
+    # zip iter is not simple prealloc
     assert "for x in 0..5" in v_code
     assert "g << x" in v_code
 
@@ -32,5 +33,6 @@ g = (x + y for x, y in zip([1], [2]))
 """
     v_code = transpile(code)
     assert "mut g := []int{}" in v_code
+    # zip iter is not simple prealloc
     assert "_zip_it1_" in v_code
     assert "g << x + y" in v_code
