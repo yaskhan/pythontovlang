@@ -24,17 +24,23 @@ def get_strict_optional() -> bool:
             strict_optional = config.getboolean('mypy', 'strict_optional')
     elif os.path.exists('pyproject.toml'):
         try:
-            import tomllib
-            with open('pyproject.toml', 'rb') as f:
-                data = tomllib.load(f)
-                if 'tool' in data and 'mypy' in data['tool']:
-                    mypy_config = data['tool']['mypy']
-                    if 'strict_optional' in mypy_config:
-                        strict_optional = bool(mypy_config['strict_optional'])
+            import tomli as tomllib_compat
         except ImportError:
-            pass # tomllib not available (Python < 3.11)
-        except Exception:
-            pass
+            try:
+                import tomllib as tomllib_compat # type: ignore
+            except ImportError:
+                tomllib_compat = None # type: ignore
+
+        if tomllib_compat is not None:
+            try:
+                with open('pyproject.toml', 'rb') as f:
+                    data = tomllib_compat.load(f)
+                    if 'tool' in data and 'mypy' in data['tool']:
+                        mypy_config = data['tool']['mypy']
+                        if 'strict_optional' in mypy_config:
+                            strict_optional = bool(mypy_config['strict_optional'])
+            except Exception:
+                pass
 
     _STRICT_OPTIONAL_CACHE = strict_optional
     _strict_optional_loaded = True
