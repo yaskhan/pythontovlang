@@ -313,7 +313,7 @@ Based on recent Python ecosystem developments (mypy, PyPy, Numba, NumPy, Nuitka,
 
 ## Mypy Plugin Integration & Type-Driven Optimizations
 *(Leveraging the newly integrated `py2v_transpiler.core.mypy_plugin.VlangPlugin` and `types_for_vlang.json`)*
-- [ ] **Type-Directed Operator Overloading**
+- [x] **Type-Directed Operator Overloading**
   - *Context:* The transpiler currently supports operator overloading (`__add__`, etc.) dynamically via `Any`.
   - *V Translation:* Use the inferred mypy static types to generate direct, statically typed V operator calls (`+`, `-`, `*`) between primitive numeric types (e.g., `f64 * f64`) rather than boxing them into the `Any` sum type.
 - [ ] **Static Subscript & Slicing Fast Paths**

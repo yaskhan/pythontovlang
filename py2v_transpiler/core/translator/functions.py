@@ -307,9 +307,6 @@ class FunctionsMixin(TranslatorBase):
                  self.output.append(f"{self._indent()}// {line}")
              body = body[1:]
 
-        for stmt in body:
-            self.visit(stmt)
-
         # We need to inject `_ = <- ch_in` at the start of generator execution.
         # This corresponds to waiting for the first `next()` call.
         if is_generator:
