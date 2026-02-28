@@ -225,8 +225,32 @@ class VariablesMixin(TranslatorBase):
             else:
                  self.output.append(f"{self._indent()}// Error: Generator expression support missing")
         else:
-            rhs = self.visit(node.value)
-            self.output.append(f"{self._indent()}{lhs} := {rhs}")
+            # Check for pre-allocated capacity for typed collections
+            # Context: assignments like `arr = [x, y, z]`
+            # If mypy inferred it as a list, or it's a list literal, and it has no starred items
+            is_simple_list = False
+            cap = 0
+            if isinstance(node.value, (ast.List, ast.Tuple)):
+                has_starred = any(isinstance(elt, ast.Starred) for elt in node.value.elts)
+                if not has_starred:
+                    is_simple_list = True
+                    cap = len(node.value.elts)
+
+            # Determine type
+            v_type = self._guess_type(target)
+
+            if is_simple_list and v_type.startswith("[]") and cap > 0:
+                # To initialize V arrays with exact capacities (`[]int{cap: N}`) during assignments like `arr = [x, y, z]`
+                # We emit:
+                # mut arr := []T{cap: N}
+                # arr << x ...
+                self.output.append(f"{self._indent()}mut {lhs} := {v_type}{{cap: {cap}}}")
+                for elt in node.value.elts:
+                    val = self.visit(elt)
+                    self.output.append(f"{self._indent()}{lhs} << {val}")
+            else:
+                rhs = self.visit(node.value)
+                self.output.append(f"{self._indent()}{lhs} := {rhs}")
 
     def _visit_destructuring(self, target: ast.AST, source_expr: str) -> None:
         """
@@ -412,10 +436,38 @@ class VariablesMixin(TranslatorBase):
     def visit_AnnAssign(self, node: ast.AnnAssign) -> None:
         target = self.visit(node.target)
         if node.value:
-            rhs = self.visit(node.value)
-            # We ignore the annotation for now and rely on type inference and V's auto-typing
-            # But we could potentially use it to hint types for empty lists/maps
-            self.output.append(f"{self._indent()}{target} := {rhs}")
+            # Pre-allocated Capacity for Typed Collections
+            # Context: assignments like `arr: list[int] = [x, y, z]`
+            is_simple_list = False
+            cap = 0
+            if isinstance(node.value, (ast.List, ast.Tuple)):
+                has_starred = any(isinstance(elt, ast.Starred) for elt in node.value.elts)
+                if not has_starred:
+                    is_simple_list = True
+                    cap = len(node.value.elts)
+
+            # Determine type
+            v_type = None
+            if hasattr(ast, 'unparse'):
+                try:
+                    type_str = ast.unparse(node.annotation)
+                    v_type = map_python_type_to_v(type_str)
+                except:
+                    pass
+
+            if not v_type:
+                v_type = self._guess_type(node.target)
+
+            if is_simple_list and v_type.startswith("[]") and cap > 0:
+                self.output.append(f"{self._indent()}mut {target} := {v_type}{{cap: {cap}}}")
+                for elt in node.value.elts:
+                    val = self.visit(elt)
+                    self.output.append(f"{self._indent()}{target} << {val}")
+            else:
+                rhs = self.visit(node.value)
+                # We ignore the annotation for now and rely on type inference and V's auto-typing
+                # But we could potentially use it to hint types for empty lists/maps
+                self.output.append(f"{self._indent()}{target} := {rhs}")
         else:
             # Declaration only: x: int
             # V needs initialization. We map type to default value.

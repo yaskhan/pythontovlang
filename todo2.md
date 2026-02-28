@@ -322,7 +322,7 @@ Based on recent Python ecosystem developments (mypy, PyPy, Numba, NumPy, Nuitka,
 - [ ] **Strict Cast Elimination (`isinstance` / `typing.cast`)**
   - *Context:* Mypy provides exact narrowed type metadata.
   - *V Translation:* When a variable passes an `isinstance` check, or is wrapped in a `typing.cast`, use the mypy plugin data to emit direct V type casts (`x as int` or `x as string`) for the duration of that scope, eliminating redundant `match` or `.try_int()` calls on the custom `Any` type.
-- [ ] **Pre-allocated Capacity for Typed Collections**
+- [x] **Pre-allocated Capacity for Typed Collections**
   - *Context:* If a collection's type is strictly known and populated with a set length.
   - *V Translation:* Utilize mypy's type inference on literals/tuples to initialize V arrays with exact capacities (`[]int{cap: N}`) during assignments like `arr = [x, y, z]`.
 - [ ] **Monomorphization of Generic Classes (Mypy Driven)**
