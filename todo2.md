@@ -58,7 +58,7 @@ Based on recent Python ecosystem developments (mypy, PyPy, Numba, NumPy, Nuitka,
   - Review if V's `regex` module supports these constructs, and if not, how `py2v_transpiler` maps Python's `re` module calls for these features.
 - [ ] **`OrderedDict` Performance**
   - Check how `collections.OrderedDict` is currently mapped. Since V's standard `map` is not guaranteed to be ordered, ensure `OrderedDict` maps to an ordered data structure in V if order is relied upon.
-- [ ] **String Methods on Tuples/Iterables (`str.startswith` with tuple)**
+- [x] **String Methods on Tuples/Iterables (`str.startswith` with tuple)**
   - Python allows `s.startswith(('a', 'b'))`. Ensure the translator expands this to `s.starts_with('a') || s.starts_with('b')` in V.
 - [ ] **Memoryview and Bytearray**
   - Implement translation for `memoryview()` and `bytearray()` (e.g., mapping to `[]u8` in V with appropriate mutable/immutable semantics).
@@ -386,7 +386,7 @@ Based on recent Python ecosystem developments (mypy, PyPy, Numba, NumPy, Nuitka,
 ## Analysis of `bm_deltablue.py` Transpilation Issues
 Based on the transpilation of the `bm_deltablue.py` benchmark, several critical areas for improvement have been identified:
 
-- [ ] **Polymorphism and Interfaces (`@abstractmethod` and Inheritance)**
+- [x] **Polymorphism and Interfaces (`@abstractmethod` and Inheritance)**
   - *Context:* Python abstract base classes (e.g., `Constraint`) and their concrete implementations (`UrnaryConstraint`, `BinaryConstraint`) are currently transpiled using V struct embedding. However, V struct embedding does not support dynamic virtual method dispatch.
   - *Task:* Detect polymorphic base classes (especially those with `@abstractmethod`) and transpile them to V `interface`s, ensuring that method calls on base types dynamically dispatch to the concrete structs.
 
@@ -398,7 +398,7 @@ Based on the transpilation of the `bm_deltablue.py` benchmark, several critical 
   - *Context:* Module-level constants like `REQUIRED = Strength(...)` and mutable globals like `planner = None` are currently incorrectly placed inside the generated `fn main()` block, making them inaccessible to the methods that reference them.
   - *Task:* Implement an AST pass to extract module-level assignments. Immutable constants should be emitted as V `const (...)` blocks. Mutable globals (e.g., accessed via Python `global` keyword) should be mapped to `__global` or a shared state struct in V.
 
-- [ ] **Type Aliasing without Generics (`OrderedCollection = list`)**
+- [x] **Type Aliasing without Generics (`OrderedCollection = list`)**
   - *Context:* `OrderedCollection = list` defaults to `type OrderedCollection = []int`, which fails when the list is meant to hold objects like `Constraint` or `Variable`.
   - *Task:* Improve type inference for type aliases of collections by analyzing append/usage sites, or fallback to `[]Any` (or the sum type) when the inner type cannot be statically resolved.
 
@@ -418,6 +418,6 @@ Based on the transpilation of the `bm_deltablue.py` benchmark, several critical 
   - *Context:* Magic methods are emitted with their literal names (e.g., `fn (self Plan) __len__() int`).
   - *Task:* Transpile `__len__` to V's idiomatic `.len()` methods (or expose as a length property) and `__getitem__` to V's index operator overloading (e.g., `fn (self Plan) idx(index int) Constraint`).
 
-- [ ] **`None` Initialization**
+- [x] **`None` Initialization**
   - *Context:* `planner = None` emits `planner := none`, which is invalid in V without an explicit Option type (`?Type`).
   - *Task:* Enforce that variables initialized to `None` are explicitly typed as V Optionals (e.g., `mut planner := ?Planner(none)` or fallback to `?Any(none)`).

@@ -7,6 +7,50 @@ try:
 except ImportError:
     mypy_api_module = None # type: ignore
 
+
+class AliasInferer(ast.NodeVisitor):
+    def __init__(self):
+        self.alias_to_type = {}
+
+    def analyze(self, tree: ast.AST):
+        # Pass 1: find alias assignments to collections
+        aliases = {}
+        for node in ast.walk(tree):
+            if isinstance(node, ast.Assign) and len(node.targets) == 1 and isinstance(node.targets[0], ast.Name):
+                lhs = node.targets[0].id
+                if isinstance(node.value, ast.Name) and node.value.id in ('list', 'set', 'dict'):
+                    aliases[lhs] = node.value.id
+
+        # Pass 2: find usage of aliases and what gets appended
+        alias_usages: Dict[str, set] = {alias: set() for alias in aliases}
+        var_to_alias = {}
+
+        for node in ast.walk(tree):
+            # Find instantiations: a = OrderedCollection()
+            if isinstance(node, ast.Assign) and len(node.targets) == 1 and isinstance(node.targets[0], ast.Name):
+                if isinstance(node.value, ast.Call) and isinstance(node.value.func, ast.Name):
+                    if node.value.func.id in aliases:
+                        var_to_alias[node.targets[0].id] = node.value.func.id
+
+            # Find appends: a.append(Constraint())
+            if isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute) and node.func.attr == 'append':
+                if isinstance(node.func.value, ast.Name):
+                    var_name = node.func.value.id
+                    if var_name in var_to_alias and len(node.args) == 1:
+                        if isinstance(node.args[0], ast.Call) and isinstance(node.args[0].func, ast.Name):
+                            alias_usages[var_to_alias[var_name]].add(node.args[0].func.id)
+
+        # Resolve types
+        for alias, base_type in aliases.items():
+            used_types = alias_usages[alias]
+            if not used_types:
+                self.alias_to_type[alias] = f"[]Any" if base_type == 'list' else 'Any'
+            elif len(used_types) == 1:
+                inner_type = list(used_types)[0]
+                self.alias_to_type[alias] = f"[]{inner_type}" if base_type == 'list' else f"map[int]{inner_type}"
+            else:
+                self.alias_to_type[alias] = f"[]Any" if base_type == 'list' else f"map[int]Any"
+
 class TypeInference(ast.NodeVisitor):
     def __init__(self):
         self.type_map: Dict[str, str] = {}
@@ -16,6 +60,10 @@ class TypeInference(ast.NodeVisitor):
     def analyze(self, tree: ast.AST) -> Dict[str, str]:
         """Analyzes the AST to infer variable types."""
         self.visit(tree)
+        # Type Alias Inference
+        alias_inferer = AliasInferer()
+        alias_inferer.analyze(tree)
+        self.type_map.update(alias_inferer.alias_to_type)
         return self.type_map
 
     def visit_AnnAssign(self, node: ast.AnnAssign) -> Any:

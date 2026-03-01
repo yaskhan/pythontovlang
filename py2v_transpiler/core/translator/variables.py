@@ -67,42 +67,47 @@ class VariablesMixin(TranslatorBase):
 
                 # Check if LHS is capitalized (heuristic)
                 if lhs[0].isupper():
-                     # Try to map RHS as a type
-                     try:
-                         # Unparse RHS to string
-                         if hasattr(ast, 'unparse'):
-                             rhs_source = ast.unparse(node.value)
-                             mapped = map_python_type_to_v(rhs_source, allow_union=True)
-                             # Check if mapped value looks like a type and not void/same-as-input-expression
-                             # map_python_type_to_v returns input if it fails to map usually, unless it parses successfully via _map_ast_type
-                             # For List[int], it returns []int. List[int] != []int.
-                             # For int, it returns int.
-                             # For "unknown", it returns "unknown".
+                     # Check if it was inferred by TypeInference (e.g. OrderedCollection = list)
+                     if hasattr(self, 'type_inference') and lhs in self.type_inference.type_map:
+                          is_type_alias = True
+                          type_alias_val = self.type_inference.type_map[lhs]
+                     else:
+                          # Try to map RHS as a type
+                          try:
+                              # Unparse RHS to string
+                              if hasattr(ast, 'unparse'):
+                                  rhs_source = ast.unparse(node.value)
+                                  mapped = map_python_type_to_v(rhs_source, allow_union=True)
+                                  # Check if mapped value looks like a type and not void/same-as-input-expression
+                                  # map_python_type_to_v returns input if it fails to map usually, unless it parses successfully via _map_ast_type
+                                  # For List[int], it returns []int. List[int] != []int.
+                                  # For int, it returns int.
+                                  # For "unknown", it returns "unknown".
 
-                             if mapped != "void" and mapped != rhs_source:
-                                  is_type_alias = True
-                                  type_alias_val = mapped
-                             elif mapped == "int" and rhs_source == "int": # Primitive
-                                  is_type_alias = True
-                                  type_alias_val = "int"
-                             elif mapped == "f64" and rhs_source == "float":
-                                  is_type_alias = True
-                                  type_alias_val = "f64"
-                             elif mapped == "string" and rhs_source == "str":
-                                  is_type_alias = True
-                                  type_alias_val = "string"
-                             elif mapped == "bool" and rhs_source == "bool":
-                                  is_type_alias = True
-                                  type_alias_val = "bool"
-                             # For MyType = OtherType (Name = Name)
-                             elif isinstance(node.value, ast.Name) and node.value.id[0].isupper():
-                                  is_type_alias = True
-                                  type_alias_val = node.value.id
-                         else:
-                             # Fallback for older python without ast.unparse (unlikely in this env)
-                             pass
-                     except:
-                         pass
+                                  if mapped != "void" and mapped != rhs_source:
+                                       is_type_alias = True
+                                       type_alias_val = mapped
+                                  elif mapped == "int" and rhs_source == "int": # Primitive
+                                       is_type_alias = True
+                                       type_alias_val = "int"
+                                  elif mapped == "f64" and rhs_source == "float":
+                                       is_type_alias = True
+                                       type_alias_val = "f64"
+                                  elif mapped == "string" and rhs_source == "str":
+                                       is_type_alias = True
+                                       type_alias_val = "string"
+                                  elif mapped == "bool" and rhs_source == "bool":
+                                       is_type_alias = True
+                                       type_alias_val = "bool"
+                                  # For MyType = OtherType (Name = Name)
+                                  elif isinstance(node.value, ast.Name) and node.value.id[0].isupper():
+                                       is_type_alias = True
+                                       type_alias_val = node.value.id
+                              else:
+                                  # Fallback for older python without ast.unparse (unlikely in this env)
+                                  pass
+                          except:
+                              pass
 
                 if is_type_alias:
                      self.emitter.add_struct(f"type {lhs} = {type_alias_val}")
@@ -272,7 +277,17 @@ class VariablesMixin(TranslatorBase):
                 self.output.append(f"{self._indent()}{lhs} := {rhs}")
             else:
                 rhs = self.visit(node.value)
-                self.output.append(f"{self._indent()}{lhs} := {rhs}")
+                if rhs == "none":
+                    # v_type might be defined above if we were checking is_simple_list, but let's be safe
+                    local_v_type = getattr(self, "_guess_type", lambda x: "unknown")(target)
+                    if local_v_type and local_v_type != "unknown":
+                        if not local_v_type.startswith("?"):
+                            local_v_type = f"?{local_v_type}"
+                        self.output.append(f"{self._indent()}mut {lhs} := {local_v_type}(none)")
+                    else:
+                        self.output.append(f"{self._indent()}mut {lhs} := ?Any(none)")
+                else:
+                    self.output.append(f"{self._indent()}{lhs} := {rhs}")
 
     def _visit_destructuring(self, target: ast.AST, source_expr: str) -> None:
         """
@@ -499,9 +514,17 @@ class VariablesMixin(TranslatorBase):
                 self.output.append(f"{self._indent()}{target} := {rhs}")
             else:
                 rhs = self.visit(node.value)
-                # We ignore the annotation for now and rely on type inference and V's auto-typing
-                # But we could potentially use it to hint types for empty lists/maps
-                self.output.append(f"{self._indent()}{target} := {rhs}")
+                if rhs == "none":
+                    if v_type and v_type != "unknown":
+                        if not v_type.startswith("?"):
+                            v_type = f"?{v_type}"
+                        self.output.append(f"{self._indent()}mut {target} := {v_type}(none)")
+                    else:
+                        self.output.append(f"{self._indent()}mut {target} := ?Any(none)")
+                else:
+                    # We ignore the annotation for now and rely on type inference and V's auto-typing
+                    # But we could potentially use it to hint types for empty lists/maps
+                    self.output.append(f"{self._indent()}{target} := {rhs}")
         else:
             # Declaration only: x: int
             # V needs initialization. We map type to default value.

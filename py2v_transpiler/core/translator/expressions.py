@@ -438,6 +438,11 @@ class ExpressionsMixin(TranslatorBase):
                 return f"math.round({args[0]})"
 
 
+        elif func_name_str == "float":
+            if len(args) == 1:
+                return f"f64({args[0]})"
+            return "0.0"
+
         elif func_name_str == "isinstance":
             if len(args) == 2:
                 obj = args[0]
@@ -492,14 +497,14 @@ class ExpressionsMixin(TranslatorBase):
             return "os.input('')"
 
         # String predicates
-        # isdigit, isalpha, isalnum, isspace, islower, isupper, istitle
+        # isdigit, isalpha, isalnum, isspace, islower, isupper, istitle, startswith, endswith
         # These are usually called as methods on strings: "s.isdigit()"
         # But visit_Call handles method calls too.
         # Check if the function name matches a known string predicate.
         # And implicitly assume the receiver is a string (or we rely on V compiler error if not).
         # We handle them if func_node is Attribute.
         elif isinstance(func_node, ast.Attribute) and func_node.attr in (
-            "isdigit", "isalpha", "isalnum", "isspace", "islower", "isupper", "istitle"
+            "isdigit", "isalpha", "isalnum", "isspace", "islower", "isupper", "istitle", "startswith", "endswith"
         ) and not module_name:
              attr = func_node.attr
              obj = self.visit(func_node.value)
@@ -517,6 +522,23 @@ class ExpressionsMixin(TranslatorBase):
                  return f"{obj}.is_upper()"
              elif attr == "istitle":
                  return f"{obj}.is_title()"
+             elif attr in ("startswith", "endswith"):
+                 v_method = "starts_with" if attr == "startswith" else "ends_with"
+                 if len(node.args) == 1 and isinstance(node.args[0], ast.Tuple):
+                     checks = []
+                     for elt in node.args[0].elts:
+                         elt_str = self.visit(elt)
+                         checks.append(f"{obj}.{v_method}({elt_str})")
+                     return f"({' || '.join(checks)})"
+                 else:
+                     # Handled by standard mapping or method call fallback if not tuple
+                     # But for normal strings we might want to just output it here if we handled it
+                     # V uses starts_with/ends_with.
+                     if len(node.args) == 1:
+                         elt_str = self.visit(node.args[0])
+                         return f"{obj}.{v_method}({elt_str})"
+                     # Fallback to default if more complex
+                     pass
 
         elif func_name_str == "print":
             sep = " "

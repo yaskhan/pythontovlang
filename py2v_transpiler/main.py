@@ -20,7 +20,7 @@ class Transpiler:
 
         analyzer = TypeInference()
         # Enable basic type inference for test strings
-        analyzer.visit(tree)
+        analyzer.analyze(tree)
 
         translator = VNodeVisitor(analyzer)
         return translator.visit_Module(tree)
@@ -110,7 +110,7 @@ def transpile_file(source_file: str, config: TranspilerConfig, global_helpers: O
         analyzer.run_mypy(source_file)
 
     # Run basic AST visitor for type inference regardless of mypy
-    analyzer.visit(tree)
+    analyzer.analyze(tree)
 
     if config.warn_dynamic:
         for key, v_type in analyzer.type_map.items():
