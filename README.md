@@ -75,6 +75,7 @@ py2v --analyze-deps path/to/project/
 -   `-r`, `--recursive`: Process directories recursively.
 -   `--analyze-deps`: Analyze import dependencies for a directory instead of transpiling.
 -   `--no-mypy`: Disable strict type inference via `mypy` (faster but less accurate types).
+-   `--warn-dynamic`: Enables the strict typing profiler. It emits warnings indicating exactly which lines/variables fell back to the `Any` dynamic sum type during transpilation.
 
 ## Architecture
 
