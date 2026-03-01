@@ -358,6 +358,16 @@ class ClassesMixin(TranslatorBase):
         # Standard Python `ast.NodeVisitor` visits children if we call generic_visit, but we override `visit_ClassDef`.
         # We need to manually visit nested classes.
 
+        has_init = False
+        for method in methods:
+            if method.name == "__init__":
+                has_init = True
+                break
+
+        if not hasattr(self, 'defined_classes'):
+            self.defined_classes = {}
+        self.defined_classes[struct_name] = has_init
+
         # Ensure we output the nested struct definition at the top level
         # visit_ClassDef processes body elements via iteration.
         # The iteration logic in visit_ClassDef handles methods, AnnAssign, Assign.

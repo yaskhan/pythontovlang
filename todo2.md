@@ -406,7 +406,7 @@ Based on the transpilation of the `bm_deltablue.py` benchmark, several critical 
   - *Context:* `class Strength(object):` results in `struct Strength { object }`, but `object` is not a standard type in V.
   - *Task:* Automatically strip `object` from the base class list during struct generation.
 
-- [ ] **Class Instantiation Fallbacks**
+- [x] **Class Instantiation Fallbacks**
   - *Context:* While factory functions like `new_Strength` are generated, some instantiations are emitted as `Strength(0, 'required')` which fails to compile in V.
   - *Task:* Ensure that all class instantiation AST nodes consistently map to either `new_ClassName(...)` or `ClassName{...}`.
 
