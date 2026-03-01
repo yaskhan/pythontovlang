@@ -1,7 +1,6 @@
 import ast
 from typing import List, Optional, Any
 from ..base import TranslatorBase
-from py2v_transpiler.models.v_types import map_python_type_to_v
 
 class ComprehensionsMixin(TranslatorBase):
     def visit_ListComp(self, node: ast.ListComp, target_var: Optional[str] = None) -> None:

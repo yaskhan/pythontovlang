@@ -1,7 +1,6 @@
 import ast
-from typing import List, Optional, Any
+from typing import Any
 from ..base import TranslatorBase
-from py2v_transpiler.models.v_types import map_python_type_to_v
 
 class OperatorsMixin(TranslatorBase):
     def visit_BinOp(self, node: ast.BinOp) -> str:
