@@ -1,5 +1,5 @@
 import ast
-from typing import Any, List, Optional, Dict
+from typing import Any, List, Optional, Dict, Set
 
 from py2v_transpiler.models.v_types import map_python_type_to_v
 from py2v_transpiler.core.generator import VCodeEmitter

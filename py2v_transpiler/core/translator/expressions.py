@@ -1,5 +1,5 @@
 import ast
-from typing import List, Optional
+from typing import List, Optional, Any
 from .base import TranslatorBase
 from py2v_transpiler.models.v_types import map_python_type_to_v
 
@@ -888,10 +888,14 @@ class ExpressionsMixin(TranslatorBase):
                     for arg in range_args
                 )
                 if all_const:
-                    def get_int_val(arg):
-                        if isinstance(arg, ast.UnaryOp):
-                            return -arg.operand.value
-                        return arg.value
+                    def get_int_val(arg: Any) -> int:
+                        if isinstance(arg, ast.UnaryOp) and isinstance(arg.operand, ast.Constant):
+                            val = arg.operand.value
+                            if isinstance(val, int):
+                                return -val
+                        elif isinstance(arg, ast.Constant) and isinstance(arg.value, int):
+                            return arg.value
+                        return 0
 
                     if len(range_args) == 1:
                         stop = get_int_val(range_args[0])
@@ -1021,14 +1025,14 @@ class ExpressionsMixin(TranslatorBase):
                      self.output.append(f"{self._indent()}}}")
                      return
 
-                 start = "0"
-                 stop = "0"
+                 start_str = "0"
+                 stop_str = "0"
                  if len(range_args) == 1:
-                      stop = self.visit(range_args[0])
+                      stop_str = str(self.visit(range_args[0]))
                  elif len(range_args) == 2:
-                      start = self.visit(range_args[0])
-                      stop = self.visit(range_args[1])
-                 iter_expr = f"{start}..{stop}"
+                      start_str = str(self.visit(range_args[0]))
+                      stop_str = str(self.visit(range_args[1]))
+                 iter_expr = f"{start_str}..{stop_str}"
              elif gen.iter.func.id == "enumerate":
                  if gen.iter.args:
                      iter_expr = self.visit(gen.iter.args[0])

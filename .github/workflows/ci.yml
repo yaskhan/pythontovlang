@@ -29,4 +29,4 @@ jobs:
 
     - name: Type check with mypy
       run: |
-        mypy py2v_transpiler
+        mypy py2v_transpiler --check-untyped-defs

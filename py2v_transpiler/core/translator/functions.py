@@ -1,5 +1,5 @@
 import ast
-from typing import Any, List, Optional
+from typing import Any, List, Optional, Dict
 from py2v_transpiler.models.v_types import map_python_type_to_v
 from .base import TranslatorBase
 
@@ -23,11 +23,11 @@ class FunctionsMixin(TranslatorBase):
 
         if is_overload:
             # Store the signature but do not generate a function yet
-            sig = {
+            sig: Dict[str, Any] = {
                 "args": [],
                 "return": "void"
             }
-            struct_name = self.current_class if self.current_class else ""
+            ov_struct_name = self.current_class if self.current_class else ""
 
             # Extract arguments
             args = node.args.args
@@ -46,7 +46,7 @@ class FunctionsMixin(TranslatorBase):
                 if arg.annotation:
                     try:
                         type_str = ast.unparse(arg.annotation)
-                        arg_type = map_python_type_to_v(type_str, self_name=struct_name or "Self")
+                        arg_type = map_python_type_to_v(type_str, self_name=ov_struct_name or "Self")
                     except Exception:
                         arg_type = self.type_inference.type_map.get(arg_name, "int")
                 else:
@@ -57,7 +57,7 @@ class FunctionsMixin(TranslatorBase):
             if node.returns:
                  try:
                      type_str = ast.unparse(node.returns)
-                     sig["return"] = map_python_type_to_v(type_str, self_name=struct_name or "Self")
+                     sig["return"] = map_python_type_to_v(type_str, self_name=ov_struct_name or "Self")
                  except:
                      if isinstance(node.returns, ast.Name):
                           sig["return"] = node.returns.id

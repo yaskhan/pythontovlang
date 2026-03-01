@@ -14,8 +14,8 @@ class VlangPlugin(Plugin):
 
     def __init__(self, options):
         super().__init__(options)
-        self.collected_types = defaultdict(dict)
-        self.collected_sigs = defaultdict(dict)
+        self.collected_types: Dict[str, Dict[str, str]] = defaultdict(dict)
+        self.collected_sigs: Dict[str, Dict[str, str]] = defaultdict(dict)
 
     def get_function_hook(self, fullname: str):
         def hook(ctx):
