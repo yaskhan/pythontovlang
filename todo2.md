@@ -111,14 +111,10 @@ Based on recent Python ecosystem developments (mypy, PyPy, Numba, NumPy, Nuitka,
 ## From Codon (High-Performance Compilation & Types)
 - [ ] **Targeting Extension Modules (`pyext`)**
   - Add a compilation mode (`--pyext` equivalent) that wraps the generated V code in Python C-API bindings (using V's C interoperability), allowing transpiled code to be imported seamlessly back into standard CPython.
-- [ ] **Explicit Sized Integer/Float Types**
-  - Support syntax for explicitly sized numbers (like `Int[N]`, `UInt[N]`, `float16`, `float32`) to map directly to V's precise types (`i8`, `u16`, `f32`, etc.) without relying on inference.
 - [ ] **`NoneType` Empty Struct Representation**
   - Optimize Python's `None` by transpiling `NoneType` to an empty struct in V, which the compiler handles efficiently with zero runtime size, rather than using a heavy boxed object or generic pointer.
 - [ ] **Union Types Transpilation**
   - Map Python `Union[A, B]` types (or `A | B`) properly into V's sum types (e.g., `type MyUnion = A | B`), with corresponding `match` statements for type checking.
-- [ ] **Demoting Heap Allocations to Stack (`alloca`)**
-  - Implement an analysis pass that detects small, locally scoped objects/classes that do not escape the function, and emit V code that allocates them as value types on the stack rather than reference types on the heap.
 - [ ] **Static Expressions**
   - Add support for compile-time execution of certain Python constructs (e.g., a `staticenumerate` equivalent or constant folding) that emits only the resulting static V code.
 
@@ -158,15 +154,6 @@ Based on recent Python ecosystem developments (mypy, PyPy, Numba, NumPy, Nuitka,
 - [ ] **Faster C/Foreign Function Calls**
   - Optimize the bridge between the transpiled V code and external C functions (e.g., standard library) to avoid constructing full Python-like argument tuples, passing native V types directly when the signature is known.
 
-## From Taichi (Parallel GPU/CPU Computation)
-- [ ] **`@ti.kernel` GPU/CPU Offloading**
-  - Add support for a decorator (like `@v_kernel`) that indicates a function should be compiled directly to compute shaders (e.g., via V's `sokol` or `gggg` bindings) for massive parallelization on the GPU or optimized CPU vectorization.
-- [ ] **Data Structure Access Lowering**
-  - Implement intermediate representations in the transpiler that explicitly track data structure access index bounds and types to apply automatic access optimization passes (hoisting, bounds check elimination) before V emission.
-- [ ] **Spatially Sparse Data Structures (SNode)**
-  - Allow transpiling advanced sparse hierarchical Python arrays/fields to V's efficient sparse map representations or explicit multi-layered structs for memory efficiency in numerical simulations.
-- [ ] **Specialized Loop Vectorizers**
-  - Beyond `prange`, detect data-parallel independent inner loops during the AST analysis phase and apply compiler directives or SIMD-intrinsics when mapping to V to guarantee vectorization.
 
 ## From Pyrefly (Fast Type Checking & Language Server)
 - [ ] **Flow-Sensitive Type Narrowing**
@@ -209,10 +196,6 @@ Based on recent Python ecosystem developments (mypy, PyPy, Numba, NumPy, Nuitka,
   - Structure the transpiler's core analysis into discrete, language-agnostic AST rewriting phases (e.g., "Configuration Rewriters" or "Incompatibility Handlers") before the final V emission, allowing complex Python idioms to be normalized into simpler AST structures first.
 - [ ] **Enhanced Python 3 Emitting (Auto-Annotator)**
   - Similar to py2many's ability to emit enhanced Python code, add a mode to the transpiler that writes the fully type-inferred AST back out as Python code with added static type hints, serving as an auto-annotator tool prior to V translation.
-- [ ] **Standard Library Interoperability Maps**
-  - Build a declarative mapping or rule-based configuration system (like py2many's framework) to automatically translate complex Python standard library calls into their exact V standard library equivalents or injected polyfills, handling the impedance mismatch systemically rather than ad-hoc.
-- [ ] **LLM-Assisted Translation Mode**
-  - Provide an optional integration hook where the transpiler can query an LLM (like py2many's LLM-assisted mode) to resolve highly dynamic or complex Python logic that strictly defies static compilation into V.
 
 ## Language Features — High Priority (new syntax Python 3.12+)
 - [ ] **PEP 695: Full type parameter syntax**
