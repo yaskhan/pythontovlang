@@ -383,3 +383,41 @@ Based on recent Python ecosystem developments (mypy, PyPy, Numba, NumPy, Nuitka,
 3. PEP 758 bracketless except
 4. Complete `try/except*` (Exception groups) emission
 5. Docs + Tests
+## Analysis of `bm_deltablue.py` Transpilation Issues
+Based on the transpilation of the `bm_deltablue.py` benchmark, several critical areas for improvement have been identified:
+
+- [ ] **Polymorphism and Interfaces (`@abstractmethod` and Inheritance)**
+  - *Context:* Python abstract base classes (e.g., `Constraint`) and their concrete implementations (`UrnaryConstraint`, `BinaryConstraint`) are currently transpiled using V struct embedding. However, V struct embedding does not support dynamic virtual method dispatch.
+  - *Task:* Detect polymorphic base classes (especially those with `@abstractmethod`) and transpile them to V `interface`s, ensuring that method calls on base types dynamically dispatch to the concrete structs.
+
+- [ ] **Constructors and `super().__init__` Handling**
+  - *Context:* `super(StayConstraint, self).__init__(v, string)` is incorrectly emitted as `self.UrnaryConstraint.__init__(v, string)` inside a factory function where `self` is not even defined or allocated.
+  - *Task:* Refactor constructor generation so that derived classes properly instantiate and return their base/embedded structs (e.g., `return StayConstraint{ UrnaryConstraint: new_UrnaryConstraint(...) }`), rather than relying on non-existent `__init__` methods.
+
+- [ ] **Global Variables and Module-Level Constants**
+  - *Context:* Module-level constants like `REQUIRED = Strength(...)` and mutable globals like `planner = None` are currently incorrectly placed inside the generated `fn main()` block, making them inaccessible to the methods that reference them.
+  - *Task:* Implement an AST pass to extract module-level assignments. Immutable constants should be emitted as V `const (...)` blocks. Mutable globals (e.g., accessed via Python `global` keyword) should be mapped to `__global` or a shared state struct in V.
+
+- [ ] **Type Aliasing without Generics (`OrderedCollection = list`)**
+  - *Context:* `OrderedCollection = list` defaults to `type OrderedCollection = []int`, which fails when the list is meant to hold objects like `Constraint` or `Variable`.
+  - *Task:* Improve type inference for type aliases of collections by analyzing append/usage sites, or fallback to `[]Any` (or the sum type) when the inner type cannot be statically resolved.
+
+- [ ] **Base `object` Class Cleanup**
+  - *Context:* `class Strength(object):` results in `struct Strength { object }`, but `object` is not a standard type in V.
+  - *Task:* Automatically strip `object` from the base class list during struct generation.
+
+- [ ] **Class Instantiation Fallbacks**
+  - *Context:* While factory functions like `new_Strength` are generated, some instantiations are emitted as `Strength(0, 'required')` which fails to compile in V.
+  - *Task:* Ensure that all class instantiation AST nodes consistently map to either `new_ClassName(...)` or `ClassName{...}`.
+
+- [ ] **Type Casts to `float`**
+  - *Context:* Python's `float(j)` is emitted directly as `float(j)`.
+  - *Task:* Map the Python `float` builtin explicitly to V's `f64` (i.e., `f64(j)`).
+
+- [ ] **Magic Methods Mapping (`__len__`, `__getitem__`)**
+  - *Context:* Magic methods are emitted with their literal names (e.g., `fn (self Plan) __len__() int`).
+  - *Task:* Transpile `__len__` to V's idiomatic `.len()` methods (or expose as a length property) and `__getitem__` to V's index operator overloading (e.g., `fn (self Plan) idx(index int) Constraint`).
+
+- [ ] **`None` Initialization**
+  - *Context:* `planner = None` emits `planner := none`, which is invalid in V without an explicit Option type (`?Type`).
+  - *Task:* Enforce that variables initialized to `None` are explicitly typed as V Optionals (e.g., `mut planner := ?Planner(none)` or fallback to `?Any(none)`).
