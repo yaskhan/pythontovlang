@@ -47,6 +47,41 @@ class GlobalHelpers:
         except Exception as e:
             print(f"Error writing global helpers to {path}: {e}")
 
+def generate_all_helpers(output_path: str) -> None:
+    analyzer = TypeInference()
+    translator = VNodeVisitor(analyzer)
+
+    # Force all flags to True to generate every possible helper
+    translator.used_complex = True
+    translator.used_string_format = True
+    translator.used_list_concat = True
+    translator.used_dict_merge = True
+
+    translator.used_builtins = {"sorted", "reversed", "round", "py_subscript", "py_slice"}
+
+    modules = [
+        "tempfile", "logging", "argparse", "pathlib", "collections",
+        "itertools", "functools", "operator", "threading", "socket", "http.client",
+        "csv", "sqlite3", "subprocess", "platform", "hashlib", "urllib.parse",
+        "struct", "array", "fractions", "statistics", "decimal", "pickle", "zlib", "gzip", "copy"
+    ]
+
+    for i, mod in enumerate(modules):
+        translator.imported_modules[f"fake{i}"] = mod
+
+    # Trigger AST visit to inject all helpers
+    translator.visit_Module(ast.parse("pass"))
+
+    helpers_code = translator.emitter.emit_helpers()
+
+    try:
+        with open(output_path, "w", encoding="utf-8") as f:
+            f.write(helpers_code)
+        print(f"Success: generated global helper library at {output_path}")
+    except Exception as e:
+        print(f"Error writing global helpers to {output_path}: {e}")
+
+
 def transpile_file(source_file: str, config: TranspilerConfig, global_helpers: Optional[GlobalHelpers] = None) -> bool:
     print(f"Transpiling {source_file}...")
 
@@ -191,6 +226,14 @@ def main():
         no_helpers=args.no_helpers,
         helpers_only=args.helpers_only
     )
+
+    if config.helpers_only:
+        output_dir = path if os.path.isdir(path) else os.path.dirname(path)
+        if not output_dir:
+            output_dir = "."
+        output_path = os.path.join(output_dir, "py2v_helpers.v")
+        generate_all_helpers(output_path)
+        return
 
     if os.path.isfile(path):
         if not path.endswith(".py"):
