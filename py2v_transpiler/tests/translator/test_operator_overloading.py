@@ -11,7 +11,9 @@ def translate(source: str) -> str:
     analyzer = TypeInference()
     analyzer.visit(tree) # Run type inference first
     translator = VNodeVisitor(analyzer)
-    return translator.visit_Module(tree)
+    v_code = translator.visit_Module(tree)
+    helpers = translator.emitter.emit_helpers()
+    return v_code + "\n" + helpers
 
 def test_add_operator():
     source = """

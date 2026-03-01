@@ -7,7 +7,9 @@ def transpile(code):
     analyzer = TypeInference()
     analyzer.analyze(tree)
     translator = VNodeVisitor(analyzer)
-    return translator.visit_Module(tree)
+    v_code = translator.visit_Module(tree)
+    helpers = translator.emitter.emit_helpers()
+    return v_code + "\n" + helpers
 
 def test_generics():
     code = """

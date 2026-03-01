@@ -12,7 +12,7 @@ class TestHelpersInjection(unittest.TestCase):
     def transpile(self, source):
         tree = ast.parse(source)
         self.translator.visit(tree)
-        return self.translator.emitter.emit()
+        return self.translator.emitter.emit() + "\n" + self.translator.emitter.emit_helpers()
 
     def test_list_concat_injection(self):
         # We simulate usage by setting the flag manually or expecting unconditional injection

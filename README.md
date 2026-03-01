@@ -76,6 +76,8 @@ py2v --analyze-deps path/to/project/
 -   `--analyze-deps`: Analyze import dependencies for a directory instead of transpiling.
 -   `--no-mypy`: Disable strict type inference via `mypy` (faster but less accurate types).
 -   `--warn-dynamic`: Enables the strict typing profiler. It emits warnings indicating exactly which lines/variables fell back to the `Any` dynamic sum type during transpilation.
+-   `--no-helpers`: Do not generate files containing helper functions and types. Only emits the transpiled V code for the source scripts.
+-   `--helpers-only`: Only generate the helper file (e.g. `py2v_helpers.v`) by accumulating required helper functions across the processed files. Does not emit the actual transpiled `.v` script files. Useful for large projects to generate a single common helper library.
 
 ## Architecture
 

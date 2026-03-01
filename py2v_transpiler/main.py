@@ -3,7 +3,7 @@ import sys
 import os
 import argparse
 import ast
-from typing import List
+from typing import List, Optional
 from py2v_transpiler.config import TranspilerConfig
 from py2v_transpiler.core.parser import PyASTParser
 from py2v_transpiler.core.analyzer import TypeInference
@@ -25,7 +25,64 @@ class Transpiler:
         translator = VNodeVisitor(analyzer)
         return translator.visit_Module(tree)
 
-def transpile_file(source_file: str, config: TranspilerConfig) -> bool:
+from py2v_transpiler.core.generator import VCodeEmitter
+
+class GlobalHelpers:
+    def __init__(self):
+        self.imports: List[str] = []
+        self.structs: List[str] = []
+        self.functions: List[str] = []
+
+    def merge(self, translator):
+        self.imports.extend(translator.emitter.get_helper_imports())
+        self.structs.extend(translator.emitter.get_helper_structs())
+        self.functions.extend(translator.emitter.get_helper_functions())
+
+    def write(self, path: str):
+        v_code_helpers = VCodeEmitter.emit_global_helpers(self.imports, self.structs, self.functions)
+        try:
+            with open(path, "w", encoding="utf-8") as f:
+                f.write(v_code_helpers)
+            print(f"Generated global helpers: {path}")
+        except Exception as e:
+            print(f"Error writing global helpers to {path}: {e}")
+
+def generate_all_helpers(output_path: str) -> None:
+    analyzer = TypeInference()
+    translator = VNodeVisitor(analyzer)
+
+    # Force all flags to True to generate every possible helper
+    translator.used_complex = True
+    translator.used_string_format = True
+    translator.used_list_concat = True
+    translator.used_dict_merge = True
+
+    translator.used_builtins = {"sorted", "reversed", "round", "py_subscript", "py_slice"}
+
+    modules = [
+        "tempfile", "logging", "argparse", "pathlib", "collections",
+        "itertools", "functools", "operator", "threading", "socket", "http.client",
+        "csv", "sqlite3", "subprocess", "platform", "hashlib", "urllib.parse",
+        "struct", "array", "fractions", "statistics", "decimal", "pickle", "zlib", "gzip", "copy"
+    ]
+
+    for i, mod in enumerate(modules):
+        translator.imported_modules[f"fake{i}"] = mod
+
+    # Trigger AST visit to inject all helpers
+    translator.visit_Module(ast.parse("pass"))
+
+    helpers_code = translator.emitter.emit_helpers()
+
+    try:
+        with open(output_path, "w", encoding="utf-8") as f:
+            f.write(helpers_code)
+        print(f"Success: generated global helper library at {output_path}")
+    except Exception as e:
+        print(f"Error writing global helpers to {output_path}: {e}")
+
+
+def transpile_file(source_file: str, config: TranspilerConfig, global_helpers: Optional[GlobalHelpers] = None) -> bool:
     print(f"Transpiling {source_file}...")
 
     # 1. Read source
@@ -68,6 +125,11 @@ def transpile_file(source_file: str, config: TranspilerConfig) -> bool:
     translator = VNodeVisitor(analyzer)
     try:
         v_code_intermediate = translator.visit_Module(tree)
+        if not config.no_helpers:
+            if global_helpers is not None:
+                global_helpers.merge(translator)
+            else:
+                v_code_helpers = translator.emitter.emit_helpers()
     except Exception as e:
         print(f"Translation error in {source_file}: {e}")
         # import traceback; traceback.print_exc()
@@ -75,10 +137,36 @@ def transpile_file(source_file: str, config: TranspilerConfig) -> bool:
 
     # 5. Output
     output_file = os.path.splitext(source_file)[0] + ".v"
+    output_dir = os.path.dirname(output_file)
+
     try:
-        with open(output_file, "w", encoding="utf-8") as f:
-            f.write(v_code_intermediate)
-        print(f"Success: {output_file}")
+        if not config.helpers_only:
+            with open(output_file, "w", encoding="utf-8") as f:
+                f.write(v_code_intermediate)
+
+        if global_helpers is None:
+            # Standalone mode: write a helpers file specific to this script
+            if not config.no_helpers:
+                base_name = os.path.basename(source_file).split('.')[0]
+                helpers_file = os.path.join(output_dir, f"{base_name}_helpers.v")
+                with open(helpers_file, "w", encoding="utf-8") as f:
+                    f.write(v_code_helpers)
+
+                if not config.helpers_only:
+                    print(f"Success: {output_file} (and {helpers_file})")
+                else:
+                    print(f"Success: generated {helpers_file}")
+            else:
+                print(f"Success: {output_file}")
+        else:
+            # In directory processing mode, we defer helpers writing to the caller.
+            # But we should respect `--no-helpers` by not merging.
+            if config.no_helpers:
+                pass # Already skipped merging effectively, or actually we merged it above. Wait, if config.no_helpers we shouldn't merge. Let's fix above too!
+
+            if not config.helpers_only:
+                print(f"Success: {output_file}")
+
         return True
     except Exception as e:
         print(f"Error writing {output_file}: {e}")
@@ -86,10 +174,18 @@ def transpile_file(source_file: str, config: TranspilerConfig) -> bool:
 
 def process_directory(path: str, config: TranspilerConfig, recursive: bool) -> None:
     for root, dirs, files in os.walk(path):
+        global_helpers = GlobalHelpers()
+        processed_files = 0
+
         for file in files:
             if file.endswith(".py"):
                 full_path = os.path.join(root, file)
-                transpile_file(full_path, config)
+                if transpile_file(full_path, config, global_helpers):
+                    processed_files += 1
+
+        if processed_files > 0 and not config.no_helpers:
+            helpers_file = os.path.join(root, "py2v_helpers.v")
+            global_helpers.write(helpers_file)
 
         if not recursive:
             break
@@ -101,6 +197,8 @@ def main():
     parser.add_argument("--recursive", "-r", action="store_true", help="Recursively process directories")
     parser.add_argument("--no-mypy", action="store_true", help="Disable Mypy type analysis")
     parser.add_argument("--warn-dynamic", action="store_true", help="Warn when falling back to dynamic Any type")
+    parser.add_argument("--no-helpers", action="store_true", help="Do not generate a helper V file")
+    parser.add_argument("--helpers-only", action="store_true", help="Only generate the helper V file (do not transpile individual scripts)")
 
     args = parser.parse_args()
 
@@ -122,7 +220,20 @@ def main():
             print(f"{file}: {', '.join(deps) if deps else 'No imports'}")
         return
 
-    config = TranspilerConfig(mypy_enabled=not args.no_mypy, warn_dynamic=args.warn_dynamic)
+    config = TranspilerConfig(
+        mypy_enabled=not args.no_mypy,
+        warn_dynamic=args.warn_dynamic,
+        no_helpers=args.no_helpers,
+        helpers_only=args.helpers_only
+    )
+
+    if config.helpers_only:
+        output_dir = path if os.path.isdir(path) else os.path.dirname(path)
+        if not output_dir:
+            output_dir = "."
+        output_path = os.path.join(output_dir, "py2v_helpers.v")
+        generate_all_helpers(output_path)
+        return
 
     if os.path.isfile(path):
         if not path.endswith(".py"):
