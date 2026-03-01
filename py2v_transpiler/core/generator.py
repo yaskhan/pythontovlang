@@ -11,6 +11,15 @@ class VCodeEmitter:
         self.helper_structs: List[str] = []
         self.helper_functions: List[str] = []
 
+    def get_helper_imports(self) -> List[str]:
+        return self.helper_imports
+
+    def get_helper_structs(self) -> List[str]:
+        return self.helper_structs
+
+    def get_helper_functions(self) -> List[str]:
+        return self.helper_functions
+
     def add_import(self, module_name: str) -> None:
         """Adds an import to the module."""
         if module_name not in self.imports:
@@ -68,22 +77,49 @@ class VCodeEmitter:
 
     def emit_helpers(self) -> str:
         """Generates the V source code for helpers."""
+        return VCodeEmitter.emit_global_helpers(
+            self.helper_imports,
+            self.helper_structs,
+            self.helper_functions
+        )
+
+    @staticmethod
+    def emit_global_helpers(imports: List[str], structs: List[str], functions: List[str]) -> str:
+        """Generates the V source code for an aggregated set of helpers."""
         lines = ["module main\n"]
 
         # Define custom Any type
         lines.append("type Any = bool | int | i64 | f64 | string | []u8\n")
 
-        if self.helper_imports:
-            for imp in self.helper_imports:
+        # Sort and deduplicate imports
+        unique_imports = sorted(list(set(imports)))
+        if unique_imports:
+            for imp in unique_imports:
                 lines.append(f"import {imp}")
             lines.append("")
 
-        if self.helper_structs:
-            lines.extend(self.helper_structs)
+        # Deduplicate structs (preserving order roughly)
+        seen_structs = set()
+        unique_structs = []
+        for s in structs:
+            if s not in seen_structs:
+                seen_structs.add(s)
+                unique_structs.append(s)
+
+        if unique_structs:
+            lines.extend(unique_structs)
             lines.append("")
 
-        if self.helper_functions:
-            lines.extend(self.helper_functions)
+        # Deduplicate functions
+        seen_funcs = set()
+        unique_funcs = []
+        for f in functions:
+            if f not in seen_funcs:
+                seen_funcs.add(f)
+                unique_funcs.append(f)
+
+        if unique_funcs:
+            lines.extend(unique_funcs)
             lines.append("")
 
         return "\n".join(lines)

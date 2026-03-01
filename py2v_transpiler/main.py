@@ -25,7 +25,29 @@ class Transpiler:
         translator = VNodeVisitor(analyzer)
         return translator.visit_Module(tree)
 
-def transpile_file(source_file: str, config: TranspilerConfig) -> bool:
+from py2v_transpiler.core.generator import VCodeEmitter
+
+class GlobalHelpers:
+    def __init__(self):
+        self.imports: List[str] = []
+        self.structs: List[str] = []
+        self.functions: List[str] = []
+
+    def merge(self, translator):
+        self.imports.extend(translator.emitter.get_helper_imports())
+        self.structs.extend(translator.emitter.get_helper_structs())
+        self.functions.extend(translator.emitter.get_helper_functions())
+
+    def write(self, path: str):
+        v_code_helpers = VCodeEmitter.emit_global_helpers(self.imports, self.structs, self.functions)
+        try:
+            with open(path, "w", encoding="utf-8") as f:
+                f.write(v_code_helpers)
+            print(f"Generated global helpers: {path}")
+        except Exception as e:
+            print(f"Error writing global helpers to {path}: {e}")
+
+def transpile_file(source_file: str, config: TranspilerConfig, global_helpers: GlobalHelpers = None) -> bool:
     print(f"Transpiling {source_file}...")
 
     # 1. Read source
@@ -68,7 +90,10 @@ def transpile_file(source_file: str, config: TranspilerConfig) -> bool:
     translator = VNodeVisitor(analyzer)
     try:
         v_code_intermediate = translator.visit_Module(tree)
-        v_code_helpers = translator.emitter.emit_helpers()
+        if global_helpers is not None:
+            global_helpers.merge(translator)
+        else:
+            v_code_helpers = translator.emitter.emit_helpers()
     except Exception as e:
         print(f"Translation error in {source_file}: {e}")
         # import traceback; traceback.print_exc()
@@ -77,32 +102,40 @@ def transpile_file(source_file: str, config: TranspilerConfig) -> bool:
     # 5. Output
     output_file = os.path.splitext(source_file)[0] + ".v"
     output_dir = os.path.dirname(output_file)
-    base_name = os.path.basename(source_file).split('.')[0]
-    helpers_file = os.path.join(output_dir, f"{base_name}_helpers.v")
+
     try:
         with open(output_file, "w", encoding="utf-8") as f:
             f.write(v_code_intermediate)
 
-        # Always write helpers file because the main file depends on the `Any` type definition
-        # which is generated in the helpers file.
-        with open(helpers_file, "w", encoding="utf-8") as f:
-            f.write(v_code_helpers)
-        print(f"Success: {output_file} (and {helpers_file})")
+        if global_helpers is None:
+            # Standalone mode: write a helpers file specific to this script
+            base_name = os.path.basename(source_file).split('.')[0]
+            helpers_file = os.path.join(output_dir, f"{base_name}_helpers.v")
+            with open(helpers_file, "w", encoding="utf-8") as f:
+                f.write(v_code_helpers)
+            print(f"Success: {output_file} (and {helpers_file})")
+        else:
+            print(f"Success: {output_file}")
 
         return True
     except Exception as e:
-        print(f"Error writing {output_file} or helpers: {e}")
+        print(f"Error writing {output_file}: {e}")
         return False
 
 def process_directory(path: str, config: TranspilerConfig, recursive: bool) -> None:
+    global_helpers = GlobalHelpers()
+
     for root, dirs, files in os.walk(path):
         for file in files:
             if file.endswith(".py"):
                 full_path = os.path.join(root, file)
-                transpile_file(full_path, config)
+                transpile_file(full_path, config, global_helpers)
 
         if not recursive:
             break
+
+    helpers_file = os.path.join(path, "py2v_helpers.v")
+    global_helpers.write(helpers_file)
 
 def main():
     parser = argparse.ArgumentParser(description="Python to V Transpiler")
