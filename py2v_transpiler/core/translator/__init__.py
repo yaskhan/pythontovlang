@@ -347,8 +347,8 @@ class VNodeVisitor(
         if socket_used:
             # Constants
             self.emitter.add_helper_import("net")
-            self.emitter.add_main_statement("const py_AF_INET = 2")
-            self.emitter.add_main_statement("const py_SOCK_STREAM = 1")
+            self.emitter.add_helper_struct("const py_AF_INET = 2")
+            self.emitter.add_helper_struct("const py_SOCK_STREAM = 1")
 
             # PySocket struct
             # It needs to hold either a TcpListener or TcpConn, or both (union-like behavior)
@@ -801,7 +801,7 @@ class VNodeVisitor(
         if decimal_used:
              # py_decimal helper
              # Map Decimal to f64 for now
-             self.emitter.add_main_statement("type Decimal = f64")
+             self.emitter.add_helper_struct("type Decimal = f64")
              self.emitter.add_helper_function("fn py_decimal(val Any) Decimal {\n    $if val is $float {\n        return f64(val)\n    } $else $if val is $int {\n        return f64(val)\n    } $else $if val is string {\n        return val.f64()\n    }\n    return 0.0\n}")
 
         pickle_used = "pickle" in self.imported_modules.values()

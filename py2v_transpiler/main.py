@@ -3,7 +3,7 @@ import sys
 import os
 import argparse
 import ast
-from typing import List
+from typing import List, Optional
 from py2v_transpiler.config import TranspilerConfig
 from py2v_transpiler.core.parser import PyASTParser
 from py2v_transpiler.core.analyzer import TypeInference
@@ -47,7 +47,7 @@ class GlobalHelpers:
         except Exception as e:
             print(f"Error writing global helpers to {path}: {e}")
 
-def transpile_file(source_file: str, config: TranspilerConfig, global_helpers: GlobalHelpers = None) -> bool:
+def transpile_file(source_file: str, config: TranspilerConfig, global_helpers: Optional[GlobalHelpers] = None) -> bool:
     print(f"Transpiling {source_file}...")
 
     # 1. Read source
@@ -123,19 +123,22 @@ def transpile_file(source_file: str, config: TranspilerConfig, global_helpers: G
         return False
 
 def process_directory(path: str, config: TranspilerConfig, recursive: bool) -> None:
-    global_helpers = GlobalHelpers()
-
     for root, dirs, files in os.walk(path):
+        global_helpers = GlobalHelpers()
+        processed_files = 0
+
         for file in files:
             if file.endswith(".py"):
                 full_path = os.path.join(root, file)
-                transpile_file(full_path, config, global_helpers)
+                if transpile_file(full_path, config, global_helpers):
+                    processed_files += 1
+
+        if processed_files > 0:
+            helpers_file = os.path.join(root, "py2v_helpers.v")
+            global_helpers.write(helpers_file)
 
         if not recursive:
             break
-
-    helpers_file = os.path.join(path, "py2v_helpers.v")
-    global_helpers.write(helpers_file)
 
 def main():
     parser = argparse.ArgumentParser(description="Python to V Transpiler")
