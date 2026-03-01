@@ -293,6 +293,10 @@ class FunctionsMixin(TranslatorBase):
                  func_name = "set"
             elif func_name == "__delete__":
                  func_name = "delete"
+            elif func_name == "__len__":
+                 func_name = "len"
+            elif func_name == "__getitem__":
+                 func_name = "idx"
 
             if dec_info.is_setter:
                  func_name = f"set_{func_name}"
