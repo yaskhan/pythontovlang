@@ -394,7 +394,7 @@ Based on the transpilation of the `bm_deltablue.py` benchmark, several critical 
   - *Context:* `super(StayConstraint, self).__init__(v, string)` is incorrectly emitted as `self.UrnaryConstraint.__init__(v, string)` inside a factory function where `self` is not even defined or allocated.
   - *Task:* Refactor constructor generation so that derived classes properly instantiate and return their base/embedded structs (e.g., `return StayConstraint{ UrnaryConstraint: new_UrnaryConstraint(...) }`), rather than relying on non-existent `__init__` methods.
 
-- [ ] **Global Variables and Module-Level Constants**
+- [x] **Global Variables and Module-Level Constants**
   - *Context:* Module-level constants like `REQUIRED = Strength(...)` and mutable globals like `planner = None` are currently incorrectly placed inside the generated `fn main()` block, making them inaccessible to the methods that reference them.
   - *Task:* Implement an AST pass to extract module-level assignments. Immutable constants should be emitted as V `const (...)` blocks. Mutable globals (e.g., accessed via Python `global` keyword) should be mapped to `__global` or a shared state struct in V.
 
