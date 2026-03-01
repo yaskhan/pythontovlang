@@ -398,7 +398,7 @@ Based on the transpilation of the `bm_deltablue.py` benchmark, several critical 
   - *Context:* Module-level constants like `REQUIRED = Strength(...)` and mutable globals like `planner = None` are currently incorrectly placed inside the generated `fn main()` block, making them inaccessible to the methods that reference them.
   - *Task:* Implement an AST pass to extract module-level assignments. Immutable constants should be emitted as V `const (...)` blocks. Mutable globals (e.g., accessed via Python `global` keyword) should be mapped to `__global` or a shared state struct in V.
 
-- [ ] **Type Aliasing without Generics (`OrderedCollection = list`)**
+- [x] **Type Aliasing without Generics (`OrderedCollection = list`)**
   - *Context:* `OrderedCollection = list` defaults to `type OrderedCollection = []int`, which fails when the list is meant to hold objects like `Constraint` or `Variable`.
   - *Task:* Improve type inference for type aliases of collections by analyzing append/usage sites, or fallback to `[]Any` (or the sum type) when the inner type cannot be statically resolved.
 
