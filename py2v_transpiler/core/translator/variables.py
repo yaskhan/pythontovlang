@@ -298,7 +298,10 @@ class VariablesMixin(TranslatorBase):
                     else:
                         self.output.append(f"{self._indent()}mut {lhs} := ?Any(none)")
                 else:
-                    self.output.append(f"{self._indent()}{lhs} := {rhs}")
+                    if isinstance(target, ast.Attribute) or isinstance(target, ast.Subscript):
+                        self.output.append(f"{self._indent()}{lhs} = {rhs}")
+                    else:
+                        self.output.append(f"{self._indent()}{lhs} := {rhs}")
 
     def _visit_destructuring(self, target: ast.AST, source_expr: str) -> None:
         """
@@ -547,7 +550,10 @@ class VariablesMixin(TranslatorBase):
                 else:
                     # We ignore the annotation for now and rely on type inference and V's auto-typing
                     # But we could potentially use it to hint types for empty lists/maps
-                    self.output.append(f"{self._indent()}{target} := {rhs}")
+                    if isinstance(node.target, ast.Attribute) or isinstance(node.target, ast.Subscript):
+                        self.output.append(f"{self._indent()}{target} = {rhs}")
+                    else:
+                        self.output.append(f"{self._indent()}{target} := {rhs}")
         else:
             # Declaration only: x: int
             # V needs initialization. We map type to default value.
