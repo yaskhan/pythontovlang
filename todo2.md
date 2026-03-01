@@ -386,7 +386,7 @@ Based on recent Python ecosystem developments (mypy, PyPy, Numba, NumPy, Nuitka,
 ## Analysis of `bm_deltablue.py` Transpilation Issues
 Based on the transpilation of the `bm_deltablue.py` benchmark, several critical areas for improvement have been identified:
 
-- [ ] **Polymorphism and Interfaces (`@abstractmethod` and Inheritance)**
+- [x] **Polymorphism and Interfaces (`@abstractmethod` and Inheritance)**
   - *Context:* Python abstract base classes (e.g., `Constraint`) and their concrete implementations (`UrnaryConstraint`, `BinaryConstraint`) are currently transpiled using V struct embedding. However, V struct embedding does not support dynamic virtual method dispatch.
   - *Task:* Detect polymorphic base classes (especially those with `@abstractmethod`) and transpile them to V `interface`s, ensuring that method calls on base types dynamically dispatch to the concrete structs.
 

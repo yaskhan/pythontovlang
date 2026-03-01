@@ -63,6 +63,76 @@ class ClassesMixin(TranslatorBase):
         is_named_tuple = False
         is_typed_dict = False
 
+        # Record direct bases for class hierarchy
+        direct_bases = []
+        for base in node.bases:
+            if isinstance(base, ast.Name):
+                direct_bases.append(base.id)
+            elif isinstance(base, ast.Attribute):
+                direct_bases.append(base.attr)
+        self.class_hierarchy[struct_name] = direct_bases
+
+        def is_descendant_of(cls_name: str, target: str) -> bool:
+            visited = set()
+            stack = [cls_name]
+            while stack:
+                curr = stack.pop()
+                if curr in visited:
+                    continue
+                visited.add(curr)
+                if curr == target:
+                    return True
+                if curr in self.class_hierarchy:
+                    stack.extend(self.class_hierarchy[curr])
+            return False
+
+        # Check if the class is an abstract base class
+        # (has ABC in hierarchy AND contains @abstractmethod or no concrete methods)
+        has_abstract_method = False
+        has_concrete_method = False
+        for stmt in node.body:
+            if isinstance(stmt, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                is_abstract_stmt = False
+                for dec in stmt.decorator_list:
+                    if isinstance(dec, ast.Name) and dec.id == "abstractmethod":
+                        is_abstract_stmt = True
+                    elif isinstance(dec, ast.Attribute) and dec.attr == "abstractmethod":
+                        is_abstract_stmt = True
+
+                if is_abstract_stmt:
+                    has_abstract_method = True
+                else:
+                    # Check if it's practically empty (pass, ..., raise NotImplementedError)
+                    is_empty = True
+                    for body_stmt in stmt.body:
+                        if isinstance(body_stmt, ast.Pass):
+                            continue
+                        if isinstance(body_stmt, ast.Expr) and isinstance(body_stmt.value, ast.Constant) and body_stmt.value.value is Ellipsis:
+                            continue
+                        if isinstance(body_stmt, ast.Expr) and isinstance(body_stmt.value, ast.Constant) and isinstance(body_stmt.value.value, str):
+                            continue # Docstring
+                        if isinstance(body_stmt, ast.Raise):
+                            if isinstance(body_stmt.exc, ast.Name) and body_stmt.exc.id == "NotImplementedError":
+                                continue
+                            if isinstance(body_stmt.exc, ast.Call) and isinstance(body_stmt.exc.func, ast.Name) and body_stmt.exc.func.id == "NotImplementedError":
+                                continue
+                        is_empty = False
+                        break
+
+                    if not is_empty:
+                        has_concrete_method = True
+
+        is_abc = False
+        if is_descendant_of(struct_name, "ABC"):
+            if has_abstract_method or not has_concrete_method:
+                is_abc = True
+        elif has_abstract_method:
+            is_abc = True
+
+        if is_abc:
+            is_protocol = True
+            self.known_interfaces.add(struct_name)
+
         # Handle inheritance (bases)
         is_flag = False
         for base in node.bases:
@@ -85,6 +155,8 @@ class ClassesMixin(TranslatorBase):
                      is_named_tuple = True
                 elif base.id == "TypedDict":
                      is_typed_dict = True
+                elif base.id == "ABC":
+                     pass
 
             elif isinstance(base, ast.Attribute):
                 # Check for unittest.TestCase
@@ -100,6 +172,8 @@ class ClassesMixin(TranslatorBase):
                      is_named_tuple = True
                 elif val == "typing.TypedDict" or val == "TypedDict":
                      is_typed_dict = True
+                elif base.attr == "ABC":
+                     pass
 
             # Handle Generic[T]
             if isinstance(base, ast.Subscript):
@@ -121,21 +195,24 @@ class ClassesMixin(TranslatorBase):
                     continue
                 else:
                     # Regular generic base: Parent[T]
-                    # Add to fields as embedded struct
-                    type_str = ast.unparse(base)
-                    v_type = map_python_type_to_v(type_str)
-                    fields.append(f"    {v_type}")
+                    # Add to fields as embedded struct if not an interface
+                    if base_name not in self.known_interfaces:
+                        type_str = ast.unparse(base)
+                        v_type = map_python_type_to_v(type_str)
+                        fields.append(f"    {v_type}")
                     self.current_class_bases.append(base_name)
 
             elif isinstance(base, ast.Name):
-                if base.id != "Generic" and base.id != "Protocol" and base.id != "NamedTuple" and base.id != "TypedDict":
-                    fields.append(f"    {base.id}")
+                if base.id != "Generic" and base.id != "Protocol" and base.id != "NamedTuple" and base.id != "TypedDict" and base.id != "ABC":
+                    if base.id not in self.known_interfaces:
+                        fields.append(f"    {base.id}")
                     self.current_class_bases.append(base.id)
             elif isinstance(base, ast.Attribute):
                 val = self.visit(base)
                 # Skip TypedDict in fields (check for typing.TypedDict or just TypedDict)
-                if val != "TypedDict" and val != "typing.TypedDict":
-                    fields.append(f"    {val}")
+                if val != "TypedDict" and val != "typing.TypedDict" and base.attr != "ABC":
+                    if base.attr not in self.known_interfaces:
+                        fields.append(f"    {val}")
                 self.current_class_bases.append(base.attr)
 
         methods = []
