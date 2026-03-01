@@ -177,44 +177,25 @@ class FunctionsMixin(TranslatorBase):
 
         if node.args.vararg:
             arg_name = node.args.vararg.arg
-            arg_type = "Any" # Default
+            arg_type = "int" # Default
             if node.args.vararg.annotation:
                 try:
                     type_str = ast.unparse(node.args.vararg.annotation)
                     arg_type = map_python_type_to_v(type_str, self_name=struct_name or "Self")
                 except Exception:
                     pass
-            else:
-                inferred_type = self.type_inference.type_map.get(arg_name)
-                if inferred_type:
-                    if inferred_type.startswith("[]"):
-                        arg_type = inferred_type[2:]
-                    elif inferred_type == "Any":
-                        arg_type = "Any"
-
             args_str_list.append(f"{arg_name} ...{arg_type}")
             args_names.append(arg_name)
 
         if node.args.kwarg:
             arg_name = node.args.kwarg.arg
-            arg_type = "Any"
+            arg_type = "map[string]string"
             if node.args.kwarg.annotation:
                 try:
                     type_str = ast.unparse(node.args.kwarg.annotation)
-                    val_type = map_python_type_to_v(type_str, self_name=struct_name or "Self")
-                    arg_type = f"map[string]{val_type}"
+                    arg_type = map_python_type_to_v(type_str, self_name=struct_name or "Self")
                 except Exception:
-                    arg_type = "map[string]Any"
-            else:
-                inferred_type = self.type_inference.type_map.get(arg_name)
-                if inferred_type:
-                    if inferred_type.startswith("map[string]"):
-                        arg_type = inferred_type
-                    elif inferred_type == "Any":
-                        arg_type = "map[string]Any"
-                if arg_type == "Any":
-                    arg_type = "map[string]Any"
-
+                    pass
             args_str_list.append(f"{arg_name} {arg_type}")
             args_names.append(arg_name)
 

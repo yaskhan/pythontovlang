@@ -339,22 +339,7 @@ class ControlFlowMixin(TranslatorBase):
 
                  self._indent_level += 1
                  if handler.name:
-                      mapped_type = self.type_inference.type_map.get(handler.name)
-                      if mapped_type and mapped_type not in ("void", "Any"):
-                          self.output.append(f"{self._indent()}{handler.name} := {exc_var} as {mapped_type}")
-                      else:
-                          # Fallback to the AST node's type if mypy didn't track it
-                          fallback_type = None
-                          if handler.type:
-                              if isinstance(handler.type, ast.Name):
-                                  fallback_type = handler.type.id
-                              elif isinstance(handler.type, ast.Attribute):
-                                  fallback_type = handler.type.attr
-
-                          if fallback_type and fallback_type not in ("Exception", "BaseException", "ExceptionGroup"):
-                              self.output.append(f"{self._indent()}{handler.name} := {exc_var} as {fallback_type}")
-                          else:
-                              self.output.append(f"{self._indent()}{handler.name} := {exc_var}")
+                      self.output.append(f"{self._indent()}{handler.name} := {exc_var}")
 
                  for stmt in handler.body:
                       self.visit(stmt)
