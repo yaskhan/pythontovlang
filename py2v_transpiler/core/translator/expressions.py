@@ -16,10 +16,22 @@ class ExpressionsMixin(TranslatorBase):
     def visit_Call(self, node: ast.Call) -> str:
         # Check if we can resolve the call via mapper
         args = []
-        for arg in node.args:
+        proto_args = {}
+        location_key = f"{getattr(node, 'lineno', 0)}:{getattr(node, 'col_offset', 0)}_proto_args"
+        if location_key in self.type_inference.type_map:
+            proto_args = self.type_inference.type_map[location_key]
+
+        for i, arg in enumerate(node.args):
             val = self.visit(arg)
             if val is not None:
-                args.append(str(val))
+                str_i = str(i)
+                if str_i in proto_args:
+                    proto_name = proto_args[str_i]
+                    from py2v_transpiler.models.v_types import map_python_type_to_v
+                    v_proto = map_python_type_to_v(proto_name)
+                    args.append(f"{v_proto}({str(val)})")
+                else:
+                    args.append(str(val))
             else:
                 args.append("/* unknown */")
 

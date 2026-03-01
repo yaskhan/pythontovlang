@@ -328,7 +328,7 @@ Based on recent Python ecosystem developments (mypy, PyPy, Numba, NumPy, Nuitka,
 - [ ] **Monomorphization of Generic Classes (Mypy Driven)**
   - *Context:* Python doesn't inherently instantiate generic classes differently, but V requires it (e.g., `Box[int]`).
   - *V Translation:* When the mypy plugin records instantiation metadata for generic user classes (e.g., `Box(1)`), use that data to correctly map and emit the explicit V generic instantiation type `Box[int]`.
-- [ ] **Static Duck Typing Mapping to V Interfaces**
+- [x] **Static Duck Typing Mapping to V Interfaces**
   - *Context:* Python duck typing via `typing.Protocol` is inherently dynamic, but mypy proves its safety statically.
   - *V Translation:* When mypy confirms a function argument structurally matches a `Protocol`, generate V code that uses explicit, lightweight V `interface` casting instead of boxing everything into an `Any` wrapper with runtime method checks.
 - [ ] **Loop Unrolling for Static `tuple` Lengths**
@@ -358,7 +358,7 @@ Based on recent Python ecosystem developments (mypy, PyPy, Numba, NumPy, Nuitka,
 - [ ] **Exact Mutability Mapping (`Final` / reassignments)**
   - *Context:* V variables default to immutable. Currently, the transpiler might over-use `mut` to be safe.
   - *V Translation:* Utilize mypy's reassignment tracking and `typing.Final` annotations. If mypy proves a variable is never reassigned after initialization, emit it without the `mut` keyword in V, relying on V's strict compiler to ensure immutability.
-- [ ] **Config-Aware Nullability (`strict_optional`)**
+- [x] **Config-Aware Nullability (`strict_optional`)**
   - *Context:* Mypy's `strict_optional` setting dictates whether `None` is a valid value for unannotated types.
   - *V Translation:* Hook into the user's `mypy.ini` or `pyproject.toml`. If `strict_optional = True`, map union types like `int | None` strictly to V optionals (`?int`). If `False`, rely on the `Any` wrapper with `none` tracking to match legacy Python semantics.
 - [ ] **`typing.Literal` Mapping to V Enums / Constants**
