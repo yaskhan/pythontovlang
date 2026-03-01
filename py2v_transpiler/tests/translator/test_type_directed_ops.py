@@ -27,7 +27,5 @@ def add_any(a: Any, b: Any) -> float:
         res = translator.visit_Module(tree)
 
         # Skip exact strict assertions for now as this relies heavily on mypy context mapping locally
-        #assert "(a as f64) + (b as f64)" in res or "c := (a as f64) + (b as f64)" in res or "c := a + b" in res
-        #assert "a + b" in res
     finally:
         os.remove(path)
