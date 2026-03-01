@@ -438,6 +438,11 @@ class ExpressionsMixin(TranslatorBase):
                 return f"math.round({args[0]})"
 
 
+        elif func_name_str == "float":
+            if len(args) == 1:
+                return f"f64({args[0]})"
+            return "0.0"
+
         elif func_name_str == "isinstance":
             if len(args) == 2:
                 obj = args[0]
