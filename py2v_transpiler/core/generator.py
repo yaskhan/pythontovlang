@@ -6,6 +6,8 @@ class VCodeEmitter:
         self.structs: List[str] = []
         self.functions: List[str] = []
         self.main_body: List[str] = []
+        self.globals: List[str] = []
+        self.constants: List[str] = []
 
         self.helper_imports: List[str] = []
         self.helper_structs: List[str] = []
@@ -29,6 +31,14 @@ class VCodeEmitter:
         """Adds an import to the helpers module."""
         if module_name not in self.helper_imports:
             self.helper_imports.append(module_name)
+
+    def add_global(self, global_def: str) -> None:
+        """Adds a __global definition."""
+        self.globals.append(global_def)
+
+    def add_constant(self, const_def: str) -> None:
+        """Adds a const definition."""
+        self.constants.append(const_def)
 
     def add_struct(self, struct_def: str) -> None:
         """Adds a struct definition."""
@@ -62,6 +72,16 @@ class VCodeEmitter:
         if self.structs:
             lines.extend(self.structs)
             lines.append("")
+
+        if self.globals:
+            lines.append("__global (")
+            lines.extend(["    " + g for g in self.globals])
+            lines.append(")\n")
+
+        if self.constants:
+            lines.append("const (")
+            lines.extend(["    " + c for c in self.constants])
+            lines.append(")\n")
 
         if self.functions:
             lines.extend(self.functions)

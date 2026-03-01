@@ -272,7 +272,19 @@ class VariablesMixin(TranslatorBase):
                 self.output.append(f"{self._indent()}{lhs} := {rhs}")
             else:
                 rhs = self.visit(node.value)
-                self.output.append(f"{self._indent()}{lhs} := {rhs}")
+
+                if self.in_main and isinstance(target, ast.Name):
+                    if lhs in getattr(self, "global_vars", set()):
+                        if v_type == "unknown":
+                            v_type = "Any"
+                        self.emitter.add_global(f"{lhs} {v_type}")
+                        self.output.append(f"{self._indent()}{lhs} = {rhs}")
+                    elif lhs.isupper():
+                        self.emitter.add_constant(f"{lhs} = {rhs}")
+                    else:
+                        self.output.append(f"{self._indent()}{lhs} := {rhs}")
+                else:
+                    self.output.append(f"{self._indent()}{lhs} := {rhs}")
 
     def _visit_destructuring(self, target: ast.AST, source_expr: str) -> None:
         """
@@ -499,15 +511,40 @@ class VariablesMixin(TranslatorBase):
                 self.output.append(f"{self._indent()}{target} := {rhs}")
             else:
                 rhs = self.visit(node.value)
-                # We ignore the annotation for now and rely on type inference and V's auto-typing
-                # But we could potentially use it to hint types for empty lists/maps
-                self.output.append(f"{self._indent()}{target} := {rhs}")
+
+                if self.in_main and isinstance(node.target, ast.Name):
+                    target_name = target
+                    if not v_type or v_type == "unknown":
+                        v_type = "Any"
+                    if target_name in getattr(self, "global_vars", set()):
+                        self.emitter.add_global(f"{target_name} {v_type}")
+                        self.output.append(f"{self._indent()}{target_name} = {rhs}")
+                    elif target_name.isupper():
+                        self.emitter.add_constant(f"{target_name} = {rhs}")
+                    else:
+                        self.output.append(f"{self._indent()}{target} := {rhs}")
+                else:
+                    # We ignore the annotation for now and rely on type inference and V's auto-typing
+                    # But we could potentially use it to hint types for empty lists/maps
+                    self.output.append(f"{self._indent()}{target} := {rhs}")
         else:
             # Declaration only: x: int
             # V needs initialization. We map type to default value.
             try:
                 type_str = ast.unparse(node.annotation)
                 v_type = map_python_type_to_v(type_str)
+
+                if self.in_main and isinstance(node.target, ast.Name):
+                    target_name = target
+                    if not v_type or v_type == "unknown":
+                        v_type = "Any"
+                    if target_name in getattr(self, "global_vars", set()):
+                        self.emitter.add_global(f"{target_name} {v_type}")
+                        return
+                    elif target_name.isupper():
+                        # V requires consts to be initialized
+                        self.emitter.add_constant(f"{target_name} = /* uninitialized constant */ 0")
+                        return
                 default_val = "0"
                 if v_type == "int": default_val = "0"
                 elif v_type == "f64": default_val = "0.0"
