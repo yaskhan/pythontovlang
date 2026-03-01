@@ -317,10 +317,12 @@ class FunctionsMixin(TranslatorBase):
             # Switch to generating implementation
             func_name = dec_info.implementation_name
 
+        is_init = False
         if 'decl' not in locals() and func_name == "__init_subclass__":
             receiver_str = ""
             func_name = "init_subclass"
         elif func_name == "__init__":
+            is_init = True
             func_name = f"new_{struct_name}"
             receiver_str = "" # Factory is static
             ret_type = struct_name
@@ -361,6 +363,11 @@ class FunctionsMixin(TranslatorBase):
         for line in dec_info.injected_end:
              self.output.append(f"{self._indent()}{line}")
 
+        prev_in_init = getattr(self, "in_init", False)
+        if is_init:
+            self.in_init = True
+            self.output.append(f"{self._indent()}mut self := {ret_type}{{}}")
+
         # Check for docstring
         body = node.body
         if body and isinstance(body[0], ast.Expr) and isinstance(body[0].value, ast.Constant) and isinstance(body[0].value.value, str):
@@ -380,6 +387,10 @@ class FunctionsMixin(TranslatorBase):
         if is_generator:
             self.output.append(f"{self._indent()}{self.coroutine_handler.active_channel}.close()")
             self.coroutine_handler.exit_generator()
+
+        if is_init:
+            self.output.append(f"{self._indent()}return self")
+            self.in_init = prev_in_init
 
         self._indent_level -= 1
         self.output.append("}")
@@ -533,7 +544,9 @@ class FunctionsMixin(TranslatorBase):
         for _ in range(self.vexc_depth):
              self.output.append(f"{self._indent()}vexc.end_try()")
 
-        if node.value:
+        if getattr(self, "in_init", False) and not node.value:
+            self.output.append(f"{self._indent()}return self")
+        elif node.value:
             val = self.visit(node.value)
             self.output.append(f"{self._indent()}return {val}")
         else:

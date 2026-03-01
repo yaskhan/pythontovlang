@@ -216,16 +216,21 @@ class ExpressionsMixin(TranslatorBase):
                  receiver = self.visit(func_node.value)
                  return f"{receiver}.unlock()"
 
-        # Handle super().method()
-        if isinstance(func_node, ast.Attribute) and isinstance(func_node.value, ast.Call) and \
-           isinstance(func_node.value.func, ast.Name) and func_node.value.func.id == "super":
-            # super().method(...)
-            method_name = func_node.attr
-            if self.current_class_bases:
-                parent = self.current_class_bases[0]
-                return f"self.{parent}.{method_name}({', '.join(args)})"
-            else:
-                 return f"/* super().{method_name} call without known parent */"
+        # Handle super().method() and super(Class, self).method()
+        if isinstance(func_node, ast.Attribute) and isinstance(func_node.value, ast.Call):
+            is_super = False
+            if isinstance(func_node.value.func, ast.Name) and func_node.value.func.id == "super":
+                is_super = True
+
+            if is_super:
+                method_name = func_node.attr
+                if self.current_class_bases:
+                    parent = self.current_class_bases[0]
+                    if method_name == "__init__":
+                        return f"self.{parent} = new_{parent}({', '.join(args)})"
+                    return f"self.{parent}.{method_name}({', '.join(args)})"
+                else:
+                    return f"/* super().{method_name} call without known parent */"
 
         # Handle unittest assertions
         # Strictly check for self.assertX if possible to avoid regressions

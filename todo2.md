@@ -390,7 +390,7 @@ Based on the transpilation of the `bm_deltablue.py` benchmark, several critical 
   - *Context:* Python abstract base classes (e.g., `Constraint`) and their concrete implementations (`UrnaryConstraint`, `BinaryConstraint`) are currently transpiled using V struct embedding. However, V struct embedding does not support dynamic virtual method dispatch.
   - *Task:* Detect polymorphic base classes (especially those with `@abstractmethod`) and transpile them to V `interface`s, ensuring that method calls on base types dynamically dispatch to the concrete structs.
 
-- [ ] **Constructors and `super().__init__` Handling**
+- [x] **Constructors and `super().__init__` Handling**
   - *Context:* `super(StayConstraint, self).__init__(v, string)` is incorrectly emitted as `self.UrnaryConstraint.__init__(v, string)` inside a factory function where `self` is not even defined or allocated.
   - *Task:* Refactor constructor generation so that derived classes properly instantiate and return their base/embedded structs (e.g., `return StayConstraint{ UrnaryConstraint: new_UrnaryConstraint(...) }`), rather than relying on non-existent `__init__` methods.
 
