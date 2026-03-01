@@ -10,9 +10,7 @@ def translate(source: str) -> str:
         raise ValueError("Parsed AST is not a Module")
     analyzer = TypeInference()
     translator = VNodeVisitor(analyzer)
-    v_code = translator.visit_Module(tree)
-    helpers = translator.emitter.emit_helpers()
-    return v_code + "\n" + helpers
+    return translator.visit_Module(tree)
 
 def test_logging_basics():
     source = """
