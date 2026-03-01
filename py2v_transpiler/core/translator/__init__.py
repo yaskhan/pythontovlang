@@ -27,7 +27,7 @@ class VNodeVisitor(
     TranslatorBase
 ):
     def __init__(self, type_inference):
-        self.type_inference = type_inference
+        super().__init__(type_inference)
         self.decorator_processor = DecoratorProcessor(self)
         self.coroutine_handler = CoroutineHandler()
         # Use emitter for structured output

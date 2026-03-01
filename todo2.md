@@ -352,7 +352,7 @@ Based on recent Python ecosystem developments (mypy, PyPy, Numba, NumPy, Nuitka,
 - [ ] **`Any` Fallback Profiler / Strict Typing Mode**
   - *Context:* It's difficult for a user to know when their Python code failed to transpile into efficient V code due to missing type hints.
   - *V Translation:* Add a CLI flag (e.g., `--warn-dynamic`) that utilizes the mypy plugin's data to emit warnings indicating exactly which lines/variables fell back to the `Any` sum type, encouraging users to improve their Python type annotations for better V code emission.
-- [ ] **Static Function Overload Resolution (`typing.overload`)**
+- [x] **Static Function Overload Resolution (`typing.overload`)**
   - *Context:* V does not support function overloading, making Python's `@overload` tricky to map directly.
   - *V Translation:* Use the mypy plugin to determine the exact matched overload signature at every *call site*. Generate uniquely named V functions for each signature (e.g., `func_int_int`, `func_str_str`) and emit direct calls to them, bypassing dynamic type introspection entirely.
 - [ ] **Exact Mutability Mapping (`Final` / reassignments)**

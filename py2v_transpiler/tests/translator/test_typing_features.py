@@ -174,11 +174,9 @@ def foo(x):
     return x
 """
     v_code = translate(source)
-    # The overload signatures (empty bodies) should NOT be present.
-    # The implementation signature (foo(x)) SHOULD be present.
-    # The implementation signature in V will be inferred as `fn foo(x int) {` because `x` defaults to `int`.
-
-    # Check that we don't have multiple `fn foo` definitions.
-    assert v_code.count("fn foo") == 1
-    # Check that the one present is the implementation (has return x)
-    assert "return x" in v_code
+    # The overload variants SHOULD be present uniquely named.
+    # We should have fn foo_int and fn foo_string.
+    assert "fn foo_int(x int) int {" in v_code
+    assert "fn foo_string(x string) string {" in v_code
+    # And both should have the implementation body `return x`
+    assert v_code.count("return x") >= 2

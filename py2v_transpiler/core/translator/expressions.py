@@ -267,6 +267,85 @@ class ExpressionsMixin(TranslatorBase):
         if func_name_str in self.renamed_functions:
             func_name_str = self.renamed_functions[func_name_str]
 
+        # Handle overloaded functions
+        if func_name_str in getattr(self, "overloaded_signatures", {}):
+            # We need to find the correct overload variant
+            loc_key = f"{getattr(node, 'lineno', 0)}:{getattr(node, 'col_offset', 0)}"
+            call_sig = None
+
+            if hasattr(self.type_inference, "call_signatures"):
+                # Try finding by full location (which includes module name) or just line/col
+                for k, v in self.type_inference.call_signatures.items():
+                    # We need to ensure we don't accidentally match another module's function at the same line/col
+                    if k.endswith(f".{func_name_str}@{loc_key}"):
+                        call_sig = v
+                        break
+                if not call_sig:
+                    for k, v in self.type_inference.call_signatures.items():
+                        if k.endswith(f"@{loc_key}"):
+                            # if no exact match on name, try at least matching loc, but verify it's the right func
+                            if func_name_str in k:
+                                call_sig = v
+                                break
+
+            type_suffix_parts = []
+            if call_sig and "args" in call_sig:
+                # We use the argument types resolved by mypy
+                for arg_typ in call_sig["args"]:
+                    # Mypy arg types can be complex (e.g. 'Literal[1]?'), we need to map them back to our V types
+                    # First normalize mypy specific literal formatting: 'Literal[1]?' -> 'int'
+                    norm_typ = arg_typ.replace("builtins.", "")
+                    if "Literal[" in arg_typ:
+                        if "'" in arg_typ or '"' in arg_typ:
+                            norm_typ = "str"
+                        else:
+                            norm_typ = "int"
+                    try:
+                        v_type = map_python_type_to_v(norm_typ)
+                    except Exception:
+                        v_type = "Any"
+                    # Ensure we map mypy's builtins correctly, even if mapping failed
+                    if v_type == "builtins.int" or norm_typ == "builtins.int" or norm_typ == "int": v_type = "int"
+                    if v_type == "builtins.str" or norm_typ == "builtins.str" or norm_typ == "str": v_type = "string"
+                    if v_type == "builtins.float" or norm_typ == "builtins.float" or norm_typ == "float": v_type = "f64"
+                    if v_type == "builtins.bool" or norm_typ == "builtins.bool" or norm_typ == "bool": v_type = "bool"
+                    clean_type = v_type.replace("?", "opt_").replace("[]", "arr_").replace("[", "_").replace("]", "").replace(".", "_")
+                    type_suffix_parts.append(clean_type)
+            else:
+                # Fallback: guess types from arguments if mypy didn't track it
+                for arg in node.args:
+                    arg_type = self._guess_type(arg)
+                    clean_type = arg_type.replace("?", "opt_").replace("[]", "arr_").replace("[", "_").replace("]", "").replace(".", "_")
+                    type_suffix_parts.append(clean_type)
+
+            # We want to match against the *defined* overload variants, because mypy might infer
+            # slightly different types than what was declared in the overload (e.g. `int` instead of `Any`).
+            # Find the best match among `self.overloaded_signatures[func_name_str]`.
+            best_match_suffix = None
+            if func_name_str in self.overloaded_signatures:
+                for sig in self.overloaded_signatures[func_name_str]:
+                    sig_suffix_parts = []
+                    for arg in sig["args"]:
+                        sig_type = arg["type"]
+                        clean_sig_type = sig_type.replace("?", "opt_").replace("[]", "arr_").replace("[", "_").replace("]", "").replace(".", "_")
+                        sig_suffix_parts.append(clean_sig_type)
+
+                    # Exact match
+                    if sig_suffix_parts == type_suffix_parts:
+                        best_match_suffix = "_".join(sig_suffix_parts)
+                        break
+
+            if best_match_suffix:
+                func_name_str = f"{func_name_str}_{best_match_suffix}"
+            elif type_suffix_parts:
+                # If no exact match, we use the inferred types to build the name.
+                # This guarantees we call the specific overloaded variant matching the static types.
+                # If mypy successfully inferred the types but the call doesn't match an overload,
+                # the V compiler will correctly throw an error indicating a missing function.
+                func_name_str = f"{func_name_str}_{'_'.join(type_suffix_parts)}"
+            else:
+                func_name_str = f"{func_name_str}_noargs"
+
         # Handle dataclass constructor call
         if hasattr(self, 'dataclasses') and func_name_str in self.dataclasses:
             field_order = self.dataclasses[func_name_str]
