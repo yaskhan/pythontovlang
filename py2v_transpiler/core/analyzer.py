@@ -22,7 +22,7 @@ class AliasInferer(ast.NodeVisitor):
                     aliases[lhs] = node.value.id
 
         # Pass 2: find usage of aliases and what gets appended
-        alias_usages = {alias: set() for alias in aliases}
+        alias_usages: Dict[str, set] = {alias: set() for alias in aliases}
         var_to_alias = {}
 
         for node in ast.walk(tree):
