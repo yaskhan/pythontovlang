@@ -58,7 +58,7 @@ Based on recent Python ecosystem developments (mypy, PyPy, Numba, NumPy, Nuitka,
   - Review if V's `regex` module supports these constructs, and if not, how `py2v_transpiler` maps Python's `re` module calls for these features.
 - [ ] **`OrderedDict` Performance**
   - Check how `collections.OrderedDict` is currently mapped. Since V's standard `map` is not guaranteed to be ordered, ensure `OrderedDict` maps to an ordered data structure in V if order is relied upon.
-- [ ] **String Methods on Tuples/Iterables (`str.startswith` with tuple)**
+- [x] **String Methods on Tuples/Iterables (`str.startswith` with tuple)**
   - Python allows `s.startswith(('a', 'b'))`. Ensure the translator expands this to `s.starts_with('a') || s.starts_with('b')` in V.
 - [ ] **Memoryview and Bytearray**
   - Implement translation for `memoryview()` and `bytearray()` (e.g., mapping to `[]u8` in V with appropriate mutable/immutable semantics).
