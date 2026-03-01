@@ -16,20 +16,15 @@ class TestPEP695(unittest.TestCase):
 
     def test_generic_type_alias_dict(self):
         source = "type Alias[T] = dict[str, T]\nx: Alias[int] = {'a': 1}"
-        try:
-            result = self.transpile(source)
-            self.assertIn("type Alias[T] = map[string]T", result)
-        except SyntaxError:
-            pass
+        result = self.transpile(source)
+        self.assertIn("type Alias[T] = map[string]T", result)
+        self.assertIn("x := Alias[int]{", result)
 
     def test_generic_type_alias_list(self):
         source = "type ListAlias[T] = list[T]\nx: ListAlias[int] = [1]"
-        try:
-            result = self.transpile(source)
-            self.assertIn("type ListAlias[T] = []T", result)
-            # Note: it will just be `x := [1]`, it does not emit `ListAlias[int]{cap: 1}` because map_python_type_to_v returns ListAlias[int], not []int
-        except SyntaxError:
-            pass
+        result = self.transpile(source)
+        self.assertIn("type ListAlias[T] = []T", result)
+        self.assertIn("mut x := ListAlias[int]{cap: 1}", result)
 
 if __name__ == '__main__':
     unittest.main()

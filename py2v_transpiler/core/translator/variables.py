@@ -247,8 +247,8 @@ class VariablesMixin(TranslatorBase):
             if is_simple_list and v_type and not v_type.startswith("[]") and "[" in v_type and cap > 0:
                 # Custom alias for list, e.g. ListAlias[int]
                 self.output.append(f"{self._indent()}mut {lhs} := {v_type}{{cap: {cap}}}")
-                value_node: Any = node.value
-                for elt in value_node.elts:
+                value_list_node: Any = node.value
+                for elt in value_list_node.elts:
                     val = self.visit(elt)
                     self.output.append(f"{self._indent()}{lhs} << {val}")
             elif is_simple_list and v_type and v_type.startswith("[]") and cap > 0:
@@ -257,14 +257,15 @@ class VariablesMixin(TranslatorBase):
                 # mut arr := []T{cap: N}
                 # arr << x ...
                 self.output.append(f"{self._indent()}mut {lhs} := {v_type}{{cap: {cap}}}")
-                value_node: Any = node.value
-                for elt in value_node.elts:
+                value_list_node_2: Any = node.value
+                for elt in value_list_node_2.elts:
                     val = self.visit(elt)
                     self.output.append(f"{self._indent()}{lhs} << {val}")
             elif is_simple_dict and v_type and not v_type.startswith("map[") and "[" in v_type:
                 # Custom alias for map, e.g. Alias[int]
                 pairs = []
-                for k, v in zip(node.value.keys, node.value.values):
+                value_dict_node: Any = node.value
+                for k, v in zip(value_dict_node.keys, value_dict_node.values):
                     key_str = self.visit(k)
                     val_str = self.visit(v)
                     pairs.append(f"{key_str}: {val_str}")
@@ -487,20 +488,21 @@ class VariablesMixin(TranslatorBase):
             if is_simple_list and v_type and not v_type.startswith("[]") and "[" in v_type and cap > 0:
                 # Custom alias for list, e.g. ListAlias[int]
                 self.output.append(f"{self._indent()}mut {target} := {v_type}{{cap: {cap}}}")
-                value_node: Any = node.value
-                for elt in value_node.elts:
+                ann_value_list_node: Any = node.value
+                for elt in ann_value_list_node.elts:
                     val = self.visit(elt)
                     self.output.append(f"{self._indent()}{target} << {val}")
             elif is_simple_list and v_type and v_type.startswith("[]") and cap > 0:
                 self.output.append(f"{self._indent()}mut {target} := {v_type}{{cap: {cap}}}")
-                value_node: Any = node.value
-                for elt in value_node.elts:
+                ann_value_list_node_2: Any = node.value
+                for elt in ann_value_list_node_2.elts:
                     val = self.visit(elt)
                     self.output.append(f"{self._indent()}{target} << {val}")
             elif is_simple_dict and v_type and not v_type.startswith("map[") and "[" in v_type:
                 # Custom alias for map, e.g. Alias[int]
                 pairs = []
-                for k, v in zip(node.value.keys, node.value.values):
+                ann_value_dict_node: Any = node.value
+                for k, v in zip(ann_value_dict_node.keys, ann_value_dict_node.values):
                     key_str = self.visit(k)
                     val_str = self.visit(v)
                     pairs.append(f"{key_str}: {val_str}")
