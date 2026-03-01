@@ -639,6 +639,13 @@ class ExpressionsMixin(TranslatorBase):
     def visit_Subscript(self, node: ast.Subscript) -> str:
         value = self.visit(node.value)
 
+        val_type = self._guess_type(node.value)
+        # Check if value is a known TypedDict and index is string literal
+        if hasattr(self, 'dataclasses') and val_type in self.dataclasses:
+             # Fast path for TypedDict access: d["a"] -> d.a
+             if isinstance(node.slice, ast.Constant) and isinstance(node.slice.value, str):
+                  return f"{value}.{node.slice.value}"
+
         # Handle Ellipsis in slice (e.g. a[...])
         if isinstance(node.slice, ast.Constant) and node.slice.value is Ellipsis:
              return f"{value}[/* ... */]"
@@ -658,7 +665,6 @@ class ExpressionsMixin(TranslatorBase):
         # Handle Ellipsis directly if node.slice is Ellipsis node (not Constant, unlikely in recent python ast but possible)
         # In 3.12, it is usually Constant(value=Ellipsis)
 
-        val_type = self._guess_type(node.value)
         # Fast path: Native V indexing if type is known or fallback 'int' (assumed native array in tests).
         # We only use dynamic fallback if type is explicitly 'Any'
         is_native = True

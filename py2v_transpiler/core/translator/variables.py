@@ -117,6 +117,16 @@ class VariablesMixin(TranslatorBase):
             else:
                  lhs = f"{obj_name}.{target.attr}"
         elif isinstance(target, ast.Subscript):
+            # dict["key"] = value (TypedDict)
+            obj_type = getattr(self, "_guess_type", lambda x: "unknown")(target.value)
+            if hasattr(self, 'dataclasses') and obj_type in self.dataclasses:
+                list_obj = self.visit(target.value)
+                if isinstance(target.slice, ast.Constant) and isinstance(target.slice.value, str):
+                    lhs = f"{list_obj}.{target.slice.value}"
+                    rhs = self.visit(node.value)
+                    self.output.append(f"{self._indent()}{lhs} = {rhs}")
+                    return
+
             # list[index] = value
             # Check for slice assignment: l[1:3] = [4, 5]
             if isinstance(target.slice, ast.Slice):
@@ -249,6 +259,17 @@ class VariablesMixin(TranslatorBase):
                 for elt in value_node.elts:
                     val = self.visit(elt)
                     self.output.append(f"{self._indent()}{lhs} << {val}")
+            elif hasattr(self, 'dataclasses') and v_type in self.dataclasses and isinstance(node.value, ast.Dict):
+                # TypedDict assignment
+                pairs = []
+                for k, v in zip(node.value.keys, node.value.values):
+                    if isinstance(k, ast.Constant) and isinstance(k.value, str):
+                        key_str = k.value
+                        val_str = self.visit(v)
+                        pairs.append(f"{key_str}: {val_str}")
+
+                rhs = f"{v_type}{{{', '.join(pairs)}}}"
+                self.output.append(f"{self._indent()}{lhs} := {rhs}")
             else:
                 rhs = self.visit(node.value)
                 self.output.append(f"{self._indent()}{lhs} := {rhs}")
@@ -465,6 +486,17 @@ class VariablesMixin(TranslatorBase):
                 for elt in value_node.elts:
                     val = self.visit(elt)
                     self.output.append(f"{self._indent()}{target} << {val}")
+            elif hasattr(self, 'dataclasses') and v_type in self.dataclasses and isinstance(node.value, ast.Dict):
+                # TypedDict assignment
+                pairs = []
+                for k, v in zip(node.value.keys, node.value.values):
+                    if isinstance(k, ast.Constant) and isinstance(k.value, str):
+                        key_str = k.value
+                        val_str = self.visit(v)
+                        pairs.append(f"{key_str}: {val_str}")
+
+                rhs = f"{v_type}{{{', '.join(pairs)}}}"
+                self.output.append(f"{self._indent()}{target} := {rhs}")
             else:
                 rhs = self.visit(node.value)
                 # We ignore the annotation for now and rely on type inference and V's auto-typing

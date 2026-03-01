@@ -92,6 +92,20 @@ class LiteralsMixin(TranslatorBase):
         return f"[{', '.join(elements)}]"
 
     def visit_Dict(self, node: ast.Dict) -> str:
+        # Check if the dictionary is being used as a TypedDict
+        v_type = getattr(self, "_guess_type", lambda x: "unknown")(node)
+        if hasattr(self, 'dataclasses') and v_type in self.dataclasses:
+            pairs = []
+            for k, v in zip(node.keys, node.values):
+                if isinstance(k, ast.Constant) and isinstance(k.value, str):
+                    key_str = k.value
+                    val_str = self.visit(v)
+                    pairs.append(f"{key_str}: {val_str}")
+                else:
+                    # Fallback if key is not a string literal? Shouldn't happen in typed dicts usually.
+                    pass
+            return f"{v_type}{{{', '.join(pairs)}}}"
+
         # Check for None keys (unpacking)
         has_unpacking = any(k is None for k in node.keys)
         if has_unpacking:

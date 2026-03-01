@@ -61,6 +61,7 @@ class ClassesMixin(TranslatorBase):
         is_unittest = False
         is_protocol = False
         is_named_tuple = False
+        is_typed_dict = False
 
         # Handle inheritance (bases)
         is_flag = False
@@ -82,6 +83,8 @@ class ClassesMixin(TranslatorBase):
                      is_protocol = True
                 elif base.id == "NamedTuple":
                      is_named_tuple = True
+                elif base.id == "TypedDict":
+                     is_typed_dict = True
 
             elif isinstance(base, ast.Attribute):
                 # Check for unittest.TestCase
@@ -95,6 +98,8 @@ class ClassesMixin(TranslatorBase):
                      is_protocol = True
                 elif val == "typing.NamedTuple":
                      is_named_tuple = True
+                elif val == "typing.TypedDict" or val == "TypedDict":
+                     is_typed_dict = True
 
             # Handle Generic[T]
             if isinstance(base, ast.Subscript):
@@ -173,7 +178,7 @@ class ClassesMixin(TranslatorBase):
                         if isinstance(stmt.annotation, ast.Name):
                             field_type = stmt.annotation.id
 
-                if is_dataclass:
+                if is_dataclass or is_typed_dict:
                     dataclass_field_order.append(field_name)
                     if stmt.value:
                         default_val = self.visit(stmt.value)
@@ -200,7 +205,7 @@ class ClassesMixin(TranslatorBase):
                                  fields.append(f"    {slot} int") # Default to int
                                  added_fields.add(slot)
 
-        if is_dataclass:
+        if is_dataclass or is_typed_dict:
             if not hasattr(self, 'dataclasses'):
                 self.dataclasses = {}
             self.dataclasses[struct_name] = dataclass_field_order
