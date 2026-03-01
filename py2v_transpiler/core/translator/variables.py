@@ -277,6 +277,17 @@ class VariablesMixin(TranslatorBase):
                 self.output.append(f"{self._indent()}{lhs} := {rhs}")
             else:
                 rhs = self.visit(node.value)
+
+                if self.in_main and isinstance(target, ast.Name):
+                    if lhs in getattr(self, "global_vars", set()):
+                        if v_type == "unknown":
+                            v_type = "Any"
+                        self.emitter.add_global(f"{lhs} {v_type}")
+                        self.output.append(f"{self._indent()}{lhs} = {rhs}")
+                    elif lhs.isupper():
+                        self.emitter.add_constant(f"{lhs} = {rhs}")
+                    else:
+                        self.output.append(f"{self._indent()}{lhs} := {rhs}")
                 if rhs == "none":
                     # v_type might be defined above if we were checking is_simple_list, but let's be safe
                     local_v_type = getattr(self, "_guess_type", lambda x: "unknown")(target)
@@ -514,6 +525,18 @@ class VariablesMixin(TranslatorBase):
                 self.output.append(f"{self._indent()}{target} := {rhs}")
             else:
                 rhs = self.visit(node.value)
+
+                if self.in_main and isinstance(node.target, ast.Name):
+                    target_name = target
+                    if not v_type or v_type == "unknown":
+                        v_type = "Any"
+                    if target_name in getattr(self, "global_vars", set()):
+                        self.emitter.add_global(f"{target_name} {v_type}")
+                        self.output.append(f"{self._indent()}{target_name} = {rhs}")
+                    elif target_name.isupper():
+                        self.emitter.add_constant(f"{target_name} = {rhs}")
+                    else:
+                        self.output.append(f"{self._indent()}{target} := {rhs}")
                 if rhs == "none":
                     if v_type and v_type != "unknown":
                         if not v_type.startswith("?"):
@@ -531,6 +554,18 @@ class VariablesMixin(TranslatorBase):
             try:
                 type_str = ast.unparse(node.annotation)
                 v_type = map_python_type_to_v(type_str)
+
+                if self.in_main and isinstance(node.target, ast.Name):
+                    target_name = target
+                    if not v_type or v_type == "unknown":
+                        v_type = "Any"
+                    if target_name in getattr(self, "global_vars", set()):
+                        self.emitter.add_global(f"{target_name} {v_type}")
+                        return
+                    elif target_name.isupper():
+                        # V requires consts to be initialized
+                        self.emitter.add_constant(f"{target_name} = /* uninitialized constant */ 0")
+                        return
                 default_val = "0"
                 if v_type == "int": default_val = "0"
                 elif v_type == "f64": default_val = "0.0"

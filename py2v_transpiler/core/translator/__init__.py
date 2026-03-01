@@ -61,6 +61,11 @@ class VNodeVisitor(
         self.imported_symbols: Dict[str, str] = {} # alias -> module_name.symbol
 
     def visit_Module(self, node: ast.Module) -> str:
+        self.global_vars = set()
+        for subnode in ast.walk(node):
+            if isinstance(subnode, ast.Global):
+                self.global_vars.update(subnode.names)
+
         self.coroutine_handler.scan_module(node)
 
         # Pre-scan for complex numbers to ensure struct is emitted
