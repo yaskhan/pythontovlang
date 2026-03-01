@@ -66,10 +66,6 @@ Based on recent Python ecosystem developments (mypy, PyPy, Numba, NumPy, Nuitka,
   - Review how `zlib` and `str.encode`/`decode` are translated, ensuring they use the most efficient V standard library functions (`compress`, `encoding`).
 
 ## From Numba Changelogs (Optimizations & Advanced Types)
-- [ ] **Ahead-of-Time (AOT) and Lazy Compilation Awareness**
-  - Provide modes for the transpiler to generate either generic V functions that rely on V's generic instantiation (similar to Numba's lazy compilation) or explicitly instantiated monomorphic functions based on a given type signature (like Numba's `@jit(signature)`).
-- [ ] **Fastmath and CPU Targeting**
-  - Add transpilation pragmas/decorates (e.g. `@v_fastmath`) that map to V's compiler flags or emit specific optimized math routines (similar to Numba's `fastmath=True`).
 - [ ] **Statically Typed Dictionaries and Lists**
   - Similar to Numba's `typed.Dict` and `typed.List`, ensure the transpiler heavily favors resolving Python `dict` and `list` to homogeneous V maps and arrays whenever static typing can prove it, falling back to `map[string]Any` or `[]Any` only when strictly necessary.
 - [ ] **Array Expression Loop Fusion (Deforestation)**
@@ -80,18 +76,6 @@ Based on recent Python ecosystem developments (mypy, PyPy, Numba, NumPy, Nuitka,
   - Ensure that Python classes (which are pass-by-reference) map appropriately to V structs passed as pointers `&T` when mutation inside functions is required, mirroring Numba's `StructRef`.
 - [ ] **Dead Branch Pruning based on Semantic Constants**
   - Implement an AST rewriting pass that evaluates constant boolean expressions at transpilation time to skip generating V code for unreachable branches (e.g., `if sys.platform == 'win32':`).
-
-## From NumPy Changelogs (Array Semantics & APIs)
-- [ ] **Transpile-time Deprecation Warnings**
-  - Have the transpiler detect usages of recently deprecated NumPy APIs (e.g. `np.trapz`, `np.in1d`, positional `out` arguments) and emit compiler warnings encouraging the user to upgrade to their modern equivalents (e.g. `np.trapezoid`, `np.isin`, keyword `out=`).
-- [ ] **Hash-based `np.unique` Optimization**
-  - NumPy recently optimized `np.unique` for strings and complex numbers using a hash table instead of sorting. When transpiling `np.unique(..., return_index=False, return_inverse=False, return_counts=False)`, evaluate using V's maps/sets for O(N) deduplication rather than sorting, if the output order isn't required by the specific context.
-- [ ] **Support `ndmax` in Array Creation**
-  - Ensure any transpilation of `np.array(..., ndmax=N)` correctly bounds the recursion depth of nested lists/arrays to match the new NumPy 2.4 behavior.
-- [ ] **`__numpy_dtype__` Protocol Handling**
-  - Add logic in the type mapping layer to prefer `__numpy_dtype__` over `.dtype` when determining the static type of user-defined array-like classes.
-- [ ] **Iterator `ndindex` Optimizations**
-  - Transpile `np.ndindex` iteration into flat, product-based nested loops internally, rather than creating Python-style iterator objects, mirroring NumPy's recent internal refactor using `itertools.product`.
 
 ## From Nuitka Changelogs (Compilation & Static Optimizations)
 - [ ] **Loop Type Shape Analysis**
