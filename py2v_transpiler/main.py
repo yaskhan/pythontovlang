@@ -55,6 +55,15 @@ def transpile_file(source_file: str, config: TranspilerConfig) -> bool:
     # Run basic AST visitor for type inference regardless of mypy
     analyzer.visit(tree)
 
+    if config.warn_dynamic:
+        for key, v_type in analyzer.type_map.items():
+            if v_type == "Any":
+                if "@" in key:
+                    fullname, loc = key.split("@", 1)
+                    print(f"Warning: Dynamic 'Any' type fallback at {source_file}:{loc} for '{fullname}'")
+                else:
+                    print(f"Warning: Dynamic 'Any' type fallback for variable '{key}' in {source_file}")
+
     # 4. Translate
     translator = VNodeVisitor(analyzer)
     try:
@@ -91,6 +100,7 @@ def main():
     parser.add_argument("--analyze-deps", action="store_true", help="Analyze dependencies (for directories)")
     parser.add_argument("--recursive", "-r", action="store_true", help="Recursively process directories")
     parser.add_argument("--no-mypy", action="store_true", help="Disable Mypy type analysis")
+    parser.add_argument("--warn-dynamic", action="store_true", help="Warn when falling back to dynamic Any type")
 
     args = parser.parse_args()
 
@@ -112,7 +122,7 @@ def main():
             print(f"{file}: {', '.join(deps) if deps else 'No imports'}")
         return
 
-    config = TranspilerConfig(mypy_enabled=not args.no_mypy)
+    config = TranspilerConfig(mypy_enabled=not args.no_mypy, warn_dynamic=args.warn_dynamic)
 
     if os.path.isfile(path):
         if not path.endswith(".py"):
