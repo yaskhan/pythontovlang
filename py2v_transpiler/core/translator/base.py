@@ -26,6 +26,7 @@ class TranslatorBase(ast.NodeVisitor):
         self.current_class_bases: List[str] = []
         self.current_class_is_unittest: bool = False
         self._zip_counter: int = 0
+        self.defined_classes: Dict[str, bool] = {}
         self.used_builtins: Set[str] = set()
         self.used_complex: bool = False
         self.used_list_concat: bool = False

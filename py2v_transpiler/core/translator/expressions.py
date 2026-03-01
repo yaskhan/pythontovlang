@@ -267,26 +267,29 @@ class ExpressionsMixin(TranslatorBase):
         if func_name_str in self.renamed_functions:
             func_name_str = self.renamed_functions[func_name_str]
 
+        # Extract mypy plugin signature if available for this call
+        loc_key = f"{getattr(node, 'lineno', 0)}:{getattr(node, 'col_offset', 0)}"
+        call_sig = None
+        if hasattr(self.type_inference, "call_signatures"):
+            for k, v in self.type_inference.call_signatures.items():
+                if k.endswith(f".{func_name_str}@{loc_key}"):
+                    call_sig = v
+                    break
+            if not call_sig:
+                for k, v in self.type_inference.call_signatures.items():
+                    if k.endswith(f"@{loc_key}"):
+                        if func_name_str in k:
+                            call_sig = v
+                            break
+            if not call_sig:
+                for k, v in self.type_inference.call_signatures.items():
+                    if k == loc_key:
+                        call_sig = v
+                        break
+
         # Handle overloaded functions
         if func_name_str in getattr(self, "overloaded_signatures", {}):
             # We need to find the correct overload variant
-            loc_key = f"{getattr(node, 'lineno', 0)}:{getattr(node, 'col_offset', 0)}"
-            call_sig = None
-
-            if hasattr(self.type_inference, "call_signatures"):
-                # Try finding by full location (which includes module name) or just line/col
-                for k, v in self.type_inference.call_signatures.items():
-                    # We need to ensure we don't accidentally match another module's function at the same line/col
-                    if k.endswith(f".{func_name_str}@{loc_key}"):
-                        call_sig = v
-                        break
-                if not call_sig:
-                    for k, v in self.type_inference.call_signatures.items():
-                        if k.endswith(f"@{loc_key}"):
-                            # if no exact match on name, try at least matching loc, but verify it's the right func
-                            if func_name_str in k:
-                                call_sig = v
-                                break
 
             type_suffix_parts = []
             if call_sig and "args" in call_sig:
@@ -361,6 +364,22 @@ class ExpressionsMixin(TranslatorBase):
                      struct_args.append(f"{keyword.arg}: {kw_val_str}")
 
             return f"{func_name_str}{{{', '.join(struct_args)}}}"
+
+        # Handle standard class instantiation
+        is_class = False
+        has_init = False
+        if call_sig and "is_class" in call_sig:
+            is_class = call_sig["is_class"]
+            has_init = call_sig.get("has_init", False)
+        elif hasattr(self, 'defined_classes') and func_name_str in self.defined_classes:
+            is_class = True
+            has_init = self.defined_classes[func_name_str]
+
+        if is_class:
+            if has_init:
+                return f"new_{func_name_str}({', '.join(args)})"
+            else:
+                return f"{func_name_str}{{{', '.join(args)}}}"
 
         # Handle builtins handled by old logic (print, sorted, etc)
         # Note: 'open', 'hasattr' are handled above or fall through if not matched.

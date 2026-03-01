@@ -29,9 +29,22 @@ class VlangPlugin(Plugin):
                     for arg in arg_list:
                         args.append(str(arg))
 
+                is_class = False
+                has_init = False
+                try:
+                    from mypy.types import Instance
+                    if isinstance(ctx.default_return_type, Instance):
+                        type_info = ctx.default_return_type.type
+                        is_class = type_info.fullname == fullname
+                        has_init = '__init__' in type_info.names
+                except Exception:
+                    pass
+
                 sig_data = {
                     "args": args,
-                    "return": str(ctx.default_return_type)
+                    "return": str(ctx.default_return_type),
+                    "is_class": is_class,
+                    "has_init": has_init
                 }
                 self.collected_sigs[fullname][key] = json.dumps(sig_data)
 
@@ -49,9 +62,22 @@ class VlangPlugin(Plugin):
                     for arg in arg_list:
                         args.append(str(arg))
 
+                is_class = False
+                has_init = False
+                try:
+                    from mypy.types import Instance
+                    if isinstance(ctx.default_return_type, Instance):
+                        type_info = ctx.default_return_type.type
+                        is_class = type_info.fullname == fullname
+                        has_init = '__init__' in type_info.names
+                except Exception:
+                    pass
+
                 sig_data = {
                     "args": args,
-                    "return": str(ctx.default_return_type)
+                    "return": str(ctx.default_return_type),
+                    "is_class": is_class,
+                    "has_init": has_init
                 }
                 self.collected_sigs[fullname][key] = json.dumps(sig_data)
 
