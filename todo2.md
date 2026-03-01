@@ -410,7 +410,7 @@ Based on the transpilation of the `bm_deltablue.py` benchmark, several critical 
   - *Context:* While factory functions like `new_Strength` are generated, some instantiations are emitted as `Strength(0, 'required')` which fails to compile in V.
   - *Task:* Ensure that all class instantiation AST nodes consistently map to either `new_ClassName(...)` or `ClassName{...}`.
 
-- [ ] **Type Casts to `float`**
+- [x] **Type Casts to `float`**
   - *Context:* Python's `float(j)` is emitted directly as `float(j)`.
   - *Task:* Map the Python `float` builtin explicitly to V's `f64` (i.e., `f64(j)`).
 
