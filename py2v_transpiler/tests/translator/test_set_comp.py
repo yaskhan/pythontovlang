@@ -9,7 +9,9 @@ def transpile(code):
     # Pre-analyze types for robust inference
     analyzer.visit(tree)
     translator = VNodeVisitor(analyzer)
-    return translator.visit_Module(tree)
+    v_code = translator.visit_Module(tree)
+    helpers = translator.emitter.emit_helpers()
+    return v_code + "\n" + helpers
 
 def test_set_comprehension():
     code = """

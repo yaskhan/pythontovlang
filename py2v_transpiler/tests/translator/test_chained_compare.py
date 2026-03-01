@@ -7,7 +7,9 @@ def transpile(code):
     analyzer = TypeInference()
     translator = VNodeVisitor(analyzer)
     tree = ast.parse(code)
-    return translator.visit_Module(tree)
+    v_code = translator.visit_Module(tree)
+    helpers = translator.emitter.emit_helpers()
+    return v_code + "\n" + helpers
 
 def test_chained_compare_int():
     code = """

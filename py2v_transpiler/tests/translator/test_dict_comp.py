@@ -9,7 +9,9 @@ def transpile(code):
     # Pre-analyze types
     analyzer.visit(tree)
     translator = VNodeVisitor(analyzer)
-    return translator.visit_Module(tree)
+    v_code = translator.visit_Module(tree)
+    helpers = translator.emitter.emit_helpers()
+    return v_code + "\n" + helpers
 
 def test_dict_comp_simple():
     code = "d = {x: x*2 for x in range(5)}"

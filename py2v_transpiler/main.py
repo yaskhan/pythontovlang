@@ -68,6 +68,7 @@ def transpile_file(source_file: str, config: TranspilerConfig) -> bool:
     translator = VNodeVisitor(analyzer)
     try:
         v_code_intermediate = translator.visit_Module(tree)
+        v_code_helpers = translator.emitter.emit_helpers()
     except Exception as e:
         print(f"Translation error in {source_file}: {e}")
         # import traceback; traceback.print_exc()
@@ -75,13 +76,22 @@ def transpile_file(source_file: str, config: TranspilerConfig) -> bool:
 
     # 5. Output
     output_file = os.path.splitext(source_file)[0] + ".v"
+    output_dir = os.path.dirname(output_file)
+    base_name = os.path.basename(source_file).split('.')[0]
+    helpers_file = os.path.join(output_dir, f"{base_name}_helpers.v")
     try:
         with open(output_file, "w", encoding="utf-8") as f:
             f.write(v_code_intermediate)
-        print(f"Success: {output_file}")
+
+        # Always write helpers file because the main file depends on the `Any` type definition
+        # which is generated in the helpers file.
+        with open(helpers_file, "w", encoding="utf-8") as f:
+            f.write(v_code_helpers)
+        print(f"Success: {output_file} (and {helpers_file})")
+
         return True
     except Exception as e:
-        print(f"Error writing {output_file}: {e}")
+        print(f"Error writing {output_file} or helpers: {e}")
         return False
 
 def process_directory(path: str, config: TranspilerConfig, recursive: bool) -> None:

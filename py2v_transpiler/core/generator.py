@@ -7,18 +7,35 @@ class VCodeEmitter:
         self.functions: List[str] = []
         self.main_body: List[str] = []
 
+        self.helper_imports: List[str] = []
+        self.helper_structs: List[str] = []
+        self.helper_functions: List[str] = []
+
     def add_import(self, module_name: str) -> None:
         """Adds an import to the module."""
         if module_name not in self.imports:
             self.imports.append(module_name)
 
+    def add_helper_import(self, module_name: str) -> None:
+        """Adds an import to the helpers module."""
+        if module_name not in self.helper_imports:
+            self.helper_imports.append(module_name)
+
     def add_struct(self, struct_def: str) -> None:
         """Adds a struct definition."""
         self.structs.append(struct_def)
 
+    def add_helper_struct(self, struct_def: str) -> None:
+        """Adds a struct definition to helpers."""
+        self.helper_structs.append(struct_def)
+
     def add_function(self, func_def: str) -> None:
         """Adds a function definition."""
         self.functions.append(func_def)
+
+    def add_helper_function(self, func_def: str) -> None:
+        """Adds a function definition to helpers."""
+        self.helper_functions.append(func_def)
 
     def add_main_statement(self, stmt: str) -> None:
         """Adds a statement to the main function body."""
@@ -27,9 +44,6 @@ class VCodeEmitter:
     def emit(self) -> str:
         """Generates the full V source code."""
         lines = ["module main\n"]
-
-        # Define custom Any type
-        lines.append("type Any = bool | int | i64 | f64 | string | []u8")
 
         if self.imports:
             for imp in self.imports:
@@ -49,5 +63,27 @@ class VCodeEmitter:
             # Indent main body
             lines.extend(["    " + line for line in self.main_body])
             lines.append("}")
+
+        return "\n".join(lines)
+
+    def emit_helpers(self) -> str:
+        """Generates the V source code for helpers."""
+        lines = ["module main\n"]
+
+        # Define custom Any type
+        lines.append("type Any = bool | int | i64 | f64 | string | []u8\n")
+
+        if self.helper_imports:
+            for imp in self.helper_imports:
+                lines.append(f"import {imp}")
+            lines.append("")
+
+        if self.helper_structs:
+            lines.extend(self.helper_structs)
+            lines.append("")
+
+        if self.helper_functions:
+            lines.extend(self.helper_functions)
+            lines.append("")
 
         return "\n".join(lines)
