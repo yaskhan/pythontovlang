@@ -18,8 +18,11 @@ class MockTypeInference:
             return self.type_map.get(node.id, "void")
         return "void"
 
-class _TestTranslator(ClassesMixin, VariablesMixin, FunctionsMixin, ExpressionsMixin, LiteralsMixin):
+from py2v_transpiler.core.translator.base import TranslatorBase
+
+class _TestTranslator(ClassesMixin, VariablesMixin, FunctionsMixin, ExpressionsMixin, LiteralsMixin, TranslatorBase):
     def __init__(self):
+        super().__init__(type_inference=MockTypeInference())
         self.output = []
         self.emitter = VCodeEmitter()
         self.coroutine_handler = CoroutineHandler()
