@@ -418,6 +418,6 @@ Based on the transpilation of the `bm_deltablue.py` benchmark, several critical 
   - *Context:* Magic methods are emitted with their literal names (e.g., `fn (self Plan) __len__() int`).
   - *Task:* Transpile `__len__` to V's idiomatic `.len()` methods (or expose as a length property) and `__getitem__` to V's index operator overloading (e.g., `fn (self Plan) idx(index int) Constraint`).
 
-- [ ] **`None` Initialization**
+- [x] **`None` Initialization**
   - *Context:* `planner = None` emits `planner := none`, which is invalid in V without an explicit Option type (`?Type`).
   - *Task:* Enforce that variables initialized to `None` are explicitly typed as V Optionals (e.g., `mut planner := ?Planner(none)` or fallback to `?Any(none)`).
