@@ -402,7 +402,7 @@ Based on the transpilation of the `bm_deltablue.py` benchmark, several critical 
   - *Context:* `OrderedCollection = list` defaults to `type OrderedCollection = []int`, which fails when the list is meant to hold objects like `Constraint` or `Variable`.
   - *Task:* Improve type inference for type aliases of collections by analyzing append/usage sites, or fallback to `[]Any` (or the sum type) when the inner type cannot be statically resolved.
 
-- [ ] **Base `object` Class Cleanup**
+- [x] **Base `object` Class Cleanup**
   - *Context:* `class Strength(object):` results in `struct Strength { object }`, but `object` is not a standard type in V.
   - *Task:* Automatically strip `object` from the base class list during struct generation.
 
