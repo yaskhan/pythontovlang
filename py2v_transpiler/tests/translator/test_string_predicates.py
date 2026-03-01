@@ -65,3 +65,8 @@ def test_string_predicates_case_level():
 def test_string_predicates_literals():
     assert translate_expr("'123'.isdigit()") == "'123'.bytes().all(it.is_digit())"
     assert translate_expr("'abc'.isalpha()") == "'abc'.bytes().all(it.is_letter())"
+
+def test_string_predicates_startswith_endswith_tuple():
+    assert translate_expr("s.startswith(('a', 'b'))") == "(s.starts_with('a') || s.starts_with('b'))"
+    assert translate_expr("s.endswith(('x', 'y', 'z'))") == "(s.ends_with('x') || s.ends_with('y') || s.ends_with('z'))"
+    assert translate_expr("'hello'.startswith(('he', 'ha'))") == "('hello'.starts_with('he') || 'hello'.starts_with('ha'))"
