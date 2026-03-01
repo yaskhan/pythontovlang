@@ -90,10 +90,11 @@ def transpile_file(source_file: str, config: TranspilerConfig, global_helpers: O
     translator = VNodeVisitor(analyzer)
     try:
         v_code_intermediate = translator.visit_Module(tree)
-        if global_helpers is not None:
-            global_helpers.merge(translator)
-        else:
-            v_code_helpers = translator.emitter.emit_helpers()
+        if not config.no_helpers:
+            if global_helpers is not None:
+                global_helpers.merge(translator)
+            else:
+                v_code_helpers = translator.emitter.emit_helpers()
     except Exception as e:
         print(f"Translation error in {source_file}: {e}")
         # import traceback; traceback.print_exc()
@@ -104,18 +105,32 @@ def transpile_file(source_file: str, config: TranspilerConfig, global_helpers: O
     output_dir = os.path.dirname(output_file)
 
     try:
-        with open(output_file, "w", encoding="utf-8") as f:
-            f.write(v_code_intermediate)
+        if not config.helpers_only:
+            with open(output_file, "w", encoding="utf-8") as f:
+                f.write(v_code_intermediate)
 
         if global_helpers is None:
             # Standalone mode: write a helpers file specific to this script
-            base_name = os.path.basename(source_file).split('.')[0]
-            helpers_file = os.path.join(output_dir, f"{base_name}_helpers.v")
-            with open(helpers_file, "w", encoding="utf-8") as f:
-                f.write(v_code_helpers)
-            print(f"Success: {output_file} (and {helpers_file})")
+            if not config.no_helpers:
+                base_name = os.path.basename(source_file).split('.')[0]
+                helpers_file = os.path.join(output_dir, f"{base_name}_helpers.v")
+                with open(helpers_file, "w", encoding="utf-8") as f:
+                    f.write(v_code_helpers)
+
+                if not config.helpers_only:
+                    print(f"Success: {output_file} (and {helpers_file})")
+                else:
+                    print(f"Success: generated {helpers_file}")
+            else:
+                print(f"Success: {output_file}")
         else:
-            print(f"Success: {output_file}")
+            # In directory processing mode, we defer helpers writing to the caller.
+            # But we should respect `--no-helpers` by not merging.
+            if config.no_helpers:
+                pass # Already skipped merging effectively, or actually we merged it above. Wait, if config.no_helpers we shouldn't merge. Let's fix above too!
+
+            if not config.helpers_only:
+                print(f"Success: {output_file}")
 
         return True
     except Exception as e:
@@ -133,7 +148,7 @@ def process_directory(path: str, config: TranspilerConfig, recursive: bool) -> N
                 if transpile_file(full_path, config, global_helpers):
                     processed_files += 1
 
-        if processed_files > 0:
+        if processed_files > 0 and not config.no_helpers:
             helpers_file = os.path.join(root, "py2v_helpers.v")
             global_helpers.write(helpers_file)
 
@@ -147,6 +162,8 @@ def main():
     parser.add_argument("--recursive", "-r", action="store_true", help="Recursively process directories")
     parser.add_argument("--no-mypy", action="store_true", help="Disable Mypy type analysis")
     parser.add_argument("--warn-dynamic", action="store_true", help="Warn when falling back to dynamic Any type")
+    parser.add_argument("--no-helpers", action="store_true", help="Do not generate a helper V file")
+    parser.add_argument("--helpers-only", action="store_true", help="Only generate the helper V file (do not transpile individual scripts)")
 
     args = parser.parse_args()
 
@@ -168,7 +185,12 @@ def main():
             print(f"{file}: {', '.join(deps) if deps else 'No imports'}")
         return
 
-    config = TranspilerConfig(mypy_enabled=not args.no_mypy, warn_dynamic=args.warn_dynamic)
+    config = TranspilerConfig(
+        mypy_enabled=not args.no_mypy,
+        warn_dynamic=args.warn_dynamic,
+        no_helpers=args.no_helpers,
+        helpers_only=args.helpers_only
+    )
 
     if os.path.isfile(path):
         if not path.endswith(".py"):
