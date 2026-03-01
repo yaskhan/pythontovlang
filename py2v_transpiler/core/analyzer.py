@@ -11,6 +11,7 @@ class TypeInference(ast.NodeVisitor):
     def __init__(self):
         self.type_map: Dict[str, str] = {}
         self.location_map: Dict[str, str] = {}
+        self.call_signatures: Dict[str, Dict[str, Any]] = {}
 
     def analyze(self, tree: ast.AST) -> Dict[str, str]:
         """Analyzes the AST to infer variable types."""
@@ -88,17 +89,21 @@ class TypeInference(ast.NodeVisitor):
             try:
                 import py2v_transpiler.core.mypy_plugin as m_p
                 m_p._global_collected_types.clear()
+                m_p._global_collected_sigs.clear()
             except ImportError:
                 pass
 
             result, error, exit_code = mypy_api_module.run([path, '--config-file', config_path])
 
             collected_types = None
+            collected_sigs = None
             # First try to read from the memory (global state injected by the plugin)
             try:
                 import py2v_transpiler.core.mypy_plugin as m_p
                 if m_p._global_collected_types:
                     collected_types = dict(m_p._global_collected_types)
+                if m_p._global_collected_sigs:
+                    collected_sigs = dict(m_p._global_collected_sigs)
             except ImportError:
                 pass
 
@@ -123,6 +128,17 @@ class TypeInference(ast.NodeVisitor):
                         # Populate location_map for O(1) lookups by location (handling potential float vs int overloads)
                         if 'builtins.float' in fullname or location not in self.location_map:
                              self.location_map[location] = v_type
+
+            if collected_sigs:
+                for fullname, sigs in collected_sigs.items():
+                    for location, sig_json in sigs.items():
+                        try:
+                            sig_data = json.loads(sig_json)
+                            # the function name itself is usually enough, but we store full location too
+                            self.call_signatures[f"{fullname}@{location}"] = sig_data
+                            self.call_signatures[location] = sig_data
+                        except Exception:
+                            pass
 
             if os.path.exists("types_for_vlang.json"):
                 try:

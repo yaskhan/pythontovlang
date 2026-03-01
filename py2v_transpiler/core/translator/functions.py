@@ -1,5 +1,5 @@
 import ast
-from typing import Any, List, Optional
+from typing import Any, List, Optional, Dict
 from py2v_transpiler.models.v_types import map_python_type_to_v
 from .base import TranslatorBase
 
@@ -12,11 +12,62 @@ class FunctionsMixin(TranslatorBase):
 
     def _visit_function_common(self, node: Any, is_async: bool = False) -> None:
         # Check for @overload
+        is_overload = False
         for decorator in node.decorator_list:
             if isinstance(decorator, ast.Name) and decorator.id == 'overload':
-                return
+                is_overload = True
+                break
             if isinstance(decorator, ast.Attribute) and decorator.attr == 'overload':
-                return
+                is_overload = True
+                break
+
+        if is_overload:
+            # Store the signature but do not generate a function yet
+            sig: Dict[str, Any] = {
+                "args": [],
+                "return": "void"
+            }
+            ov_struct_name = self.current_class if self.current_class else ""
+
+            # Extract arguments
+            args = node.args.args
+            if hasattr(node.args, 'posonlyargs'):
+                 args = node.args.posonlyargs + args
+            if hasattr(node.args, 'kwonlyargs'):
+                 args = args + node.args.kwonlyargs
+
+            # Handle self
+            is_method = self.current_class is not None
+            if is_method and args and args[0].arg == "self":
+                args = args[1:]
+
+            for arg in args:
+                arg_name = arg.arg
+                if arg.annotation:
+                    try:
+                        type_str = ast.unparse(arg.annotation)
+                        arg_type = map_python_type_to_v(type_str, self_name=ov_struct_name or "Self")
+                    except Exception:
+                        arg_type = self.type_inference.type_map.get(arg_name, "int")
+                else:
+                    arg_type = self.type_inference.type_map.get(arg_name, "int")
+                sig["args"].append({"name": arg_name, "type": arg_type})
+
+            # Extract return type
+            if node.returns:
+                 try:
+                     type_str = ast.unparse(node.returns)
+                     sig["return"] = map_python_type_to_v(type_str, self_name=ov_struct_name or "Self")
+                 except:
+                     if isinstance(node.returns, ast.Name):
+                          sig["return"] = node.returns.id
+                     elif isinstance(node.returns, ast.Constant) and isinstance(node.returns.value, str):
+                          sig["return"] = node.returns.value
+
+            if node.name not in self.overloaded_signatures:
+                self.overloaded_signatures[node.name] = []
+            self.overloaded_signatures[node.name].append(sig)
+            return
 
         # Check for @singledispatch
         for decorator in node.decorator_list:
@@ -226,6 +277,13 @@ class FunctionsMixin(TranslatorBase):
 
         if not is_unittest_method:
             func_name = node.name
+
+            # Check if this is the implementation of an overloaded function
+            if func_name in self.overloaded_signatures and not is_new_method:
+                # We need to generate a variant for each overload signature
+                self._generate_overload_variants(node, struct_name, is_method, dec_info, is_generator)
+                return
+
             self.function_names.add(func_name)
 
             # Descriptor protocol renaming
@@ -325,6 +383,92 @@ class FunctionsMixin(TranslatorBase):
         self.emitter.add_function("\n".join(self.output))
 
         self.output = old_output
+
+    def _generate_overload_variants(self, node: Any, struct_name: str, is_method: bool, dec_info: Any, is_generator: bool) -> None:
+        """Generates V functions for each @overload signature using the implementation body."""
+        for sig in self.overloaded_signatures[node.name]:
+            old_output = self.output
+            self.output = []
+            self._indent_level = 0
+
+            args_str_list: List[str] = []
+            receiver_str: str = ""
+            args_names: List[str] = []
+
+            if is_generator:
+                yield_type = self.coroutine_handler.get_yield_type(node)
+                args_str_list.append(f"ch_out chan ?{yield_type}")
+                args_str_list.append(f"ch_in chan PyGeneratorInput")
+                self.coroutine_handler.enter_generator("ch_out", "ch_in")
+
+            if is_method and not dec_info.is_static:
+                # Add self
+                args = node.args.args
+                if hasattr(node.args, 'posonlyargs'):
+                     args = node.args.posonlyargs + args
+                if args and args[0].arg == "self":
+                    if self.current_class_generics:
+                        gen_str = f"[{', '.join(self.current_class_generics)}]"
+                        receiver_str = f"({args[0].arg} {struct_name}{gen_str}) "
+                    else:
+                        receiver_str = f"({args[0].arg} {struct_name}) "
+
+            # Generate mangled name based on argument types
+            type_suffix_parts = []
+            for arg in sig["args"]:
+                arg_name = arg["name"]
+                arg_type = arg["type"]
+                args_str_list.append(f"{arg_name} {arg_type}")
+                args_names.append(arg_name)
+                # Clean up type for name mangling (e.g. ?int -> opt_int, []string -> arr_string)
+                clean_type = arg_type.replace("?", "opt_").replace("[]", "arr_").replace("[", "_").replace("]", "").replace(".", "_")
+                type_suffix_parts.append(clean_type)
+
+            args_str = ", ".join(args_str_list)
+            ret_type = sig["return"]
+
+            base_func_name = node.name
+            if self.current_class:
+                base_func_name = self._mangle_name(base_func_name, self.current_class)
+
+            if type_suffix_parts:
+                func_name = f"{base_func_name}_{'_'.join(type_suffix_parts)}"
+            else:
+                func_name = f"{base_func_name}_noargs"
+
+            self.function_names.add(func_name)
+
+            decl = f"fn {receiver_str}{func_name}({args_str}) {ret_type} {{"
+            if ret_type == "void":
+                 decl = f"fn {receiver_str}{func_name}({args_str}) {{"
+
+            self.output.append(decl)
+            self._indent_level += 1
+
+            # Note: We are using the implementation body, but its local types might need casts
+            # However, the V compiler handles explicit interfaces or generic returns if valid.
+            body = node.body
+            if body and isinstance(body[0], ast.Expr) and isinstance(body[0].value, ast.Constant) and isinstance(body[0].value.value, str):
+                 doc = body[0].value.value.strip()
+                 for line in doc.splitlines():
+                     self.output.append(f"{self._indent()}// {line}")
+                 body = body[1:]
+
+            if is_generator:
+                 self.output.append(f"{self._indent()}_ := <-{self.coroutine_handler.active_in_channel}")
+
+            for stmt in body:
+                self.visit(stmt)
+
+            if is_generator:
+                self.output.append(f"{self._indent()}{self.coroutine_handler.active_channel}.close()")
+                self.coroutine_handler.exit_generator()
+
+            self._indent_level -= 1
+            self.output.append("}")
+
+            self.emitter.add_function("\n".join(self.output))
+            self.output = old_output
 
     def visit_Lambda(self, node: ast.Lambda) -> str:
         # lambda args: expr -> fn (args) { return expr }

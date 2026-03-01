@@ -1,5 +1,5 @@
 import ast
-from typing import Any, List, Optional, Dict
+from typing import Any, List, Optional, Dict, Set
 
 from py2v_transpiler.models.v_types import map_python_type_to_v
 from py2v_transpiler.core.generator import VCodeEmitter
@@ -27,7 +27,7 @@ class VNodeVisitor(
     TranslatorBase
 ):
     def __init__(self, type_inference):
-        self.type_inference = type_inference
+        super().__init__(type_inference)
         self.decorator_processor = DecoratorProcessor(self)
         self.coroutine_handler = CoroutineHandler()
         # Use emitter for structured output
