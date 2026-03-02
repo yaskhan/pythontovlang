@@ -484,7 +484,7 @@ Based on the transpilation of the `primes.py` benchmark, several critical areas 
 ## Analysis of `bm_spectral_norm.py` Transpilation Issues
 Based on the transpilation of the `bm_spectral_norm.py` benchmark, several critical areas for improvement have been identified:
 
-- [ ] **Parentheses Dropped in Binary Operations**
+- [x] **Parentheses Dropped in Binary Operations**
   - *Context:* The Python expression `(i + j) * (i + j + 1) // 2` is transpiled to `int(math.floor(f64(i + j * i + j + 1) / f64(2)))`, completely dropping the required parentheses and changing the mathematical logic.
   - *Task:* Ensure that AST grouping parentheses are preserved or reconstructed during binary operation transpilation.
 
