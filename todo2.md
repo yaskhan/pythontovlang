@@ -438,3 +438,29 @@ Based on the transpilation of the `bm_raytrace.py` benchmark, several critical a
 - [x] **Class Instantiation Fallbacks in Method Returns**
   - *Context:* Inside methods like `__add__` and `__sub__`, the transpiled code emits returns like `return Point(...)` instead of `return new_Point(...)` or `return Point{...}`, which fails to compile in V because `Point(...)` is invalid syntax for struct initialization or function calls unless it's a cast.
   - *Task:* Ensure that instantiation of objects within internal methods correctly tracks class names and forces `new_ClassName(...)` or `ClassName{...}` syntax as it does in standard assignments.
+## Analysis of `bm_spectral_norm.py` Transpilation Issues
+Based on the transpilation of the `bm_spectral_norm.py` benchmark, several critical areas for improvement have been identified:
+
+- [ ] **Parentheses Dropped in Binary Operations**
+  - *Context:* The Python expression `(i + j) * (i + j + 1) // 2` is transpiled to `int(math.floor(f64(i + j * i + j + 1) / f64(2)))`, completely dropping the required parentheses and changing the mathematical logic.
+  - *Task:* Ensure that AST grouping parentheses are preserved or reconstructed during binary operation transpilation.
+
+- [ ] **Inline List Comprehensions**
+  - *Context:* `[func((i, u)) for i in xrange(len(list(u)))]` emits `// List comprehension expression not supported inline yet` and returns `None` (which is invalid in V).
+  - *Task:* Implement full support for inline list comprehensions, either mapping them to V's array methods (`.map()`, `.filter()`) or extracting them into inline closures or helper variables.
+
+- [ ] **List Replication (`[x] * N`)**
+  - *Context:* `[1] * DEFAULT_N` is emitted directly as `[1] * DEFAULT_N`, which is not valid V array repetition syntax.
+  - *Task:* Transpile Python list repetition into V's array initialization syntax with `len` and `init` (e.g., `[]int{len: DEFAULT_N, init: 1}`).
+
+- [ ] **`six.moves` and `itertools` Compatibility**
+  - *Context:* Functions `xrange` and `izip` from `six.moves` are emitted directly without mapping, causing undefined function errors in V.
+  - *Task:* Map `xrange` to V ranges (e.g., `0 .. loops`) or a range generator. Map `izip` (and `zip`) to V's `arrays.zip()` or handle simultaneous iteration natively.
+
+- [ ] **Destructuring in `for` loops**
+  - *Context:* `for ue, ve in izip(u, v):` emits `for [ue, ve] in izip(u, v) {`, which is invalid V syntax.
+  - *Task:* Fix tuple unpacking syntax inside V `for` loop assignments, likely requiring translation to indexed loops or `arrays.zip()`.
+
+- [ ] **`time.time()` Precision Mapping**
+  - *Context:* `time.time()` maps to `time.now().unix()`, returning an integer (seconds), losing the fractional millisecond precision expected in Python benchmarking.
+  - *Task:* Map `time.time()` to a V equivalent that returns an `f64` timestamp, such as `f64(time.now().unix_time_milli()) / 1000.0`.
