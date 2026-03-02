@@ -1,9 +1,9 @@
 import ast
-from typing import List, Optional, Any
+from typing import List, Optional, Any, Union
 from ..base import TranslatorBase
 
 class ComprehensionsMixin(TranslatorBase):
-    def visit_ListComp(self, node: ast.ListComp, target_var: Optional[str] = None) -> Optional[str]:
+    def visit_ListComp(self, node: Union[ast.ListComp, ast.GeneratorExp], target_var: Optional[str] = None) -> Optional[str]:
         is_inline = False
         if target_var is None:
             is_inline = True
