@@ -31,7 +31,7 @@ from typing import Final
 x: Final[int] = 10
 """
     v_code = translate(source)
-    assert "x := 10" in v_code
+    assert "x = 10" in v_code
 
 def test_typing_class_var():
     source = """
