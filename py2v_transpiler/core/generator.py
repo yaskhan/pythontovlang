@@ -65,10 +65,6 @@ class VCodeEmitter:
         """Adds a statement to the main function body."""
         self.main_body.append(stmt)
 
-    def add_init_statement(self, stmt: str) -> None:
-        """Adds a statement to the init function body."""
-        self.init_body.append(stmt)
-
     def emit(self) -> str:
         """Generates the full V source code."""
         lines = ["module main\n"]
