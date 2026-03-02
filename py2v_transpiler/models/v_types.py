@@ -86,6 +86,11 @@ def _map_ast_type(node: ast.AST, self_name: str = "Self", allow_union: bool = Fa
                 return f"map[{mapped_args[0]}]{mapped_args[1]}"
             return "map[string]int" # fallback
 
+        elif value_id in ('IO', 'TextIO'):
+            if len(mapped_args) >= 1 and mapped_args[0] == 'string':
+                return "&strings.Builder"
+            return "os.File"
+
         elif value_id == 'Tuple':
             # Tuple[int, ...] -> []int
             if len(mapped_args) == 2 and mapped_args[1] == '...':
@@ -197,6 +202,9 @@ def _map_basic_type(name: str) -> str:
         'IO': 'os.File',
         'TextIO': 'os.File',
         'BinaryIO': 'os.File',
+        'StringIO': 'strings.Builder',
+        'io.StringIO': 'strings.Builder',
+        'six.moves.StringIO': 'strings.Builder',
         'NoReturn': 'void',
         'builtins.int': 'int',
         'builtins.float': 'f64',
