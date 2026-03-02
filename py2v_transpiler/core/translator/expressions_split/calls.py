@@ -69,6 +69,12 @@ class CallsMixin(TranslatorBase):
                  module_name = "builtins" # synthetic
                  func_name = func_node.id
 
+        if module_name == "six":
+            if func_name == "u" and len(args) == 1:
+                return args[0]
+            elif func_name == "text_type" and len(args) == 1:
+                return f"{args[0]}.str()"
+
         if module_name == "os" and func_name == "open":
              # Handle open() -> os.open()
              self.emitter.add_import("os")
