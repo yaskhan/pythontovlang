@@ -10,6 +10,60 @@ class TranslatorBase(ast.NodeVisitor):
     Base class for VNodeVisitor and its mixins.
     Defines shared state and helper methods.
     """
+    def _get_precedence(self, node: ast.AST) -> int:
+        """
+        Returns the standard Python operator precedence for AST nodes.
+        Higher number means tighter binding. Atoms get 100.
+        """
+        if isinstance(node, ast.BinOp):
+            op = type(node.op)
+        elif isinstance(node, ast.BoolOp):
+            op = type(node.op)
+        elif isinstance(node, ast.Compare):
+            op = type(node.ops[0])
+        elif isinstance(node, ast.UnaryOp):
+            op = type(node.op)
+        else:
+            return 100
+
+        precedences = {
+            ast.Or: 1, ast.And: 2, ast.Not: 3,
+            ast.In: 4, ast.NotIn: 4, ast.Is: 4, ast.IsNot: 4, ast.Lt: 4, ast.LtE: 4, ast.Gt: 4, ast.GtE: 4, ast.NotEq: 4, ast.Eq: 4,
+            ast.BitOr: 5, ast.BitXor: 6, ast.BitAnd: 7,
+            ast.LShift: 8, ast.RShift: 8,
+            ast.Add: 9, ast.Sub: 9,
+            ast.Mult: 10, ast.MatMult: 10, ast.Div: 10, ast.FloorDiv: 10, ast.Mod: 10,
+            ast.UAdd: 12, ast.USub: 12, ast.Invert: 12,
+            ast.Pow: 13,
+        }
+        return precedences.get(op, 0)
+
+    def _wrap_with_parens_if_needed(self, node: ast.AST, child_node: ast.AST, is_right: bool) -> bool:
+        """
+        Determines whether `child_node` needs grouping parentheses when used as a child
+        of `node`. Evaluates based on operator precedence and associativity.
+        """
+        op_prec = self._get_precedence(node)
+        child_prec = self._get_precedence(child_node)
+
+        if child_prec < op_prec:
+            # Exception: `**` and unary operators.
+            # In Python, `2 ** -1` is parsed as `Pow(2, USub(1))`.
+            # Even though Pow > USub (13 > 12), Python doesn't require parentheses for the right operand
+            # when it's a unary operator (e.g. `2**-1` is valid syntax).
+            if isinstance(node, ast.BinOp) and isinstance(node.op, ast.Pow) and isinstance(child_node, ast.UnaryOp):
+                if is_right:
+                    return False
+            return True
+
+        if child_prec == op_prec:
+            if isinstance(node, ast.BinOp) and isinstance(node.op, ast.Pow):
+                return not is_right
+            else:
+                return is_right
+
+        return False
+
     def __init__(self, type_inference: Any) -> None:
         self.type_inference = type_inference
         # These will be initialized in VNodeVisitor.__init__

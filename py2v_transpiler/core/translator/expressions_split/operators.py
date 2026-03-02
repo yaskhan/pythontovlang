@@ -19,6 +19,12 @@ class OperatorsMixin(TranslatorBase):
         left = self.visit(node.left)
         right = self.visit(node.right)
 
+        if self._wrap_with_parens_if_needed(node, node.left, False):
+            left = f"({left})"
+
+        if self._wrap_with_parens_if_needed(node, node.right, True):
+            right = f"({right})"
+
         # If mypy successfully inferred a concrete primitive numeric type (e.g. f64) for the operation,
         # and the operands' inferred types are not correctly matching or they are unknown ('Any'),
         # we can statically type the operator call by casting the operands.
