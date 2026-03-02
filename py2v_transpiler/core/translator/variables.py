@@ -4,6 +4,24 @@ from py2v_transpiler.models.v_types import map_python_type_to_v
 from .base import TranslatorBase
 
 class VariablesMixin(TranslatorBase):
+    def _is_compile_time_evaluable(self, node: ast.AST) -> bool:
+        """
+        Checks if an AST node represents a value that can be evaluated at compile time in V.
+        """
+        if isinstance(node, ast.Constant):
+            return True
+        if isinstance(node, ast.Name):
+            return node.id.isupper()
+        if isinstance(node, ast.UnaryOp):
+            return self._is_compile_time_evaluable(node.operand)
+        if isinstance(node, ast.BinOp):
+            return self._is_compile_time_evaluable(node.left) and self._is_compile_time_evaluable(node.right)
+        if isinstance(node, (ast.List, ast.Tuple, ast.Set)):
+            return all(self._is_compile_time_evaluable(elt) for elt in node.elts)
+        if isinstance(node, ast.Dict):
+            return all(self._is_compile_time_evaluable(k) for k in node.keys if k) and all(self._is_compile_time_evaluable(v) for v in node.values)
+        return False
+
     def visit_Assign(self, node: ast.Assign) -> None:
         target = node.targets[0]
         lhs = ""
@@ -68,9 +86,10 @@ class VariablesMixin(TranslatorBase):
                 # Check if LHS is capitalized (heuristic)
                 if lhs[0].isupper():
                      # Check if it was inferred by TypeInference (e.g. OrderedCollection = list)
-                     if hasattr(self, 'type_inference') and lhs in self.type_inference.type_map:
+                     if hasattr(self, 'type_inference') and lhs in self.type_inference.type_map and isinstance(node.value, ast.Name):
                           is_type_alias = True
                           type_alias_val = self.type_inference.type_map[lhs]
+
                      else:
                           # Try to map RHS as a type
                           try:
@@ -254,6 +273,15 @@ class VariablesMixin(TranslatorBase):
             # Determine type
             v_type = getattr(self, "_guess_type", lambda x: "unknown")(target)
 
+            # Update type map on normal assignment if type is unknown or we have a literal
+            if isinstance(target, ast.Name):
+                assigned_type = getattr(self, "_guess_type", lambda x: "unknown")(node.value)
+                if assigned_type != "unknown" and assigned_type != "int":
+                    if hasattr(self, 'type_inference') and hasattr(self.type_inference, 'type_map'):
+                        # If not already statically typed, save the literal assigned type
+                        if target.id not in self.type_inference.type_map:
+                            self.type_inference.type_map[target.id] = assigned_type
+
             if is_simple_list and v_type.startswith("[]") and cap > 0:
                 # To initialize V arrays with exact capacities (`[]int{cap: N}`) during assignments like `arr = [x, y, z]`
                 # We emit:
@@ -275,29 +303,77 @@ class VariablesMixin(TranslatorBase):
 
                 rhs = f"{v_type}{{{', '.join(pairs)}}}"
                 self.output.append(f"{self._indent()}{lhs} := {rhs}")
-            else:
-                rhs = self.visit(node.value)
 
-                if rhs == "none":
+            else:
+                if isinstance(node.value, ast.Dict) and not node.value.keys and v_type.startswith("map["):
+                    rhs = f"{v_type}{{}}"
+                else:
+                    rhs = self.visit(node.value)
+
+                emit_fn = self.output.append
+                if self.in_main:
+                    base_lhs = lhs.split('.')[0].split('[')[0]
+
+                    if base_lhs in getattr(self, "global_vars", set()):
+                        emit_fn = lambda stmt: self.emitter.add_init_statement(stmt.strip())
+                        if isinstance(target, ast.Name):
+                            if v_type == "unknown":
+                                v_type = "Any"
+                            self.emitter.add_global(f"{lhs} {v_type}")
+                    elif base_lhs.isupper():
+                        emit_fn = lambda stmt: self.emitter.add_init_statement(stmt.strip())
+                        if isinstance(target, ast.Name):
+                            if self._is_compile_time_evaluable(node.value):
+                                # Compile-time константа (например DEFAULT_WIDTH = 100) → блок const
+                                self.emitter.add_constant(f"{lhs} = {rhs}")
+                                return
+                            else:
+                                # Runtime UPPER_CASE (например Vector_ZERO = new_Vector(...)) → global + init()
+                                if v_type == "unknown" or v_type == "int":
+                                    v_type = "Any"
+                                self.emitter.add_global(f"{lhs} {v_type}")
+
+                if self.in_main and isinstance(target, ast.Name) and (lhs in getattr(self, "global_vars", set()) or lhs.isupper()):
+                    # Для compile-time констант мы уже сделали return выше — присваивание не нужно
+                    if not (lhs.isupper() and self._is_compile_time_evaluable(node.value)):
+                        emit_fn(f"{self._indent()}{lhs} = {rhs}")
+                elif rhs == "none":
+                    # v_type might be defined above if we were checking is_simple_list, but let's be safe
                     local_v_type = getattr(self, "_guess_type", lambda x: "unknown")(target)
                     if local_v_type and local_v_type != "unknown":
                         if not local_v_type.startswith("?"):
                             local_v_type = f"?{local_v_type}"
-                        rhs_expr = f"{local_v_type}(none)"
-                    else:
-                        rhs_expr = "?Any(none)"
+                        if local_v_type and local_v_type != "unknown":
+                            if not local_v_type.startswith("?"):
+                                local_v_type = f"?{local_v_type}"
+                            rhs_expr = f"{local_v_type}(none)"
+                        else:
+                            rhs_expr = "?Any(none)"
 
-                    if self.in_main and isinstance(target, ast.Name):
-                        if lhs in getattr(self, "global_vars", set()):
-                            glob_v_type = local_v_type if local_v_type != "unknown" else "Any"
-                            self.emitter.add_global(f"{lhs} {glob_v_type}")
-                            self.output.append(f"{self._indent()}{lhs} = {rhs_expr}")
-                            return
-                        elif lhs.isupper():
-                            self.emitter.add_constant(f"{lhs} = {rhs_expr}")
-                            return
+                        if self.in_main and isinstance(target, ast.Name):
+                            target_name = lhs  # или target, в зависимости от контекста выше; обычно lhs уже string-имя
 
-                    self.output.append(f"{self._indent()}mut {lhs} := {rhs_expr}")
+                            is_final = False
+                            if hasattr(node, "annotation") and node.annotation:
+                                try:
+                                    type_str = ast.unparse(node.annotation)
+                                    if "Final" in type_str:
+                                        is_final = True
+                                except:
+                                    pass
+
+                            if target_name in getattr(self, "global_vars", set()):
+                                glob_v_type = local_v_type if local_v_type != "unknown" else "Any"
+                                self.emitter.add_global(f"{target_name} {glob_v_type}")
+                                emit_fn(f"{self._indent()}{target_name} = {rhs_expr}")
+                                return
+
+                            elif target_name.isupper() or is_final:
+                                self.emitter.add_constant(f"{target_name} = {rhs_expr}")
+                                return
+
+                        # Обычная локальная переменная с None → mut
+                        emit_fn(f"{self._indent()}mut {lhs} := {rhs_expr}")
                 else:
                     if self.in_main and isinstance(target, ast.Name):
                         if lhs in getattr(self, "global_vars", set()):
@@ -311,9 +387,13 @@ class VariablesMixin(TranslatorBase):
                             return
 
                     if isinstance(target, ast.Attribute) or isinstance(target, ast.Subscript):
-                        self.output.append(f"{self._indent()}{lhs} = {rhs}")
+                        emit_fn(f"{self._indent()}{lhs} = {rhs}")
                     else:
-                        self.output.append(f"{self._indent()}{lhs} := {rhs}")
+                        if emit_fn == self.output.append:
+                            emit_fn(f"{self._indent()}{lhs} := {rhs}")
+                        else:
+                            # if it's going to init(), it shouldn't be := if it's a global
+                            emit_fn(f"{self._indent()}{lhs} = {rhs}")
 
     def _visit_destructuring(self, target: ast.AST, source_expr: str) -> None:
         """
@@ -438,24 +518,26 @@ class VariablesMixin(TranslatorBase):
             for stmt in setup_stmts:
                 self.output.append(stmt)
 
+            emit_fn = self.output.append
+            if self.in_main:
+                base_target = new_target.split('.')[0].split('[')[0]
+                if base_target in getattr(self, "global_vars", set()) or base_target.isupper():
+                    emit_fn = lambda stmt: self.emitter.add_init_statement(stmt.strip())
+
             if isinstance(node.op, ast.Pow):
                 self.emitter.add_import("math")
                 target_type = self._guess_type(node.target) if hasattr(self, '_guess_type') else "unknown"
                 if target_type == "int":
-                     self.output.append(f"{self._indent()}{new_target} = int(math.pow({new_target}, {value}))")
+                     emit_fn(f"{self._indent()}{new_target} = int(math.pow({new_target}, {value}))")
                 else:
-                     self.output.append(f"{self._indent()}{new_target} = math.pow({new_target}, {value})")
+                     emit_fn(f"{self._indent()}{new_target} = math.pow({new_target}, {value})")
             elif isinstance(node.op, ast.FloorDiv):
-                # //= -> floor division
-                # If types are int, use math.floor(f64(a)/f64(b)) cast to int to match Python
-                # If types are float, use math.floor(a/b)
                 target_type = self._guess_type(node.target) if hasattr(self, '_guess_type') else "unknown"
                 self.emitter.add_import("math")
                 if target_type == "f64" or target_type == "float":
-                     self.output.append(f"{self._indent()}{new_target} = math.floor({new_target} / {value})")
+                     emit_fn(f"{self._indent()}{new_target} = math.floor({new_target} / {value})")
                 else:
-                     # Integer division (safe floor div)
-                     self.output.append(f"{self._indent()}{new_target} = int(math.floor(f64({new_target}) / f64({value})))")
+                     emit_fn(f"{self._indent()}{new_target} = int(math.floor(f64({new_target}) / f64({value})))")
             return
 
         target = self.visit(node.target)
@@ -464,14 +546,21 @@ class VariablesMixin(TranslatorBase):
             ast.Add: "+=", ast.Sub: "-=", ast.Mult: "*=", ast.Div: "/=",
             ast.Mod: "%="
         }
+
+        emit_fn = self.output.append
+        if self.in_main:
+            base_target = target.split('.')[0].split('[')[0]
+            if base_target in getattr(self, "global_vars", set()) or base_target.isupper():
+                emit_fn = lambda stmt: self.emitter.add_init_statement(stmt.strip())
+
         # V supports +=, -=, *=, /=, %=
         op_str = op_map.get(type(node.op))
         if op_str:
-             self.output.append(f"{self._indent()}{target} {op_str} {value}")
+             emit_fn(f"{self._indent()}{target} {op_str} {value}")
         elif isinstance(node.op, ast.MatMult):
-             self.output.append(f"{self._indent()}{target} = {target}.matmul({value})")
+             emit_fn(f"{self._indent()}{target} = {target}.matmul({value})")
         else:
-             self.output.append(f"{self._indent()}// Unsupported AugAssign operator: {type(node.op)}")
+             emit_fn(f"{self._indent()}// Unsupported AugAssign operator: {type(node.op)}")
 
     def visit_Delete(self, node: ast.Delete) -> None:
         # Support for multiple delete targets (e.g. del a, b)
@@ -538,8 +627,12 @@ class VariablesMixin(TranslatorBase):
 
                 rhs = f"{v_type}{{{', '.join(pairs)}}}"
                 self.output.append(f"{self._indent()}{target} := {rhs}")
+
             else:
-                rhs = self.visit(node.value)
+                if isinstance(node.value, ast.Dict) and not node.value.keys and v_type.startswith("map["):
+                    rhs = f"{v_type}{{}}"
+                else:
+                    rhs = self.visit(node.value)
 
                 is_final = False
                 try:
@@ -559,18 +652,34 @@ class VariablesMixin(TranslatorBase):
                     else:
                         rhs_expr = "?Any(none)"
 
-                    if self.in_main and isinstance(node.target, ast.Name):
-                        target_name = target
-                        if target_name in getattr(self, "global_vars", set()):
-                            glob_v_type = local_v_type if local_v_type != "unknown" else "Any"
-                            self.emitter.add_global(f"{target_name} {glob_v_type}")
-                            self.output.append(f"{self._indent()}{target_name} = {rhs_expr}")
-                            return
-                        elif target_name.isupper() or is_final:
-                            self.emitter.add_constant(f"{target_name} = {rhs_expr}")
-                            return
+                    emit_fn = self.output.append
+                    if self.in_main:
+                        base_lhs = target.split('.')[0].split('[')[0]
 
-                    self.output.append(f"{self._indent()}mut {target} := {rhs_expr}")
+                        if base_lhs in getattr(self, "global_vars", set()):
+                            emit_fn = lambda stmt: self.emitter.add_init_statement(stmt.strip())
+                            if isinstance(node.target, ast.Name):
+                                glob_v_type = local_v_type if local_v_type != "unknown" else "Any"
+                                self.emitter.add_global(f"{target} {glob_v_type}")
+
+                        elif base_lhs.isupper() or is_final:
+                            emit_fn = lambda stmt: self.emitter.add_init_statement(stmt.strip())
+                            if isinstance(node.target, ast.Name):
+                                self.emitter.add_global(f"{target} {local_v_type or 'Any'}")
+
+                                if self._is_compile_time_evaluable(node.value):
+                                    self.emitter.add_constant(f"{target} = {rhs_expr}")
+                                    return  # ← ключевой момент: не эмиттим присваивание дальше
+                                # иначе остаётся runtime-инициализация в init()
+
+                    # Финальное присваивание (только если не константа compile-time)
+                    if self.in_main and isinstance(node.target, ast.Name) and \
+                       (target in getattr(self, "global_vars", set()) or target.isupper() or is_final):
+                        # compile-time уже обработано выше → здесь runtime + None
+                        emit_fn(f"{self._indent()}{target} = {rhs_expr}")
+                    else:
+                        # Обычная локальная переменная
+                        emit_fn(f"{self._indent()}mut {target} := {rhs_expr}")
                 else:
                     if self.in_main and isinstance(node.target, ast.Name):
                         target_name = target
@@ -586,9 +695,12 @@ class VariablesMixin(TranslatorBase):
                     # We ignore the annotation for now and rely on type inference and V's auto-typing
                     # But we could potentially use it to hint types for empty lists/maps
                     if isinstance(node.target, ast.Attribute) or isinstance(node.target, ast.Subscript):
-                        self.output.append(f"{self._indent()}{target} = {rhs}")
+                        emit_fn(f"{self._indent()}{target} = {rhs}")
                     else:
-                        self.output.append(f"{self._indent()}{target} := {rhs}")
+                        if emit_fn == self.output.append:
+                            emit_fn(f"{self._indent()}{target} := {rhs}")
+                        else:
+                            emit_fn(f"{self._indent()}{target} = {rhs}")
         else:
             # Declaration only: x: int
             # V needs initialization. We map type to default value.

@@ -451,11 +451,26 @@ class FunctionsMixin(TranslatorBase):
             else:
                 func_name = f"{base_func_name}_noargs"
 
+            op_map = {
+                "__add__": "+", "__sub__": "-", "__mul__": "*", "__truediv__": "/",
+                "__mod__": "%", "__lt__": "<", "__le__": "<=", "__eq__": "==",
+                "__ne__": "!="
+            }
+            is_operator = False
+            op_str = ""
+            if is_method and node.name in op_map:
+                is_operator = True
+                op_str = op_map[node.name]
+                func_name = op_str
+
             self.function_names.add(func_name)
 
-            decl = f"fn {receiver_str}{func_name}({args_str}) {ret_type} {{"
-            if ret_type == "void":
-                 decl = f"fn {receiver_str}{func_name}({args_str}) {{"
+            if is_operator:
+                decl = f"fn {receiver_str}{op_str} ({args_str}) {ret_type} {{"
+            else:
+                decl = f"fn {receiver_str}{func_name}({args_str}) {ret_type} {{"
+                if ret_type == "void":
+                    decl = f"fn {receiver_str}{func_name}({args_str}) {{"
 
             self.output.append(decl)
             self._indent_level += 1

@@ -51,6 +51,12 @@ class StdLibMapper:
                 "argv": "os.args",
                 "platform": "os.user_os()", # Approximation
             },
+            "io": {
+                "StringIO": self._io_stringio,
+            },
+            "six.moves": {
+                "StringIO": self._io_stringio,
+            },
             "os": {
                 "environ": "os.environ()",
                 "getcwd": "os.getwd",
@@ -253,6 +259,8 @@ class StdLibMapper:
             "time": ["time"],
             "datetime": ["time"],
             "sys": ["os"],
+            "io": ["strings"],
+            "six.moves": ["strings"],
             "os": ["os"],
             "re": ["regex"],
             "shutil": ["os"],
@@ -342,6 +350,11 @@ class StdLibMapper:
         return self.v_imports.get(module)
 
     # specialized handlers
+
+    def _io_stringio(self, args: List[str]) -> str:
+        if len(args) == 0:
+            return "strings.new_builder(1024)"
+        return f"py_io_stringio({args[0]})"
 
     def _random_randint(self, args: List[str]) -> str:
         if len(args) == 2:
