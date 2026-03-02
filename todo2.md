@@ -462,7 +462,7 @@ Based on the transpilation of the `primes.py` benchmark, several critical areas 
   - *Context:* `while queue:` is transpiled directly to `for queue {`, which is invalid in V.
   - *Task:* Map truth value testing of collections (lists, dicts, etc.) to explicit `.len > 0` checks in V (e.g., `for queue.len > 0 {`).
 
-- [ ] **Iterating over Dictionary Items (`for ch, v in top.children.items():`)**
+- [x] **Iterating over Dictionary Items (`for ch, v in top.children.items():`)**
   - *Context:* Emits `for [ch, v] in top.children.items() {` which is not idiomatic V.
   - *Task:* Map `.items()` iteration on maps directly to V's native map iteration syntax: `for ch, v in top.children {`.
 

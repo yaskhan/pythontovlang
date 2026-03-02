@@ -197,6 +197,12 @@ class ControlFlowMixin(TranslatorBase):
         target = self.visit(node.target)
         iter_expr = self.visit(node.iter)
 
+        if isinstance(node.iter, ast.Call) and isinstance(node.iter.func, ast.Attribute) and node.iter.func.attr == "items":
+            if isinstance(node.target, ast.Tuple):
+                if target.startswith("[") and target.endswith("]"):
+                    target = target[1:-1]
+            iter_expr = self.visit(node.iter.func.value)
+
         if isinstance(node.iter, ast.Call) and isinstance(node.iter.func, ast.Name):
              if node.iter.func.id == "range":
                  range_args = node.iter.args
