@@ -464,3 +464,26 @@ Based on the transpilation of the `bm_spectral_norm.py` benchmark, several criti
 - [ ] **`time.time()` Precision Mapping**
   - *Context:* `time.time()` maps to `time.now().unix()`, returning an integer (seconds), losing the fractional millisecond precision expected in Python benchmarking.
   - *Task:* Map `time.time()` to a V equivalent that returns an `f64` timestamp, such as `f64(time.now().unix_time_milli()) / 1000.0`.
+
+## Analysis of `bm_richards.py` Transpilation Issues
+Based on the transpilation of the `bm_richards.py` benchmark, several critical areas for improvement have been identified:
+
+- [ ] **V Keyword Collision (`fn`)**
+  - *Context:* Python method named `fn` (e.g., `def fn(self, pkt, r):`) is transpiled directly as `fn (self Task) fn(...)`, which causes a syntax error in V because `fn` is a reserved keyword.
+  - *Task:* Implement an AST sanitization pass to rename or prefix Python identifiers that conflict with Vlang reserved keywords (e.g., mapping `fn` to `fn_` or `py_fn`).
+
+- [ ] **Array Initialization with `[None] * N`**
+  - *Context:* Python's `[None] * TASKTABSIZE` is emitted directly as `[none] * TASKTABSIZE`, which is invalid V syntax for initializing arrays.
+  - *Task:* Transpile list repetitions containing `None` into proper V array initialization (e.g., `[]?Task{len: TASKTABSIZE, init: none}`).
+
+- [ ] **Scoping Issues with `if/else` Variable Assignments**
+  - *Context:* In `Task.runTask()`, a variable `msg` is initialized conditionally in `if/else` blocks (e.g., `msg := self.input` in `if`, `mut msg := ?int(none)` in `else`), making it inaccessible outside the blocks when passed to `return self.fn(msg, self.handle)`.
+  - *Task:* Improve variable scoping generation. If a variable is conditionally declared and used outside the condition, pre-declare it as `mut` before the `if/else` block (e.g., `mut msg := ?Packet(none)`).
+
+- [ ] **`Optional` Type Inference with Forward References (`'Packet'`)**
+  - *Context:* Mypy forward references like `Optional['Packet']` (or `Optional['Task']`) are failing to map accurately in the `else` block fallback type generation, falling back to `?int(none)` instead of `?Packet(none)`.
+  - *Task:* Update type mapping to correctly resolve and strip string quotes from forward reference annotations like `'Packet'` so they properly map to their concrete V types.
+
+- [ ] **Explicit Base Class Constructor Calls (`Base.__init__`)**
+  - *Context:* Calls like `Task.__init__(self, i, p, w, s, r)` are emitted directly, which doesn't correctly update the embedded V struct unless the explicit embedded struct is initialized or fields are copied.
+  - *Task:* Refactor explicit `BaseClass.__init__(self, ...)` calls to properly initialize the embedded struct fields inside the derived V struct.
