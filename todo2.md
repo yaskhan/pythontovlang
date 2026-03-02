@@ -404,7 +404,7 @@ Based on the transpilation of the `bm_hexiom.py` benchmark, several critical are
   - *Context:* The `LEVELS` global dictionary is inferred as `map[string]int{}`, but is populated with integer keys and string-tuple values (e.g., `LEVELS[2] = ("...", "...")`).
   - *Task:* Improve type inference for dictionaries populated by subsequent index assignments (`dict[key] = value`). Correctly map Python tuples to V structs, arrays, or multiple return values when used as dictionary values.
 
-- [ ] **Module-Level Dictionary Initialization Scope**
+- [x] **Module-Level Dictionary Initialization Scope**
   - *Context:* `LEVELS[2] = ...` assignments are placed inside the generated `fn main()`, trapping the global state in a local scope.
   - *Task:* Ensure that module-level collection mutations (like dict assignments) are placed in a V `fn init()` block or a `__global` initialization routine so that global constants are properly populated and accessible to other functions.
 
