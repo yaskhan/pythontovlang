@@ -106,10 +106,24 @@ class ControlFlowMixin(TranslatorBase):
         # Push loop context to stack for break handling
         self.loop_stack.append({'vexc_depth': self.vexc_depth})
 
-        self.output.append(f"{self._indent()}for {target} in {iter_expr} {{")
-        self._indent_level += 1
-        for stmt in node.body:
-            self.visit(stmt)
+        # Handle string iteration: V yields u8 for strings, so we convert using .ascii_str()
+        is_string_iter = False
+        if isinstance(node.iter, ast.Call) and getattr(node.iter.func, 'id', '') == "str":
+            is_string_iter = True
+        elif hasattr(self, '_guess_type') and self._guess_type(node.iter) == "string":
+            is_string_iter = True
+
+        if is_string_iter:
+            self.output.append(f"{self._indent()}for {target}_u8 in {iter_expr} {{")
+            self._indent_level += 1
+            self.output.append(f"{self._indent()}{target} := {target}_u8.ascii_str()")
+            for stmt in node.body:
+                self.visit(stmt)
+        else:
+            self.output.append(f"{self._indent()}for {target} in {iter_expr} {{")
+            self._indent_level += 1
+            for stmt in node.body:
+                self.visit(stmt)
         self._indent_level -= 1
         self.output.append(f"{self._indent()}}}")
 
@@ -221,10 +235,24 @@ class ControlFlowMixin(TranslatorBase):
                      else:
                          self.output.append(f"{self._indent()}// TODO: handle enumerate with single target variable")
 
-        self.output.append(f"{self._indent()}for {target} in {iter_expr} {{")
-        self._indent_level += 1
-        for stmt in node.body:
-            self.visit(stmt)
+        # Handle string iteration: V yields u8 for strings, so we convert using .ascii_str()
+        is_string_iter = False
+        if isinstance(node.iter, ast.Call) and getattr(node.iter.func, 'id', '') == "str":
+            is_string_iter = True
+        elif hasattr(self, '_guess_type') and self._guess_type(node.iter) == "string":
+            is_string_iter = True
+
+        if is_string_iter:
+            self.output.append(f"{self._indent()}for {target}_u8 in {iter_expr} {{")
+            self._indent_level += 1
+            self.output.append(f"{self._indent()}{target} := {target}_u8.ascii_str()")
+            for stmt in node.body:
+                self.visit(stmt)
+        else:
+            self.output.append(f"{self._indent()}for {target} in {iter_expr} {{")
+            self._indent_level += 1
+            for stmt in node.body:
+                self.visit(stmt)
         self._indent_level -= 1
         self.output.append(f"{self._indent()}}}")
 
