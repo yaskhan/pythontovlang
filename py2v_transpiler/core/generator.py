@@ -6,6 +6,7 @@ class VCodeEmitter:
         self.structs: List[str] = []
         self.functions: List[str] = []
         self.main_body: List[str] = []
+        self.init_body: List[str] = []
         self.globals: List[str] = []
         self.constants: List[str] = []
 
@@ -56,6 +57,10 @@ class VCodeEmitter:
         """Adds a function definition to helpers."""
         self.helper_functions.append(func_def)
 
+    def add_init_statement(self, stmt: str) -> None:
+        """Adds a statement to the init function body."""
+        self.init_body.append(stmt)
+
     def add_main_statement(self, stmt: str) -> None:
         """Adds a statement to the main function body."""
         self.main_body.append(stmt)
@@ -86,6 +91,11 @@ class VCodeEmitter:
         if self.functions:
             lines.extend(self.functions)
             lines.append("")
+
+        if self.init_body:
+            lines.append("fn init() {")
+            lines.extend(["    " + line for line in self.init_body])
+            lines.append("}\n")
 
         if self.main_body:
             lines.append("fn main() {")
