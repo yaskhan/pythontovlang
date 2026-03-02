@@ -130,8 +130,19 @@ class ControlFlowMixin(TranslatorBase):
 
         self.loop_stack.append(loop_ctx)
 
+        # Helper to check if a call is zip or izip
+        is_zip = False
+        if isinstance(node.iter, ast.Call):
+            func_node = node.iter.func
+            if isinstance(func_node, ast.Name):
+                if func_node.id in ("zip", "izip"):
+                    is_zip = True
+            elif isinstance(func_node, ast.Attribute):
+                if func_node.attr == "izip":
+                    is_zip = True
+
         # Zip handling
-        if isinstance(node.iter, ast.Call) and isinstance(node.iter.func, ast.Name) and node.iter.func.id == "zip":
+        if is_zip:
             zip_args = node.iter.args
             if len(zip_args) == 2:
                 self._zip_counter += 1
@@ -175,8 +186,18 @@ class ControlFlowMixin(TranslatorBase):
         target = self.visit(node.target)
         iter_expr = self.visit(node.iter)
 
-        if isinstance(node.iter, ast.Call) and isinstance(node.iter.func, ast.Name):
-             if node.iter.func.id == "range":
+        is_range = False
+        if isinstance(node.iter, ast.Call):
+            func_node = node.iter.func
+            if isinstance(func_node, ast.Name):
+                if func_node.id in ("range", "xrange"):
+                    is_range = True
+            elif isinstance(func_node, ast.Attribute):
+                if func_node.attr == "xrange":
+                    is_range = True
+
+        if is_range:
+             if True: # To keep indentation
                  range_args = node.iter.args
                  if len(range_args) == 3:
                      start = self.visit(range_args[0])
@@ -212,7 +233,8 @@ class ControlFlowMixin(TranslatorBase):
                       start = self.visit(range_args[0])
                       stop = self.visit(range_args[1])
                  iter_expr = f"{start}..{stop}"
-             elif node.iter.func.id == "enumerate":
+        elif isinstance(node.iter, ast.Call) and isinstance(node.iter.func, ast.Name):
+             if node.iter.func.id == "enumerate":
                  if node.iter.args:
                      iter_expr = self.visit(node.iter.args[0])
                      if isinstance(node.target, ast.Tuple):
