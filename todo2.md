@@ -435,6 +435,6 @@ Based on the transpilation of the `bm_raytrace.py` benchmark, several critical a
   - *Context:* Both `__str__` and `__repr__` methods on a Python class map to V's `.str() string` method, leading to compilation errors due to duplicate method declarations (e.g., `fn (self Vector) str() string { ... }` defined twice).
   - *Task:* Handle duplicate V method mapping by either combining `__str__` and `__repr__`, taking precedence of `__str__` over `__repr__`, or renaming `__repr__` to `repr()` instead of mapping both to `.str()`.
 
-- [ ] **Class Instantiation Fallbacks in Method Returns**
+- [x] **Class Instantiation Fallbacks in Method Returns**
   - *Context:* Inside methods like `__add__` and `__sub__`, the transpiled code emits returns like `return Point(...)` instead of `return new_Point(...)` or `return Point{...}`, which fails to compile in V because `Point(...)` is invalid syntax for struct initialization or function calls unless it's a cast.
   - *Task:* Ensure that instantiation of objects within internal methods correctly tracks class names and forces `new_ClassName(...)` or `ClassName{...}` syntax as it does in standard assignments.
