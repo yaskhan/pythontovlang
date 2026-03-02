@@ -66,6 +66,40 @@ class TypeInference(ast.NodeVisitor):
         self.type_map.update(alias_inferer.alias_to_type)
         return self.type_map
 
+
+    def visit_Assign(self, node: ast.Assign) -> Any:
+        for target in node.targets:
+            if isinstance(target, ast.Subscript) and isinstance(target.value, ast.Name):
+                dict_name = target.value.id
+
+                key_type = "string" # default key
+                if hasattr(target.slice, "value") and isinstance(target.slice.value, ast.Constant): # python < 3.9
+                    if isinstance(target.slice.value.value, int): key_type = "int"
+                    elif isinstance(target.slice.value.value, str): key_type = "string"
+                elif isinstance(target.slice, ast.Constant): # python 3.9+
+                    if isinstance(target.slice.value, int): key_type = "int"
+                    elif isinstance(target.slice.value, str): key_type = "string"
+
+                val_type = "Any"
+                if isinstance(node.value, ast.Constant):
+                    if isinstance(node.value.value, int): val_type = "int"
+                    elif isinstance(node.value.value, str): val_type = "string"
+                elif isinstance(node.value, ast.Tuple):
+                    if node.value.elts:
+                        if isinstance(node.value.elts[0], ast.Constant):
+                            if isinstance(node.value.elts[0].value, int): val_type = "[]int"
+                            elif isinstance(node.value.elts[0].value, str): val_type = "[]string"
+                            else: val_type = "[]Any"
+                        else:
+                            val_type = "[]Any"
+                    else:
+                        val_type = "[]Any"
+
+                new_type = f"map[{key_type}]{val_type}"
+                self.type_map[dict_name] = new_type
+
+        self.generic_visit(node)
+
     def visit_AnnAssign(self, node: ast.AnnAssign) -> Any:
         # Check if the target is a simple variable name (ast.Name)
         if isinstance(node.target, ast.Name):

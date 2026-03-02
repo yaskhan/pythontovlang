@@ -57,6 +57,10 @@ class VCodeEmitter:
         """Adds a function definition to helpers."""
         self.helper_functions.append(func_def)
 
+    def add_init_statement(self, stmt: str) -> None:
+        """Adds a statement to the init function body."""
+        self.init_body.append(stmt)
+
     def add_main_statement(self, stmt: str) -> None:
         """Adds a statement to the main function body."""
         self.main_body.append(stmt)

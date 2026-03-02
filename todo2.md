@@ -396,15 +396,15 @@ Based on the transpilation of the `bm_hexiom.py` benchmark, several critical are
   - *Context:* Comprehensions such as `[self.cells[i][:] for i in range(self.count)]` and generator expressions inside functions like `max(...)` or `sum(...)` emit `/* unknown */` or `// List comprehension expression not supported inline yet`.
   - *Task:* Implement full support for inline list comprehensions and generator expressions, mapping them to V's `map`/`filter` array methods, or extracting them into inline loops or closure helpers.
 
-- [ ] **`six` Module and Legacy Compatibility Helpers**
+- [x] **`six` Module and Legacy Compatibility Helpers**
   - *Context:* Functions from `six` (`u as u_lit`, `text_type`) are emitted directly, resulting in undefined V functions.
   - *Task:* Add AST node interception or standard library mapping for common `six` module utilities, translating `text_type(x)` to `x.str()` and bypassing `u_lit` wrappers for string literals.
 
-- [ ] **Type Inference for Module-Level Dictionaries and Tuple Values**
+- [x] **Type Inference for Module-Level Dictionaries and Tuple Values**
   - *Context:* The `LEVELS` global dictionary is inferred as `map[string]int{}`, but is populated with integer keys and string-tuple values (e.g., `LEVELS[2] = ("...", "...")`).
   - *Task:* Improve type inference for dictionaries populated by subsequent index assignments (`dict[key] = value`). Correctly map Python tuples to V structs, arrays, or multiple return values when used as dictionary values.
 
-- [ ] **Module-Level Dictionary Initialization Scope**
+- [x] **Module-Level Dictionary Initialization Scope**
   - *Context:* `LEVELS[2] = ...` assignments are placed inside the generated `fn main()`, trapping the global state in a local scope.
   - *Task:* Ensure that module-level collection mutations (like dict assignments) are placed in a V `fn init()` block or a `__global` initialization routine so that global constants are properly populated and accessible to other functions.
 
@@ -412,14 +412,14 @@ Based on the transpilation of the `bm_hexiom.py` benchmark, several critical are
   - *Context:* `bm_hexiom.py` uses `StringIO` for stream output, which maps directly to undefined `StringIO` and `IO[string]` types in V.
   - *Task:* Map `io.StringIO` (and `six.moves.StringIO`) to V's `strings.Builder`. Map `IO[str]` to `&strings.Builder` or an appropriate stream interface in V.
 
-- [ ] **Modulo `%` String Formatting**
+- [x] **Modulo `%` String Formatting**
   - *Context:* Python's string formatting `"%s " % c` is emitted directly as `'%s ' % c`, which is invalid syntax in V.
   - *Task:* Intercept the `%` binary operator when the left operand is a string, and transpile it to V's string interpolation (e.g., `'$c '`) or generate calls using V's `fmt` module.
 
 ## Analysis of `bm_raytrace.py` Transpilation Issues
 Based on the transpilation of the `bm_raytrace.py` benchmark, several critical areas for improvement have been identified:
 
-- [ ] **Magic Methods with Overloads (`__add__`, `__sub__`, etc.)**
+- [x] **Magic Methods with Overloads (`__add__`, `__sub__`, etc.)**
   - *Context:* Python's magic methods like `__add__` with `@overload` are currently emitted as uniquely named functions (e.g., `__add___Vector` or `__add___Point`) instead of V's overloaded operators (`+`). Normal magic methods like `__sub__` correctly map to V's `-` operator, but overloaded ones do not fallback or combine into operator overloads properly.
   - *Task:* Ensure that when overloaded magic methods are encountered, they map correctly to V's operator overloading syntax (e.g. `fn (a Vector) + (b Vector) Vector`), generating multiple overloaded operators if V supports them, or handling type disjunctions cleanly.
 
@@ -431,10 +431,10 @@ Based on the transpilation of the `bm_raytrace.py` benchmark, several critical a
   - *Context:* Constants like `DEFAULT_WIDTH := 100` and `Vector_ZERO := new_Vector(0, 0, 0)` are placed inside the generated `fn main()` block rather than an appropriate V `const ( ... )` block or global state.
   - *Task:* Refactor module-level assignment handling so that constants (e.g., `Final` or uppercase variables) are correctly emitted in a V `const` block (if compile-time evaluable) or an `init` block/global struct (if they require runtime instantiation like `new_Vector`).
 
-- [ ] **Duplicate Method Generation (`__str__` and `__repr__`)**
+- [x] **Duplicate Method Generation (`__str__` and `__repr__`)**
   - *Context:* Both `__str__` and `__repr__` methods on a Python class map to V's `.str() string` method, leading to compilation errors due to duplicate method declarations (e.g., `fn (self Vector) str() string { ... }` defined twice).
   - *Task:* Handle duplicate V method mapping by either combining `__str__` and `__repr__`, taking precedence of `__str__` over `__repr__`, or renaming `__repr__` to `repr()` instead of mapping both to `.str()`.
 
-- [ ] **Class Instantiation Fallbacks in Method Returns**
+- [x] **Class Instantiation Fallbacks in Method Returns**
   - *Context:* Inside methods like `__add__` and `__sub__`, the transpiled code emits returns like `return Point(...)` instead of `return new_Point(...)` or `return Point{...}`, which fails to compile in V because `Point(...)` is invalid syntax for struct initialization or function calls unless it's a cast.
   - *Task:* Ensure that instantiation of objects within internal methods correctly tracks class names and forces `new_ClassName(...)` or `ClassName{...}` syntax as it does in standard assignments.
