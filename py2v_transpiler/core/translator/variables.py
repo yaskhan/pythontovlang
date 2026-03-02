@@ -681,12 +681,13 @@ class VariablesMixin(TranslatorBase):
                         # Обычная локальная переменная
                         emit_fn(f"{self._indent()}mut {target} := {rhs_expr}")
                 else:
+                    emit_fn = self.output.append
                     if self.in_main and isinstance(node.target, ast.Name):
                         target_name = target
                         if target_name in getattr(self, "global_vars", set()):
                             glob_v_type = v_type if v_type and v_type != "unknown" else "Any"
                             self.emitter.add_global(f"{target_name} {glob_v_type}")
-                            self.output.append(f"{self._indent()}{target_name} = {rhs}")
+                            emit_fn(f"{self._indent()}{target_name} = {rhs}")
                             return
                         elif target_name.isupper() or is_final:
                             self.emitter.add_constant(f"{target_name} = {rhs}")
@@ -697,10 +698,7 @@ class VariablesMixin(TranslatorBase):
                     if isinstance(node.target, ast.Attribute) or isinstance(node.target, ast.Subscript):
                         emit_fn(f"{self._indent()}{target} = {rhs}")
                     else:
-                        if emit_fn == self.output.append:
-                            emit_fn(f"{self._indent()}{target} := {rhs}")
-                        else:
-                            emit_fn(f"{self._indent()}{target} = {rhs}")
+                        emit_fn(f"{self._indent()}{target} := {rhs}")
         else:
             # Declaration only: x: int
             # V needs initialization. We map type to default value.
