@@ -438,6 +438,49 @@ Based on the transpilation of the `bm_raytrace.py` benchmark, several critical a
 - [x] **Class Instantiation Fallbacks in Method Returns**
   - *Context:* Inside methods like `__add__` and `__sub__`, the transpiled code emits returns like `return Point(...)` instead of `return new_Point(...)` or `return Point{...}`, which fails to compile in V because `Point(...)` is invalid syntax for struct initialization or function calls unless it's a cast.
   - *Task:* Ensure that instantiation of objects within internal methods correctly tracks class names and forces `new_ClassName(...)` or `ClassName{...}` syntax as it does in standard assignments.
+
+## Analysis of `primes.py` Transpilation Issues
+Based on the transpilation of the `primes.py` benchmark, several critical areas for improvement have been identified:
+
+- [ ] **Array Multiplication for Initialization (`[False] * (limit + 1)`)**
+  - *Context:* Python's `[False] * (limit + 1)` is currently transpiled as `[false] * limit + 1`. This is invalid V syntax for array initialization and loses the parentheses.
+  - *Task:* Map Python array multiplication (when the left operand is a single-element list) to V's array initialization syntax: `[]bool{len: limit + 1, init: false}`. Ensure parentheses around binary operations are correctly preserved during unparsing.
+
+- [ ] **Parentheses Preservation in Boolean Expressions**
+  - *Context:* Python's `n <= self.limit and (n % 12 == 1 or n % 12 == 5)` drops the parentheses around the `or` clause in V: `n <= self.limit && n % 12 == 1 || n % 12 == 5`. This changes operator precedence.
+  - *Task:* Ensure the AST transpilation correctly preserves grouping parentheses for binary and boolean operations.
+
+- [ ] **Dictionary Type Inference (`self.children = {}`)**
+  - *Context:* In `Node.__init__`, `self.children = {}` causes `self.children` to be inferred as `map[string]int{}`, which is incorrect since it stores `Node` instances later.
+  - *Task:* Improve type inference for empty dictionaries by analyzing subsequent dictionary assignments (like `head.children[ch] = Node()`) to infer the correct value type (`map[string]Node`).
+
+- [ ] **String Iteration (`for ch in str(el):`)**
+  - *Context:* Iterating over a string in V yields bytes (`u8`), but the Python code expects string characters to be used as map keys (`head.children[ch]`).
+  - *Task:* Handle string iteration correctly by mapping the iterated byte to a string (e.g., using a custom iterator or `.ascii_str()`) when the string semantics are required.
+
+- [ ] **Truth Value Testing for Arrays/Queues (`while queue:`)**
+  - *Context:* `while queue:` is transpiled directly to `for queue {`, which is invalid in V.
+  - *Task:* Map truth value testing of collections (lists, dicts, etc.) to explicit `.len > 0` checks in V (e.g., `for queue.len > 0 {`).
+
+- [ ] **Iterating over Dictionary Items (`for ch, v in top.children.items():`)**
+  - *Context:* Emits `for [ch, v] in top.children.items() {` which is not idiomatic V.
+  - *Task:* Map `.items()` iteration on maps directly to V's native map iteration syntax: `for ch, v in top.children {`.
+
+- [ ] **String to Integer Conversion (`int(prefix)`)**
+  - *Context:* `int(prefix)` where `prefix` is a string is emitted literally, but V requires `prefix.int()`.
+  - *Task:* Map `int()` casts on string variables to the `.int()` method in V.
+
+- [ ] **String `bytes()` Encoding**
+  - *Context:* `bytes(msg, "utf8")` is emitted as `bytes(msg, 'utf8')`.
+  - *Task:* Map `bytes(string, encoding)` to V's native `string.bytes()` method.
+
+- [ ] **`sys.stderr` Redirection (`print(..., file=sys.stderr)`)**
+  - *Context:* `print` statements with `file=sys.stderr` are transpiled to standard `println`.
+  - *Task:* Recognize `file=sys.stderr` in `print` calls and map them to V's `eprintln`.
+
+- [ ] **Missing Modules (`platform`)**
+  - *Context:* `platform.python_implementation()` is emitted directly but `platform` doesn't exist in V.
+  - *Task:* Provide an AST mapping or standard library mock for `platform.python_implementation()` returning `'V'` or similar.
 ## Analysis of `bm_spectral_norm.py` Transpilation Issues
 Based on the transpilation of the `bm_spectral_norm.py` benchmark, several critical areas for improvement have been identified:
 
