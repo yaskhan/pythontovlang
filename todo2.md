@@ -408,7 +408,7 @@ Based on the transpilation of the `bm_hexiom.py` benchmark, several critical are
   - *Context:* `LEVELS[2] = ...` assignments are placed inside the generated `fn main()`, trapping the global state in a local scope.
   - *Task:* Ensure that module-level collection mutations (like dict assignments) are placed in a V `fn init()` block or a `__global` initialization routine so that global constants are properly populated and accessible to other functions.
 
-- [ ] **`StringIO` and `IO` Type Mappings**
+- [x] **`StringIO` and `IO` Type Mappings**
   - *Context:* `bm_hexiom.py` uses `StringIO` for stream output, which maps directly to undefined `StringIO` and `IO[string]` types in V.
   - *Task:* Map `io.StringIO` (and `six.moves.StringIO`) to V's `strings.Builder`. Map `IO[str]` to `&strings.Builder` or an appropriate stream interface in V.
 
