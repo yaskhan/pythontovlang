@@ -15,6 +15,7 @@ class TranslatorBase(ast.NodeVisitor):
         Returns the standard Python operator precedence for AST nodes.
         Higher number means tighter binding. Atoms get 100.
         """
+        op: Any = None
         if isinstance(node, ast.BinOp):
             op = type(node.op)
         elif isinstance(node, ast.BoolOp):
