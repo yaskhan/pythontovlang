@@ -4,6 +4,24 @@ from py2v_transpiler.models.v_types import map_python_type_to_v
 from .base import TranslatorBase
 
 class VariablesMixin(TranslatorBase):
+    def _is_compile_time_evaluable(self, node: ast.AST) -> bool:
+        """
+        Checks if an AST node represents a value that can be evaluated at compile time in V.
+        """
+        if isinstance(node, ast.Constant):
+            return True
+        if isinstance(node, ast.Name):
+            return node.id.isupper()
+        if isinstance(node, ast.UnaryOp):
+            return self._is_compile_time_evaluable(node.operand)
+        if isinstance(node, ast.BinOp):
+            return self._is_compile_time_evaluable(node.left) and self._is_compile_time_evaluable(node.right)
+        if isinstance(node, (ast.List, ast.Tuple, ast.Set)):
+            return all(self._is_compile_time_evaluable(elt) for elt in node.elts)
+        if isinstance(node, ast.Dict):
+            return all(self._is_compile_time_evaluable(k) for k in node.keys if k) and all(self._is_compile_time_evaluable(v) for v in node.values)
+        return False
+
     def visit_Assign(self, node: ast.Assign) -> None:
         target = node.targets[0]
         lhs = ""
@@ -284,10 +302,17 @@ class VariablesMixin(TranslatorBase):
                             v_type = "Any"
                         self.emitter.add_global(f"{lhs} {v_type}")
                         self.output.append(f"{self._indent()}{lhs} = {rhs}")
+                        return
                     elif lhs.isupper():
-                        self.emitter.add_constant(f"{lhs} = {rhs}")
-                    else:
-                        self.output.append(f"{self._indent()}{lhs} := {rhs}")
+                        if self._is_compile_time_evaluable(node.value):
+                            self.emitter.add_constant(f"{lhs} = {rhs}")
+                        else:
+                            if v_type == "unknown" or v_type == "int":
+                                v_type = "Any"
+                            self.emitter.add_global(f"{lhs} {v_type}")
+                            self.emitter.add_init_statement(f"{lhs} = {rhs}")
+                        return
+
                 if rhs == "none":
                     # v_type might be defined above if we were checking is_simple_list, but let's be safe
                     local_v_type = getattr(self, "_guess_type", lambda x: "unknown")(target)
@@ -536,10 +561,18 @@ class VariablesMixin(TranslatorBase):
                     if target_name in getattr(self, "global_vars", set()):
                         self.emitter.add_global(f"{target_name} {v_type}")
                         self.output.append(f"{self._indent()}{target_name} = {rhs}")
-                    elif target_name.isupper():
-                        self.emitter.add_constant(f"{target_name} = {rhs}")
-                    else:
-                        self.output.append(f"{self._indent()}{target} := {rhs}")
+                        return
+                    elif target_name.isupper() or (v_type == "Final" or getattr(node, "annotation", None) and getattr(getattr(node, "annotation", None), "id", "") == "Final" or getattr(getattr(node, "annotation", None), "attr", "") == "Final"):
+                        # In Python, Final constants might not be strictly uppercase.
+                        if self._is_compile_time_evaluable(node.value):
+                            self.emitter.add_constant(f"{target_name} = {rhs}")
+                        else:
+                            if v_type == "unknown" or v_type == "Final":
+                                v_type = "Any"
+                            self.emitter.add_global(f"{target_name} {v_type}")
+                            self.emitter.add_init_statement(f"{target_name} = {rhs}")
+                        return
+
                 if rhs == "none":
                     if v_type and v_type != "unknown":
                         if not v_type.startswith("?"):
