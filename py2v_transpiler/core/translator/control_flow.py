@@ -18,6 +18,10 @@ class ControlFlowMixin(TranslatorBase):
         self._walrus_assignments = []
         test_expr = self.visit(node.test)
 
+        node_type = self._guess_type(node.test)
+        if node_type.startswith("[]") or node_type.startswith("map[") or node_type == "string":
+            test_expr = f"{test_expr}.len > 0"
+
         if self._walrus_assignments:
              for assign in self._walrus_assignments:
                  self.output.append(f"{self._indent()}{assign}")
@@ -61,6 +65,10 @@ class ControlFlowMixin(TranslatorBase):
 
         self._walrus_assignments = []
         test_expr = self.visit(node.test)
+
+        node_type = self._guess_type(node.test)
+        if node_type.startswith("[]") or node_type.startswith("map[") or node_type == "string":
+            test_expr = f"{test_expr}.len > 0"
 
         if self._walrus_assignments:
              # Found walrus! Transform loop.
@@ -106,10 +114,24 @@ class ControlFlowMixin(TranslatorBase):
         # Push loop context to stack for break handling
         self.loop_stack.append({'vexc_depth': self.vexc_depth})
 
-        self.output.append(f"{self._indent()}for {target} in {iter_expr} {{")
-        self._indent_level += 1
-        for stmt in node.body:
-            self.visit(stmt)
+        # Handle string iteration: V yields u8 for strings, so we convert using .ascii_str()
+        is_string_iter = False
+        if isinstance(node.iter, ast.Call) and getattr(node.iter.func, 'id', '') == "str":
+            is_string_iter = True
+        elif hasattr(self, '_guess_type') and self._guess_type(node.iter) == "string":
+            is_string_iter = True
+
+        if is_string_iter:
+            self.output.append(f"{self._indent()}for {target}_u8 in {iter_expr} {{")
+            self._indent_level += 1
+            self.output.append(f"{self._indent()}{target} := {target}_u8.ascii_str()")
+            for stmt in node.body:
+                self.visit(stmt)
+        else:
+            self.output.append(f"{self._indent()}for {target} in {iter_expr} {{")
+            self._indent_level += 1
+            for stmt in node.body:
+                self.visit(stmt)
         self._indent_level -= 1
         self.output.append(f"{self._indent()}}}")
 
@@ -175,6 +197,12 @@ class ControlFlowMixin(TranslatorBase):
         target = self.visit(node.target)
         iter_expr = self.visit(node.iter)
 
+        if isinstance(node.iter, ast.Call) and isinstance(node.iter.func, ast.Attribute) and node.iter.func.attr == "items":
+            if isinstance(node.target, ast.Tuple):
+                if target.startswith("[") and target.endswith("]"):
+                    target = target[1:-1]
+            iter_expr = self.visit(node.iter.func.value)
+
         if isinstance(node.iter, ast.Call) and isinstance(node.iter.func, ast.Name):
              if node.iter.func.id == "range":
                  range_args = node.iter.args
@@ -221,10 +249,24 @@ class ControlFlowMixin(TranslatorBase):
                      else:
                          self.output.append(f"{self._indent()}// TODO: handle enumerate with single target variable")
 
-        self.output.append(f"{self._indent()}for {target} in {iter_expr} {{")
-        self._indent_level += 1
-        for stmt in node.body:
-            self.visit(stmt)
+        # Handle string iteration: V yields u8 for strings, so we convert using .ascii_str()
+        is_string_iter = False
+        if isinstance(node.iter, ast.Call) and getattr(node.iter.func, 'id', '') == "str":
+            is_string_iter = True
+        elif hasattr(self, '_guess_type') and self._guess_type(node.iter) == "string":
+            is_string_iter = True
+
+        if is_string_iter:
+            self.output.append(f"{self._indent()}for {target}_u8 in {iter_expr} {{")
+            self._indent_level += 1
+            self.output.append(f"{self._indent()}{target} := {target}_u8.ascii_str()")
+            for stmt in node.body:
+                self.visit(stmt)
+        else:
+            self.output.append(f"{self._indent()}for {target} in {iter_expr} {{")
+            self._indent_level += 1
+            for stmt in node.body:
+                self.visit(stmt)
         self._indent_level -= 1
         self.output.append(f"{self._indent()}}}")
 

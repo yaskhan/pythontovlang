@@ -454,19 +454,19 @@ Based on the transpilation of the `primes.py` benchmark, several critical areas 
   - *Context:* In `Node.__init__`, `self.children = {}` causes `self.children` to be inferred as `map[string]int{}`, which is incorrect since it stores `Node` instances later.
   - *Task:* Improve type inference for empty dictionaries by analyzing subsequent dictionary assignments (like `head.children[ch] = Node()`) to infer the correct value type (`map[string]Node`).
 
-- [ ] **String Iteration (`for ch in str(el):`)**
+- [x] **String Iteration (`for ch in str(el):`)**
   - *Context:* Iterating over a string in V yields bytes (`u8`), but the Python code expects string characters to be used as map keys (`head.children[ch]`).
   - *Task:* Handle string iteration correctly by mapping the iterated byte to a string (e.g., using a custom iterator or `.ascii_str()`) when the string semantics are required.
 
-- [ ] **Truth Value Testing for Arrays/Queues (`while queue:`)**
+- [x] **Truth Value Testing for Arrays/Queues (`while queue:`)**
   - *Context:* `while queue:` is transpiled directly to `for queue {`, which is invalid in V.
   - *Task:* Map truth value testing of collections (lists, dicts, etc.) to explicit `.len > 0` checks in V (e.g., `for queue.len > 0 {`).
 
-- [ ] **Iterating over Dictionary Items (`for ch, v in top.children.items():`)**
+- [x] **Iterating over Dictionary Items (`for ch, v in top.children.items():`)**
   - *Context:* Emits `for [ch, v] in top.children.items() {` which is not idiomatic V.
   - *Task:* Map `.items()` iteration on maps directly to V's native map iteration syntax: `for ch, v in top.children {`.
 
-- [ ] **String to Integer Conversion (`int(prefix)`)**
+- [x] **String to Integer Conversion (`int(prefix)`)**
   - *Context:* `int(prefix)` where `prefix` is a string is emitted literally, but V requires `prefix.int()`.
   - *Task:* Map `int()` casts on string variables to the `.int()` method in V.
 
