@@ -431,7 +431,7 @@ Based on the transpilation of the `bm_raytrace.py` benchmark, several critical a
   - *Context:* Constants like `DEFAULT_WIDTH := 100` and `Vector_ZERO := new_Vector(0, 0, 0)` are placed inside the generated `fn main()` block rather than an appropriate V `const ( ... )` block or global state.
   - *Task:* Refactor module-level assignment handling so that constants (e.g., `Final` or uppercase variables) are correctly emitted in a V `const` block (if compile-time evaluable) or an `init` block/global struct (if they require runtime instantiation like `new_Vector`).
 
-- [ ] **Duplicate Method Generation (`__str__` and `__repr__`)**
+- [x] **Duplicate Method Generation (`__str__` and `__repr__`)**
   - *Context:* Both `__str__` and `__repr__` methods on a Python class map to V's `.str() string` method, leading to compilation errors due to duplicate method declarations (e.g., `fn (self Vector) str() string { ... }` defined twice).
   - *Task:* Handle duplicate V method mapping by either combining `__str__` and `__repr__`, taking precedence of `__str__` over `__repr__`, or renaming `__repr__` to `repr()` instead of mapping both to `.str()`.
 

@@ -397,6 +397,12 @@ class ClassesMixin(TranslatorBase):
             struct_def += f"struct {struct_name}{generics_str} {{\n" + "\n".join(fields) + "\n}"
             self.emitter.add_struct(struct_def)
 
+            has_str = any(m.name == "__str__" for m in methods)
+            if has_str:
+                for method in methods:
+                    if method.name == "__repr__":
+                        method.name = "repr"
+
             # Visit methods to generate them as functions
             for method in methods:
                 self.visit(method)
