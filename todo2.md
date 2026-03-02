@@ -496,7 +496,7 @@ Based on the transpilation of the `bm_spectral_norm.py` benchmark, several criti
   - *Context:* `[1] * DEFAULT_N` is emitted directly as `[1] * DEFAULT_N`, which is not valid V array repetition syntax.
   - *Task:* Transpile Python list repetition into V's array initialization syntax with `len` and `init` (e.g., `[]int{len: DEFAULT_N, init: 1}`).
 
-- [ ] **`six.moves` and `itertools` Compatibility**
+- [x] **`six.moves` and `itertools` Compatibility**
   - *Context:* Functions `xrange` and `izip` from `six.moves` are emitted directly without mapping, causing undefined function errors in V.
   - *Task:* Map `xrange` to V ranges (e.g., `0 .. loops`) or a range generator. Map `izip` (and `zip`) to V's `arrays.zip()` or handle simultaneous iteration natively.
 
