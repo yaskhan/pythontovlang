@@ -485,6 +485,20 @@ class CallsMixin(TranslatorBase):
                 return f"f64({args[0]})"
             return "0.0"
 
+        elif func_name_str == "int":
+            if len(args) == 0:
+                return "0"
+            elif len(args) == 1:
+                arg_type = self._guess_type(node.args[0])
+                if arg_type == "string":
+                    return f"{args[0]}.int()"
+                return f"int({args[0]})"
+            elif len(args) == 2:
+                # E.g. int('ff', 16) - V has strconv.parse_int
+                # but let's keep it simple or use strconv if required
+                self.emitter.add_import("strconv")
+                return f"int(strconv.parse_int({args[0]}, {args[1]}, 32) or {{ 0 }})"
+
         elif func_name_str == "isinstance":
             if len(args) == 2:
                 obj = args[0]

@@ -466,7 +466,7 @@ Based on the transpilation of the `primes.py` benchmark, several critical areas 
   - *Context:* Emits `for [ch, v] in top.children.items() {` which is not idiomatic V.
   - *Task:* Map `.items()` iteration on maps directly to V's native map iteration syntax: `for ch, v in top.children {`.
 
-- [ ] **String to Integer Conversion (`int(prefix)`)**
+- [x] **String to Integer Conversion (`int(prefix)`)**
   - *Context:* `int(prefix)` where `prefix` is a string is emitted literally, but V requires `prefix.int()`.
   - *Task:* Map `int()` casts on string variables to the `.int()` method in V.
 
