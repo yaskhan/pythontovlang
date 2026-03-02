@@ -4,6 +4,24 @@ from py2v_transpiler.models.v_types import map_python_type_to_v
 from .base import TranslatorBase
 
 class VariablesMixin(TranslatorBase):
+    def _is_compile_time_evaluable(self, node: ast.AST) -> bool:
+        """
+        Checks if an AST node represents a value that can be evaluated at compile time in V.
+        """
+        if isinstance(node, ast.Constant):
+            return True
+        if isinstance(node, ast.Name):
+            return node.id.isupper()
+        if isinstance(node, ast.UnaryOp):
+            return self._is_compile_time_evaluable(node.operand)
+        if isinstance(node, ast.BinOp):
+            return self._is_compile_time_evaluable(node.left) and self._is_compile_time_evaluable(node.right)
+        if isinstance(node, (ast.List, ast.Tuple, ast.Set)):
+            return all(self._is_compile_time_evaluable(elt) for elt in node.elts)
+        if isinstance(node, ast.Dict):
+            return all(self._is_compile_time_evaluable(k) for k in node.keys if k) and all(self._is_compile_time_evaluable(v) for v in node.values)
+        return False
+
     def visit_Assign(self, node: ast.Assign) -> None:
         target = node.targets[0]
         lhs = ""
@@ -292,7 +310,6 @@ class VariablesMixin(TranslatorBase):
                 else:
                     rhs = self.visit(node.value)
 
-
                 emit_fn = self.output.append
                 if self.in_main:
                     base_lhs = lhs.split('.')[0].split('[')[0]
@@ -306,12 +323,20 @@ class VariablesMixin(TranslatorBase):
                     elif base_lhs.isupper():
                         emit_fn = lambda stmt: self.emitter.add_init_statement(stmt.strip())
                         if isinstance(target, ast.Name):
-                            if v_type == "unknown":
-                                v_type = "Any"
-                            self.emitter.add_global(f"{lhs} {v_type}")
+                            if self._is_compile_time_evaluable(node.value):
+                                # Compile-time константа (например DEFAULT_WIDTH = 100) → блок const
+                                self.emitter.add_constant(f"{lhs} = {rhs}")
+                                return
+                            else:
+                                # Runtime UPPER_CASE (например Vector_ZERO = new_Vector(...)) → global + init()
+                                if v_type == "unknown" or v_type == "int":
+                                    v_type = "Any"
+                                self.emitter.add_global(f"{lhs} {v_type}")
 
                 if self.in_main and isinstance(target, ast.Name) and (lhs in getattr(self, "global_vars", set()) or lhs.isupper()):
-                    emit_fn(f"{self._indent()}{lhs} = {rhs}")
+                    # Для compile-time констант мы уже сделали return выше — присваивание не нужно
+                    if not (lhs.isupper() and self._is_compile_time_evaluable(node.value)):
+                        emit_fn(f"{self._indent()}{lhs} = {rhs}")
                 elif rhs == "none":
                     # v_type might be defined above if we were checking is_simple_list, but let's be safe
                     local_v_type = getattr(self, "_guess_type", lambda x: "unknown")(target)
@@ -570,7 +595,6 @@ class VariablesMixin(TranslatorBase):
                 else:
                     rhs = self.visit(node.value)
 
-
                 emit_fn = self.output.append
                 if self.in_main:
                     base_lhs = target.split('.')[0].split('[')[0]
@@ -581,15 +605,30 @@ class VariablesMixin(TranslatorBase):
                             if not v_type or v_type == "unknown":
                                 v_type = "Any"
                             self.emitter.add_global(f"{target} {v_type}")
-                    elif base_lhs.isupper():
+
+                    elif base_lhs.isupper() or \
+                         (v_type == "Final" or
+                          getattr(node, "annotation", None) and
+                          (getattr(getattr(node, "annotation", None), "id", "") == "Final" or
+                           getattr(getattr(node, "annotation", None), "attr", "") == "Final")):
                         emit_fn = lambda stmt: self.emitter.add_init_statement(stmt.strip())
                         if isinstance(node.target, ast.Name):
-                            if not v_type or v_type == "unknown":
+                            if not v_type or v_type in ("unknown", "Final"):
                                 v_type = "Any"
                             self.emitter.add_global(f"{target} {v_type}")
 
-                if self.in_main and isinstance(node.target, ast.Name) and (target in getattr(self, "global_vars", set()) or target.isupper()):
+                            if self._is_compile_time_evaluable(node.value):
+                                # Настоящая compile-time константа → const блок
+                                self.emitter.add_constant(f"{target} = {rhs}")
+                                return   # ← важно: не выводим присваивание в init или output
+                            # иначе остаётся в init() как глобальная переменная с runtime-инициализацией
+
+                # Обычное присваивание, если не перехвачено выше
+                if self.in_main and isinstance(node.target, ast.Name) and \
+                   (target in getattr(self, "global_vars", set()) or target.isupper()):
+                    # Для compile-time мы уже вернулись выше → здесь только runtime-случаи
                     emit_fn(f"{self._indent()}{target} = {rhs}")
+
                 elif rhs == "none":
                     if v_type and v_type != "unknown":
                         if not v_type.startswith("?"):

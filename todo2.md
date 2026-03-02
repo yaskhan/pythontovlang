@@ -427,7 +427,7 @@ Based on the transpilation of the `bm_raytrace.py` benchmark, several critical a
   - *Context:* Module-level variables defined as `Final` and instantiated (e.g., `Vector_ZERO: Final = Vector(0, 0, 0)`) are emitted multiple times inside `fn main()` in the transpiled output.
   - *Task:* Fix the bug in the module/variable visitation logic to prevent duplicate generation of `Final` or uppercase module-level constants.
 
-- [ ] **Global Constants Placement (`const`)**
+- [x] **Global Constants Placement (`const`)**
   - *Context:* Constants like `DEFAULT_WIDTH := 100` and `Vector_ZERO := new_Vector(0, 0, 0)` are placed inside the generated `fn main()` block rather than an appropriate V `const ( ... )` block or global state.
   - *Task:* Refactor module-level assignment handling so that constants (e.g., `Final` or uppercase variables) are correctly emitted in a V `const` block (if compile-time evaluable) or an `init` block/global struct (if they require runtime instantiation like `new_Vector`).
 
