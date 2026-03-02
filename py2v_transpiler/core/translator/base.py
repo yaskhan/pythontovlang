@@ -77,6 +77,9 @@ class TranslatorBase(ast.NodeVisitor):
             inferred = self.type_inference.resolve_type(node)
             if inferred != "void":
                 return inferred
+            # Try to see if it's in our local map
+            if hasattr(self.type_inference, "type_map") and node.id in self.type_inference.type_map:
+                return self.type_inference.type_map[node.id]
             return "int" # Fallback
         elif isinstance(node, ast.BinOp):
             if isinstance(node.op, ast.Div):
