@@ -295,7 +295,7 @@ Based on recent Python ecosystem developments (mypy, PyPy, Numba, NumPy, Nuitka,
 - [ ] **Monomorphization of Generic Classes (Mypy Driven)**
   - *Context:* Python doesn't inherently instantiate generic classes differently, but V requires it (e.g., `Box[int]`).
   - *V Translation:* When the mypy plugin records instantiation metadata for generic user classes (e.g., `Box(1)`), use that data to correctly map and emit the explicit V generic instantiation type `Box[int]`.
-- [ ] **Static Duck Typing Mapping to V Interfaces**
+- [x] **Static Duck Typing Mapping to V Interfaces**
   - *Context:* Python duck typing via `typing.Protocol` is inherently dynamic, but mypy proves its safety statically.
   - *V Translation:* When mypy confirms a function argument structurally matches a `Protocol`, generate V code that uses explicit, lightweight V `interface` casting instead of boxing everything into an `Any` wrapper with runtime method checks.
 - [ ] **Loop Unrolling for Static `tuple` Lengths**
@@ -304,7 +304,7 @@ Based on recent Python ecosystem developments (mypy, PyPy, Numba, NumPy, Nuitka,
 - [x] **Compile-Time Evaluation of `typing.assert_type`**
   - *Context:* Python developers use `assert_type()` to verify mypy's understanding.
   - *V Translation:* Provide a dedicated AST node handler for `assert_type`. Verify that the transpiler's internal type mapping agrees with the mypy plugin's provided type; if it matches, strip the assertion entirely from the V code (zero runtime overhead).
-- [ ] **Exhaustiveness Checking (`typing.assert_never`)**
+- [x] **Exhaustiveness Checking (`typing.assert_never`)**
   - *Context:* Used to ensure all branches of an `Enum` or `Union` are handled.
   - *V Translation:* When the AST contains `assert_never()`, use mypy's control-flow reachability data to verify dead code. Emit a compile-time V error (`$compile_error()`) or `panic()` if the transpiler logic detects the code could be reachable despite mypy's assumptions.
 - [x] **Type-Aware List Comprehension Pre-allocation**
@@ -313,10 +313,10 @@ Based on recent Python ecosystem developments (mypy, PyPy, Numba, NumPy, Nuitka,
 - [x] **Strict Structural `TypedDict` Mapping**
   - *Context:* Python dictionaries can be highly dynamic, often falling back to `map[string]Any`.
   - *V Translation:* If mypy explicitly types a dictionary assignment/usage as a specific `TypedDict`, bypass the `map` entirely and emit it as an exact, unboxed V `struct` to ensure zero-overhead field access.
-- [ ] **Generic Type Aliases Mapping (PEP 695)**
+- [x] **Generic Type Aliases Mapping (PEP 695)**
   - *Context:* Python 3.12+ introduced `type Alias[T] = dict[str, T]`.
   - *V Translation:* Leverage the mypy plugin to resolve these aliases statically and map them directly to V's generic type definitions (e.g., `type Alias[T] = map[string]T`), allowing subsequent variables to be defined natively.
-- [ ] **`Any` Fallback Profiler / Strict Typing Mode**
+- [x] **`Any` Fallback Profiler / Strict Typing Mode**
   - *Context:* It's difficult for a user to know when their Python code failed to transpile into efficient V code due to missing type hints.
   - *V Translation:* Add a CLI flag (e.g., `--warn-dynamic`) that utilizes the mypy plugin's data to emit warnings indicating exactly which lines/variables fell back to the `Any` sum type, encouraging users to improve their Python type annotations for better V code emission.
 - [x] **Static Function Overload Resolution (`typing.overload`)**
@@ -325,7 +325,7 @@ Based on recent Python ecosystem developments (mypy, PyPy, Numba, NumPy, Nuitka,
 - [ ] **Exact Mutability Mapping (`Final` / reassignments)**
   - *Context:* V variables default to immutable. Currently, the transpiler might over-use `mut` to be safe.
   - *V Translation:* Utilize mypy's reassignment tracking and `typing.Final` annotations. If mypy proves a variable is never reassigned after initialization, emit it without the `mut` keyword in V, relying on V's strict compiler to ensure immutability.
-- [ ] **Config-Aware Nullability (`strict_optional`)**
+- [x] **Config-Aware Nullability (`strict_optional`)**
   - *Context:* Mypy's `strict_optional` setting dictates whether `None` is a valid value for unannotated types.
   - *V Translation:* Hook into the user's `mypy.ini` or `pyproject.toml`. If `strict_optional = True`, map union types like `int | None` strictly to V optionals (`?int`). If `False`, rely on the `Any` wrapper with `none` tracking to match legacy Python semantics.
 - [ ] **`typing.Literal` Mapping to V Enums / Constants**
@@ -337,10 +337,10 @@ Based on recent Python ecosystem developments (mypy, PyPy, Numba, NumPy, Nuitka,
 - [ ] **Dead Code Elimination via Reachability Analysis**
   - *Context:* Mypy tracks code reachability (e.g., after `assert False` or an impossible `if` condition).
   - *V Translation:* When mypy flags an AST node or block as unreachable, completely omit that block from the V output, preventing compilation of impossible branches.
-- [ ] **Statically Typed `*args` and `**kwargs`**
+- [x] **Statically Typed `*args` and `**kwargs`**
   - *Context:* Variadic arguments default to highly dynamic processing.
   - *V Translation:* If mypy infers that variadic arguments are homogeneous (e.g., `*args: int`), emit them directly as explicit V arrays (`[]int`) or maps (`map[string]int`) rather than generic `[]Any` arrays, stripping out variadic wrapper overhead.
-- [ ] **Exception Block Type Narrowing**
+- [x] **Exception Block Type Narrowing**
   - *Context:* Mypy knows the exact type(s) of an exception bound in `except Exception as e:`.
   - *V Translation:* Use the mypy data to strongly type the `e` variable in V's exception handling blocks, allowing direct access to the exception struct's fields without `Any` downcasting.
 
