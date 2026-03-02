@@ -396,7 +396,7 @@ Based on the transpilation of the `bm_hexiom.py` benchmark, several critical are
   - *Context:* Comprehensions such as `[self.cells[i][:] for i in range(self.count)]` and generator expressions inside functions like `max(...)` or `sum(...)` emit `/* unknown */` or `// List comprehension expression not supported inline yet`.
   - *Task:* Implement full support for inline list comprehensions and generator expressions, mapping them to V's `map`/`filter` array methods, or extracting them into inline loops or closure helpers.
 
-- [ ] **`six` Module and Legacy Compatibility Helpers**
+- [x] **`six` Module and Legacy Compatibility Helpers**
   - *Context:* Functions from `six` (`u as u_lit`, `text_type`) are emitted directly, resulting in undefined V functions.
   - *Task:* Add AST node interception or standard library mapping for common `six` module utilities, translating `text_type(x)` to `x.str()` and bypassing `u_lit` wrappers for string literals.
 
