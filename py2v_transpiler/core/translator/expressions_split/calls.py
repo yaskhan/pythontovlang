@@ -602,6 +602,7 @@ class CallsMixin(TranslatorBase):
         elif func_name_str == "print":
             sep = " "
             end = "\\n"
+            is_stderr = False
 
             for keyword in node.keywords:
                 if keyword.arg == "sep":
@@ -612,6 +613,10 @@ class CallsMixin(TranslatorBase):
                         end = keyword.value.value
                         if end == "\n":
                             end = "\\n"
+                elif keyword.arg == "file":
+                    file_val = self.visit(keyword.value)
+                    if file_val == "sys.stderr":
+                        is_stderr = True
 
             parts = []
             for arg in node.args:
@@ -624,12 +629,20 @@ class CallsMixin(TranslatorBase):
 
             joined_content = sep.join(parts)
 
-            if end == "\\n":
-                return f"println('{joined_content}')"
-            elif end == "":
-                return f"print('{joined_content}')"
+            if is_stderr:
+                if end == "\\n":
+                    return f"eprintln('{joined_content}')"
+                elif end == "":
+                    return f"eprint('{joined_content}')"
+                else:
+                    return f"eprint('{joined_content}{end}')"
             else:
-                return f"print('{joined_content}{end}')"
+                if end == "\\n":
+                    return f"println('{joined_content}')"
+                elif end == "":
+                    return f"print('{joined_content}')"
+                else:
+                    return f"print('{joined_content}{end}')"
 
         # Check if it is a generator call
         if self.coroutine_handler.is_generator(func_name_str):

@@ -474,7 +474,7 @@ Based on the transpilation of the `primes.py` benchmark, several critical areas 
   - *Context:* `bytes(msg, "utf8")` is emitted as `bytes(msg, 'utf8')`.
   - *Task:* Map `bytes(string, encoding)` to V's native `string.bytes()` method.
 
-- [ ] **`sys.stderr` Redirection (`print(..., file=sys.stderr)`)**
+- [x] **`sys.stderr` Redirection (`print(..., file=sys.stderr)`)**
   - *Context:* `print` statements with `file=sys.stderr` are transpiled to standard `println`.
   - *Task:* Recognize `file=sys.stderr` in `print` calls and map them to V's `eprintln`.
 
