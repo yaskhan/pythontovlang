@@ -334,6 +334,27 @@ class CallsMixin(TranslatorBase):
                         best_match_suffix = "_".join(sig_suffix_parts)
                         break
 
+            # Operator overloading: if the method is an operator, don't mangle the call site,
+            # because V handles operators intrinsically if they are mapped correctly.
+            # But wait, python ast maps operators (e.g. `a + b`) to `BinOp(Add)`, which we already translate
+            # to `a + b` in `OperatorsMixin.visit_BinOp`.
+            # What if someone calls `a.__add__(b)` directly?
+            # V does not allow calling operators as methods (`a.+(b)`).
+            # We must map `__add__` to `+`.
+            op_map = {
+                "__add__": "+", "__sub__": "-", "__mul__": "*", "__truediv__": "/",
+                "__mod__": "%", "__lt__": "<", "__le__": "<=", "__eq__": "==",
+                "__ne__": "!="
+            }
+            if func_name_str in op_map:
+                op_str = op_map[func_name_str]
+                # If we are in obj.method(arg), then we need to restructure it to obj + arg
+                if len(args) == 1 and isinstance(node.func, ast.Attribute):
+                    obj = self.visit(node.func.value)
+                    return f"{obj} {op_str} {args[0]}"
+                # Fallback if something weird happened (e.g. called without args)
+                pass
+
             if best_match_suffix:
                 func_name_str = f"{func_name_str}_{best_match_suffix}"
             elif type_suffix_parts:
