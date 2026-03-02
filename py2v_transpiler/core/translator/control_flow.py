@@ -106,6 +106,22 @@ class ControlFlowMixin(TranslatorBase):
         # Push loop context to stack for break handling
         self.loop_stack.append({'vexc_depth': self.vexc_depth})
 
+        if isinstance(node.target, ast.Tuple) and target.startswith("[") and target.endswith("]"):
+            val_name = f"_val_{id(node)}"
+            self.output.append(f"{self._indent()}for {val_name} in {iter_expr} {{")
+            self._indent_level += 1
+            for i, elt in enumerate(node.target.elts):
+                elt_name = self.visit(elt)
+                self.output.append(f"{self._indent()}{elt_name} := {val_name}[{i}]")
+            for stmt in node.body:
+                self.visit(stmt)
+            self._indent_level -= 1
+            self.output.append(f"{self._indent()}}}")
+            self.loop_stack.pop()
+            if node.orelse:
+                self.output.append(f"{self._indent()}// else clause in async for not supported yet")
+            return
+
         self.output.append(f"{self._indent()}for {target} in {iter_expr} {{")
         self._indent_level += 1
         for stmt in node.body:
@@ -131,7 +147,7 @@ class ControlFlowMixin(TranslatorBase):
         self.loop_stack.append(loop_ctx)
 
         # Zip handling
-        if isinstance(node.iter, ast.Call) and isinstance(node.iter.func, ast.Name) and node.iter.func.id == "zip":
+        if isinstance(node.iter, ast.Call) and isinstance(node.iter.func, ast.Name) and node.iter.func.id in ("zip", "izip"):
             zip_args = node.iter.args
             if len(zip_args) == 2:
                 self._zip_counter += 1
@@ -220,6 +236,33 @@ class ControlFlowMixin(TranslatorBase):
                              target = target[1:-1]
                      else:
                          self.output.append(f"{self._indent()}// TODO: handle enumerate with single target variable")
+
+        is_enumerate = isinstance(node.iter, ast.Call) and getattr(node.iter.func, "id", "") == "enumerate"
+        is_dict_items = isinstance(node.iter, ast.Call) and isinstance(node.iter.func, ast.Attribute) and node.iter.func.attr == "items"
+
+        if isinstance(node.target, ast.Tuple) and target.startswith("[") and target.endswith("]") and not is_enumerate and not is_dict_items:
+            val_name = f"_val_{id(node)}"
+            self.output.append(f"{self._indent()}for {val_name} in {iter_expr} {{")
+            self._indent_level += 1
+            for i, elt in enumerate(node.target.elts):
+                elt_name = self.visit(elt)
+                self.output.append(f"{self._indent()}{elt_name} := {val_name}[{i}]")
+            for stmt in node.body:
+                self.visit(stmt)
+            self._indent_level -= 1
+            self.output.append(f"{self._indent()}}}")
+            self.loop_stack.pop()
+            if node.orelse:
+                self.output.append(f"{self._indent()}if {flag_name} {{")
+                self._indent_level += 1
+                for stmt in node.orelse:
+                    self.visit(stmt)
+                self._indent_level -= 1
+                self.output.append(f"{self._indent()}}}")
+            return
+
+        if is_dict_items and target.startswith("[") and target.endswith("]"):
+            target = target[1:-1]
 
         self.output.append(f"{self._indent()}for {target} in {iter_expr} {{")
         self._indent_level += 1
