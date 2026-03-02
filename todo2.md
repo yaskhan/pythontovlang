@@ -488,7 +488,7 @@ Based on the transpilation of the `bm_spectral_norm.py` benchmark, several criti
   - *Context:* The Python expression `(i + j) * (i + j + 1) // 2` is transpiled to `int(math.floor(f64(i + j * i + j + 1) / f64(2)))`, completely dropping the required parentheses and changing the mathematical logic.
   - *Task:* Ensure that AST grouping parentheses are preserved or reconstructed during binary operation transpilation.
 
-- [ ] **Inline List Comprehensions**
+- [x] **Inline List Comprehensions**
   - *Context:* `[func((i, u)) for i in xrange(len(list(u)))]` emits `// List comprehension expression not supported inline yet` and returns `None` (which is invalid in V).
   - *Task:* Implement full support for inline list comprehensions, either mapping them to V's array methods (`.map()`, `.filter()`) or extracting them into inline closures or helper variables.
 
