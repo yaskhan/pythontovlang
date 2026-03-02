@@ -13,6 +13,16 @@ class ClassesMixin(TranslatorBase):
         self.class_stack.append(node.name)
         struct_name = "_".join(self.class_stack)
 
+        # Pre-register class definition to allow class instantiation inside its own methods
+        has_init = False
+        for child in node.body:
+            if isinstance(child, ast.FunctionDef) and child.name == "__init__":
+                has_init = True
+                break
+        if not hasattr(self, 'defined_classes'):
+            self.defined_classes = {}
+        self.defined_classes[struct_name] = has_init
+
         # Save previous state to restore later (for nesting)
         prev_class = self.current_class
         prev_generics = self.current_class_generics
