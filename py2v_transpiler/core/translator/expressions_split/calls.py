@@ -485,6 +485,9 @@ class CallsMixin(TranslatorBase):
                 return f"f64({args[0]})"
             return "0.0"
 
+        elif func_name_str == "bytes":
+            if len(args) == 2:
+                return f"{args[0]}.bytes()"
         elif func_name_str == "int":
             if len(args) == 0:
                 return "0"

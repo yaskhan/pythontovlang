@@ -470,7 +470,7 @@ Based on the transpilation of the `primes.py` benchmark, several critical areas 
   - *Context:* `int(prefix)` where `prefix` is a string is emitted literally, but V requires `prefix.int()`.
   - *Task:* Map `int()` casts on string variables to the `.int()` method in V.
 
-- [ ] **String `bytes()` Encoding**
+- [x] **String `bytes()` Encoding**
   - *Context:* `bytes(msg, "utf8")` is emitted as `bytes(msg, 'utf8')`.
   - *Task:* Map `bytes(string, encoding)` to V's native `string.bytes()` method.
 
