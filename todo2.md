@@ -478,7 +478,7 @@ Based on the transpilation of the `primes.py` benchmark, several critical areas 
   - *Context:* `print` statements with `file=sys.stderr` are transpiled to standard `println`.
   - *Task:* Recognize `file=sys.stderr` in `print` calls and map them to V's `eprintln`.
 
-- [ ] **Missing Modules (`platform`)**
+- [x] **Missing Modules (`platform`)**
   - *Context:* `platform.python_implementation()` is emitted directly but `platform` doesn't exist in V.
   - *Task:* Provide an AST mapping or standard library mock for `platform.python_implementation()` returning `'V'` or similar.
 ## Analysis of `bm_spectral_norm.py` Transpilation Issues

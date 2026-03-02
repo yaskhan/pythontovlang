@@ -180,6 +180,7 @@ class StdLibMapper:
             "platform": {
                 "system": "os.user_os",
                 "machine": "py_platform_machine",
+                "python_implementation": self._platform_python_implementation,
             },
             "hashlib": {
                 "sha256": "py_hash_sha256",
@@ -586,3 +587,6 @@ class StdLibMapper:
     def _typing_cast(self, args: List[str]) -> str:
         # We handle this directly in expressions.py now for type resolution
         return "/* typing.cast intercepted by expressions.py */"
+
+    def _platform_python_implementation(self, args: List[str]) -> str:
+        return "'V'"
