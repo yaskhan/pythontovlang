@@ -621,7 +621,9 @@ class VariablesMixin(TranslatorBase):
                                 # Настоящая compile-time константа → const блок
                                 self.emitter.add_constant(f"{target} = {rhs}")
                                 return   # ← важно: не выводим присваивание в init или output
-                            # иначе остаётся в init() как глобальная переменная с runtime-инициализацией
+                            else:
+                                self.emitter.add_init_statement(f"{target} = {rhs}")
+                                return
 
                 # Обычное присваивание, если не перехвачено выше
                 if self.in_main and isinstance(node.target, ast.Name) and \

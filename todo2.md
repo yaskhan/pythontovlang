@@ -423,7 +423,7 @@ Based on the transpilation of the `bm_raytrace.py` benchmark, several critical a
   - *Context:* Python's magic methods like `__add__` with `@overload` are currently emitted as uniquely named functions (e.g., `__add___Vector` or `__add___Point`) instead of V's overloaded operators (`+`). Normal magic methods like `__sub__` correctly map to V's `-` operator, but overloaded ones do not fallback or combine into operator overloads properly.
   - *Task:* Ensure that when overloaded magic methods are encountered, they map correctly to V's operator overloading syntax (e.g. `fn (a Vector) + (b Vector) Vector`), generating multiple overloaded operators if V supports them, or handling type disjunctions cleanly.
 
-- [ ] **Duplicate Global Variable Emission (`Final`)**
+- [x] **Duplicate Global Variable Emission (`Final`)**
   - *Context:* Module-level variables defined as `Final` and instantiated (e.g., `Vector_ZERO: Final = Vector(0, 0, 0)`) are emitted multiple times inside `fn main()` in the transpiled output.
   - *Task:* Fix the bug in the module/variable visitation logic to prevent duplicate generation of `Final` or uppercase module-level constants.
 
