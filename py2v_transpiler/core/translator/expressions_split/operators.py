@@ -44,6 +44,22 @@ class OperatorsMixin(TranslatorBase):
         if isinstance(node.op, ast.MatMult):
              return f"{left}.matmul({right})"
 
+        if isinstance(node.op, ast.Mult):
+             if isinstance(node.left, ast.List) and len(node.left.elts) == 1:
+                  init_val = self.visit(node.left.elts[0])
+                  length = right
+                  elem_type = self._guess_type(node.left.elts[0])
+                  if init_val == "none":
+                       elem_type = "?Any"
+                  return f"[]{elem_type}{{len: {length}, init: {init_val}}}"
+             elif isinstance(node.right, ast.List) and len(node.right.elts) == 1:
+                  init_val = self.visit(node.right.elts[0])
+                  length = left
+                  elem_type = self._guess_type(node.right.elts[0])
+                  if init_val == "none":
+                       elem_type = "?Any"
+                  return f"[]{elem_type}{{len: {length}, init: {init_val}}}"
+
         # Check for bytes formatting: b"%s" % b"a"
         if isinstance(node.op, ast.Mod):
              # Heuristic: check if left operand is likely bytes

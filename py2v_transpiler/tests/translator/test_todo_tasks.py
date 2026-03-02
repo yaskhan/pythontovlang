@@ -120,5 +120,14 @@ x: int = 1
         self.assertNotIn("import __future__", result)
         self.assertIn("x := 1", result)
 
+    def test_list_replication(self):
+        source = """
+a = [1] * 10
+b = 5 * [None]
+"""
+        result = self.transpile(source)
+        self.assertIn("a := []int{len: 10, init: 1}", result)
+        self.assertIn("b := []?Any{len: 5, init: none}", result)
+
 if __name__ == '__main__':
     unittest.main()
