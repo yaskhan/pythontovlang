@@ -419,7 +419,7 @@ Based on the transpilation of the `bm_hexiom.py` benchmark, several critical are
 ## Analysis of `bm_raytrace.py` Transpilation Issues
 Based on the transpilation of the `bm_raytrace.py` benchmark, several critical areas for improvement have been identified:
 
-- [ ] **Magic Methods with Overloads (`__add__`, `__sub__`, etc.)**
+- [x] **Magic Methods with Overloads (`__add__`, `__sub__`, etc.)**
   - *Context:* Python's magic methods like `__add__` with `@overload` are currently emitted as uniquely named functions (e.g., `__add___Vector` or `__add___Point`) instead of V's overloaded operators (`+`). Normal magic methods like `__sub__` correctly map to V's `-` operator, but overloaded ones do not fallback or combine into operator overloads properly.
   - *Task:* Ensure that when overloaded magic methods are encountered, they map correctly to V's operator overloading syntax (e.g. `fn (a Vector) + (b Vector) Vector`), generating multiple overloaded operators if V supports them, or handling type disjunctions cleanly.
 
