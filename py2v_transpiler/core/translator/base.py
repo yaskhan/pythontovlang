@@ -66,10 +66,10 @@ class TranslatorBase(ast.NodeVisitor):
 
     def _guess_type(self, node: ast.AST) -> str:
         if isinstance(node, ast.Constant):
+             if isinstance(node.value, bool): return "bool"
              if isinstance(node.value, int): return "int"
              if isinstance(node.value, float): return "f64"
              if isinstance(node.value, str): return "string"
-             if isinstance(node.value, bool): return "bool"
              if isinstance(node.value, complex): return "PyComplex"
              return "int"
         elif isinstance(node, ast.Name):
