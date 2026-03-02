@@ -116,6 +116,23 @@ class OperatorsMixin(TranslatorBase):
                  is_string_fmt = True
              elif left_type == "string":
                  is_string_fmt = True
+             # Extended checks to robustly identify string formatting:
+             if isinstance(node.left, ast.Name):
+                 inferred = self.type_inference.resolve_type(node.left)
+                 if inferred == "string":
+                     is_string_fmt = True
+                 elif node.left.id in self.type_inference.type_map and self.type_inference.type_map[node.left.id] == "string":
+                     is_string_fmt = True
+             elif isinstance(node.left, ast.BinOp) and self._guess_type(node.left) == "string":
+                 is_string_fmt = True
+             elif isinstance(node.left, ast.Attribute) and self._guess_type(node.left) == "string":
+                 is_string_fmt = True
+
+             # Fallback check: if we are still unsure about the left operand but we know the right operand is a string or a tuple
+             # we can reasonably assume the user intended string formatting if the left operand is not definitively a number.
+             if not is_string_fmt and left_type not in ("int", "f64", "float", "i64"):
+                 if right_type == "string" or isinstance(node.right, ast.Tuple):
+                     is_string_fmt = True
 
              if is_string_fmt:
                  self.used_string_format = True

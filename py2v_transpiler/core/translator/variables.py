@@ -255,6 +255,15 @@ class VariablesMixin(TranslatorBase):
             # Determine type
             v_type = getattr(self, "_guess_type", lambda x: "unknown")(target)
 
+            # Update type map on normal assignment if type is unknown or we have a literal
+            if isinstance(target, ast.Name):
+                assigned_type = getattr(self, "_guess_type", lambda x: "unknown")(node.value)
+                if assigned_type != "unknown" and assigned_type != "int":
+                    if hasattr(self, 'type_inference') and hasattr(self.type_inference, 'type_map'):
+                        # If not already statically typed, save the literal assigned type
+                        if target.id not in self.type_inference.type_map:
+                            self.type_inference.type_map[target.id] = assigned_type
+
             if is_simple_list and v_type.startswith("[]") and cap > 0:
                 # To initialize V arrays with exact capacities (`[]int{cap: N}`) during assignments like `arr = [x, y, z]`
                 # We emit:

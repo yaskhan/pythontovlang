@@ -412,7 +412,7 @@ Based on the transpilation of the `bm_hexiom.py` benchmark, several critical are
   - *Context:* `bm_hexiom.py` uses `StringIO` for stream output, which maps directly to undefined `StringIO` and `IO[string]` types in V.
   - *Task:* Map `io.StringIO` (and `six.moves.StringIO`) to V's `strings.Builder`. Map `IO[str]` to `&strings.Builder` or an appropriate stream interface in V.
 
-- [ ] **Modulo `%` String Formatting**
+- [x] **Modulo `%` String Formatting**
   - *Context:* Python's string formatting `"%s " % c` is emitted directly as `'%s ' % c`, which is invalid syntax in V.
   - *Task:* Intercept the `%` binary operator when the left operand is a string, and transpile it to V's string interpolation (e.g., `'$c '`) or generate calls using V's `fmt` module.
 
