@@ -68,9 +68,10 @@ class VariablesMixin(TranslatorBase):
                 # Check if LHS is capitalized (heuristic)
                 if lhs[0].isupper():
                      # Check if it was inferred by TypeInference (e.g. OrderedCollection = list)
-                     if hasattr(self, 'type_inference') and lhs in self.type_inference.type_map:
+                     if hasattr(self, 'type_inference') and lhs in self.type_inference.type_map and isinstance(node.value, ast.Name):
                           is_type_alias = True
                           type_alias_val = self.type_inference.type_map[lhs]
+
                      else:
                           # Try to map RHS as a type
                           try:
@@ -275,8 +276,13 @@ class VariablesMixin(TranslatorBase):
 
                 rhs = f"{v_type}{{{', '.join(pairs)}}}"
                 self.output.append(f"{self._indent()}{lhs} := {rhs}")
+
             else:
-                rhs = self.visit(node.value)
+                if isinstance(node.value, ast.Dict) and not node.value.keys and v_type.startswith("map["):
+                    rhs = f"{v_type}{{}}"
+                else:
+                    rhs = self.visit(node.value)
+
 
                 if self.in_main and isinstance(target, ast.Name):
                     if lhs in getattr(self, "global_vars", set()):
@@ -526,8 +532,13 @@ class VariablesMixin(TranslatorBase):
 
                 rhs = f"{v_type}{{{', '.join(pairs)}}}"
                 self.output.append(f"{self._indent()}{target} := {rhs}")
+
             else:
-                rhs = self.visit(node.value)
+                if isinstance(node.value, ast.Dict) and not node.value.keys and v_type.startswith("map["):
+                    rhs = f"{v_type}{{}}"
+                else:
+                    rhs = self.visit(node.value)
+
 
                 if self.in_main and isinstance(node.target, ast.Name):
                     target_name = target

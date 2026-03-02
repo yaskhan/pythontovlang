@@ -400,7 +400,7 @@ Based on the transpilation of the `bm_hexiom.py` benchmark, several critical are
   - *Context:* Functions from `six` (`u as u_lit`, `text_type`) are emitted directly, resulting in undefined V functions.
   - *Task:* Add AST node interception or standard library mapping for common `six` module utilities, translating `text_type(x)` to `x.str()` and bypassing `u_lit` wrappers for string literals.
 
-- [ ] **Type Inference for Module-Level Dictionaries and Tuple Values**
+- [x] **Type Inference for Module-Level Dictionaries and Tuple Values**
   - *Context:* The `LEVELS` global dictionary is inferred as `map[string]int{}`, but is populated with integer keys and string-tuple values (e.g., `LEVELS[2] = ("...", "...")`).
   - *Task:* Improve type inference for dictionaries populated by subsequent index assignments (`dict[key] = value`). Correctly map Python tuples to V structs, arrays, or multiple return values when used as dictionary values.
 
