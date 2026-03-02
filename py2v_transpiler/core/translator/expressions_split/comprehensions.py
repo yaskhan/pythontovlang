@@ -1,0 +1,488 @@
+import ast
+from typing import List, Optional, Any
+from ..base import TranslatorBase
+
+class ComprehensionsMixin(TranslatorBase):
+    def visit_ListComp(self, node: ast.ListComp, target_var: Optional[str] = None) -> None:
+        if not target_var:
+            self.output.append(f"{self._indent()}// List comprehension expression not supported inline yet")
+            return
+
+        gen = node.generators[0] # Handle first generator
+
+        # Determine capacity for pre-allocation
+        cap_str = ""
+        if not gen.ifs:
+            # Only if there are no filtering conditions
+            if isinstance(gen.iter, (ast.List, ast.Tuple)):
+                cap_str = f"cap: {len(gen.iter.elts)}"
+            elif isinstance(gen.iter, ast.Call) and isinstance(gen.iter.func, ast.Name) and gen.iter.func.id == "range":
+                range_args = gen.iter.args
+                # Check if all arguments are constants
+                all_const = all(
+                    isinstance(arg, ast.Constant) and isinstance(arg.value, int) or
+                    (isinstance(arg, ast.UnaryOp) and isinstance(arg.op, ast.USub) and isinstance(arg.operand, ast.Constant) and isinstance(arg.operand.value, int))
+                    for arg in range_args
+                )
+                if all_const:
+                    def get_int_val(arg: Any) -> int:
+                        if isinstance(arg, ast.UnaryOp) and isinstance(arg.operand, ast.Constant):
+                            val = arg.operand.value
+                            if isinstance(val, int):
+                                return -val
+                        elif isinstance(arg, ast.Constant) and isinstance(arg.value, int):
+                            return arg.value
+                        return 0
+
+                    if len(range_args) == 1:
+                        stop = get_int_val(range_args[0])
+                        length = max(0, stop)
+                        cap_str = f"cap: {length}"
+                    elif len(range_args) == 2:
+                        start = get_int_val(range_args[0])
+                        stop = get_int_val(range_args[1])
+                        length = max(0, stop - start)
+                        cap_str = f"cap: {length}"
+                    elif len(range_args) == 3:
+                        start = get_int_val(range_args[0])
+                        stop = get_int_val(range_args[1])
+                        step = get_int_val(range_args[2])
+                        if step != 0:
+                            if step > 0:
+                                length = max(0, (stop - start + step - 1) // step)
+                            else:
+                                length = max(0, (start - stop - step - 1) // (-step))
+                            cap_str = f"cap: {length}"
+
+        if cap_str:
+            self.output.append(f"{self._indent()}mut {target_var} := []int{{{cap_str}}}")
+        else:
+            self.output.append(f"{self._indent()}mut {target_var} := []int{{}}")
+
+        if getattr(gen, 'is_async', False):
+             self.output.append(f"{self._indent()}// TODO: Async comprehension - Verify iterator semantics")
+
+        if isinstance(gen.iter, ast.Call) and isinstance(gen.iter.func, ast.Name) and gen.iter.func.id == "zip":
+             zip_args = gen.iter.args
+             if len(zip_args) == 2:
+                 self._zip_counter += 1
+                 zip_id = self._zip_counter
+
+                 it1 = self.visit(zip_args[0])
+                 it2 = self.visit(zip_args[1])
+
+                 var_it1 = f"_zip_it1_{zip_id}"
+                 var_it2 = f"_zip_it2_{zip_id}"
+                 var_i = f"_i_{zip_id}"
+                 var_v1 = f"_v1_{zip_id}"
+                 var_v2 = f"_v2_{zip_id}"
+
+                 self.output.append(f"{self._indent()}{var_it1} := {it1}")
+                 self.output.append(f"{self._indent()}{var_it2} := {it2}")
+
+                 self.output.append(f"{self._indent()}for {var_i}, {var_v1} in {var_it1} {{")
+                 self._indent_level += 1
+
+                 self.output.append(f"{self._indent()}if {var_i} >= {var_it2}.len {{ break }}")
+                 self.output.append(f"{self._indent()}{var_v2} := {var_it2}[{var_i}]")
+
+                 if isinstance(gen.target, ast.Tuple) and len(gen.target.elts) == 2:
+                     t1 = self.visit(gen.target.elts[0])
+                     t2 = self.visit(gen.target.elts[1])
+                     self.output.append(f"{self._indent()}{t1} := {var_v1}")
+                     self.output.append(f"{self._indent()}{t2} := {var_v2}")
+                 else:
+                     target = self.visit(gen.target)
+                     self.output.append(f"{self._indent()}{target} := [{var_v1}, {var_v2}]")
+
+                 for if_expr in gen.ifs:
+                    cond = self.visit(if_expr)
+                    self.output.append(f"{self._indent()}if {cond} {{")
+                    self._indent_level += 1
+
+                 elt = self.visit(node.elt)
+                 self.output.append(f"{self._indent()}{target_var} << {elt}")
+
+                 for _ in gen.ifs:
+                    self._indent_level -= 1
+                    self.output.append(f"{self._indent()}}}")
+
+                 self._indent_level -= 1
+                 self.output.append(f"{self._indent()}}}")
+                 return
+
+        target = self.visit(gen.target)
+        iter_expr = self.visit(gen.iter)
+
+        if isinstance(gen.iter, ast.Call) and isinstance(gen.iter.func, ast.Name):
+             if gen.iter.func.id == "range":
+                 range_args = gen.iter.args
+                 if len(range_args) == 3:
+                     # range(start, stop, step) -> C-style for loop
+                     # We need to manually construct the loop here because `visit_ListComp` expects `iter_expr`
+                     # But `iter_expr` is usually an iterable.
+                     # However, `visit_ListComp` uses `for {target} in {iter_expr} {`.
+                     # We can trick it by setting iter_expr to handle the step? No, `in` syntax doesn't support step.
+                     # We must emit a C-style loop: `for i := start; i < stop; i += step {`
+                     # But `visit_ListComp` hardcodes `for ... in ...`.
+                     # We need to restructure `visit_ListComp` to handle this or modify the output manually.
+                     # Let's override the loop generation for range with step.
+
+                     start = self.visit(range_args[0])
+                     stop = self.visit(range_args[1])
+                     step = self.visit(range_args[2])
+
+                     is_negative_step = False
+                     if isinstance(range_args[2], ast.UnaryOp) and isinstance(range_args[2].op, ast.USub):
+                         is_negative_step = True
+                     elif isinstance(range_args[2], ast.Constant) and isinstance(range_args[2].value, (int, float)) and range_args[2].value < 0:
+                         is_negative_step = True
+
+                     op = ">" if is_negative_step else "<"
+
+                     # We skip the standard `visit_ListComp` loop generation logic for this specific generator
+                     # and manually implement it.
+
+                     self.output.append(f"{self._indent()}for {target} := {start}; {target} {op} {stop}; {target} += {step} {{")
+                     self._indent_level += 1
+
+                     for if_expr in gen.ifs:
+                        cond = self.visit(if_expr)
+                        self.output.append(f"{self._indent()}if {cond} {{")
+                        self._indent_level += 1
+
+                     elt = self.visit(node.elt)
+                     self.output.append(f"{self._indent()}{target_var} << {elt}")
+
+                     for _ in gen.ifs:
+                        self._indent_level -= 1
+                        self.output.append(f"{self._indent()}}}")
+
+                     self._indent_level -= 1
+                     self.output.append(f"{self._indent()}}}")
+                     return
+
+                 start_str = "0"
+                 stop_str = "0"
+                 if len(range_args) == 1:
+                      stop_str = str(self.visit(range_args[0]))
+                 elif len(range_args) == 2:
+                      start_str = str(self.visit(range_args[0]))
+                      stop_str = str(self.visit(range_args[1]))
+                 iter_expr = f"{start_str}..{stop_str}"
+             elif gen.iter.func.id == "enumerate":
+                 if gen.iter.args:
+                     iter_expr = self.visit(gen.iter.args[0])
+                     # Handle target for enumerate: for i, v in items
+                     if isinstance(gen.target, ast.Tuple):
+                         # visit_Tuple returns [i, v], we need i, v
+                         if target.startswith("[") and target.endswith("]"):
+                             target = target[1:-1]
+                     else:
+                         self.output.append(f"{self._indent()}// TODO: handle enumerate with single target variable")
+
+        self.output.append(f"{self._indent()}for {target} in {iter_expr} {{")
+        self._indent_level += 1
+
+        for if_expr in gen.ifs:
+            cond = self.visit(if_expr)
+            self.output.append(f"{self._indent()}if {cond} {{")
+            self._indent_level += 1
+
+        elt = self.visit(node.elt)
+        self.output.append(f"{self._indent()}{target_var} << {elt}")
+
+        for _ in gen.ifs:
+            self._indent_level -= 1
+            self.output.append(f"{self._indent()}}}")
+
+        self._indent_level -= 1
+        self.output.append(f"{self._indent()}}}")
+
+    def visit_DictComp(self, node: ast.DictComp, target_var: Optional[str] = None) -> None:
+        if not target_var:
+            self.output.append(f"{self._indent()}// Dict comprehension expression not supported inline yet")
+            return
+
+        gen = node.generators[0] # Handle first generator
+        self._infer_generator_types(gen)
+
+        key_type = self._guess_type(node.key)
+        val_type = self._guess_type(node.value)
+        is_decl = target_var.isidentifier()
+        op = ":=" if is_decl else "="
+        mut_prefix = "mut " if is_decl else ""
+        self.output.append(f"{self._indent()}{mut_prefix}{target_var} {op} map[{key_type}]{val_type}{{}}")
+
+        if getattr(gen, 'is_async', False):
+             self.output.append(f"{self._indent()}// TODO: Async comprehension - Verify iterator semantics")
+
+        if isinstance(gen.iter, ast.Call) and isinstance(gen.iter.func, ast.Name) and gen.iter.func.id == "zip":
+             zip_args = gen.iter.args
+             if len(zip_args) == 2:
+                 self._zip_counter += 1
+                 zip_id = self._zip_counter
+
+                 it1 = self.visit(zip_args[0])
+                 it2 = self.visit(zip_args[1])
+
+                 var_it1 = f"_zip_it1_{zip_id}"
+                 var_it2 = f"_zip_it2_{zip_id}"
+                 var_i = f"_i_{zip_id}"
+                 var_v1 = f"_v1_{zip_id}"
+                 var_v2 = f"_v2_{zip_id}"
+
+                 self.output.append(f"{self._indent()}{var_it1} := {it1}")
+                 self.output.append(f"{self._indent()}{var_it2} := {it2}")
+
+                 self.output.append(f"{self._indent()}for {var_i}, {var_v1} in {var_it1} {{")
+                 self._indent_level += 1
+
+                 self.output.append(f"{self._indent()}if {var_i} >= {var_it2}.len {{ break }}")
+                 self.output.append(f"{self._indent()}{var_v2} := {var_it2}[{var_i}]")
+
+                 if isinstance(gen.target, ast.Tuple) and len(gen.target.elts) == 2:
+                     t1 = self.visit(gen.target.elts[0])
+                     t2 = self.visit(gen.target.elts[1])
+                     self.output.append(f"{self._indent()}{t1} := {var_v1}")
+                     self.output.append(f"{self._indent()}{t2} := {var_v2}")
+                 else:
+                     target = self.visit(gen.target)
+                     self.output.append(f"{self._indent()}{target} := [{var_v1}, {var_v2}]")
+
+                 for if_expr in gen.ifs:
+                    cond = self.visit(if_expr)
+                    self.output.append(f"{self._indent()}if {cond} {{")
+                    self._indent_level += 1
+
+                 key = self.visit(node.key)
+                 val = self.visit(node.value)
+                 self.output.append(f"{self._indent()}{target_var}[{key}] = {val}")
+
+                 for _ in gen.ifs:
+                    self._indent_level -= 1
+                    self.output.append(f"{self._indent()}}}")
+
+                 self._indent_level -= 1
+                 self.output.append(f"{self._indent()}}}")
+                 return
+
+        target = self.visit(gen.target)
+        iter_expr = self.visit(gen.iter)
+
+        if isinstance(gen.iter, ast.Call) and isinstance(gen.iter.func, ast.Name):
+             if gen.iter.func.id == "range":
+                 range_args = gen.iter.args
+                 if len(range_args) == 3:
+                     # range(start, stop, step) -> C-style for loop
+                     start = self.visit(range_args[0])
+                     stop = self.visit(range_args[1])
+                     step = self.visit(range_args[2])
+
+                     is_negative_step = False
+                     if isinstance(range_args[2], ast.UnaryOp) and isinstance(range_args[2].op, ast.USub):
+                         is_negative_step = True
+                     elif isinstance(range_args[2], ast.Constant) and isinstance(range_args[2].value, (int, float)) and range_args[2].value < 0:
+                         is_negative_step = True
+
+                     op = ">" if is_negative_step else "<"
+
+                     self.output.append(f"{self._indent()}for {target} := {start}; {target} {op} {stop}; {target} += {step} {{")
+                     self._indent_level += 1
+
+                     for if_expr in gen.ifs:
+                        cond = self.visit(if_expr)
+                        self.output.append(f"{self._indent()}if {cond} {{")
+                        self._indent_level += 1
+
+                     key = self.visit(node.key)
+                     val = self.visit(node.value)
+                     self.output.append(f"{self._indent()}{target_var}[{key}] = {val}")
+
+                     for _ in gen.ifs:
+                        self._indent_level -= 1
+                        self.output.append(f"{self._indent()}}}")
+
+                     self._indent_level -= 1
+                     self.output.append(f"{self._indent()}}}")
+                     return
+
+                 start = "0"
+                 stop = "0"
+                 if len(range_args) == 1:
+                      stop = self.visit(range_args[0])
+                 elif len(range_args) == 2:
+                      start = self.visit(range_args[0])
+                      stop = self.visit(range_args[1])
+                 iter_expr = f"{start}..{stop}"
+             elif gen.iter.func.id == "enumerate":
+                 if gen.iter.args:
+                     iter_expr = self.visit(gen.iter.args[0])
+                     # Handle target for enumerate: for i, v in items
+                     if isinstance(gen.target, ast.Tuple):
+                         # visit_Tuple returns [i, v], we need i, v
+                         if target.startswith("[") and target.endswith("]"):
+                             target = target[1:-1]
+                     else:
+                         self.output.append(f"{self._indent()}// TODO: handle enumerate with single target variable")
+
+        self.output.append(f"{self._indent()}for {target} in {iter_expr} {{")
+        self._indent_level += 1
+
+        for if_expr in gen.ifs:
+            cond = self.visit(if_expr)
+            self.output.append(f"{self._indent()}if {cond} {{")
+            self._indent_level += 1
+
+        key = self.visit(node.key)
+        val = self.visit(node.value)
+        self.output.append(f"{self._indent()}{target_var}[{key}] = {val}")
+
+        for _ in gen.ifs:
+            self._indent_level -= 1
+            self.output.append(f"{self._indent()}}}")
+
+        self._indent_level -= 1
+        self.output.append(f"{self._indent()}}}")
+
+    def visit_SetComp(self, node: ast.SetComp, target_var: Optional[str] = None) -> None:
+        if not target_var:
+            self.output.append(f"{self._indent()}// Set comprehension expression not supported inline yet")
+            return
+
+        gen = node.generators[0] # Handle first generator
+        self._infer_generator_types(gen)
+
+        key_type = self._guess_type(node.elt)
+        is_decl = target_var.isidentifier()
+        op = ":=" if is_decl else "="
+        mut_prefix = "mut " if is_decl else ""
+        self.output.append(f"{self._indent()}{mut_prefix}{target_var} {op} map[{key_type}]bool{{}}")
+
+        if getattr(gen, 'is_async', False):
+             self.output.append(f"{self._indent()}// TODO: Async comprehension - Verify iterator semantics")
+
+        if isinstance(gen.iter, ast.Call) and isinstance(gen.iter.func, ast.Name) and gen.iter.func.id == "zip":
+             zip_args = gen.iter.args
+             if len(zip_args) == 2:
+                 self._zip_counter += 1
+                 zip_id = self._zip_counter
+
+                 it1 = self.visit(zip_args[0])
+                 it2 = self.visit(zip_args[1])
+
+                 var_it1 = f"_zip_it1_{zip_id}"
+                 var_it2 = f"_zip_it2_{zip_id}"
+                 var_i = f"_i_{zip_id}"
+                 var_v1 = f"_v1_{zip_id}"
+                 var_v2 = f"_v2_{zip_id}"
+
+                 self.output.append(f"{self._indent()}{var_it1} := {it1}")
+                 self.output.append(f"{self._indent()}{var_it2} := {it2}")
+
+                 self.output.append(f"{self._indent()}for {var_i}, {var_v1} in {var_it1} {{")
+                 self._indent_level += 1
+
+                 self.output.append(f"{self._indent()}if {var_i} >= {var_it2}.len {{ break }}")
+                 self.output.append(f"{self._indent()}{var_v2} := {var_it2}[{var_i}]")
+
+                 if isinstance(gen.target, ast.Tuple) and len(gen.target.elts) == 2:
+                     t1 = self.visit(gen.target.elts[0])
+                     t2 = self.visit(gen.target.elts[1])
+                     self.output.append(f"{self._indent()}{t1} := {var_v1}")
+                     self.output.append(f"{self._indent()}{t2} := {var_v2}")
+                 else:
+                     target = self.visit(gen.target)
+                     self.output.append(f"{self._indent()}{target} := [{var_v1}, {var_v2}]")
+
+                 for if_expr in gen.ifs:
+                    cond = self.visit(if_expr)
+                    self.output.append(f"{self._indent()}if {cond} {{")
+                    self._indent_level += 1
+
+                 elt = self.visit(node.elt)
+                 self.output.append(f"{self._indent()}{target_var}[{elt}] = true")
+
+                 for _ in gen.ifs:
+                    self._indent_level -= 1
+                    self.output.append(f"{self._indent()}}}")
+
+                 self._indent_level -= 1
+                 self.output.append(f"{self._indent()}}}")
+                 return
+
+        target = self.visit(gen.target)
+        iter_expr = self.visit(gen.iter)
+
+        if isinstance(gen.iter, ast.Call) and isinstance(gen.iter.func, ast.Name):
+             if gen.iter.func.id == "range":
+                 range_args = gen.iter.args
+                 if len(range_args) == 3:
+                     # range(start, stop, step) -> C-style for loop
+                     start = self.visit(range_args[0])
+                     stop = self.visit(range_args[1])
+                     step = self.visit(range_args[2])
+
+                     is_negative_step = False
+                     if isinstance(range_args[2], ast.UnaryOp) and isinstance(range_args[2].op, ast.USub):
+                         is_negative_step = True
+                     elif isinstance(range_args[2], ast.Constant) and isinstance(range_args[2].value, (int, float)) and range_args[2].value < 0:
+                         is_negative_step = True
+
+                     op = ">" if is_negative_step else "<"
+
+                     self.output.append(f"{self._indent()}for {target} := {start}; {target} {op} {stop}; {target} += {step} {{")
+                     self._indent_level += 1
+
+                     for if_expr in gen.ifs:
+                        cond = self.visit(if_expr)
+                        self.output.append(f"{self._indent()}if {cond} {{")
+                        self._indent_level += 1
+
+                     elt = self.visit(node.elt)
+                     self.output.append(f"{self._indent()}{target_var}[{elt}] = true")
+
+                     for _ in gen.ifs:
+                        self._indent_level -= 1
+                        self.output.append(f"{self._indent()}}}")
+
+                     self._indent_level -= 1
+                     self.output.append(f"{self._indent()}}}")
+                     return
+
+                 start = "0"
+                 stop = "0"
+                 if len(range_args) == 1:
+                      stop = self.visit(range_args[0])
+                 elif len(range_args) == 2:
+                      start = self.visit(range_args[0])
+                      stop = self.visit(range_args[1])
+                 iter_expr = f"{start}..{stop}"
+             elif gen.iter.func.id == "enumerate":
+                 if gen.iter.args:
+                     iter_expr = self.visit(gen.iter.args[0])
+                     # Handle target for enumerate: for i, v in items
+                     if isinstance(gen.target, ast.Tuple):
+                         # visit_Tuple returns [i, v], we need i, v
+                         if target.startswith("[") and target.endswith("]"):
+                             target = target[1:-1]
+                     else:
+                         self.output.append(f"{self._indent()}// TODO: handle enumerate with single target variable")
+
+        self.output.append(f"{self._indent()}for {target} in {iter_expr} {{")
+        self._indent_level += 1
+
+        for if_expr in gen.ifs:
+            cond = self.visit(if_expr)
+            self.output.append(f"{self._indent()}if {cond} {{")
+            self._indent_level += 1
+
+        elt = self.visit(node.elt)
+        self.output.append(f"{self._indent()}{target_var}[{elt}] = true")
+
+        for _ in gen.ifs:
+            self._indent_level -= 1
+            self.output.append(f"{self._indent()}}}")
+
+        self._indent_level -= 1
+        self.output.append(f"{self._indent()}}}")
