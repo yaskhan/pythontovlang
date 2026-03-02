@@ -458,7 +458,7 @@ Based on the transpilation of the `primes.py` benchmark, several critical areas 
   - *Context:* Iterating over a string in V yields bytes (`u8`), but the Python code expects string characters to be used as map keys (`head.children[ch]`).
   - *Task:* Handle string iteration correctly by mapping the iterated byte to a string (e.g., using a custom iterator or `.ascii_str()`) when the string semantics are required.
 
-- [ ] **Truth Value Testing for Arrays/Queues (`while queue:`)**
+- [x] **Truth Value Testing for Arrays/Queues (`while queue:`)**
   - *Context:* `while queue:` is transpiled directly to `for queue {`, which is invalid in V.
   - *Task:* Map truth value testing of collections (lists, dicts, etc.) to explicit `.len > 0` checks in V (e.g., `for queue.len > 0 {`).
 
