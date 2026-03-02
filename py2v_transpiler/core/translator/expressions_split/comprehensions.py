@@ -1,12 +1,14 @@
 import ast
-from typing import List, Optional, Any
+from typing import List, Optional, Any, Union
 from ..base import TranslatorBase
 
 class ComprehensionsMixin(TranslatorBase):
-    def visit_ListComp(self, node: ast.ListComp, target_var: Optional[str] = None) -> None:
-        if not target_var:
-            self.output.append(f"{self._indent()}// List comprehension expression not supported inline yet")
-            return
+    def visit_ListComp(self, node: Union[ast.ListComp, ast.GeneratorExp], target_var: Optional[str] = None) -> Optional[str]:
+        is_inline = False
+        if target_var is None:
+            is_inline = True
+            self.unique_id_counter += 1
+            target_var = f"_comp_{self.unique_id_counter}"
 
         gen = node.generators[0] # Handle first generator
 
@@ -109,7 +111,7 @@ class ComprehensionsMixin(TranslatorBase):
 
                  self._indent_level -= 1
                  self.output.append(f"{self._indent()}}}")
-                 return
+                 return target_var if is_inline else None
 
         target = self.visit(gen.target)
         iter_expr = self.visit(gen.iter)
@@ -160,7 +162,7 @@ class ComprehensionsMixin(TranslatorBase):
 
                      self._indent_level -= 1
                      self.output.append(f"{self._indent()}}}")
-                     return
+                     return target_var if is_inline else None
 
                  start_str = "0"
                  stop_str = "0"
@@ -198,11 +200,18 @@ class ComprehensionsMixin(TranslatorBase):
 
         self._indent_level -= 1
         self.output.append(f"{self._indent()}}}")
+        return target_var if is_inline else None
 
-    def visit_DictComp(self, node: ast.DictComp, target_var: Optional[str] = None) -> None:
-        if not target_var:
-            self.output.append(f"{self._indent()}// Dict comprehension expression not supported inline yet")
-            return
+    def visit_GeneratorExp(self, node: ast.GeneratorExp, target_var: Optional[str] = None) -> Optional[str]:
+        # Eagerly evaluate generator expressions into lists
+        return self.visit_ListComp(node, target_var)
+
+    def visit_DictComp(self, node: ast.DictComp, target_var: Optional[str] = None) -> Optional[str]:
+        is_inline = False
+        if target_var is None:
+            is_inline = True
+            self.unique_id_counter += 1
+            target_var = f"_comp_{self.unique_id_counter}"
 
         gen = node.generators[0] # Handle first generator
         self._infer_generator_types(gen)
@@ -265,7 +274,7 @@ class ComprehensionsMixin(TranslatorBase):
 
                  self._indent_level -= 1
                  self.output.append(f"{self._indent()}}}")
-                 return
+                 return target_var if is_inline else None
 
         target = self.visit(gen.target)
         iter_expr = self.visit(gen.iter)
@@ -305,7 +314,7 @@ class ComprehensionsMixin(TranslatorBase):
 
                      self._indent_level -= 1
                      self.output.append(f"{self._indent()}}}")
-                     return
+                     return target_var if is_inline else None
 
                  start = "0"
                  stop = "0"
@@ -344,11 +353,14 @@ class ComprehensionsMixin(TranslatorBase):
 
         self._indent_level -= 1
         self.output.append(f"{self._indent()}}}")
+        return target_var if is_inline else None
 
-    def visit_SetComp(self, node: ast.SetComp, target_var: Optional[str] = None) -> None:
-        if not target_var:
-            self.output.append(f"{self._indent()}// Set comprehension expression not supported inline yet")
-            return
+    def visit_SetComp(self, node: ast.SetComp, target_var: Optional[str] = None) -> Optional[str]:
+        is_inline = False
+        if target_var is None:
+            is_inline = True
+            self.unique_id_counter += 1
+            target_var = f"_comp_{self.unique_id_counter}"
 
         gen = node.generators[0] # Handle first generator
         self._infer_generator_types(gen)
@@ -409,7 +421,7 @@ class ComprehensionsMixin(TranslatorBase):
 
                  self._indent_level -= 1
                  self.output.append(f"{self._indent()}}}")
-                 return
+                 return target_var if is_inline else None
 
         target = self.visit(gen.target)
         iter_expr = self.visit(gen.iter)
@@ -448,7 +460,7 @@ class ComprehensionsMixin(TranslatorBase):
 
                      self._indent_level -= 1
                      self.output.append(f"{self._indent()}}}")
-                     return
+                     return target_var if is_inline else None
 
                  start = "0"
                  stop = "0"
@@ -486,3 +498,4 @@ class ComprehensionsMixin(TranslatorBase):
 
         self._indent_level -= 1
         self.output.append(f"{self._indent()}}}")
+        return target_var if is_inline else None

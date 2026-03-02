@@ -392,7 +392,7 @@ Based on the transpilation of the `bm_deltablue.py` benchmark, several critical 
 ## Analysis of `bm_hexiom.py` Transpilation Issues
 Based on the transpilation of the `bm_hexiom.py` benchmark, several critical areas for improvement have been identified:
 
-- [ ] **Inline List and Generator Comprehensions**
+- [x] **Inline List and Generator Comprehensions**
   - *Context:* Comprehensions such as `[self.cells[i][:] for i in range(self.count)]` and generator expressions inside functions like `max(...)` or `sum(...)` emit `/* unknown */` or `// List comprehension expression not supported inline yet`.
   - *Task:* Implement full support for inline list comprehensions and generator expressions, mapping them to V's `map`/`filter` array methods, or extracting them into inline loops or closure helpers.
 
