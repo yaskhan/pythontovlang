@@ -18,6 +18,10 @@ class ControlFlowMixin(TranslatorBase):
         self._walrus_assignments = []
         test_expr = self.visit(node.test)
 
+        node_type = self._guess_type(node.test)
+        if node_type.startswith("[]") or node_type.startswith("map[") or node_type == "string":
+            test_expr = f"{test_expr}.len > 0"
+
         if self._walrus_assignments:
              for assign in self._walrus_assignments:
                  self.output.append(f"{self._indent()}{assign}")
@@ -61,6 +65,10 @@ class ControlFlowMixin(TranslatorBase):
 
         self._walrus_assignments = []
         test_expr = self.visit(node.test)
+
+        node_type = self._guess_type(node.test)
+        if node_type.startswith("[]") or node_type.startswith("map[") or node_type == "string":
+            test_expr = f"{test_expr}.len > 0"
 
         if self._walrus_assignments:
              # Found walrus! Transform loop.
