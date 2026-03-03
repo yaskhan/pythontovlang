@@ -48,3 +48,15 @@ print(x, y, sep=', ')
     v_code = translate(source)
     # x and y are vars, so ${x} and ${y}
     assert "println('${x}, ${y}')" in v_code
+
+def test_print_stderr():
+    source = """
+import sys
+print('Error', file=sys.stderr)
+print('Error', file=sys.stderr, end='')
+print('Error', file=sys.stderr, end='!')
+"""
+    v_code = translate(source)
+    assert "eprintln('Error')" in v_code
+    assert "eprint('Error')" in v_code
+    assert "eprint('Error!')" in v_code

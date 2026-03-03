@@ -10,8 +10,8 @@ class ClassesMixin(TranslatorBase):
         if not hasattr(self, 'class_stack'):
             self.class_stack = []
 
-        self.class_stack.append(node.name)
-        struct_name = "_".join(self.class_stack)
+        self.class_stack.append(self._sanitize_name(node.name))
+        struct_name = self._sanitize_name("_".join(self.class_stack))
 
         # Pre-register class definition to allow class instantiation inside its own methods
         has_init = False
@@ -61,6 +61,10 @@ class ClassesMixin(TranslatorBase):
                 meta_val = self.visit(keyword.value)
                 decorators.append(f"// Metaclass: {meta_val}")
 
+        # Check if it's a mixin or main struct
+        is_mixin = struct_name in getattr(self.type_inference, 'mixin_to_main', {})
+        is_main_struct = struct_name in getattr(self.type_inference, 'main_to_mixins', {})
+
         # Extract fields from __init__ or class body annotations (simplified)
         fields = []
         dataclass_field_order = []
@@ -72,6 +76,53 @@ class ClassesMixin(TranslatorBase):
         is_protocol = False
         is_named_tuple = False
         is_typed_dict = False
+
+        # If this is a main struct, collect fields from its mixins first
+        if is_main_struct:
+            mixin_nodes = getattr(self.type_inference, 'mixin_nodes', {})
+            for mixin_name in self.type_inference.main_to_mixins[struct_name]:
+                if mixin_name in mixin_nodes:
+                    mixin_node = mixin_nodes[mixin_name]
+                    for stmt in mixin_node.body:
+                        if isinstance(stmt, ast.AnnAssign) and isinstance(stmt.target, ast.Name):
+                            field_name = self._sanitize_name(stmt.target.id)
+                            if field_name not in added_fields:
+                                added_fields.add(field_name)
+                                field_type = "int"
+                                if stmt.annotation:
+                                    try:
+                                        type_str = ast.unparse(stmt.annotation)
+                                        field_type = map_python_type_to_v(type_str, self_name=struct_name)
+                                    except Exception:
+                                        if isinstance(stmt.annotation, ast.Name):
+                                            field_type = stmt.annotation.id
+                                if getattr(stmt, 'value', None) is not None:
+                                    default_val = self.visit(stmt.value) # type: ignore
+                                    fields.append(f"    {field_name} {field_type} = {default_val}")
+                                else:
+                                    fields.append(f"    {field_name} {field_type}")
+                        elif isinstance(stmt, ast.Assign):
+                            for target in stmt.targets:
+                                if isinstance(target, ast.Name) and target.id != "__slots__":
+                                    field_name = self._sanitize_name(target.id)
+                                    if field_name not in added_fields:
+                                        added_fields.add(field_name)
+                                        # Infer type from value
+                                        field_type = self._guess_type(stmt.value)
+                                        default_val = self.visit(stmt.value)
+                                        fields.append(f"    {field_name} {field_type} = {default_val}")
+
+        # If it's a dataclass, try to find perfectly inferred metadata from mypy
+        dataclass_metadata = None
+        if is_dataclass and hasattr(self.type_inference, 'call_signatures'):
+            # Look for the constructor signature which contains the metadata
+            for k, sig_data in self.type_inference.call_signatures.items():
+                if "dataclass_metadata" in sig_data:
+                    # check if it matches this class name
+                    # signatures keys are usually "module.ClassName@line:col" or "ClassName@line:col"
+                    if k.startswith(f"{node.name}@") or k.split('@')[0].endswith(f".{node.name}") or k.startswith(f"{struct_name}@"):
+                        dataclass_metadata = sig_data["dataclass_metadata"]
+                        break
 
         # Record direct bases for class hierarchy
         direct_bases = []
@@ -206,7 +257,7 @@ class ClassesMixin(TranslatorBase):
                 else:
                     # Regular generic base: Parent[T]
                     # Add to fields as embedded struct if not an interface
-                    if base_name not in self.known_interfaces:
+                    if base_name not in self.known_interfaces and base_name not in getattr(self.type_inference, 'mixin_to_main', {}):
                         type_str = ast.unparse(base)
                         v_type = map_python_type_to_v(type_str)
                         fields.append(f"    {v_type}")
@@ -214,14 +265,14 @@ class ClassesMixin(TranslatorBase):
 
             elif isinstance(base, ast.Name):
                 if base.id not in ("Generic", "Protocol", "NamedTuple", "TypedDict", "object", "ABC"):
-                    if base.id not in self.known_interfaces:
+                    if base.id not in self.known_interfaces and base.id not in getattr(self.type_inference, 'mixin_to_main', {}):
                         fields.append(f"    {base.id}")
                     self.current_class_bases.append(base.id)
             elif isinstance(base, ast.Attribute):
                 val = self.visit(base)
                 # Skip TypedDict in fields (check for typing.TypedDict or just TypedDict)
                 if val not in ("TypedDict", "typing.TypedDict", "builtins.object", "ABC"):
-                    if base.attr not in self.known_interfaces:
+                    if base.attr not in self.known_interfaces and base.attr not in getattr(self.type_inference, 'mixin_to_main', {}):
                         fields.append(f"    {val}")
                 if val != "builtins.object":
                     self.current_class_bases.append(base.attr)
@@ -251,30 +302,35 @@ class ClassesMixin(TranslatorBase):
                 self.visit(stmt)
             elif isinstance(stmt, ast.AnnAssign) and isinstance(stmt.target, ast.Name):
                 # Class attribute with annotation -> struct field
-                field_name = stmt.target.id
+                field_name = self._sanitize_name(stmt.target.id)
 
                 if field_name in added_fields:
                     continue
-                added_fields.add(field_name)
 
-                field_type = "int" # default
-                if stmt.annotation:
-                    try:
-                        type_str = ast.unparse(stmt.annotation)
-                        field_type = map_python_type_to_v(type_str, self_name=struct_name)
-                    except Exception:
-                        if isinstance(stmt.annotation, ast.Name):
-                            field_type = stmt.annotation.id
+                # If we have perfect dataclass metadata, wait to emit fields later to avoid duplicates
+                if is_dataclass and dataclass_metadata:
+                    # just collect it in added_fields for processing later if needed
+                    pass
+                else:
+                    added_fields.add(field_name)
+                    field_type = "int" # default
+                    if stmt.annotation:
+                        try:
+                            type_str = ast.unparse(stmt.annotation)
+                            field_type = map_python_type_to_v(type_str, self_name=struct_name)
+                        except Exception:
+                            if isinstance(stmt.annotation, ast.Name):
+                                field_type = stmt.annotation.id
 
-                if is_dataclass or is_typed_dict:
-                    dataclass_field_order.append(field_name)
-                    if stmt.value:
-                        default_val = self.visit(stmt.value)
-                        fields.append(f"    {field_name} {field_type} = {default_val}")
+                    if is_dataclass or is_typed_dict:
+                        dataclass_field_order.append(field_name)
+                        if stmt.value:
+                            default_val = self.visit(stmt.value)
+                            fields.append(f"    {field_name} {field_type} = {default_val}")
+                        else:
+                            fields.append(f"    {field_name} {field_type}")
                     else:
                         fields.append(f"    {field_name} {field_type}")
-                else:
-                    fields.append(f"    {field_name} {field_type}")
             elif isinstance(stmt, ast.Assign):
                  # Check for __slots__
                  for target in stmt.targets:
@@ -284,14 +340,63 @@ class ClassesMixin(TranslatorBase):
                          if isinstance(stmt.value, (ast.List, ast.Tuple)):
                              for elt in stmt.value.elts:
                                  if isinstance(elt, ast.Constant) and isinstance(elt.value, str):
-                                      slots_list.append(elt.value)
+                                      slots_list.append(self._sanitize_name(elt.value))
                          elif isinstance(stmt.value, ast.Constant) and isinstance(stmt.value.value, str):
-                             slots_list.append(stmt.value.value)
+                             slots_list.append(self._sanitize_name(stmt.value.value))
 
                          for slot in slots_list:
                              if slot not in added_fields:
                                  fields.append(f"    {slot} int") # Default to int
                                  added_fields.add(slot)
+
+        if is_dataclass and dataclass_metadata:
+            # Emit fields purely from mypy's evaluation
+            for attr in dataclass_metadata.get('attributes', []):
+                # mypy filters out ClassVar, but tracks InitVar.
+                # Usually InitVar shouldn't be a struct field unless we keep it for reference.
+                # Let's emit InitVars and regular fields, or just regular fields if `is_in_init`?
+                # Actually, standard python dataclasses don't store InitVar on the instance!
+                # V structs shouldn't have them either if they are just InitVars.
+                # mypy's metadata: 'is_init_var': True/False
+                is_init_var = attr.get('is_init_var', False)
+                if is_init_var:
+                    continue
+
+                field_name = self._sanitize_name(attr['name'])
+                if field_name in added_fields:
+                    continue
+                added_fields.add(field_name)
+
+                # Mypy gives types like 'builtins.int', map them to V
+                raw_type = attr.get('type', 'Any')
+                norm_typ = raw_type.replace("builtins.", "")
+                try:
+                    field_type = map_python_type_to_v(norm_typ)
+                except Exception:
+                    field_type = "Any"
+
+                # Fallback cleanups
+                if field_type == "int" or norm_typ == "int": field_type = "int"
+                elif field_type == "str" or norm_typ == "str": field_type = "string"
+                elif field_type == "float" or norm_typ == "float": field_type = "f64"
+                elif field_type == "bool" or norm_typ == "bool": field_type = "bool"
+
+                # For defaults, we might need to find the node again to evaluate the value,
+                # but V allows initializing without explicit defaults in struct definition if zero-init is fine.
+                # If it has a default, we ideally want to fetch it.
+                has_default = attr.get('has_default', False)
+                default_str = ""
+                if has_default:
+                    # Scan body for the exact assignment to get the default expression
+                    for stmt in body:
+                        if isinstance(stmt, ast.AnnAssign) and isinstance(stmt.target, ast.Name) and stmt.target.id == attr['name']:
+                            if stmt.value:
+                                default_str = f" = {self.visit(stmt.value)}"
+                            break
+
+                dataclass_field_order.append(field_name)
+                fields.append(f"    {field_name} {field_type}{default_str}")
+
 
         if is_dataclass or is_typed_dict:
             if not hasattr(self, 'dataclasses'):
@@ -324,11 +429,11 @@ class ClassesMixin(TranslatorBase):
              # Emit method signatures
              for method in methods:
                  # Manual extraction:
-                 m_name = method.name
+                 m_name = self._sanitize_name(method.name)
                  m_args = []
                  for arg in method.args.args:
                      if arg.arg == 'self': continue
-                     a_name = arg.arg
+                     a_name = self._sanitize_name(arg.arg)
                      a_type = "int"
                      if arg.annotation:
                           try:
@@ -352,6 +457,21 @@ class ClassesMixin(TranslatorBase):
              interface_def += "}"
              self.emitter.add_struct(interface_def)
 
+        elif is_mixin:
+            # Mixin struct is not emitted, but we still generate its methods
+            # They will map to the main class in visit_FunctionDef
+            if doc_comment:
+                # Add doc comment to emitter's globals or functions?
+                pass
+
+            has_str = any(m.name == "__str__" for m in methods)
+            if has_str:
+                for method in methods:
+                    if method.name == "__repr__":
+                        method.name = "repr"
+
+            for method in methods:
+                self.visit(method)
         else:
             struct_def = ""
             if doc_comment:
@@ -369,7 +489,7 @@ class ClassesMixin(TranslatorBase):
                         for target in stmt.targets:
                             if isinstance(target, ast.Name):
                                 # snake_case conversion for member
-                                member_name = target.id.lower()
+                                member_name = self._sanitize_name(target.id.lower())
 
                                 # Check for auto()
                                 is_auto = False
