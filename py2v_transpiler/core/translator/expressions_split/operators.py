@@ -17,38 +17,43 @@ class OperatorsMixin(TranslatorBase):
                  op_type = v_type
 
         # Support for array initialization: [element] * length
-        if isinstance(node.op, ast.Mult) and isinstance(node.left, ast.List) and len(node.left.elts) == 1:
-            elt = node.left.elts[0]
-            elt_type = self._guess_type(elt)
+        if isinstance(node.op, ast.Mult):
+            if isinstance(node.left, ast.List) and len(node.left.elts) == 1:
+                init_val = self.visit(node.left.elts[0])
+                length = self.visit(node.right)
+                elem_type = self._guess_type(node.left.elts[0])
 
-            elt_str = self.visit(elt)
-            right_str = self.visit(node.right)
+                if init_val == "none":
+                    expected_type = getattr(self, "current_assignment_type", None)
+                    if expected_type and expected_type.startswith("[]"):
+                        elem_type = expected_type[2:]
+                        if not elem_type.startswith("?"):
+                            elem_type = f"?{elem_type}"
+                    else:
+                        elem_type = "?Any"
 
-            if elt_str == "none":
-                expected_type = getattr(self, "current_assignment_type", None)
-                if expected_type and expected_type.startswith("[]"):
-                    elem_type = expected_type[2:]
-                    if not elem_type.startswith("?"):
-                        elem_type = f"?{elem_type}"
-                    elt_type = elem_type
-                else:
-                    elt_type = "?Any"
+                return f"[]{elem_type}{{len: {length}, init: {init_val}}}"
 
-            return f"[]{elt_type}{{len: {right_str}, init: {elt_str}}}"
+            elif isinstance(node.right, ast.List) and len(node.right.elts) == 1:
+                init_val = self.visit(node.right.elts[0])
+                length = self.visit(node.left)
+                elem_type = self._guess_type(node.right.elts[0])
 
-        left = self.visit(node.left)
-        if isinstance(node.left, (ast.BinOp, ast.BoolOp, ast.Compare)):
-            left = f"({left})"
+                if init_val == "none":
+                    expected_type = getattr(self, "current_assignment_type", None)
+                    if expected_type and expected_type.startswith("[]"):
+                        elem_type = expected_type[2:]
+                        if not elem_type.startswith("?"):
+                            elem_type = f"?{elem_type}"
+                    else:
+                        elem_type = "?Any"
 
-        right = self.visit(node.right)
-        if isinstance(node.right, (ast.BinOp, ast.BoolOp, ast.Compare)):
-            right = f"({right})"
+                return f"[]{elem_type}{{len: {length}, init: {init_val}}}"
 
-        if self._wrap_with_parens_if_needed(node, node.left, False):
-            left = f"({left})"
 
-        if self._wrap_with_parens_if_needed(node, node.right, True):
-            right = f"({right})"
+        # If mypy  # ← дальше идёт остальной код файла без изменений
+        left = self._visit_with_parens(node, node.left, is_right_operand=False)
+        right = self._visit_with_parens(node, node.right, is_right_operand=True)
 
         # If mypy successfully inferred a concrete primitive numeric type (e.g. f64) for the operation,
         # and the operands' inferred types are not correctly matching or they are unknown ('Any'),
@@ -75,33 +80,6 @@ class OperatorsMixin(TranslatorBase):
         if isinstance(node.op, ast.MatMult):
              return f"{left}.matmul({right})"
 
-        if isinstance(node.op, ast.Mult):
-             if isinstance(node.left, ast.List) and len(node.left.elts) == 1:
-                  init_val = self.visit(node.left.elts[0])
-                  length = right
-                  elem_type = self._guess_type(node.left.elts[0])
-                  if init_val == "none":
-                       expected_type = getattr(self, "current_assignment_type", None)
-                       if expected_type and expected_type.startswith("[]"):
-                           elem_type = expected_type[2:]
-                           if not elem_type.startswith("?"):
-                               elem_type = f"?{elem_type}"
-                       else:
-                           elem_type = "?Any"
-                  return f"[]{elem_type}{{len: {length}, init: {init_val}}}"
-             elif isinstance(node.right, ast.List) and len(node.right.elts) == 1:
-                  init_val = self.visit(node.right.elts[0])
-                  length = left
-                  elem_type = self._guess_type(node.right.elts[0])
-                  if init_val == "none":
-                       expected_type = getattr(self, "current_assignment_type", None)
-                       if expected_type and expected_type.startswith("[]"):
-                           elem_type = expected_type[2:]
-                           if not elem_type.startswith("?"):
-                               elem_type = f"?{elem_type}"
-                       else:
-                           elem_type = "?Any"
-                  return f"[]{elem_type}{{len: {length}, init: {init_val}}}"
 
         # Check for bytes formatting: b"%s" % b"a"
         if isinstance(node.op, ast.Mod):
@@ -214,15 +192,13 @@ class OperatorsMixin(TranslatorBase):
         op_map = {ast.And: "&&", ast.Or: "||"}
         op_str = op_map.get(type(node.op), "and")
         values = []
-        for val in node.values:
-            val_str = str(self.visit(val))
-            if isinstance(val, (ast.BoolOp, ast.BinOp, ast.Compare)):
-                val_str = f"({val_str})"
-            values.append(val_str)
+        for i, val in enumerate(node.values):
+            # The first value is considered left-hand side, the rest right-hand side.
+            values.append(str(self._visit_with_parens(node, val, is_right_operand=(i > 0))))
         return f" {op_str} ".join(values)
 
     def visit_UnaryOp(self, node: ast.UnaryOp) -> str:
-        operand = self.visit(node.operand)
+        operand = self._visit_with_parens(node, node.operand, is_right_operand=True)
         op_map = {
             ast.Not: "!", ast.UAdd: "+", ast.USub: "-",
             ast.Invert: "~"

@@ -446,7 +446,7 @@ Based on the transpilation of the `primes.py` benchmark, several critical areas 
   - *Context:* Python's `[False] * (limit + 1)` is currently transpiled as `[false] * limit + 1`. This is invalid V syntax for array initialization and loses the parentheses.
   - *Task:* Map Python array multiplication (when the left operand is a single-element list) to V's array initialization syntax: `[]bool{len: limit + 1, init: false}`. Ensure parentheses around binary operations are correctly preserved during unparsing.
 
-- [ ] **Parentheses Preservation in Boolean Expressions**
+- [x] **Parentheses Preservation in Boolean Expressions**
   - *Context:* Python's `n <= self.limit and (n % 12 == 1 or n % 12 == 5)` drops the parentheses around the `or` clause in V: `n <= self.limit && n % 12 == 1 || n % 12 == 5`. This changes operator precedence.
   - *Task:* Ensure the AST transpilation correctly preserves grouping parentheses for binary and boolean operations.
 
