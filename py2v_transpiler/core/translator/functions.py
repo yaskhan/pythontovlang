@@ -11,6 +11,9 @@ class FunctionsMixin(TranslatorBase):
         self._visit_function_common(node, is_async=True)
 
     def _visit_function_common(self, node: Any, is_async: bool = False) -> None:
+        prev_ast_node_scope = getattr(self, "current_ast_node_scope", None)
+        self.current_ast_node_scope = node
+
         # Check for @overload
         is_overload = False
         for decorator in node.decorator_list:
@@ -139,10 +142,12 @@ class FunctionsMixin(TranslatorBase):
         for struct_name in struct_names:
             self._generate_function_for_struct(node, is_async, is_method, struct_name, dec_info, is_generator)
         self.output = old_output
+        self.current_ast_node_scope = prev_ast_node_scope
 
     def _generate_function_for_struct(self, node: Any, is_async: bool, is_method: bool, struct_name: str, dec_info: Any, is_generator: bool) -> None:
         self.output = []
         self._indent_level = 0
+        self._local_vars_in_scope = set() # Reset local scope for function
 
         # Handle decorators comments (emit all for clarity)
         for decorator in node.decorator_list:

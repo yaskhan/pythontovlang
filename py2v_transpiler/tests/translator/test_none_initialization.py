@@ -16,19 +16,19 @@ def test_none_initialization_untyped():
     code = "planner = None"
     v_code = transpile(code)
     # the analyzer falls back to 'int' in _guess_type
-    assert "mut planner := ?int(none)" in v_code
+    assert "planner := ?int(none)" in v_code
 
 def test_none_initialization_typed():
     code = "planner: Planner = None"
     v_code = transpile(code)
-    assert "mut planner := ?Planner(none)" in v_code
+    assert "planner := ?Planner(none)" in v_code
 
 def test_none_initialization_optional():
     code = "planner: Optional[int] = None"
     v_code = transpile(code)
-    assert "mut planner := ?int(none)" in v_code
+    assert "planner := ?int(none)" in v_code
 
 def test_none_initialization_optional_forward_ref():
     code = "planner: Optional['Packet'] = None"
     v_code = transpile(code)
-    assert "mut planner := ?Packet(none)" in v_code
+    assert "planner := ?Packet(none)" in v_code

@@ -25,7 +25,21 @@ class ControlFlowMixin(TranslatorBase):
                     v_type = "Any"
                 if not v_type.startswith("?"):
                     v_type = f"?{v_type}"
-                self.output.append(f"{self._indent()}mut {var} := {v_type}(none)")
+
+                is_mutable = True
+                if hasattr(self, 'type_inference') and hasattr(self.type_inference, 'mutability_tracker'):
+                     mut_tracker = self.type_inference.mutability_tracker
+                     if hasattr(mut_tracker, 'scope_mutations') and self.current_ast_node_scope in mut_tracker.scope_mutations:
+                         scope_muts = mut_tracker.scope_mutations[self.current_ast_node_scope]
+                         scope_finals = mut_tracker.scope_finals.get(self.current_ast_node_scope, set())
+                         if var in scope_muts:
+                              is_mutable = scope_muts[var] and var not in scope_finals
+                         else:
+                              is_mutable = False
+
+                mut_prefix = "mut " if is_mutable else ""
+
+                self.output.append(f"{self._indent()}{mut_prefix}{var} := {v_type}(none)")
                 self._local_vars_in_scope.add(var)
 
         # Check for walrus operator

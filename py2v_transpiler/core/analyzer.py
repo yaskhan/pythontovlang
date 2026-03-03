@@ -73,17 +73,142 @@ class MixinInferer(ast.NodeVisitor):
                                 self.main_to_mixins[node.name] = []
                             self.main_to_mixins[node.name].append(base.id)
 
+class MutabilityTracker(ast.NodeVisitor):
+    def __init__(self):
+        # We track mutability per scope. 0 is global, >0 are functions/classes
+        self.scopes: list[Dict[str, bool]] = [{}] # var_name -> True if mutated/reassigned
+        self.finals: list[set[str]] = [set()] # variables annotated with Final
+
+        self.scope_mutations: Dict[ast.AST, Dict[str, bool]] = {}
+        self.scope_finals: Dict[ast.AST, set[str]] = {}
+
+    def analyze(self, tree: ast.AST):
+        self.scope_mutations[tree] = self.scopes[0]
+        self.scope_finals[tree] = self.finals[0]
+        self.visit(tree)
+
+    def visit_FunctionDef(self, node: ast.FunctionDef) -> Any:
+        self.scopes.append({})
+        self.finals.append(set())
+
+        for arg in node.args.args + getattr(node.args, 'kwonlyargs', []) + getattr(node.args, 'posonlyargs', []):
+            self.scopes[-1][arg.arg] = False
+        if node.args.vararg:
+            self.scopes[-1][node.args.vararg.arg] = False
+        if node.args.kwarg:
+            self.scopes[-1][node.args.kwarg.arg] = False
+
+        self.generic_visit(node)
+        self.scope_mutations[node] = self.scopes.pop()
+        self.scope_finals[node] = self.finals.pop()
+
+    def visit_AsyncFunctionDef(self, node: ast.AsyncFunctionDef) -> Any:
+        self.scopes.append({})
+        self.finals.append(set())
+
+        for arg in node.args.args + getattr(node.args, 'kwonlyargs', []) + getattr(node.args, 'posonlyargs', []):
+            self.scopes[-1][arg.arg] = False
+        if node.args.vararg:
+            self.scopes[-1][node.args.vararg.arg] = False
+        if node.args.kwarg:
+            self.scopes[-1][node.args.kwarg.arg] = False
+
+        self.generic_visit(node)
+        self.scope_mutations[node] = self.scopes.pop()
+        self.scope_finals[node] = self.finals.pop()
+
+    def visit_ClassDef(self, node: ast.ClassDef) -> Any:
+        self.scopes.append({})
+        self.finals.append(set())
+        self.generic_visit(node)
+        self.scope_mutations[node] = self.scopes.pop()
+        self.scope_finals[node] = self.finals.pop()
+
+    def _handle_assign_target(self, target: ast.AST) -> None:
+        if isinstance(target, ast.Name):
+            name = target.id
+            if name in self.scopes[-1]:
+                self.scopes[-1][name] = True
+            else:
+                self.scopes[-1][name] = False
+        elif isinstance(target, (ast.Tuple, ast.List)):
+            for elt in target.elts:
+                self._handle_assign_target(elt)
+
+    def _mark_mutation(self, target: ast.AST) -> None:
+        if isinstance(target, ast.Name):
+            name = target.id
+            for i in range(len(self.scopes) - 1, -1, -1):
+                if name in self.scopes[i]:
+                    self.scopes[i][name] = True
+                    return
+            self.scopes[-1][name] = True
+        elif isinstance(target, (ast.Attribute, ast.Subscript)):
+            base = target.value
+            while isinstance(base, (ast.Attribute, ast.Subscript)):
+                base = base.value
+            if isinstance(base, ast.Name):
+                self._mark_mutation(base)
+
+    def visit_Assign(self, node: ast.Assign) -> Any:
+        for target in node.targets:
+            self._handle_assign_target(target)
+        self.generic_visit(node)
+
+    def visit_AugAssign(self, node: ast.AugAssign) -> Any:
+        self._mark_mutation(node.target)
+        self.generic_visit(node)
+
+    def visit_AnnAssign(self, node: ast.AnnAssign) -> Any:
+        if isinstance(node.target, ast.Name):
+            name = node.target.id
+            if name in self.scopes[-1]:
+                self.scopes[-1][name] = True
+            else:
+                self.scopes[-1][name] = False
+
+            if node.annotation:
+                is_final = False
+                if isinstance(node.annotation, ast.Name) and node.annotation.id == 'Final':
+                    is_final = True
+                elif isinstance(node.annotation, ast.Subscript) and getattr(node.annotation.value, 'id', '') == 'Final':
+                    is_final = True
+                elif isinstance(node.annotation, ast.Attribute) and getattr(node.annotation.value, 'id', '') == 'typing' and node.annotation.attr == 'Final':
+                    is_final = True
+
+                if is_final:
+                    self.finals[-1].add(name)
+        self.generic_visit(node)
+
+    def visit_For(self, node: ast.For) -> Any:
+        self._handle_assign_target(node.target)
+        self._mark_mutation(node.target)
+        self.generic_visit(node)
+
+    def visit_Call(self, node: ast.Call) -> Any:
+        if isinstance(node.func, ast.Attribute) and isinstance(node.func.value, ast.Name):
+            if node.func.attr in ('append', 'extend', 'pop', 'remove', 'insert', 'clear', 'update', 'setdefault', 'sort', 'reverse'):
+                self._mark_mutation(node.func.value)
+        self.generic_visit(node)
+
+
 class TypeInference(ast.NodeVisitor):
     def __init__(self):
         self.type_map: Dict[str, str] = {}
+        self.mutability_tracker = MutabilityTracker()
         self.location_map: Dict[str, str] = {}
         self.call_signatures: Dict[str, Dict[str, Any]] = {}
         self.mixin_to_main: Dict[str, list[str]] = {}
         self.main_to_mixins: Dict[str, list[str]] = {}
         self.mixin_nodes: Dict[str, ast.ClassDef] = {}
 
+        self.assignments: Dict[str, bool] = {}
+        self.reassigned_vars: set[str] = set()
+        self.final_vars: set[str] = set()
+
     def analyze(self, tree: ast.AST) -> Dict[str, str]:
         """Analyzes the AST to infer variable types."""
+        self.mutability_tracker.analyze(tree)
         self.visit(tree)
         # Type Alias Inference
         alias_inferer = AliasInferer()
@@ -100,8 +225,52 @@ class TypeInference(ast.NodeVisitor):
         return self.type_map
 
 
+    def visit_AugAssign(self, node: ast.AugAssign) -> Any:
+        if isinstance(node.target, ast.Name):
+            self.reassigned_vars.add(node.target.id)
+        elif isinstance(node.target, (ast.Attribute, ast.Subscript)):
+            # If mutating an attribute or item of a variable, the base variable might need 'mut' in V
+            # For simplicity, if base is Name, we mark it.
+            base = node.target.value
+            while isinstance(base, (ast.Attribute, ast.Subscript)):
+                 base = base.value
+            if isinstance(base, ast.Name):
+                 self.reassigned_vars.add(base.id)
+        self.generic_visit(node)
+
+    def visit_Call(self, node: ast.Call) -> Any:
+        # Track mutating method calls
+        if isinstance(node.func, ast.Attribute) and isinstance(node.func.value, ast.Name):
+            if node.func.attr in ('append', 'extend', 'pop', 'remove', 'insert', 'clear', 'update', 'setdefault'):
+                self.reassigned_vars.add(node.func.value.id)
+        self.generic_visit(node)
+
+    def visit_For(self, node: ast.For) -> Any:
+        if isinstance(node.target, ast.Name):
+            if node.target.id in self.assignments:
+                self.reassigned_vars.add(node.target.id)
+            self.assignments[node.target.id] = True
+        elif isinstance(node.target, (ast.Tuple, ast.List)):
+             for elt in node.target.elts:
+                 if isinstance(elt, ast.Name):
+                     if elt.id in self.assignments:
+                         self.reassigned_vars.add(elt.id)
+                     self.assignments[elt.id] = True
+        self.generic_visit(node)
+
     def visit_Assign(self, node: ast.Assign) -> Any:
         for target in node.targets:
+            if isinstance(target, ast.Name):
+                if target.id in self.assignments:
+                    self.reassigned_vars.add(target.id)
+                self.assignments[target.id] = True
+            elif isinstance(target, (ast.Tuple, ast.List)):
+                 for elt in target.elts:
+                     if isinstance(elt, ast.Name):
+                         if elt.id in self.assignments:
+                             self.reassigned_vars.add(elt.id)
+                         self.assignments[elt.id] = True
+
             if isinstance(target, ast.Subscript):
                 dict_name = None
                 if isinstance(target.value, ast.Name):
@@ -143,7 +312,18 @@ class TypeInference(ast.NodeVisitor):
     def visit_AnnAssign(self, node: ast.AnnAssign) -> Any:
         # Check if the target is a simple variable name (ast.Name)
         if isinstance(node.target, ast.Name):
+            if node.target.id in self.assignments:
+                self.reassigned_vars.add(node.target.id)
+            self.assignments[node.target.id] = True
+
             if node.annotation:
+                # Check for Final
+                if isinstance(node.annotation, ast.Name) and node.annotation.id == 'Final':
+                    self.final_vars.add(node.target.id)
+                elif isinstance(node.annotation, ast.Subscript):
+                    if isinstance(node.annotation.value, ast.Name) and node.annotation.value.id == 'Final':
+                        self.final_vars.add(node.target.id)
+
                 try:
                     # Use ast.unparse to get the full type string (e.g. List[int])
                     # This works for Python 3.9+

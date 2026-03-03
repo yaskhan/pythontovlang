@@ -324,7 +324,7 @@ Based on recent Python ecosystem developments (mypy, PyPy, Numba, NumPy, Nuitka,
 - [x] **Static Function Overload Resolution (`typing.overload`)**
   - *Context:* V does not support function overloading, making Python's `@overload` tricky to map directly.
   - *V Translation:* Use the mypy plugin to determine the exact matched overload signature at every *call site*. Generate uniquely named V functions for each signature (e.g., `func_int_int`, `func_str_str`) and emit direct calls to them, bypassing dynamic type introspection entirely.
-- [ ] **Exact Mutability Mapping (`Final` / reassignments)**
+- [x] **Exact Mutability Mapping (`Final` / reassignments)**
   - *Context:* V variables default to immutable. Currently, the transpiler might over-use `mut` to be safe.
   - *V Translation:* Utilize mypy's reassignment tracking and `typing.Final` annotations. If mypy proves a variable is never reassigned after initialization, emit it without the `mut` keyword in V, relying on V's strict compiler to ensure immutability.
 - [x] **Config-Aware Nullability (`strict_optional`)**

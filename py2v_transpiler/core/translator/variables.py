@@ -282,11 +282,27 @@ class VariablesMixin(TranslatorBase):
                         if target.id not in self.type_inference.type_map:
                             self.type_inference.type_map[target.id] = assigned_type
 
+            # Check mutability from analyzer
+            is_mutable = True
+            if hasattr(self, 'type_inference') and hasattr(self.type_inference, 'mutability_tracker'):
+                mut_tracker = self.type_inference.mutability_tracker
+                if hasattr(mut_tracker, 'scope_mutations') and self.current_ast_node_scope in mut_tracker.scope_mutations:
+                    scope_muts = mut_tracker.scope_mutations[self.current_ast_node_scope]
+                    scope_finals = mut_tracker.scope_finals.get(self.current_ast_node_scope, set())
+                    if isinstance(target, ast.Name):
+                        if target.id in scope_muts:
+                             is_mutable = scope_muts[target.id] and target.id not in scope_finals
+                        else:
+                             is_mutable = False # Not even mutated (or not found)
+
+            mut_prefix = "mut " if is_mutable else ""
+
             if is_simple_list and v_type.startswith("[]") and cap > 0:
                 # To initialize V arrays with exact capacities (`[]int{cap: N}`) during assignments like `arr = [x, y, z]`
                 # We emit:
                 # mut arr := []T{cap: N}
                 # arr << x ...
+                # Actually, if we use `<<` right after, it MUST be mutable.
                 self.output.append(f"{self._indent()}mut {lhs} := {v_type}{{cap: {cap}}}")
                 value_node: Any = node.value
                 for elt in value_node.elts:
@@ -346,15 +362,31 @@ class VariablesMixin(TranslatorBase):
                     if local_v_type and local_v_type != "unknown":
                         if not local_v_type.startswith("?"):
                             local_v_type = f"?{local_v_type}"
-                        emit_fn(f"{self._indent()}mut {lhs} := {local_v_type}(none)")
+
+                        if not self.in_main and lhs in self._local_vars_in_scope:
+                            emit_fn(f"{self._indent()}{lhs} = {local_v_type}(none)")
+                        else:
+                            emit_fn(f"{self._indent()}{mut_prefix}{lhs} := {local_v_type}(none)")
+                            if not self.in_main:
+                                self._local_vars_in_scope.add(lhs)
                     else:
-                        emit_fn(f"{self._indent()}mut {lhs} := ?Any(none)")
+                        if not self.in_main and lhs in self._local_vars_in_scope:
+                            emit_fn(f"{self._indent()}{lhs} = ?Any(none)")
+                        else:
+                            emit_fn(f"{self._indent()}{mut_prefix}{lhs} := ?Any(none)")
+                            if not self.in_main:
+                                self._local_vars_in_scope.add(lhs)
                 else:
                     if isinstance(target, ast.Attribute) or isinstance(target, ast.Subscript):
                         emit_fn(f"{self._indent()}{lhs} = {rhs}")
                     else:
                         if emit_fn == self.output.append:
-                            emit_fn(f"{self._indent()}{lhs} := {rhs}")
+                            if not self.in_main and lhs in self._local_vars_in_scope:
+                                emit_fn(f"{self._indent()}{lhs} = {rhs}")
+                            else:
+                                emit_fn(f"{self._indent()}{mut_prefix}{lhs} := {rhs}")
+                                if not self.in_main:
+                                    self._local_vars_in_scope.add(lhs)
                         else:
                             # if it's going to init(), it shouldn't be := if it's a global
                             emit_fn(f"{self._indent()}{lhs} = {rhs}")
@@ -579,6 +611,24 @@ class VariablesMixin(TranslatorBase):
             if not v_type:
                 v_type = getattr(self, "_guess_type", lambda x: "unknown")(node.target)
 
+            is_mutable = True
+            if hasattr(self, 'type_inference') and hasattr(self.type_inference, 'mutability_tracker'):
+                mut_tracker = self.type_inference.mutability_tracker
+                if hasattr(mut_tracker, 'scope_mutations') and self.current_ast_node_scope in mut_tracker.scope_mutations:
+                    scope_muts = mut_tracker.scope_mutations[self.current_ast_node_scope]
+                    scope_finals = mut_tracker.scope_finals.get(self.current_ast_node_scope, set())
+                    if isinstance(node.target, ast.Name):
+                        if node.target.id in scope_muts:
+                             is_mutable = scope_muts[node.target.id] and node.target.id not in scope_finals
+                        else:
+                             is_mutable = False
+
+            # Explicit Final overrides reassignments (V will enforce it)
+            if v_type == "Final" or getattr(node.annotation, "id", "") == "Final" or getattr(node.annotation, "attr", "") == "Final":
+                is_mutable = False
+
+            mut_prefix = "mut " if is_mutable else ""
+
             if is_simple_list and v_type.startswith("[]") and cap > 0:
                 self.output.append(f"{self._indent()}mut {target} := {v_type}{{cap: {cap}}}")
                 value_node: Any = node.value
@@ -646,9 +696,20 @@ class VariablesMixin(TranslatorBase):
                     if v_type and v_type != "unknown":
                         if not v_type.startswith("?"):
                             v_type = f"?{v_type}"
-                        emit_fn(f"{self._indent()}mut {target} := {v_type}(none)")
+
+                        if not self.in_main and target in self._local_vars_in_scope:
+                            emit_fn(f"{self._indent()}{target} = {v_type}(none)")
+                        else:
+                            emit_fn(f"{self._indent()}{mut_prefix}{target} := {v_type}(none)")
+                            if not self.in_main:
+                                self._local_vars_in_scope.add(target)
                     else:
-                        emit_fn(f"{self._indent()}mut {target} := ?Any(none)")
+                        if not self.in_main and target in self._local_vars_in_scope:
+                            emit_fn(f"{self._indent()}{target} = ?Any(none)")
+                        else:
+                            emit_fn(f"{self._indent()}{mut_prefix}{target} := ?Any(none)")
+                            if not self.in_main:
+                                self._local_vars_in_scope.add(target)
                 else:
                     # We ignore the annotation for now and rely on type inference and V's auto-typing
                     # But we could potentially use it to hint types for empty lists/maps
@@ -656,7 +717,12 @@ class VariablesMixin(TranslatorBase):
                         emit_fn(f"{self._indent()}{target} = {rhs}")
                     else:
                         if emit_fn == self.output.append:
-                            emit_fn(f"{self._indent()}{target} := {rhs}")
+                            if not self.in_main and target in self._local_vars_in_scope:
+                                emit_fn(f"{self._indent()}{target} = {rhs}")
+                            else:
+                                emit_fn(f"{self._indent()}{mut_prefix}{target} := {rhs}")
+                                if not self.in_main:
+                                    self._local_vars_in_scope.add(target)
                         else:
                             emit_fn(f"{self._indent()}{target} = {rhs}")
         else:
@@ -689,7 +755,23 @@ class VariablesMixin(TranslatorBase):
                     # Fallback for structs? or unknowns
                     pass
 
-                self.output.append(f"{self._indent()}{target} := {default_val}")
+
+                is_mutable = True
+                if hasattr(self, 'type_inference') and hasattr(self.type_inference, 'reassigned_vars'):
+                    if isinstance(node.target, ast.Name):
+                        is_mutable = node.target.id in self.type_inference.reassigned_vars and node.target.id not in self.type_inference.final_vars
+
+                if v_type == "Final" or getattr(node.annotation, "id", "") == "Final" or getattr(node.annotation, "attr", "") == "Final":
+                    is_mutable = False
+
+                mut_prefix = "mut " if is_mutable else ""
+
+                if not self.in_main and target in self._local_vars_in_scope:
+                    self.output.append(f"{self._indent()}{target} = {default_val}")
+                else:
+                    self.output.append(f"{self._indent()}{mut_prefix}{target} := {default_val}")
+                    if not self.in_main:
+                        self._local_vars_in_scope.add(target)
             except:
                 self.output.append(f"{self._indent()}// {target} declared (annotation processing failed)")
 

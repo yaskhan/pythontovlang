@@ -34,6 +34,7 @@ class VNodeVisitor(
         self.coroutine_handler = CoroutineHandler()
         # Use emitter for structured output
         self.emitter = VCodeEmitter()
+        self.current_ast_node_scope: ast.AST = None
         # Internal buffer for visiting blocks (functions, loops, etc.)
         self.output: List[str] = []
         self._indent_level = 0

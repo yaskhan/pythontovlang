@@ -5,6 +5,9 @@ from .base import TranslatorBase
 
 class ClassesMixin(TranslatorBase):
     def visit_ClassDef(self, node: ast.ClassDef) -> None:
+        prev_ast_node_scope = getattr(self, "current_ast_node_scope", None)
+        self.current_ast_node_scope = node
+
         # Map Python class to V struct
         # Handle nested classes by prefixing with parent class name
         if not hasattr(self, 'class_stack'):
@@ -603,6 +606,7 @@ class ClassesMixin(TranslatorBase):
             self.defined_classes = {}
         self.defined_classes[struct_name] = has_init
 
+        self.current_ast_node_scope = prev_ast_node_scope
         # Ensure we output the nested struct definition at the top level
         # visit_ClassDef processes body elements via iteration.
         # The iteration logic in visit_ClassDef handles methods, AnnAssign, Assign.
