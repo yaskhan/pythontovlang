@@ -221,5 +221,8 @@ def _map_basic_type(name: str) -> str:
         'builtins.float': 'f64',
         'builtins.str': 'string',
         'builtins.bool': 'bool',
+        'LiteralString': 'string',
+        'typing.LiteralString': 'string',
+        'typing_extensions.LiteralString': 'string',
     }
     return mapping.get(name, name)

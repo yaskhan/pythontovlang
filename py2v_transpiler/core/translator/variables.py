@@ -4,6 +4,18 @@ from py2v_transpiler.models.v_types import map_python_type_to_v
 from .base import TranslatorBase
 
 class VariablesMixin(TranslatorBase):
+    def _is_literal_string_expr(self, node: ast.AST) -> bool:
+        """Checks if an expression is a literal string, literal concatenation, or f-string without variables."""
+        if isinstance(node, ast.Constant) and isinstance(node.value, str):
+            return True
+        if isinstance(node, ast.JoinedStr):
+            return all(self._is_literal_string_expr(v) for v in node.values)
+        if isinstance(node, ast.FormattedValue):
+            return self._is_literal_string_expr(node.value)
+        if isinstance(node, ast.BinOp) and isinstance(node.op, ast.Add):
+            return self._is_literal_string_expr(node.left) and self._is_literal_string_expr(node.right)
+        return False
+
     def _is_compile_time_evaluable(self, node: ast.AST) -> bool:
         """
         Checks if an AST node represents a value that can be evaluated at compile time in V.
@@ -290,6 +302,23 @@ class VariablesMixin(TranslatorBase):
                         if target.id not in self.type_inference.type_map:
                             self.type_inference.type_map[target.id] = assigned_type
 
+
+            # Check for implicit LiteralString (constant strings, concatenation, f-strings without vars)
+            # If so, we track it as string and potentially as a constant
+            is_implicit_literal = False
+            # Ensure it is a known literal string expression but ONLY convert to const
+            # if we explicitly have a LiteralString annotation. Implicit literals
+            # should remain runtime variables unless explicitly requested as const via type
+            if self._is_literal_string_expr(node.value):
+                 is_implicit_literal = True
+                 if v_type == "unknown":
+                     v_type = "string"
+                     # mark the type as literal string if not already typed
+                     if isinstance(target, ast.Name):
+                          if hasattr(self, 'type_inference') and hasattr(self.type_inference, 'type_map'):
+                              if target.id not in self.type_inference.type_map:
+                                  self.type_inference.type_map[target.id] = "string"
+
             if is_simple_list and v_type.startswith("[]") and cap > 0:
                 # To initialize V arrays with exact capacities (`[]int{cap: N}`) during assignments like `arr = [x, y, z]`
                 # We emit:
@@ -344,8 +373,16 @@ class VariablesMixin(TranslatorBase):
                                     v_type = "Any"
                                 self.emitter.add_global(f"{lhs} {v_type}")
 
-                if self.in_main and isinstance(target, ast.Name) and (lhs in getattr(self, "global_vars", set()) or lhs.isupper()):
+                if self.in_main and isinstance(target, ast.Name) and (lhs in getattr(self, "global_vars", set()) or lhs.isupper() or is_implicit_literal):
                     # Для compile-time констант мы уже сделали return выше — присваивание не нужно
+                    if is_implicit_literal and self._is_compile_time_evaluable(node.value) and not lhs.isupper():
+                        self.emitter.add_constant(f"{lhs} = {rhs}")
+                        return
+                    if is_implicit_literal and not self._is_compile_time_evaluable(node.value) and not lhs.isupper():
+                        if lhs not in getattr(self, "global_vars", set()):
+                            self.emitter.add_global(f"{lhs} string")
+                        self.emitter.add_init_statement(f"{lhs} = {rhs}")
+                        return
                     if not (lhs.isupper() and self._is_compile_time_evaluable(node.value)):
                         emit_fn(f"{self._indent()}{lhs} = {rhs}")
                 elif rhs == "none":
@@ -577,6 +614,7 @@ class VariablesMixin(TranslatorBase):
 
             # Determine type
             v_type = None
+            type_str = ""
             if hasattr(ast, 'unparse'):
                 try:
                     type_str = ast.unparse(node.annotation)
@@ -586,6 +624,14 @@ class VariablesMixin(TranslatorBase):
 
             if not v_type:
                 v_type = getattr(self, "_guess_type", lambda x: "unknown")(node.target)
+
+            # Check if this is a LiteralString being assigned an input() call
+            if type_str in ("LiteralString", "typing.LiteralString", "typing_extensions.LiteralString") and isinstance(node.value, ast.Call) and isinstance(node.value.func, ast.Name) and node.value.func.id == "input":
+                 self.output.append(f"{self._indent()}// WARNING: LiteralString variable '{target}' receives value from input() (loss of guarantee)")
+
+            if self.in_main and isinstance(node.target, ast.Name):
+                if type_str in ("LiteralString", "typing.LiteralString", "typing_extensions.LiteralString") and not self._is_literal_string_expr(node.value) and not self._is_compile_time_evaluable(node.value):
+                     self.emitter.add_global(f"{target} string")
 
             if is_simple_list and v_type.startswith("[]") and cap > 0:
                 self.output.append(f"{self._indent()}mut {target} := {v_type}{{cap: {cap}}}")
@@ -626,7 +672,7 @@ class VariablesMixin(TranslatorBase):
                             self.emitter.add_global(f"{target} {v_type}")
 
                     elif base_lhs.isupper() or \
-                         (v_type == "Final" or
+                         (v_type == "Final" or type_str in ("LiteralString", "typing.LiteralString", "typing_extensions.LiteralString") or
                           getattr(node, "annotation", None) and
                           (getattr(getattr(node, "annotation", None), "id", "") == "Final" or
                            getattr(getattr(node, "annotation", None), "attr", "") == "Final")):
@@ -634,20 +680,30 @@ class VariablesMixin(TranslatorBase):
                         if isinstance(node.target, ast.Name):
                             if not v_type or v_type in ("unknown", "Final"):
                                 v_type = "Any"
-                            self.emitter.add_global(f"{target} {v_type}")
+                            if type_str in ("LiteralString", "typing.LiteralString", "typing_extensions.LiteralString"):
+                                v_type = "string"
+                            if type_str not in ("LiteralString", "typing.LiteralString", "typing_extensions.LiteralString"):
+                                self.emitter.add_global(f"{target} {v_type}")
 
-                            if self._is_compile_time_evaluable(node.value):
-                                # Настоящая compile-time константа → const блок
+                            # Use const block only if it evaluates at compile-time (e.g., literal string)
+                            if self._is_compile_time_evaluable(node.value) or (type_str in ("LiteralString", "typing.LiteralString", "typing_extensions.LiteralString") and self._is_literal_string_expr(node.value)):
                                 self.emitter.add_constant(f"{target} = {rhs}")
-                                return   # ← важно: не выводим присваивание в init или output
+                                return
                             else:
                                 self.emitter.add_init_statement(f"{target} = {rhs}")
                                 return
 
                 # Обычное присваивание, если не перехвачено выше
                 if self.in_main and isinstance(node.target, ast.Name) and \
-                   (target in getattr(self, "global_vars", set()) or target.isupper()):
-                    # Для compile-time мы уже вернулись выше → здесь только runtime-случаи
+                   (target in getattr(self, "global_vars", set()) or target.isupper() or type_str in ("LiteralString", "typing.LiteralString", "typing_extensions.LiteralString")):
+
+                    if type_str in ("LiteralString", "typing.LiteralString", "typing_extensions.LiteralString"):
+                         # Only literal string expressions and compile time evaluables are placed in const
+                         if self._is_literal_string_expr(node.value) or self._is_compile_time_evaluable(node.value):
+                              self.emitter.add_constant(f"{target} = {rhs}")
+                         else:
+                              self.emitter.add_init_statement(f"{target} = {rhs}")
+                         return
                     emit_fn(f"{self._indent()}{target} = {rhs}")
 
                 elif rhs == "none":

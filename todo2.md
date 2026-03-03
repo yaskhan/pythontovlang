@@ -34,7 +34,7 @@ Based on recent Python ecosystem developments (mypy, PyPy, Numba, NumPy, Nuitka,
   - Detect the `ReadOnly` wrapper in field annotations.
   - *V Translation:* Generate struct fields as `const` or use getter methods (since V lacks built-in read-only semantics at the field level).
   - Emit a transpiler error if mypy complains about assignment to a `ReadOnly` field.
-- [ ] **PEP 675: LiteralString (improved support in mypy 1.14+)**
+- [x] **PEP 675: LiteralString (improved support in mypy 1.14+)**
   - *Context:* A type for strings known at compile time (injection protection).
   - Detect `LiteralString` by tracking string origin: literal, literal concatenation, f-string without variables.
   - *V Translation:* Mark as `const string` if possible for optimization and safety.
