@@ -27,7 +27,7 @@ Based on recent Python ecosystem developments (mypy, PyPy, Numba, NumPy, Nuitka,
   - Added comprehensive test suite in `test_property_mismatched_types.py`.
 - [x] **`__getattr__`, `__setattr__`, `__delattr__` Support**
   - While V does not support fully dynamic attributes natively, consider adding a mechanism (e.g., a fallback `map[string]Any` inside the struct) to support dynamic attribute access where needed.
-- [ ] **Enum Membership Semantics (PEP 736/typing updates)**
+- [x] **Enum Membership Semantics (PEP 736/typing updates)**
   - Ensure transpiler correctly handles unannotated vs annotated Enum members based on new typing rules.
 - [ ] **PEP 705: ReadOnly in TypedDict (mypy 1.12+)**
   - *Context:* Marking TypedDict fields as immutable.

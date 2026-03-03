@@ -210,18 +210,49 @@ class ClassesMixin(TranslatorBase):
         # Handle inheritance (bases)
         is_flag = False
         for base in node.bases:
-            # Handle Enum
+            # Helper to check if a name refers to an Enum type
+            def is_enum_type(name: str) -> tuple[bool, bool, bool]:
+                """Returns (is_enum, is_int_enum, is_flag)"""
+                # First check imported symbols (e.g., from enum import Enum)
+                # This is more specific than just checking the name
+                if name in self.imported_symbols:
+                    full_name = self.imported_symbols[name]
+                    if full_name in ("enum.Enum", "enum.IntEnum", "enum.Flag", "enum.IntFlag"):
+                        if full_name == "enum.Enum":
+                            return (True, False, False)
+                        elif full_name == "enum.IntEnum":
+                            return (True, True, False)
+                        elif full_name == "enum.Flag":
+                            return (True, False, True)
+                        elif full_name == "enum.IntFlag":
+                            return (True, True, True)
+                
+                # Check direct names (when Enum is not imported or built-in)
+                if name in ("Enum", "IntEnum", "Flag", "IntFlag"):
+                    if name == "Enum":
+                        return (True, False, False)
+                    elif name == "IntEnum":
+                        return (True, True, False)
+                    elif name == "Flag":
+                        return (True, False, True)
+                    elif name == "IntFlag":
+                        return (True, True, True)
+                return (False, False, False)
+            
+            # Handle Enum - check both ast.Name and ast.Attribute
+            base_name = ""
             if isinstance(base, ast.Name):
-                if base.id == "Enum":
-                    is_enum = True
-                elif base.id == "IntEnum":
-                    is_int_enum = True
-                elif base.id == "Flag":
-                    is_enum = True
-                    is_flag = True
-                elif base.id == "TestCase":
-                     # Check if it's likely unittest.TestCase
-                     # Or check if base is Attribute unittest.TestCase
+                base_name = base.id
+            elif isinstance(base, ast.Attribute):
+                base_name = base.attr
+            
+            is_enum_result = is_enum_type(base_name)
+            if is_enum_result[0]:
+                is_enum = is_enum_result[0] or is_enum
+                is_int_enum = is_enum_result[1] or is_int_enum
+                is_flag = is_enum_result[2] or is_flag
+            elif isinstance(base, ast.Name):
+                if base.id == "TestCase":
                      is_unittest = True
                 elif base.id == "Protocol":
                      is_protocol = True
@@ -231,20 +262,15 @@ class ClassesMixin(TranslatorBase):
                      is_typed_dict = True
                 elif base.id == "ABC":
                      pass
-
             elif isinstance(base, ast.Attribute):
-                # Check for unittest.TestCase
                 val = self.visit(base)
-                if val == "unittest.TestCase" or (isinstance(base.value, ast.Name) and base.value.id == "unittest" and base.attr == "TestCase"):
+                if val == "unittest.TestCase":
                      is_unittest = True
-                elif val == "enum.Flag":
-                    is_enum = True
-                    is_flag = True
                 elif val == "typing.Protocol":
                      is_protocol = True
                 elif val == "typing.NamedTuple":
                      is_named_tuple = True
-                elif val == "typing.TypedDict" or val == "TypedDict":
+                elif val in ("typing.TypedDict", "TypedDict"):
                      is_typed_dict = True
                 elif base.attr == "ABC":
                      pass
@@ -500,13 +526,40 @@ class ClassesMixin(TranslatorBase):
             if decorators:
                 struct_def += "\n".join(decorators) + "\n"
 
-            if is_int_enum or (is_enum and is_flag):
+            if is_enum or is_int_enum or is_flag:
                 # Transpile to V enum or flag enum
                 enum_fields = []
                 _flag_counter = 0 # Track shift for auto() in flags
 
                 for stmt in node.body:
-                    if isinstance(stmt, ast.Assign):
+                    # Handle annotated members: RED: int = 1
+                    if isinstance(stmt, ast.AnnAssign) and isinstance(stmt.target, ast.Name):
+                        member_name = self._sanitize_name(stmt.target.id.lower())
+                        if stmt.value:
+                            # Check for auto()
+                            is_auto = False
+                            if isinstance(stmt.value, ast.Call):
+                                if isinstance(stmt.value.func, ast.Name) and stmt.value.func.id == "auto":
+                                    is_auto = True
+                                elif isinstance(stmt.value.func, ast.Attribute) and stmt.value.func.attr == "auto":
+                                    is_auto = True
+                            
+                            if is_auto:
+                                if is_flag:
+                                    val = f"1 << {_flag_counter}"
+                                    enum_fields.append(f"    {member_name} = {val}")
+                                    _flag_counter += 1
+                                else:
+                                    enum_fields.append(f"    {member_name}")
+                            else:
+                                value = self.visit(stmt.value)
+                                enum_fields.append(f"    {member_name} = {value}")
+                        else:
+                            # No value, just annotation - skip or use counter
+                            enum_fields.append(f"    {member_name}")
+                    
+                    # Handle unannotated members: RED = 1
+                    elif isinstance(stmt, ast.Assign):
                         for target in stmt.targets:
                             if isinstance(target, ast.Name):
                                 # snake_case conversion for member
