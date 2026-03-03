@@ -32,11 +32,11 @@ class Point:
 
     # Check factory function for __init__
     assert "fn new_Point(x int, y int) Point {" in result
-    assert "self.x := x" in result
+    assert "self.x = x" in result
 
     # Check method
     assert "fn (self Point) move(dx int, dy int) {" in result
-    assert "self.x := self.x + dx" in result
+    assert "self.x = self.x + dx" in result
 
 def test_translator_class_usage():
     parser = PyASTParser()

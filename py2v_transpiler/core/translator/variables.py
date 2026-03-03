@@ -240,18 +240,50 @@ class VariablesMixin(TranslatorBase):
             v_type = getattr(self, "_guess_type", lambda x: "unknown")(target)
 
             if is_simple_list and v_type.startswith("[]") and cap > 0:
-                # To initialize V arrays with exact capacities (`[]int{cap: N}`) during assignments like `arr = [x, y, z]`
-                # We emit:
-                # mut arr := []T{cap: N}
-                # arr << x ...
-                self.output.append(f"{self._indent()}mut {lhs} := {v_type}{{cap: {cap}}}")
-                value_node: Any = node.value
-                for elt in value_node.elts:
-                    val = self.visit(elt)
-                    self.output.append(f"{self._indent()}{lhs} << {val}")
+                # Check if it is a Final annotation or never reassigned.
+                is_final = False
+                if isinstance(node, ast.AnnAssign) and hasattr(ast, 'unparse'):
+                    try:
+                        type_str = ast.unparse(node.annotation)
+                        if 'Final' in type_str:
+                            is_final = True
+                    except:
+                        pass
+
+                is_reassigned = lhs in getattr(self.type_inference, 'reassigned_vars', set())
+                is_modified = lhs in getattr(self.type_inference, 'modified_vars', set())
+                needs_mut = True
+
+                if is_final or (not is_reassigned and not is_modified):
+                    needs_mut = False
+
+                if needs_mut:
+                    self.output.append(f"{self._indent()}mut {lhs} := {v_type}{{cap: {cap}}}")
+                    value_node: Any = node.value
+                    for elt in value_node.elts:
+                        val = self.visit(elt)
+                        self.output.append(f"{self._indent()}{lhs} << {val}")
+                else:
+                    rhs = self.visit(node.value)
+                    self.output.append(f"{self._indent()}{lhs} := {rhs}")
             else:
+                is_reassigned = lhs in getattr(self.type_inference, 'reassigned_vars', set())
+                is_modified = lhs in getattr(self.type_inference, 'modified_vars', set())
+                mut_prefix = ""
+                if is_reassigned or is_modified:
+                    mut_prefix = "mut "
                 rhs = self.visit(node.value)
-                self.output.append(f"{self._indent()}{lhs} := {rhs}")
+
+                if not hasattr(self, 'declared_vars'):
+                    self.declared_vars = set()
+
+                is_name = isinstance(target, ast.Name)
+
+                if not is_name or lhs in self.declared_vars:
+                    self.output.append(f"{self._indent()}{lhs} = {rhs}")
+                else:
+                    self.declared_vars.add(lhs)
+                    self.output.append(f"{self._indent()}{mut_prefix}{lhs} := {rhs}")
 
     def _visit_destructuring(self, target: ast.AST, source_expr: str) -> None:
         """
@@ -460,16 +492,60 @@ class VariablesMixin(TranslatorBase):
                 v_type = getattr(self, "_guess_type", lambda x: "unknown")(node.target)
 
             if is_simple_list and v_type.startswith("[]") and cap > 0:
-                self.output.append(f"{self._indent()}mut {target} := {v_type}{{cap: {cap}}}")
-                value_node: Any = node.value
-                for elt in value_node.elts:
-                    val = self.visit(elt)
-                    self.output.append(f"{self._indent()}{target} << {val}")
+                is_final = False
+                if hasattr(ast, 'unparse'):
+                    try:
+                        type_str = ast.unparse(node.annotation)
+                        if 'Final' in type_str:
+                            is_final = True
+                    except:
+                        pass
+
+                is_reassigned = target in getattr(self.type_inference, 'reassigned_vars', set())
+                is_modified = target in getattr(self.type_inference, 'modified_vars', set())
+                needs_mut = True
+
+                if is_final or (not is_reassigned and not is_modified):
+                    needs_mut = False
+
+                if needs_mut:
+                    self.output.append(f"{self._indent()}mut {target} := {v_type}{{cap: {cap}}}")
+                    value_node: Any = node.value
+                    for elt in value_node.elts:
+                        val = self.visit(elt)
+                        self.output.append(f"{self._indent()}{target} << {val}")
+                else:
+                    rhs = self.visit(node.value)
+                    self.output.append(f"{self._indent()}{target} := {rhs}")
             else:
+                is_final = False
+                if hasattr(ast, 'unparse'):
+                    try:
+                        type_str = ast.unparse(node.annotation)
+                        if 'Final' in type_str:
+                            is_final = True
+                    except:
+                        pass
+
+                is_reassigned = target in getattr(self.type_inference, 'reassigned_vars', set())
+                is_modified = target in getattr(self.type_inference, 'modified_vars', set())
+
+                mut_prefix = ""
+                if not is_final and (is_reassigned or is_modified):
+                    mut_prefix = "mut "
+
                 rhs = self.visit(node.value)
-                # We ignore the annotation for now and rely on type inference and V's auto-typing
-                # But we could potentially use it to hint types for empty lists/maps
-                self.output.append(f"{self._indent()}{target} := {rhs}")
+
+                if not hasattr(self, 'declared_vars'):
+                    self.declared_vars = set()
+
+                is_name = isinstance(node.target, ast.Name)
+
+                if not is_name or target in self.declared_vars:
+                    self.output.append(f"{self._indent()}{target} = {rhs}")
+                else:
+                    self.declared_vars.add(target)
+                    self.output.append(f"{self._indent()}{mut_prefix}{target} := {rhs}")
         else:
             # Declaration only: x: int
             # V needs initialization. We map type to default value.

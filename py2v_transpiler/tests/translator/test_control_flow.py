@@ -39,7 +39,7 @@ while x < 10:
     result = translator.visit_Module(tree)
 
     assert "for x < 10 {" in result
-    assert "x := x + 1" in result
+    assert "x = x + 1" in result
 
 def test_translator_for_range():
     parser = PyASTParser()

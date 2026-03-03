@@ -25,7 +25,7 @@ class Person:
         "fn (self Person) set_name(value string) {",
         # Note: self._name := value is currently generated due to VariablesMixin bug
         # We check for the method signature renaming mainly.
-        "self._name :="
+        "self._name ="
     ]
 
     visitor = VNodeVisitor(TypeInference())

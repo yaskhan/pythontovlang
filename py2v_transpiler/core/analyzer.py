@@ -11,15 +11,65 @@ class TypeInference(ast.NodeVisitor):
     def __init__(self):
         self.type_map: Dict[str, str] = {}
         self.location_map: Dict[str, str] = {}
+        self.assigned_vars: set = set()
+        self.reassigned_vars: set = set()
+        self.modified_vars: set = set()
 
     def analyze(self, tree: ast.AST) -> Dict[str, str]:
         """Analyzes the AST to infer variable types."""
         self.visit(tree)
         return self.type_map
 
+    def visit_Assign(self, node: ast.Assign) -> Any:
+        for target in node.targets:
+            if isinstance(target, ast.Name):
+                if target.id in self.assigned_vars:
+                    self.reassigned_vars.add(target.id)
+                self.assigned_vars.add(target.id)
+        self.generic_visit(node)
+
+    def visit_AugAssign(self, node: ast.AugAssign) -> Any:
+        if isinstance(node.target, ast.Name):
+            self.reassigned_vars.add(node.target.id)
+            self.assigned_vars.add(node.target.id)
+        self.generic_visit(node)
+
+    def visit_For(self, node: ast.For) -> Any:
+        if isinstance(node.target, ast.Name):
+            if node.target.id in self.assigned_vars:
+                self.reassigned_vars.add(node.target.id)
+            self.assigned_vars.add(node.target.id)
+        elif isinstance(node.target, ast.Tuple) or isinstance(node.target, ast.List):
+            for elt in node.target.elts:
+                if isinstance(elt, ast.Name):
+                    if elt.id in self.assigned_vars:
+                        self.reassigned_vars.add(elt.id)
+                    self.assigned_vars.add(elt.id)
+        self.generic_visit(node)
+
+    def visit_NamedExpr(self, node: ast.NamedExpr) -> Any:
+        if isinstance(node.target, ast.Name):
+            if node.target.id in self.assigned_vars:
+                self.reassigned_vars.add(node.target.id)
+            self.assigned_vars.add(node.target.id)
+        self.generic_visit(node)
+
+    def visit_Call(self, node: ast.Call) -> Any:
+        if isinstance(node.func, ast.Attribute) and isinstance(node.func.value, ast.Name):
+            # Track method calls that modify the object in-place
+            mutating_methods = {'append', 'extend', 'insert', 'remove', 'pop', 'clear', 'update', 'add', 'discard', 'sort', 'reverse'}
+            if node.func.attr in mutating_methods:
+                self.modified_vars.add(node.func.value.id)
+                self.reassigned_vars.add(node.func.value.id) # Treat as reassigned for mutability purposes
+        self.generic_visit(node)
+
     def visit_AnnAssign(self, node: ast.AnnAssign) -> Any:
         # Check if the target is a simple variable name (ast.Name)
         if isinstance(node.target, ast.Name):
+            if node.target.id in self.assigned_vars:
+                self.reassigned_vars.add(node.target.id)
+            self.assigned_vars.add(node.target.id)
+
             if node.annotation:
                 try:
                     # Use ast.unparse to get the full type string (e.g. List[int])

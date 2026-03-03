@@ -834,6 +834,21 @@ class ExpressionsMixin(TranslatorBase):
                                 length = max(0, (start - stop - step - 1) // (-step))
                             cap_str = f"cap: {length}"
 
+        needs_mut = True
+        is_reassigned = target_var in getattr(self.type_inference, 'reassigned_vars', set())
+
+        # If it's a ListComp being assigned to a variable, is it a Final or unmodified var?
+        # Note: comprehensions need `mut` internally to append.
+        # But V requires the variable itself to be mut if it is appended to.
+        # If we assign the comprehension directly without building it step-by-step, we could avoid mut.
+        # However, our translation builds it step-by-step: `mut target_var := []; target_var << elt`
+        # Because we do `target_var << elt` in the loop, target_var MUST be mut in V!
+        # So for comprehensions, we cannot remove the `mut` currently because of how we translate it.
+        # If we need exact mutability mapping, we'd need to wrap it in an anonymous function:
+        # `target_var := fn() []int { mut temp := []int{}; temp << elt; return temp}()`
+        # This seems too heavy for general comprehensions just to satisfy immutability.
+        # Let's keep `mut` for our loop-based comprehensions for now, since `<<` requires it.
+
         if cap_str:
             self.output.append(f"{self._indent()}mut {target_var} := []int{{{cap_str}}}")
         else:
