@@ -12,7 +12,7 @@ Based on recent Python ecosystem developments (mypy, PyPy, Numba, NumPy, Nuitka,
   - Use `--enable-incomplete-feature=TypeForm` when running mypy for validation.
 - [x] **PEP 800: Disjoint Base Classes (`@disjoint_base`)**
   - Add support for detecting `@disjoint_base` decorator.
-- [ ] **PEP 742: TypeIs (mypy 1.10+)**
+- [x] **PEP 742: TypeIs (mypy 1.10+)**
   - *Context:* Improved type guard that narrows the type in both branches of a condition.
   - Recognize functions returning `TypeIs[T]` instead of `bool`.
   - *V Translation:* Generate an `if` with an automatic type cast inside the block (using narrowing info from mypy).

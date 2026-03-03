@@ -29,6 +29,93 @@ class ConditionalsMixin(TranslatorBase):
                 self.output.append(f"{self._indent()}mut {var} := {v_type}(none)")
                 self._local_vars_in_scope.add(var)
 
+        # Check for TypeGuard / TypeIs narrowing
+        narrow_if = None
+        narrow_else = None
+
+        if isinstance(node.test, ast.Call):
+            call_node = node.test
+            func_name_str = None
+            if isinstance(call_node.func, ast.Name):
+                func_name_str = call_node.func.id
+            elif isinstance(call_node.func, ast.Attribute):
+                func_name_str = call_node.func.attr
+
+            loc_key = f"{getattr(call_node, 'lineno', 0)}:{getattr(call_node, 'col_offset', 0)}"
+            call_sig = None
+            if func_name_str and hasattr(self.type_inference, "call_signatures"):
+                for k, v in self.type_inference.call_signatures.items():
+                    if k.endswith(f".{func_name_str}@{loc_key}"):
+                        call_sig = v
+                        break
+                if not call_sig:
+                    for k, v in self.type_inference.call_signatures.items():
+                        if k.endswith(f"@{loc_key}") and func_name_str in k:
+                            call_sig = v
+                            break
+                if not call_sig:
+                    for k, v in self.type_inference.call_signatures.items():
+                        if k == loc_key:
+                            call_sig = v
+                            break
+
+            if call_sig and "return" in call_sig:
+                ret_typ = call_sig["return"]
+                is_typeguard = "TypeGuard[" in ret_typ
+                is_typeis = "TypeIs[" in ret_typ
+
+                if (is_typeguard or is_typeis) and len(call_node.args) == 1:
+                    arg_node = call_node.args[0]
+                    if isinstance(arg_node, ast.Name):
+                        arg_name = self._sanitize_name(arg_node.id)
+                        import re
+                        m = re.search(r'(?:TypeGuard|TypeIs)\[(.*?)\]', ret_typ)
+                        if m:
+                            inner_type = m.group(1)
+                            from py2v_transpiler.models.v_types import map_python_type_to_v
+                            v_narrowed_type = map_python_type_to_v(inner_type)
+                            if v_narrowed_type == "builtins.str": v_narrowed_type = "string"
+                            elif v_narrowed_type == "builtins.int": v_narrowed_type = "int"
+                            elif v_narrowed_type == "builtins.float": v_narrowed_type = "f64"
+                            elif v_narrowed_type == "builtins.bool": v_narrowed_type = "bool"
+
+                            narrow_if = f"{arg_name} := ({arg_name} as {v_narrowed_type})"
+
+                            if is_typeis:
+                                orig_type = self._guess_type(arg_node)
+                                v_remaining_type = None
+
+                                if orig_type.startswith("?"):
+                                    if v_narrowed_type == orig_type[1:]:
+                                        v_remaining_type = "none"
+                                    elif v_narrowed_type == "none":
+                                        v_remaining_type = orig_type[1:]
+                                elif " | " in orig_type:
+                                    parts = [p.strip() for p in orig_type.split("|")]
+                                    if v_narrowed_type in parts:
+                                        parts.remove(v_narrowed_type)
+                                        v_remaining_type = " | ".join(parts)
+                                    else:
+                                        mapped_parts = []
+                                        for p in parts:
+                                            if p == "int" and v_narrowed_type == "int": continue
+                                            if p == "string" and v_narrowed_type == "string": continue
+                                            if p == "f64" and v_narrowed_type == "f64": continue
+                                            if p == "bool" and v_narrowed_type == "bool": continue
+                                            mapped_parts.append(p)
+                                        if mapped_parts:
+                                            v_remaining_type = " | ".join(mapped_parts)
+                                        else:
+                                            v_remaining_type = "Any"
+                                else:
+                                    v_remaining_type = "Any"
+
+                                if v_remaining_type:
+                                    if v_remaining_type == "none" and orig_type.startswith("?"):
+                                        narrow_else = f"{arg_name} := {orig_type}(none)"
+                                    else:
+                                        narrow_else = f"{arg_name} := ({arg_name} as {v_remaining_type})"
+
         # Check for walrus operator
         self._walrus_assignments = []
         test_expr = self.visit(node.test)
@@ -44,6 +131,10 @@ class ConditionalsMixin(TranslatorBase):
 
         self.output.append(f"{self._indent()}if {test_expr} {{")
         self._indent_level += 1
+
+        if narrow_if:
+             self.output.append(f"{self._indent()}{narrow_if}")
+
         for stmt in node.body:
             self.visit(stmt)
         self._indent_level -= 1
@@ -53,15 +144,26 @@ class ConditionalsMixin(TranslatorBase):
                 # elif case
                 self.output.append(f"{self._indent()}}} else {{")
                 self._indent_level += 1
+                if narrow_else:
+                    self.output.append(f"{self._indent()}{narrow_else}")
                 self.visit(node.orelse[0])
                 self._indent_level -= 1
                 self.output.append(f"{self._indent()}}}")
             else:
                 self.output.append(f"{self._indent()}}} else {{")
                 self._indent_level += 1
+                if narrow_else:
+                    self.output.append(f"{self._indent()}{narrow_else}")
                 for stmt in node.orelse:
                     self.visit(stmt)
                 self._indent_level -= 1
                 self.output.append(f"{self._indent()}}}")
         else:
-            self.output.append(f"{self._indent()}}}")
+            if narrow_else:
+                self.output.append(f"{self._indent()}}} else {{")
+                self._indent_level += 1
+                self.output.append(f"{self._indent()}{narrow_else}")
+                self._indent_level -= 1
+                self.output.append(f"{self._indent()}}}")
+            else:
+                self.output.append(f"{self._indent()}}}")
