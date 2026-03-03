@@ -178,7 +178,7 @@ class ControlFlowMixin(TranslatorBase):
                     is_zip = True
 
         # Zip handling
-        if is_zip:
+        if is_zip and isinstance(node.iter, ast.Call):
             zip_args = node.iter.args
             if len(zip_args) == 2:
                 self._zip_counter += 1
@@ -240,7 +240,7 @@ class ControlFlowMixin(TranslatorBase):
                     target = target[1:-1]
             iter_expr = self.visit(node.iter.func.value)
 
-        if is_range:
+        if is_range and isinstance(node.iter, ast.Call):
                  range_args = node.iter.args
                  if len(range_args) == 3:
                      start = self.visit(range_args[0])
