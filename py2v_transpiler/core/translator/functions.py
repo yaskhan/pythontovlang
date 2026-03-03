@@ -42,7 +42,7 @@ class FunctionsMixin(TranslatorBase):
                 args = args[1:]
 
             for arg in args:
-                arg_name = arg.arg
+                arg_name = self._sanitize_name(arg.arg)
                 if arg.annotation:
                     try:
                         type_str = ast.unparse(arg.annotation)
@@ -212,7 +212,7 @@ class FunctionsMixin(TranslatorBase):
              args = args[1:]
 
         for arg in args:
-            arg_name = arg.arg
+            arg_name = self._sanitize_name(arg.arg)
             args_names.append(arg_name)
             # Use annotation if available for better type mapping
             if arg.annotation:
@@ -227,7 +227,7 @@ class FunctionsMixin(TranslatorBase):
             args_str_list.append(f"{arg_name} {arg_type}")
 
         if node.args.vararg:
-            arg_name = node.args.vararg.arg
+            arg_name = self._sanitize_name(node.args.vararg.arg)
             arg_type = "int" # Default
             if node.args.vararg.annotation:
                 try:
@@ -239,7 +239,7 @@ class FunctionsMixin(TranslatorBase):
             args_names.append(arg_name)
 
         if node.args.kwarg:
-            arg_name = node.args.kwarg.arg
+            arg_name = self._sanitize_name(node.args.kwarg.arg)
             arg_type = "map[string]string"
             if node.args.kwarg.annotation:
                 try:
@@ -276,7 +276,7 @@ class FunctionsMixin(TranslatorBase):
                  pass
 
         if not is_unittest_method:
-            func_name = node.name
+            func_name = self._sanitize_name(node.name)
 
             # Check if this is the implementation of an overloaded function
             if func_name in self.overloaded_signatures and not is_new_method:
@@ -431,7 +431,7 @@ class FunctionsMixin(TranslatorBase):
             # Generate mangled name based on argument types
             type_suffix_parts = []
             for arg in sig["args"]:
-                arg_name = arg["name"]
+                arg_name = self._sanitize_name(arg["name"])
                 arg_type = arg["type"]
                 args_str_list.append(f"{arg_name} {arg_type}")
                 args_names.append(arg_name)
@@ -442,9 +442,9 @@ class FunctionsMixin(TranslatorBase):
             args_str = ", ".join(args_str_list)
             ret_type = sig["return"]
 
-            base_func_name = node.name
+            base_func_name = self._sanitize_name(node.name)
             if self.current_class:
-                base_func_name = self._mangle_name(base_func_name, self.current_class)
+                base_func_name = self._sanitize_name(self._mangle_name(base_func_name, self.current_class))
 
             if type_suffix_parts:
                 func_name = f"{base_func_name}_{'_'.join(type_suffix_parts)}"
@@ -504,7 +504,7 @@ class FunctionsMixin(TranslatorBase):
         # lambda args: expr -> fn (args) { return expr }
         args_str_list = []
         for arg in node.args.args:
-            arg_name = arg.arg
+            arg_name = self._sanitize_name(arg.arg)
             arg_type = "int" # Default type for now
             args_str_list.append(f"{arg_name} {arg_type}")
 

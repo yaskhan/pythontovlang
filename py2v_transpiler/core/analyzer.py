@@ -69,34 +69,41 @@ class TypeInference(ast.NodeVisitor):
 
     def visit_Assign(self, node: ast.Assign) -> Any:
         for target in node.targets:
-            if isinstance(target, ast.Subscript) and isinstance(target.value, ast.Name):
-                dict_name = target.value.id
+            if isinstance(target, ast.Subscript):
+                dict_name = None
+                if isinstance(target.value, ast.Name):
+                    dict_name = target.value.id
+                elif isinstance(target.value, ast.Attribute) and isinstance(target.value.value, ast.Name):
+                    dict_name = f"{target.value.value.id}.{target.value.attr}"
 
-                key_type = "string" # default key
-                if hasattr(target.slice, "value") and isinstance(target.slice.value, ast.Constant): # python < 3.9
-                    if isinstance(target.slice.value.value, int): key_type = "int"
-                    elif isinstance(target.slice.value.value, str): key_type = "string"
-                elif isinstance(target.slice, ast.Constant): # python 3.9+
-                    if isinstance(target.slice.value, int): key_type = "int"
-                    elif isinstance(target.slice.value, str): key_type = "string"
+                if dict_name:
+                    key_type = "string" # default key
+                    if hasattr(target.slice, "value") and isinstance(target.slice.value, ast.Constant): # python < 3.9
+                        if isinstance(target.slice.value.value, int): key_type = "int"
+                        elif isinstance(target.slice.value.value, str): key_type = "string"
+                    elif isinstance(target.slice, ast.Constant): # python 3.9+
+                        if isinstance(target.slice.value, int): key_type = "int"
+                        elif isinstance(target.slice.value, str): key_type = "string"
 
-                val_type = "Any"
-                if isinstance(node.value, ast.Constant):
-                    if isinstance(node.value.value, int): val_type = "int"
-                    elif isinstance(node.value.value, str): val_type = "string"
-                elif isinstance(node.value, ast.Tuple):
-                    if node.value.elts:
-                        if isinstance(node.value.elts[0], ast.Constant):
-                            if isinstance(node.value.elts[0].value, int): val_type = "[]int"
-                            elif isinstance(node.value.elts[0].value, str): val_type = "[]string"
-                            else: val_type = "[]Any"
+                    val_type = "Any"
+                    if isinstance(node.value, ast.Constant):
+                        if isinstance(node.value.value, int): val_type = "int"
+                        elif isinstance(node.value.value, str): val_type = "string"
+                    elif isinstance(node.value, ast.Tuple):
+                        if node.value.elts:
+                            if isinstance(node.value.elts[0], ast.Constant):
+                                if isinstance(node.value.elts[0].value, int): val_type = "[]int"
+                                elif isinstance(node.value.elts[0].value, str): val_type = "[]string"
+                                else: val_type = "[]Any"
+                            else:
+                                val_type = "[]Any"
                         else:
                             val_type = "[]Any"
-                    else:
-                        val_type = "[]Any"
+                    elif isinstance(node.value, ast.Call) and isinstance(node.value.func, ast.Name):
+                        val_type = node.value.func.id
 
-                new_type = f"map[{key_type}]{val_type}"
-                self.type_map[dict_name] = new_type
+                    new_type = f"map[{key_type}]{val_type}"
+                    self.type_map[dict_name] = new_type
 
         self.generic_visit(node)
 

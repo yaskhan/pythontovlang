@@ -450,49 +450,49 @@ Based on the transpilation of the `primes.py` benchmark, several critical areas 
   - *Context:* Python's `n <= self.limit and (n % 12 == 1 or n % 12 == 5)` drops the parentheses around the `or` clause in V: `n <= self.limit && n % 12 == 1 || n % 12 == 5`. This changes operator precedence.
   - *Task:* Ensure the AST transpilation correctly preserves grouping parentheses for binary and boolean operations.
 
-- [ ] **Dictionary Type Inference (`self.children = {}`)**
+- [x] **Dictionary Type Inference (`self.children = {}`)**
   - *Context:* In `Node.__init__`, `self.children = {}` causes `self.children` to be inferred as `map[string]int{}`, which is incorrect since it stores `Node` instances later.
   - *Task:* Improve type inference for empty dictionaries by analyzing subsequent dictionary assignments (like `head.children[ch] = Node()`) to infer the correct value type (`map[string]Node`).
 
-- [ ] **String Iteration (`for ch in str(el):`)**
+- [x] **String Iteration (`for ch in str(el):`)**
   - *Context:* Iterating over a string in V yields bytes (`u8`), but the Python code expects string characters to be used as map keys (`head.children[ch]`).
   - *Task:* Handle string iteration correctly by mapping the iterated byte to a string (e.g., using a custom iterator or `.ascii_str()`) when the string semantics are required.
 
-- [ ] **Truth Value Testing for Arrays/Queues (`while queue:`)**
+- [x] **Truth Value Testing for Arrays/Queues (`while queue:`)**
   - *Context:* `while queue:` is transpiled directly to `for queue {`, which is invalid in V.
   - *Task:* Map truth value testing of collections (lists, dicts, etc.) to explicit `.len > 0` checks in V (e.g., `for queue.len > 0 {`).
 
-- [ ] **Iterating over Dictionary Items (`for ch, v in top.children.items():`)**
+- [x] **Iterating over Dictionary Items (`for ch, v in top.children.items():`)**
   - *Context:* Emits `for [ch, v] in top.children.items() {` which is not idiomatic V.
   - *Task:* Map `.items()` iteration on maps directly to V's native map iteration syntax: `for ch, v in top.children {`.
 
-- [ ] **String to Integer Conversion (`int(prefix)`)**
+- [x] **String to Integer Conversion (`int(prefix)`)**
   - *Context:* `int(prefix)` where `prefix` is a string is emitted literally, but V requires `prefix.int()`.
   - *Task:* Map `int()` casts on string variables to the `.int()` method in V.
 
-- [ ] **String `bytes()` Encoding**
+- [x] **String `bytes()` Encoding**
   - *Context:* `bytes(msg, "utf8")` is emitted as `bytes(msg, 'utf8')`.
   - *Task:* Map `bytes(string, encoding)` to V's native `string.bytes()` method.
 
-- [ ] **`sys.stderr` Redirection (`print(..., file=sys.stderr)`)**
+- [x] **`sys.stderr` Redirection (`print(..., file=sys.stderr)`)**
   - *Context:* `print` statements with `file=sys.stderr` are transpiled to standard `println`.
   - *Task:* Recognize `file=sys.stderr` in `print` calls and map them to V's `eprintln`.
 
-- [ ] **Missing Modules (`platform`)**
+- [x] **Missing Modules (`platform`)**
   - *Context:* `platform.python_implementation()` is emitted directly but `platform` doesn't exist in V.
   - *Task:* Provide an AST mapping or standard library mock for `platform.python_implementation()` returning `'V'` or similar.
 ## Analysis of `bm_spectral_norm.py` Transpilation Issues
 Based on the transpilation of the `bm_spectral_norm.py` benchmark, several critical areas for improvement have been identified:
 
-- [ ] **Parentheses Dropped in Binary Operations**
+- [x] **Parentheses Dropped in Binary Operations**
   - *Context:* The Python expression `(i + j) * (i + j + 1) // 2` is transpiled to `int(math.floor(f64(i + j * i + j + 1) / f64(2)))`, completely dropping the required parentheses and changing the mathematical logic.
   - *Task:* Ensure that AST grouping parentheses are preserved or reconstructed during binary operation transpilation.
 
-- [ ] **Inline List Comprehensions**
+- [x] **Inline List Comprehensions**
   - *Context:* `[func((i, u)) for i in xrange(len(list(u)))]` emits `// List comprehension expression not supported inline yet` and returns `None` (which is invalid in V).
   - *Task:* Implement full support for inline list comprehensions, either mapping them to V's array methods (`.map()`, `.filter()`) or extracting them into inline closures or helper variables.
 
-- [ ] **List Replication (`[x] * N`)**
+- [x] **List Replication (`[x] * N`)**
   - *Context:* `[1] * DEFAULT_N` is emitted directly as `[1] * DEFAULT_N`, which is not valid V array repetition syntax.
   - *Task:* Transpile Python list repetition into V's array initialization syntax with `len` and `init` (e.g., `[]int{len: DEFAULT_N, init: 1}`).
 
@@ -504,29 +504,29 @@ Based on the transpilation of the `bm_spectral_norm.py` benchmark, several criti
   - *Context:* `for ue, ve in izip(u, v):` emits `for [ue, ve] in izip(u, v) {`, which is invalid V syntax.
   - *Task:* Fix tuple unpacking syntax inside V `for` loop assignments, likely requiring translation to indexed loops or `arrays.zip()`.
 
-- [ ] **`time.time()` Precision Mapping**
+- [x] **`time.time()` Precision Mapping**
   - *Context:* `time.time()` maps to `time.now().unix()`, returning an integer (seconds), losing the fractional millisecond precision expected in Python benchmarking.
   - *Task:* Map `time.time()` to a V equivalent that returns an `f64` timestamp, such as `f64(time.now().unix_time_milli()) / 1000.0`.
 
 ## Analysis of `bm_richards.py` Transpilation Issues
 Based on the transpilation of the `bm_richards.py` benchmark, several critical areas for improvement have been identified:
 
-- [ ] **V Keyword Collision (`fn`)**
+- [x] **V Keyword Collision (`fn`)**
   - *Context:* Python method named `fn` (e.g., `def fn(self, pkt, r):`) is transpiled directly as `fn (self Task) fn(...)`, which causes a syntax error in V because `fn` is a reserved keyword.
   - *Task:* Implement an AST sanitization pass to rename or prefix Python identifiers that conflict with Vlang reserved keywords (e.g., mapping `fn` to `fn_` or `py_fn`).
 
-- [ ] **Array Initialization with `[None] * N`**
+- [x] **Array Initialization with `[None] * N`**
   - *Context:* Python's `[None] * TASKTABSIZE` is emitted directly as `[none] * TASKTABSIZE`, which is invalid V syntax for initializing arrays.
   - *Task:* Transpile list repetitions containing `None` into proper V array initialization (e.g., `[]?Task{len: TASKTABSIZE, init: none}`).
 
-- [ ] **Scoping Issues with `if/else` Variable Assignments**
+- [x] **Scoping Issues with `if/else` Variable Assignments**
   - *Context:* In `Task.runTask()`, a variable `msg` is initialized conditionally in `if/else` blocks (e.g., `msg := self.input` in `if`, `mut msg := ?int(none)` in `else`), making it inaccessible outside the blocks when passed to `return self.fn(msg, self.handle)`.
   - *Task:* Improve variable scoping generation. If a variable is conditionally declared and used outside the condition, pre-declare it as `mut` before the `if/else` block (e.g., `mut msg := ?Packet(none)`).
 
-- [ ] **`Optional` Type Inference with Forward References (`'Packet'`)**
+- [x] **`Optional` Type Inference with Forward References (`'Packet'`)**
   - *Context:* Mypy forward references like `Optional['Packet']` (or `Optional['Task']`) are failing to map accurately in the `else` block fallback type generation, falling back to `?int(none)` instead of `?Packet(none)`.
   - *Task:* Update type mapping to correctly resolve and strip string quotes from forward reference annotations like `'Packet'` so they properly map to their concrete V types.
 
-- [ ] **Explicit Base Class Constructor Calls (`Base.__init__`)**
+- [x] **Explicit Base Class Constructor Calls (`Base.__init__`)**
   - *Context:* Calls like `Task.__init__(self, i, p, w, s, r)` are emitted directly, which doesn't correctly update the embedded V struct unless the explicit embedded struct is initialized or fields are copied.
   - *Task:* Refactor explicit `BaseClass.__init__(self, ...)` calls to properly initialize the embedded struct fields inside the derived V struct.
