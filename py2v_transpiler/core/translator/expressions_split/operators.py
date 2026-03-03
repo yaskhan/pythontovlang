@@ -16,8 +16,8 @@ class OperatorsMixin(TranslatorBase):
             if v_type != "void":
                  op_type = v_type
 
-        left = self.visit(node.left)
-        right = self.visit(node.right)
+        left = self._visit_with_parens(node, node.left, is_right_operand=False)
+        right = self._visit_with_parens(node, node.right, is_right_operand=True)
 
         # If mypy successfully inferred a concrete primitive numeric type (e.g. f64) for the operation,
         # and the operands' inferred types are not correctly matching or they are unknown ('Any'),
@@ -154,11 +154,14 @@ class OperatorsMixin(TranslatorBase):
     def visit_BoolOp(self, node: ast.BoolOp) -> str:
         op_map = {ast.And: "&&", ast.Or: "||"}
         op_str = op_map.get(type(node.op), "and")
-        values = [str(self.visit(val)) for val in node.values]
+        values = []
+        for i, val in enumerate(node.values):
+            # The first value is considered left-hand side, the rest right-hand side.
+            values.append(str(self._visit_with_parens(node, val, is_right_operand=(i > 0))))
         return f" {op_str} ".join(values)
 
     def visit_UnaryOp(self, node: ast.UnaryOp) -> str:
-        operand = self.visit(node.operand)
+        operand = self._visit_with_parens(node, node.operand, is_right_operand=True)
         op_map = {
             ast.Not: "!", ast.UAdd: "+", ast.USub: "-",
             ast.Invert: "~"
