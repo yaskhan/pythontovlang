@@ -16,7 +16,8 @@ class PyASTParser:
         """
         try:
             tokens = list(tokenize.tokenize(io.BytesIO(source.encode('utf-8')).readline))
-        except (tokenize.TokenError, IndentationError):
+        except Exception:
+            # Catch TokenError, IndentationError, and any other tokenizer exceptions
             return source
 
         new_tokens = []
