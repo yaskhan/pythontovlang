@@ -511,7 +511,7 @@ Based on the transpilation of the `bm_spectral_norm.py` benchmark, several criti
 ## Analysis of `bm_richards.py` Transpilation Issues
 Based on the transpilation of the `bm_richards.py` benchmark, several critical areas for improvement have been identified:
 
-- [ ] **V Keyword Collision (`fn`)**
+- [x] **V Keyword Collision (`fn`)**
   - *Context:* Python method named `fn` (e.g., `def fn(self, pkt, r):`) is transpiled directly as `fn (self Task) fn(...)`, which causes a syntax error in V because `fn` is a reserved keyword.
   - *Task:* Implement an AST sanitization pass to rename or prefix Python identifiers that conflict with Vlang reserved keywords (e.g., mapping `fn` to `fn_` or `py_fn`).
 

@@ -10,8 +10,8 @@ class ClassesMixin(TranslatorBase):
         if not hasattr(self, 'class_stack'):
             self.class_stack = []
 
-        self.class_stack.append(node.name)
-        struct_name = "_".join(self.class_stack)
+        self.class_stack.append(self._sanitize_name(node.name))
+        struct_name = self._sanitize_name("_".join(self.class_stack))
 
         # Pre-register class definition to allow class instantiation inside its own methods
         has_init = False
@@ -251,7 +251,7 @@ class ClassesMixin(TranslatorBase):
                 self.visit(stmt)
             elif isinstance(stmt, ast.AnnAssign) and isinstance(stmt.target, ast.Name):
                 # Class attribute with annotation -> struct field
-                field_name = stmt.target.id
+                field_name = self._sanitize_name(stmt.target.id)
 
                 if field_name in added_fields:
                     continue
@@ -284,9 +284,9 @@ class ClassesMixin(TranslatorBase):
                          if isinstance(stmt.value, (ast.List, ast.Tuple)):
                              for elt in stmt.value.elts:
                                  if isinstance(elt, ast.Constant) and isinstance(elt.value, str):
-                                      slots_list.append(elt.value)
+                                      slots_list.append(self._sanitize_name(elt.value))
                          elif isinstance(stmt.value, ast.Constant) and isinstance(stmt.value.value, str):
-                             slots_list.append(stmt.value.value)
+                             slots_list.append(self._sanitize_name(stmt.value.value))
 
                          for slot in slots_list:
                              if slot not in added_fields:
@@ -324,11 +324,11 @@ class ClassesMixin(TranslatorBase):
              # Emit method signatures
              for method in methods:
                  # Manual extraction:
-                 m_name = method.name
+                 m_name = self._sanitize_name(method.name)
                  m_args = []
                  for arg in method.args.args:
                      if arg.arg == 'self': continue
-                     a_name = arg.arg
+                     a_name = self._sanitize_name(arg.arg)
                      a_type = "int"
                      if arg.annotation:
                           try:
@@ -369,7 +369,7 @@ class ClassesMixin(TranslatorBase):
                         for target in stmt.targets:
                             if isinstance(target, ast.Name):
                                 # snake_case conversion for member
-                                member_name = target.id.lower()
+                                member_name = self._sanitize_name(target.id.lower())
 
                                 # Check for auto()
                                 is_auto = False
