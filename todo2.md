@@ -10,7 +10,7 @@ Based on recent Python ecosystem developments (mypy, PyPy, Numba, NumPy, Nuitka,
   - Parse `TypeForm[T]` in argument and return annotations.
   - *V Translation:* Since V lacks type reification, generate overloaded functions or use `Any` with runtime checks (optionally behind an `--experimental` flag).
   - Use `--enable-incomplete-feature=TypeForm` when running mypy for validation.
-- [ ] **PEP 800: Disjoint Base Classes (`@disjoint_base`)**
+- [x] **PEP 800: Disjoint Base Classes (`@disjoint_base`)**
   - Add support for detecting `@disjoint_base` decorator.
 - [x] **PEP 742: TypeIs (mypy 1.10+)**
   - *Context:* Improved type guard that narrows the type in both branches of a condition.

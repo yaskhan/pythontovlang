@@ -270,3 +270,19 @@ def check(val: int | str):
     assert "val := (val as int)" in v_code
     # TypeIs narrows the false branch to the remaining type, which is string
     assert "val := (val as string)" in v_code
+def test_typing_disjoint_base():
+    source = """
+from typing import disjoint_base
+
+@disjoint_base
+class BaseClass:
+    pass
+
+@disjoint_base
+class AnotherBase:
+    pass
+"""
+    v_code = translate(source)
+    assert "[disjoint_base]" in v_code
+    assert "struct BaseClass {" in v_code
+    assert "struct AnotherBase {" in v_code
