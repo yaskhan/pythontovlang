@@ -519,7 +519,7 @@ Based on the transpilation of the `bm_richards.py` benchmark, several critical a
   - *Context:* Python's `[None] * TASKTABSIZE` is emitted directly as `[none] * TASKTABSIZE`, which is invalid V syntax for initializing arrays.
   - *Task:* Transpile list repetitions containing `None` into proper V array initialization (e.g., `[]?Task{len: TASKTABSIZE, init: none}`).
 
-- [ ] **Scoping Issues with `if/else` Variable Assignments**
+- [x] **Scoping Issues with `if/else` Variable Assignments**
   - *Context:* In `Task.runTask()`, a variable `msg` is initialized conditionally in `if/else` blocks (e.g., `msg := self.input` in `if`, `mut msg := ?int(none)` in `else`), making it inaccessible outside the blocks when passed to `return self.fn(msg, self.handle)`.
   - *Task:* Improve variable scoping generation. If a variable is conditionally declared and used outside the condition, pre-declare it as `mut` before the `if/else` block (e.g., `mut msg := ?Packet(none)`).
 
