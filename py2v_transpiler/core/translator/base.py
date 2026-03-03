@@ -39,31 +39,44 @@ class TranslatorBase(ast.NodeVisitor):
         }
         return precedences.get(op, 0)
 
-    def _wrap_with_parens_if_needed(self, node: ast.AST, child_node: ast.AST, is_right: bool) -> bool:
+    def _visit_with_parens(self, parent_node: ast.AST, child_node: ast.AST, is_right_operand: bool = False) -> str:
         """
-        Determines whether `child_node` needs grouping parentheses when used as a child
-        of `node`. Evaluates based on operator precedence and associativity.
+        Visits the child_node and wraps the resulting string in parentheses if its
+        operator precedence is lower than its parent's, or if it has the same precedence
+        but is the right-hand operand (to preserve left-associativity correctness).
         """
-        op_prec = self._get_precedence(node)
+        parent_prec = self._get_precedence(parent_node)
         child_prec = self._get_precedence(child_node)
+        child_str = self.visit(child_node)  # type: ignore # Self has a visit method in ast.NodeVisitor
 
-        if child_prec < op_prec:
-            # Exception: `**` and unary operators.
-            # In Python, `2 ** -1` is parsed as `Pow(2, USub(1))`.
-            # Even though Pow > USub (13 > 12), Python doesn't require parentheses for the right operand
-            # when it's a unary operator (e.g. `2**-1` is valid syntax).
-            if isinstance(node, ast.BinOp) and isinstance(node.op, ast.Pow) and isinstance(child_node, ast.UnaryOp):
-                if is_right:
-                    return False
-            return True
+        needs_parens = False
+        if child_prec < parent_prec:
+            needs_parens = True
+        elif child_prec == parent_prec and is_right_operand:
+            # Check if they are the exact same kind of operation where right-associativity doesn't matter
+            # like `a + (b + c)` -> `a + b + c`. Actually, for integers it might overflow differently,
+            # but usually it's safe to flatten commutative/associative ops.
+            # To be safe and strict, we generally parenthesize if it's the right operand of the same precedence,
+            # unless it's a chained boolean operation of the same type (a and b and c).
+            is_same_bool_op = (isinstance(parent_node, ast.BoolOp) and isinstance(child_node, ast.BoolOp) and type(parent_node.op) == type(child_node.op))
+            # Also for Add/Mult we can usually flatten.
+            is_same_comm_op = (isinstance(parent_node, ast.BinOp) and isinstance(child_node, ast.BinOp) and type(parent_node.op) == type(child_node.op) and type(parent_node.op) in (ast.Add, ast.Mult, ast.BitOr, ast.BitAnd, ast.BitXor))
 
-        if child_prec == op_prec:
-            if isinstance(node, ast.BinOp) and isinstance(node.op, ast.Pow):
-                return not is_right
-            else:
-                return is_right
+            if not is_same_bool_op and not is_same_comm_op:
+                needs_parens = True
 
-        return False
+        # Exception: `**` and unary operators.
+        # In Python, `2 ** -1` is parsed as `Pow(2, USub(1))`.
+        # Even though Pow > USub (13 > 12), Python doesn't require parentheses for the right operand
+        # when it's a unary operator (e.g. `2**-1` is valid syntax).
+        if needs_parens:
+            if isinstance(parent_node, ast.BinOp) and isinstance(parent_node.op, ast.Pow) and isinstance(child_node, ast.UnaryOp):
+                if is_right_operand:
+                    needs_parens = False
+
+        if needs_parens:
+            return f"({child_str})"
+        return str(child_str)
 
     def __init__(self, type_inference: Any) -> None:
         self.type_inference = type_inference
@@ -133,6 +146,7 @@ class TranslatorBase(ast.NodeVisitor):
             stripped_cls = class_name.lstrip('_')
             return f"__{stripped_cls}_{name.lstrip('_')}"
         return name
+
 
     def _guess_type(self, node: ast.AST) -> str:
         if isinstance(node, ast.Constant):
