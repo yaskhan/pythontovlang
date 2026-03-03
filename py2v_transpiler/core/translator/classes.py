@@ -38,6 +38,7 @@ class ClassesMixin(TranslatorBase):
         decorators = []
         is_dataclass = False
         is_deprecated = False
+        is_disjoint_base = False
         deprecated_message: Optional[str] = None
         
         for decorator in node.decorator_list:
@@ -63,6 +64,8 @@ class ClassesMixin(TranslatorBase):
                  # Check for @deprecated without args (rare but possible)
                  if dec_str == "deprecated":
                      is_deprecated = True
+                 elif dec_str in ("disjoint_base", "typing.disjoint_base"):
+                     is_disjoint_base = True
 
             decorators.append(f"// @{dec_str}")
             if dec_str.startswith("dataclass") or dec_str.startswith("dataclasses.dataclass"):
@@ -522,6 +525,9 @@ class ClassesMixin(TranslatorBase):
                     struct_def += f"[deprecated: '{deprecated_message}']\n"
                 else:
                     struct_def += "[deprecated]\n"
+
+            if is_disjoint_base:
+                struct_def += "[disjoint_base]\n"
 
             if decorators:
                 struct_def += "\n".join(decorators) + "\n"
