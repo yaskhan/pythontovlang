@@ -16,6 +16,35 @@ class OperatorsMixin(TranslatorBase):
             if v_type != "void":
                  op_type = v_type
 
+        # Support for array initialization: [element] * length
+        if isinstance(node.op, ast.Mult):
+             if isinstance(node.left, ast.List) and len(node.left.elts) == 1:
+                  init_val = self.visit(node.left.elts[0])
+                  length = self.visit(node.right)
+                  elem_type = self._guess_type(node.left.elts[0])
+                  if init_val == "none":
+                       expected_type = getattr(self, "current_assignment_type", None)
+                       if expected_type and expected_type.startswith("[]"):
+                           elem_type = expected_type[2:]
+                           if not elem_type.startswith("?"):
+                               elem_type = f"?{elem_type}"
+                       else:
+                           elem_type = "?Any"
+                  return f"[]{elem_type}{{len: {length}, init: {init_val}}}"
+             elif isinstance(node.right, ast.List) and len(node.right.elts) == 1:
+                  init_val = self.visit(node.right.elts[0])
+                  length = self.visit(node.left)
+                  elem_type = self._guess_type(node.right.elts[0])
+                  if init_val == "none":
+                       expected_type = getattr(self, "current_assignment_type", None)
+                       if expected_type and expected_type.startswith("[]"):
+                           elem_type = expected_type[2:]
+                           if not elem_type.startswith("?"):
+                               elem_type = f"?{elem_type}"
+                       else:
+                           elem_type = "?Any"
+                  return f"[]{elem_type}{{len: {length}, init: {init_val}}}"
+
         left = self._visit_with_parens(node, node.left, is_right_operand=False)
         right = self._visit_with_parens(node, node.right, is_right_operand=True)
 
@@ -44,33 +73,6 @@ class OperatorsMixin(TranslatorBase):
         if isinstance(node.op, ast.MatMult):
              return f"{left}.matmul({right})"
 
-        if isinstance(node.op, ast.Mult):
-             if isinstance(node.left, ast.List) and len(node.left.elts) == 1:
-                  init_val = self.visit(node.left.elts[0])
-                  length = right
-                  elem_type = self._guess_type(node.left.elts[0])
-                  if init_val == "none":
-                       expected_type = getattr(self, "current_assignment_type", None)
-                       if expected_type and expected_type.startswith("[]"):
-                           elem_type = expected_type[2:]
-                           if not elem_type.startswith("?"):
-                               elem_type = f"?{elem_type}"
-                       else:
-                           elem_type = "?Any"
-                  return f"[]{elem_type}{{len: {length}, init: {init_val}}}"
-             elif isinstance(node.right, ast.List) and len(node.right.elts) == 1:
-                  init_val = self.visit(node.right.elts[0])
-                  length = left
-                  elem_type = self._guess_type(node.right.elts[0])
-                  if init_val == "none":
-                       expected_type = getattr(self, "current_assignment_type", None)
-                       if expected_type and expected_type.startswith("[]"):
-                           elem_type = expected_type[2:]
-                           if not elem_type.startswith("?"):
-                               elem_type = f"?{elem_type}"
-                       else:
-                           elem_type = "?Any"
-                  return f"[]{elem_type}{{len: {length}, init: {init_val}}}"
 
         # Check for bytes formatting: b"%s" % b"a"
         if isinstance(node.op, ast.Mod):
