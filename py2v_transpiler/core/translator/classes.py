@@ -37,6 +37,9 @@ class ClassesMixin(TranslatorBase):
         # Handle decorators
         decorators = []
         is_dataclass = False
+        deprecated_message: Optional[str] = None
+        is_deprecated = False
+        
         for decorator in node.decorator_list:
             if isinstance(decorator, ast.Call):
                  # Decorator with args: @dec(arg)
@@ -48,8 +51,18 @@ class ClassesMixin(TranslatorBase):
                      val = self.visit(kw.value)
                      dec_args_list.append(f"{kw.arg}={val}")
                  dec_str = f"{func}({', '.join(dec_args_list)})"
+                 
+                 # Check for @deprecated("message")
+                 if func == "deprecated" and dec_args_list:
+                     is_deprecated = True
+                     # Extract message from first positional argument
+                     msg = dec_args_list[0].strip("'\"")
+                     deprecated_message = msg
             else:
                  dec_str = self.visit(decorator)
+                 # Check for @deprecated without args (rare but possible)
+                 if dec_str == "deprecated":
+                     is_deprecated = True
 
             decorators.append(f"// @{dec_str}")
             if dec_str.startswith("dataclass") or dec_str.startswith("dataclasses.dataclass"):
@@ -476,6 +489,14 @@ class ClassesMixin(TranslatorBase):
             struct_def = ""
             if doc_comment:
                 struct_def += doc_comment
+            
+            # PEP 702: Add [deprecated] attribute for @warnings.deprecated decorator
+            if is_deprecated:
+                if deprecated_message:
+                    struct_def += f"[deprecated: '{deprecated_message}']\n"
+                else:
+                    struct_def += "[deprecated]\n"
+            
             if decorators:
                 struct_def += "\n".join(decorators) + "\n"
 

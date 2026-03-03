@@ -19,11 +19,13 @@ Based on recent Python ecosystem developments (mypy, PyPy, Numba, NumPy, Nuitka,
   - Differentiate from `TypeGuard`: `TypeIs` narrows in the `else`-branch (to the negation). Implement handling for both branches.
 - [ ] **PEP 696: Type Variable Defaults**
   - Support new Python 3.13 syntax for generic defaults: `class Box[T = int]: ...`
-- [ ] **PEP 702: `@deprecated` Decorator**
+- [x] **PEP 702: `@deprecated` Decorator**
   - Transpile `warnings.deprecated` to V's `[deprecated]` attribute on functions/structs.
-- [ ] **Property Setters and Getters with Different Types**
+- [x] **Property Setters and Getters with Different Types**
   - Ensure the translator can handle and correctly emit V code when a `@property` and its `@foo.setter` have slightly mismatched type hints (e.g., returning `int` but accepting `str | int`).
-- [ ] **`__getattr__`, `__setattr__`, `__delattr__` Support**
+  - Implemented: Union types in setters are mapped to `Any` in V, with runtime type checks using `is` operator.
+  - Added comprehensive test suite in `test_property_mismatched_types.py`.
+- [x] **`__getattr__`, `__setattr__`, `__delattr__` Support**
   - While V does not support fully dynamic attributes natively, consider adding a mechanism (e.g., a fallback `map[string]Any` inside the struct) to support dynamic attribute access where needed.
 - [ ] **Enum Membership Semantics (PEP 736/typing updates)**
   - Ensure transpiler correctly handles unannotated vs annotated Enum members based on new typing rules.
@@ -496,7 +498,7 @@ Based on the transpilation of the `bm_spectral_norm.py` benchmark, several criti
   - *Context:* `[1] * DEFAULT_N` is emitted directly as `[1] * DEFAULT_N`, which is not valid V array repetition syntax.
   - *Task:* Transpile Python list repetition into V's array initialization syntax with `len` and `init` (e.g., `[]int{len: DEFAULT_N, init: 1}`).
 
-- [ ] **`six.moves` and `itertools` Compatibility**
+- [x] **`six.moves` and `itertools` Compatibility**
   - *Context:* Functions `xrange` and `izip` from `six.moves` are emitted directly without mapping, causing undefined function errors in V.
   - *Task:* Map `xrange` to V ranges (e.g., `0 .. loops`) or a range generator. Map `izip` (and `zip`) to V's `arrays.zip()` or handle simultaneous iteration natively.
 
