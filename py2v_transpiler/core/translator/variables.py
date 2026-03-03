@@ -308,7 +308,10 @@ class VariablesMixin(TranslatorBase):
                 if isinstance(node.value, ast.Dict) and not node.value.keys and v_type.startswith("map["):
                     rhs = f"{v_type}{{}}"
                 else:
+                    self.current_assignment_type = v_type
                     rhs = self.visit(node.value)
+                    if hasattr(self, "current_assignment_type"):
+                        del self.current_assignment_type
 
                 emit_fn = self.output.append
                 if self.in_main:
@@ -593,7 +596,10 @@ class VariablesMixin(TranslatorBase):
                 if isinstance(node.value, ast.Dict) and not node.value.keys and v_type.startswith("map["):
                     rhs = f"{v_type}{{}}"
                 else:
+                    self.current_assignment_type = v_type
                     rhs = self.visit(node.value)
+                    if hasattr(self, "current_assignment_type"):
+                        del self.current_assignment_type
 
                 emit_fn = self.output.append
                 if self.in_main:
