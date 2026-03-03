@@ -28,11 +28,12 @@ class CallsMixin(TranslatorBase):
         qualified_name_parts: List[str] = []
         curr = func_node
         while isinstance(curr, ast.Attribute):
-            qualified_name_parts.insert(0, curr.attr)
+            qualified_name_parts.append(curr.attr)
             curr = curr.value
 
         if isinstance(curr, ast.Name):
-            qualified_name_parts.insert(0, curr.id)
+            qualified_name_parts.append(curr.id)
+            qualified_name_parts.reverse()
             # Check if any prefix is a known module (longest match first)
             for i in range(len(qualified_name_parts), 0, -1):
                 prefix = ".".join(qualified_name_parts[:i])
