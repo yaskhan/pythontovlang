@@ -721,7 +721,14 @@ class VariablesMixin(TranslatorBase):
             # Handle generics [T, U]
             params = []
             for param in node.type_params:
-                if isinstance(param, TypeVar):
+                # PEP 696 type defaults (param.default) are intentionally ignored since V doesn't support them
+                if hasattr(param, 'name'):
+                    name_attr = param.name
+                    if isinstance(name_attr, str):
+                        params.append(name_attr)
+                    elif hasattr(name_attr, 'id'):
+                        params.append(name_attr.id)
+                elif isinstance(param, TypeVar):
                     params.append(param.name)
                 # Basic support for TypeVar only for now
             if params:
