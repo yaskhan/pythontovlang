@@ -200,23 +200,23 @@ def process_directory(path: str, config: TranspilerConfig, recursive: bool) -> N
     scc_to_dir = {}
     scc_to_module = {}
     for scc_set in sccs:
-        scc = list(scc_set)
-        if len(scc) > 1:
+        scc_list: list[str] = list(scc_set)
+        if len(scc_list) > 1:
             # Consolidation directory for the SCC
-            first_file = scc[0]
+            first_file = scc_list[0]
             scc_dir = os.path.dirname(os.path.join(path, first_file))
             scc_to_dir[id(scc_set)] = scc_dir
             # If multi-file SCC, use directory name as module
             scc_to_module[id(scc_set)] = os.path.basename(scc_dir) if os.path.basename(scc_dir) else "models"
         else:
-            scc_dir = os.path.dirname(os.path.join(path, scc[0]))
+            scc_dir = os.path.dirname(os.path.join(path, scc_list[0]))
             scc_to_dir[id(scc_set)] = scc_dir
             scc_to_module[id(scc_set)] = "main"
 
     # Group files by their final destination directory
-    final_dir_to_files = {}
-    for f, scc in file_to_scc.items():
-        d = scc_to_dir[id(scc)]
+    final_dir_to_files: dict[str, list[str]] = {}
+    for f, scc_set in file_to_scc.items():
+        d = scc_to_dir[id(scc_set)]
         if d not in final_dir_to_files:
             final_dir_to_files[d] = []
         final_dir_to_files[d].append(f)

@@ -157,7 +157,7 @@ class TranslatorBase(ast.NodeVisitor):
 
         # Naming collision resolution for SCC flattened modules
         current_file_name = getattr(self, 'current_file_name', '')
-        scc_files = getattr(self, 'scc_files', set())
+        scc_files: set = getattr(self, 'scc_files', set())
         if current_file_name and len(scc_files) > 1 and not getattr(self, 'current_class', None):
             # If we are in a flattened SCC, prefix top-level names to avoid collisions.
             # BUT avoid double prefixing or prefixing builtins
