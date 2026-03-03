@@ -1,5 +1,6 @@
 import ast
 import pytest
+import sys
 from py2v_transpiler.core.parser import PyASTParser
 from py2v_transpiler.core.translator import VNodeVisitor
 from py2v_transpiler.core.analyzer import TypeInference
@@ -97,12 +98,23 @@ def test_bracketless():
         pass
     except ValueError, TypeError as e:
         pass
-
+"""
+    # Exception groups (except*) are only valid syntax in Python 3.11+
+    if sys.version_info >= (3, 11):
+        code += """
     try:
         pass
     except* OSError, IOError:
         pass
 """
+    else:
+        code += """
+    try:
+        pass
+    except OSError, IOError:
+        pass
+"""
+
     parser = PyASTParser()
     ast_tree = parser.parse(code)
     analyzer = TypeInference()
