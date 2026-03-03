@@ -96,8 +96,8 @@ class ClassesMixin(TranslatorBase):
                                     except Exception:
                                         if isinstance(stmt.annotation, ast.Name):
                                             field_type = stmt.annotation.id
-                                if getattr(stmt, 'value', None):
-                                    default_val = self.visit(stmt.value)
+                                if getattr(stmt, 'value', None) is not None:
+                                    default_val = self.visit(stmt.value) # type: ignore
                                     fields.append(f"    {field_name} {field_type} = {default_val}")
                                 else:
                                     fields.append(f"    {field_name} {field_type}")
