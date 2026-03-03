@@ -561,6 +561,11 @@ class CallsMixin(TranslatorBase):
                      return f"/* isinstance({obj}, {types}) - multi-type check not supported */ false"
                 return f"{obj} is {types}"
 
+        elif func_name_str == "assert_never":
+            if len(args) == 1:
+                return f"panic('assert_never reached: ${{{args[0]}}}')"
+            return "panic('assert_never reached')"
+
         elif func_name_str == "assert_type":
             if len(args) >= 2:
                 # Compile-time evaluation of assert_type

@@ -160,6 +160,19 @@ class Proto(Protocol):
     assert "interface Proto {" in v_code
     assert "method(x int) int" in v_code
 
+def test_typing_assert_never():
+    source = """
+from typing import assert_never
+
+def check(x):
+    if x == 1:
+        pass
+    else:
+        assert_never(x)
+"""
+    v_code = translate(source)
+    assert "panic('assert_never reached: ${x}')" in v_code
+
 def test_typing_overload():
     source = """
 from typing import overload
