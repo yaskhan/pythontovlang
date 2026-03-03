@@ -26,6 +26,25 @@ class AttributesMixin(TranslatorBase):
 
         obj = self.visit(node.value)
 
+        # Apply narrowing if mypy type differs from local type mapping
+        # Only do this if we can safely cast without syntax errors.
+        if isinstance(node.value, ast.Name):
+            base_type = self.type_inference.type_map.get(node.value.id)
+            # Find narrowed type via node location first, fall back to general guess_type
+            narrowed_type = None
+            if hasattr(node.value, 'lineno') and hasattr(node.value, 'col_offset'):
+                loc_key = f"{node.value.id}@{node.value.lineno}:{node.value.col_offset}"
+                narrowed_type = self.type_inference.type_map.get(loc_key)
+            if not narrowed_type:
+                narrowed_type = self._guess_type(node.value)
+
+            # If mypy narrowed the type and it's not "int" (fallback) or generic "Any"
+            if narrowed_type and base_type and narrowed_type != base_type and narrowed_type not in ("int", "Any"):
+                # Avoid casting to same primitive types or optionals
+                if not (base_type.startswith("?") and base_type[1:] == narrowed_type):
+                    # Emit an explicit cast in V: (obj as NarrowedType)
+                    obj = f"({obj} as {narrowed_type})"
+
         # Mangling for self.__private attributes
         # We need to know if we are accessing self inside a class
         attr_name = self._sanitize_name(node.attr)
@@ -46,6 +65,34 @@ class AttributesMixin(TranslatorBase):
         if obj in self.function_names:
             # Map func.attr -> func__attr
             return f"{obj}__{attr_name}"
+
+        # Descriptor narrowing check
+        # If the attribute itself has a narrowed type that's explicitly not generic,
+        # and it's accessed via a standard property/descriptor pattern, we can
+        # either emit an explicit cast, or rely on V's static type mapping if properties
+        # are mapped accurately.
+        # Since Python properties map to V struct fields (or getters if we had them),
+        # if the type is explicitly narrowed from a dynamic attribute to a static type,
+        # we can wrap it in a cast if needed, but usually just returning it is fine unless
+        # it was typed as Any/void previously.
+        # To strictly enforce the descriptor narrowing request: "if a descriptor returns a specific type, use it in V."
+        # If mypy knows `m.desc` is an `int` because of `Descriptor.__get__ -> int`, we should ensure
+        # that type is used if assigned or passed. We can use an explicit cast if it helps V.
+        # Just checking if `type_inference` has mapped `StructName.attr_name`.
+        # First, we need to know the base class name of `obj`.
+        base_obj_type = self._guess_type(node.value)
+        if base_obj_type and base_obj_type not in ("Any", "unknown", "void", "int", "f64", "string", "bool"):
+            desc_key = f"{base_obj_type}.{node.attr}"
+            narrowed_desc_type = self.type_inference.type_map.get(desc_key)
+            if narrowed_desc_type and narrowed_desc_type not in ("Any", "unknown", "void"):
+                attr_name = self._sanitize_name(node.attr)
+
+                # Check if it corresponds to a known function first
+                if obj in self.function_names:
+                    return f"({obj}__{attr_name} as {narrowed_desc_type})"
+
+                # Otherwise, it's a struct field access
+                return f"({obj}.{attr_name} as {narrowed_desc_type})"
 
         # Handle SCC Attribute access: imported_module.attr -> prefix__attr
         if isinstance(node.value, ast.Name) and node.value.id in self.imported_modules:

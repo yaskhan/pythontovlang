@@ -191,6 +191,12 @@ class TranslatorBase(ast.NodeVisitor):
              if isinstance(node.value, complex): return "PyComplex"
              return "int"
         elif isinstance(node, ast.Name):
+            # Check for location-based type mapping (from mypy plugin)
+            if hasattr(node, 'lineno') and hasattr(node, 'col_offset'):
+                loc_key = f"{node.id}@{node.lineno}:{node.col_offset}"
+                if hasattr(self.type_inference, "type_map") and loc_key in self.type_inference.type_map:
+                    return self.type_inference.type_map[loc_key]
+
             # Try to resolve via type inference
             inferred = self.type_inference.resolve_type(node)
             if inferred != "void":

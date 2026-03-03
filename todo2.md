@@ -51,7 +51,7 @@ Based on recent Python ecosystem developments (mypy, PyPy, Numba, NumPy, Nuitka,
   - Synchronize with mypy CFG: use control-flow info to determine the exact type in each `case`.
   - *V Translation:* Ensure V code uses the specific struct type inside `match` branches.
   - Support capture patterns with type narrowing (e.g., `case Point(x=int() as x_val)` -> `x_val` must be `int` in V).
-- [ ] **Attribute and Descriptor Narrowing**
+- [x] **Attribute and Descriptor Narrowing**
   - If mypy narrowed an object's type, narrow the attribute's type during V generation (e.g., calling a subclass method after `isinstance`).
   - Add narrowing for descriptors (`__get__`, `__set__`): if a descriptor returns a specific type, use it in V.
 
