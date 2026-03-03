@@ -133,17 +133,18 @@ class CallsMixin(TranslatorBase):
 
         if module_name and func_name:
             # Check for typing.cast before using standard mapper so we have AST node access
-            if module_name == "typing" and func_name == "cast":
-                if len(args) == 2:
-                    try:
-                        type_str = ast.unparse(node.args[0])
-                        from py2v_transpiler.models.v_types import map_python_type_to_v
-                        v_type = map_python_type_to_v(type_str)
-                    except Exception:
-                        v_type = str(self.visit(node.args[0]))
-                    val = args[1]
-                    return f"({val} as {v_type})"
-                return f"/* typing.cast missing args */"
+            if module_name == "typing":
+                if func_name == "cast":
+                    if len(args) == 2:
+                        try:
+                            type_str = ast.unparse(node.args[0])
+                            from py2v_transpiler.models.v_types import map_python_type_to_v
+                            v_type = map_python_type_to_v(type_str)
+                        except Exception:
+                            v_type = str(self.visit(node.args[0]))
+                        val = args[1]
+                        return f"({val} as {v_type})"
+                    return f"/* typing.cast missing args */"
 
             mapped = self.mapper.get_mapping(module_name, func_name, args)
             if mapped:
@@ -279,6 +280,7 @@ class CallsMixin(TranslatorBase):
         # Fallback to existing logic
         func_name_str = self.visit(node.func)
 
+
         # If func_name_str was mangled/sanitized by visit_Name, we need the original to check builtins
         # like "map", "filter", "print". Let's check if the un-sanitized version matches anything.
         original_id = None
@@ -397,7 +399,7 @@ class CallsMixin(TranslatorBase):
         if isinstance(node.func, ast.Attribute) and isinstance(node.func.value, ast.Name):
             if node.func.value.id in self.imported_modules:
                 module_name_scc = self.imported_modules[node.func.value.id]
-                scc_file = next((f for f in self.scc_files if module_name_scc.endswith(f.split('.')[0])), None)
+                scc_file = next((f for f in self.scc_files if module_name_scc.endswith(f.replace('.py', '').replace('/', '.').replace('\\', '.'))), None)
                 if scc_file:
                     prefix = self._get_scc_prefix(scc_file)
                     func_name_scc = f"{prefix}__{self._sanitize_name(node.func.attr)}"
@@ -410,6 +412,27 @@ class CallsMixin(TranslatorBase):
             # If it has a prefix from SCC
             if "__" in full_name:
                  return f"{full_name}({', '.join(args)})"
+
+        # Special handling for typing.assert_type
+        if func_name_str == "typing.assert_type" or (original_id == "assert_type" and func_name_str == "assert_type"):
+            if len(args) >= 2:
+                expr_node = node.args[0]
+                type_node = node.args[1]
+                expr_type = self._guess_type(expr_node)
+                try:
+                    type_str = ast.unparse(type_node)
+                    from py2v_transpiler.models.v_types import map_python_type_to_v as local_map_fn
+                    expected_type = local_map_fn(type_str)
+                except Exception:
+                    type_str = str(self.visit(type_node))
+                    from py2v_transpiler.models.v_types import map_python_type_to_v as local_map_fn
+                    expected_type = local_map_fn(type_str)
+
+                if expr_type == expected_type:
+                    return f"// assert_type({args[0]}, {expected_type}) passed statically"
+                else:
+                    return f"$compile_error('assert_type failed: expected {expected_type} but got {expr_type}')"
+            return "// assert_type requires 2 arguments"
 
         # Handle dataclass constructor call
         dataclass_metadata = None
@@ -581,33 +604,6 @@ class CallsMixin(TranslatorBase):
                      return f"/* isinstance({obj}, {types}) - multi-type check not supported */ false"
                 return f"{obj} is {types}"
 
-        elif func_name_str == "assert_type":
-            if len(args) >= 2:
-                # Compile-time evaluation of assert_type
-                # args[0] is the expression, args[1] is the type
-                # We need the actual AST node of the type to map it correctly
-                expr_node = node.args[0]
-                type_node = node.args[1]
-
-                expr_type = self._guess_type(expr_node)
-
-                try:
-                    type_str = ast.unparse(type_node)
-                    # For assert_type error messages, it might be better to compare original mapped type names
-                    # but map_python_type_to_v converts float to f64, so test expects f64.
-                    from py2v_transpiler.models.v_types import map_python_type_to_v as local_map_fn
-                    expected_type = local_map_fn(type_str)
-                except Exception:
-                    # Fallback if unparse fails
-                    type_str = str(self.visit(type_node))
-                    from py2v_transpiler.models.v_types import map_python_type_to_v as local_map_fn
-                    expected_type = local_map_fn(type_str)
-
-                if expr_type == expected_type:
-                    return f"// assert_type({args[0]}, {expected_type}) passed statically"
-                else:
-                    return f"$compile_error('assert_type failed: expected {expected_type} but got {expr_type}')"
-            return "// assert_type requires 2 arguments"
 
         elif func_name_str == "input":
             self.emitter.add_import("os")

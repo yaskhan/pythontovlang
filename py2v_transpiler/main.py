@@ -124,7 +124,13 @@ def transpile_file(source_file: str, config: TranspilerConfig, global_helpers: O
     # 4. Translate
     translator = VNodeVisitor(analyzer)
     translator.current_module_name = current_module
-    translator.current_file_name = os.path.basename(source_file)
+    # Use the same relative path key as SCC for consistent prefixing
+    # Actually, we need the path relative to project root
+    # source_file is absolute or relative to cwd.
+    # In process_directory, f is relative to path.
+    # Let's pass the relative path explicitly if available
+    translator.current_file_name = getattr(config, 'rel_path', os.path.basename(source_file))
+
     if scc_files:
         translator.scc_files = scc_files
 
@@ -238,6 +244,9 @@ def process_directory(path: str, config: TranspilerConfig, recursive: bool) -> N
             # Ensure the output file is in the consolidated directory
             out_name = os.path.basename(f).replace('.py', '.v')
             output_path = os.path.join(d, out_name)
+
+            # Temporarily attach relative path to config for translator
+            config.rel_path = f # type: ignore
 
             if transpile_file(full_path, config, global_helpers, current_module=current_module, scc_files=scc, output_path=output_path):
                 processed_files += 1

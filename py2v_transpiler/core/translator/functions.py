@@ -244,7 +244,8 @@ class FunctionsMixin(TranslatorBase):
                  parts = arg_type.split('.')
                  module_prefix = ".".join(parts[:-1])
                  typename = parts[-1]
-                 scc_file = next((f for f in self.scc_files if module_prefix.replace('reproduction.cyclic.', '').replace('reproduction.nested.', '').endswith(f.split('.')[0])), None)
+                 # Match against SCC files by checking if the module path ends with the file path
+                 scc_file = next((f for f in self.scc_files if module_prefix.endswith(f.replace('.py', '').replace('/', '.').replace('\\', '.'))), None)
                  if scc_file:
                       prefix = self._get_scc_prefix(scc_file)
                       arg_type = f"{prefix}__{typename}"
@@ -382,7 +383,8 @@ class FunctionsMixin(TranslatorBase):
              parts = ret_type.split('.')
              module_prefix = ".".join(parts[:-1])
              typename = parts[-1]
-             scc_file = next((f for f in self.scc_files if module_prefix.replace('reproduction.cyclic.', '').replace('reproduction.nested.', '').endswith(f.split('.')[0])), None)
+             # Match against SCC files
+             scc_file = next((f for f in self.scc_files if module_prefix.endswith(f.replace('.py', '').replace('/', '.').replace('\\', '.'))), None)
              if scc_file:
                   prefix = self._get_scc_prefix(scc_file)
                   ret_type = f"{prefix}__{typename}"

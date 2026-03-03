@@ -127,14 +127,12 @@ class TranslatorBase(ast.NodeVisitor):
 
     def _get_scc_prefix(self, file_path: str) -> str:
         """Generates a consistent prefix for a file within an SCC."""
-        # Fix: ensure we don't return empty string or fail
-        # Use filename only, normalized
-        filename = os.path.basename(file_path)
-        base = filename.split('.')[0]
+        # Use relative path without extension, replacing separators with underscores
+        # to ensure uniqueness within a consolidated package.
+        base = file_path.replace('.py', '').replace('/', '__').replace('\\', '__').replace('.', '__')
         if not base:
-             # Fallback if filename is empty or weird
              base = "py_mod"
-        return base.replace('.', '_').replace('/', '_').replace('\\', '_')
+        return base
 
     def _is_top_level_symbol(self, name: str) -> bool:
         """Heuristic to check if a name refers to a top-level symbol (class/func/global)."""
@@ -163,9 +161,11 @@ class TranslatorBase(ast.NodeVisitor):
         if current_file_name and len(scc_files) > 1 and not getattr(self, 'current_class', None):
             # If we are in a flattened SCC, prefix top-level names to avoid collisions.
             # BUT avoid double prefixing or prefixing builtins
-            if "__" not in name and name not in self._local_vars_in_scope:
+            if not name.startswith("__") and name not in self._local_vars_in_scope:
                 prefix = self._get_scc_prefix(current_file_name)
-                return f"{prefix}__{name}"
+                # Check if already prefixed
+                if not name.startswith(prefix + "__"):
+                    return f"{prefix}__{name}"
 
         return name
 

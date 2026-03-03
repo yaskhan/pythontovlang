@@ -8,7 +8,7 @@ class ImportsMixin(TranslatorBase):
 
             # Skip imports if they are within the same SCC (same V package)
             # Map the imported module name to its SCC prefix for cross-file references
-            scc_file = next((f for f in self.scc_files if module_name.endswith(f.split('.')[0])), None)
+            scc_file = next((f for f in self.scc_files if module_name.endswith(f.replace('.py', '').replace('/', '.').replace('\\', '.'))), None)
             if scc_file:
                 # We don't need a V import, but we need to track that names from this module
                 # are available in the current namespace (package-level).
@@ -38,7 +38,7 @@ class ImportsMixin(TranslatorBase):
             module_name = node.module
 
             # Skip if module is in the same SCC
-            scc_file = next((f for f in self.scc_files if module_name.endswith(f.split('.')[0])), None)
+            scc_file = next((f for f in self.scc_files if module_name.endswith(f.replace('.py', '').replace('/', '.').replace('\\', '.'))), None)
             if scc_file:
                 prefix = self._get_scc_prefix(scc_file)
                 for alias in node.names:
