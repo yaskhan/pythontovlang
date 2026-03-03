@@ -10,74 +10,6 @@ class TranslatorBase(ast.NodeVisitor):
     Base class for VNodeVisitor and its mixins.
     Defines shared state and helper methods.
     """
-    def _get_precedence(self, node: ast.AST) -> int:
-        """
-        Returns the standard Python operator precedence for AST nodes.
-        Higher number means tighter binding. Atoms get 100.
-        """
-        op: Any = None
-        if isinstance(node, ast.BinOp):
-            op = type(node.op)
-        elif isinstance(node, ast.BoolOp):
-            op = type(node.op)
-        elif isinstance(node, ast.Compare):
-            op = type(node.ops[0])
-        elif isinstance(node, ast.UnaryOp):
-            op = type(node.op)
-        else:
-            return 100
-
-        precedences = {
-            ast.Or: 1, ast.And: 2, ast.Not: 3,
-            ast.In: 4, ast.NotIn: 4, ast.Is: 4, ast.IsNot: 4, ast.Lt: 4, ast.LtE: 4, ast.Gt: 4, ast.GtE: 4, ast.NotEq: 4, ast.Eq: 4,
-            ast.BitOr: 5, ast.BitXor: 6, ast.BitAnd: 7,
-            ast.LShift: 8, ast.RShift: 8,
-            ast.Add: 9, ast.Sub: 9,
-            ast.Mult: 10, ast.MatMult: 10, ast.Div: 10, ast.FloorDiv: 10, ast.Mod: 10,
-            ast.UAdd: 12, ast.USub: 12, ast.Invert: 12,
-            ast.Pow: 13,
-        }
-        return precedences.get(op, 0)
-
-    def _visit_with_parens(self, parent_node: ast.AST, child_node: ast.AST, is_right_operand: bool = False) -> str:
-        """
-        Visits the child_node and wraps the resulting string in parentheses if its
-        operator precedence is lower than its parent's, or if it has the same precedence
-        but is the right-hand operand (to preserve left-associativity correctness).
-        """
-        parent_prec = self._get_precedence(parent_node)
-        child_prec = self._get_precedence(child_node)
-        child_str = self.visit(child_node)  # type: ignore # Self has a visit method in ast.NodeVisitor
-
-        needs_parens = False
-        if child_prec < parent_prec:
-            needs_parens = True
-        elif child_prec == parent_prec and is_right_operand:
-            # Check if they are the exact same kind of operation where right-associativity doesn't matter
-            # like `a + (b + c)` -> `a + b + c`. Actually, for integers it might overflow differently,
-            # but usually it's safe to flatten commutative/associative ops.
-            # To be safe and strict, we generally parenthesize if it's the right operand of the same precedence,
-            # unless it's a chained boolean operation of the same type (a and b and c).
-            is_same_bool_op = (isinstance(parent_node, ast.BoolOp) and isinstance(child_node, ast.BoolOp) and type(parent_node.op) == type(child_node.op))
-            # Also for Add/Mult we can usually flatten.
-            is_same_comm_op = (isinstance(parent_node, ast.BinOp) and isinstance(child_node, ast.BinOp) and type(parent_node.op) == type(child_node.op) and type(parent_node.op) in (ast.Add, ast.Mult, ast.BitOr, ast.BitAnd, ast.BitXor))
-
-            if not is_same_bool_op and not is_same_comm_op:
-                needs_parens = True
-
-        # Exception: `**` and unary operators.
-        # In Python, `2 ** -1` is parsed as `Pow(2, USub(1))`.
-        # Even though Pow > USub (13 > 12), Python doesn't require parentheses for the right operand
-        # when it's a unary operator (e.g. `2**-1` is valid syntax).
-        if needs_parens:
-            if isinstance(parent_node, ast.BinOp) and isinstance(parent_node.op, ast.Pow) and isinstance(child_node, ast.UnaryOp):
-                if is_right_operand:
-                    needs_parens = False
-
-        if needs_parens:
-            return f"({child_str})"
-        return str(child_str)
-
     def __init__(self, type_inference: Any) -> None:
         self.type_inference = type_inference
         # These will be initialized in VNodeVisitor.__init__
@@ -116,24 +48,9 @@ class TranslatorBase(ast.NodeVisitor):
         self.loop_stack: List[Dict[str, Any]] = [] # Stack of active loops for break/continue tracking
         self.unique_id_counter: int = 0
         self.vexc_depth: int = 0
-        self._local_vars_in_scope: Set[str] = set()
 
     def _indent(self) -> str:
         return "    " * self._indent_level
-
-    def _sanitize_name(self, name: str) -> str:
-        """
-        Sanitizes Python identifiers that collide with V lang reserved keywords.
-        """
-        reserved = {
-            "fn", "type", "struct", "mut", "if", "else", "for", "return", "match",
-            "interface", "enum", "pub", "import", "module", "const", "unsafe",
-            "defer", "go", "chan", "shared", "spawn", "assert", "sizeof", "typeof",
-            "__global", "as", "in", "is", "none", "map", "array", "string", "bool"
-        }
-        if name in reserved:
-            return f"py_{name}"
-        return name
 
     def _mangle_name(self, name: str, class_name: Optional[str]) -> str:
         """
@@ -147,13 +64,12 @@ class TranslatorBase(ast.NodeVisitor):
             return f"__{stripped_cls}_{name.lstrip('_')}"
         return name
 
-
     def _guess_type(self, node: ast.AST) -> str:
         if isinstance(node, ast.Constant):
-             if isinstance(node.value, bool): return "bool"
              if isinstance(node.value, int): return "int"
              if isinstance(node.value, float): return "f64"
              if isinstance(node.value, str): return "string"
+             if isinstance(node.value, bool): return "bool"
              if isinstance(node.value, complex): return "PyComplex"
              return "int"
         elif isinstance(node, ast.Name):
@@ -165,12 +81,6 @@ class TranslatorBase(ast.NodeVisitor):
             if hasattr(self.type_inference, "type_map") and node.id in self.type_inference.type_map:
                 return self.type_inference.type_map[node.id]
             return "int" # Fallback
-        elif isinstance(node, ast.Attribute):
-            if isinstance(node.value, ast.Name):
-                attr_name = f"{node.value.id}.{node.attr}"
-                if hasattr(self.type_inference, "type_map") and attr_name in self.type_inference.type_map:
-                    return self.type_inference.type_map[attr_name]
-            return "Any"
         elif isinstance(node, ast.BinOp):
             if isinstance(node.op, ast.Div):
                 left = self._guess_type(node.left)
@@ -195,27 +105,6 @@ class TranslatorBase(ast.NodeVisitor):
 
         return "int"
 
-
-    def _collect_assigned_vars(self, nodes: List[ast.stmt]) -> Set[str]:
-        """Collects names of all variables assigned in a list of statements."""
-        assigned: Set[str] = set()
-        for node in nodes:
-            for child in ast.walk(node):
-                if isinstance(child, ast.Assign):
-                    for target in child.targets:
-                        if isinstance(target, ast.Name):
-                            assigned.add(target.id)
-                        elif isinstance(target, (ast.Tuple, ast.List)):
-                            for elt in target.elts:
-                                if isinstance(elt, ast.Name):
-                                    assigned.add(elt.id)
-                elif isinstance(child, ast.AnnAssign):
-                    if isinstance(child.target, ast.Name):
-                        assigned.add(child.target.id)
-                elif isinstance(child, ast.AugAssign):
-                    if isinstance(child.target, ast.Name):
-                        assigned.add(child.target.id)
-        return assigned
 
     def _infer_generator_types(self, gen: ast.comprehension) -> None:
         """Infers types of loop variables from the generator and updates type_map."""

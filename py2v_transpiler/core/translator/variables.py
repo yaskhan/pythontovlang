@@ -26,7 +26,7 @@ class VariablesMixin(TranslatorBase):
         target = node.targets[0]
         lhs = ""
         if isinstance(target, ast.Name):
-            lhs = self._sanitize_name(target.id)
+            lhs = target.id
 
             # Check for NewType: UserId = NewType('UserId', int)
             if isinstance(node.value, ast.Call) and isinstance(node.value.func, ast.Name) and node.value.func.id == "NewType":
@@ -146,7 +146,7 @@ class VariablesMixin(TranslatorBase):
             if hasattr(self, 'dataclasses') and obj_type in self.dataclasses:
                 list_obj = self.visit(target.value)
                 if isinstance(target.slice, ast.Constant) and isinstance(target.slice.value, str):
-                    lhs = f"{list_obj}.{self._sanitize_name(target.slice.value)}"
+                    lhs = f"{list_obj}.{target.slice.value}"
                     rhs = self.visit(node.value)
                     self.output.append(f"{self._indent()}{lhs} = {rhs}")
                     return
@@ -297,7 +297,7 @@ class VariablesMixin(TranslatorBase):
                 pairs = []
                 for k, v in zip(node.value.keys, node.value.values):
                     if isinstance(k, ast.Constant) and isinstance(k.value, str):
-                        key_str = self._sanitize_name(k.value)
+                        key_str = k.value
                         val_str = self.visit(v)
                         pairs.append(f"{key_str}: {val_str}")
 
@@ -308,10 +308,7 @@ class VariablesMixin(TranslatorBase):
                 if isinstance(node.value, ast.Dict) and not node.value.keys and v_type.startswith("map["):
                     rhs = f"{v_type}{{}}"
                 else:
-                    self.current_assignment_type = v_type
                     rhs = self.visit(node.value)
-                    if hasattr(self, "current_assignment_type"):
-                        del self.current_assignment_type
 
                 emit_fn = self.output.append
                 if self.in_main:
@@ -411,12 +408,7 @@ class VariablesMixin(TranslatorBase):
 
         elif isinstance(target, ast.Name):
             lhs = self.visit(target)
-            if not self.in_main and lhs in self._local_vars_in_scope:
-                self.output.append(f"{self._indent()}{lhs} = {source_expr}")
-            else:
-                self.output.append(f"{self._indent()}{lhs} := {source_expr}")
-                if not self.in_main:
-                    self._local_vars_in_scope.add(lhs)
+            self.output.append(f"{self._indent()}{lhs} := {source_expr}")
 
         elif isinstance(target, (ast.Attribute, ast.Subscript)):
              lhs = self.visit(target)
@@ -549,7 +541,7 @@ class VariablesMixin(TranslatorBase):
 
     def visit_NamedExpr(self, node: ast.NamedExpr) -> str:
         # (target := value)
-        target = self._sanitize_name(node.target.id)
+        target = node.target.id
         value = self.visit(node.value)
         self._walrus_assignments.append(f"{target} := {value}")
         return target
@@ -590,7 +582,7 @@ class VariablesMixin(TranslatorBase):
                 pairs = []
                 for k, v in zip(node.value.keys, node.value.values):
                     if isinstance(k, ast.Constant) and isinstance(k.value, str):
-                        key_str = self._sanitize_name(k.value)
+                        key_str = k.value
                         val_str = self.visit(v)
                         pairs.append(f"{key_str}: {val_str}")
 
@@ -601,10 +593,7 @@ class VariablesMixin(TranslatorBase):
                 if isinstance(node.value, ast.Dict) and not node.value.keys and v_type.startswith("map["):
                     rhs = f"{v_type}{{}}"
                 else:
-                    self.current_assignment_type = v_type
                     rhs = self.visit(node.value)
-                    if hasattr(self, "current_assignment_type"):
-                        del self.current_assignment_type
 
                 emit_fn = self.output.append
                 if self.in_main:
@@ -698,10 +687,10 @@ class VariablesMixin(TranslatorBase):
             return self.name_remap[node.id]
 
         # Name mangling for class-private attributes
-        return self._sanitize_name(self._mangle_name(node.id, self.current_class))
+        return self._mangle_name(node.id, self.current_class)
 
     def visit_TypeAlias(self, node: Any) -> None:
-        name = self._sanitize_name(node.name.id)
+        name = node.name.id
         type_params = ""
 
         # Safe access to ast.TypeVar for Py < 3.12 compatibility

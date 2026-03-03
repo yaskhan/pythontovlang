@@ -127,7 +127,5 @@ arr[0].x **= 2
     # But wait, unique_id_counter increases globally.
     # We check if structure is preserved: arr[0].x = ...
     assert "arr[0].x =" in v_code
-    # x defaults to int but since it's an attribute and we fallback to "Any",
-    # the cast might not be there anymore, or it might be dynamic.
-    # The important part is the pow structure.
-    assert "math.pow" in v_code
+    # And check for int cast (x is int)
+    assert "int(math.pow" in v_code
