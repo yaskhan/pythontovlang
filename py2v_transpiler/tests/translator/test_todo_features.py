@@ -20,9 +20,7 @@ class TestTodoFeatures(TranspilerTest):
         self.assert_transpilation(
             "x = r'C:\\Windows\\System32'",
             """
-            const (
-                x = r'C:\\Windows\\System32'
-            )
+            x := r'C:\\Windows\\System32'
             """
         )
 

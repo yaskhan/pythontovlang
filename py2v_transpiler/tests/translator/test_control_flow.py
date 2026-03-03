@@ -90,27 +90,3 @@ while True:
 
     assert "break" in result
     assert "continue" in result
-
-def test_translator_index_narrowing_loop():
-    parser = PyASTParser()
-    analyzer = TypeInference()
-    translator = VNodeVisitor(analyzer)
-
-    # We manually register UserDict as a dataclass (TypedDict) for the test
-    translator.dataclasses["UserDict"] = ["name", "age"]
-    analyzer.type_map["d"] = "UserDict"
-
-    # Simulate mypy inferring Literal for loop key
-    analyzer.type_map["key"] = "Literal[\"name\", \"age\"]"
-
-    code = """
-for key in ("name", "age"):
-    print(d[key])
-"""
-    tree = parser.parse(code)
-    analyzer.analyze(tree)
-    result = translator.visit_Module(tree)
-
-    assert "match key {" in result
-    assert "'name' { Any(d.name) }" in result
-    assert "'age' { Any(d.age) }" in result

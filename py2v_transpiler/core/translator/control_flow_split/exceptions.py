@@ -139,8 +139,3 @@ class ExceptionsMixin(TranslatorBase):
                      self.in_finally = True
                      self.visit(stmt)
                      self.in_finally = False
-
-    # V does not natively support Python exception groups (PEP 654).
-    # Since PEP 758 allows bracketless except*, we alias TryStar to Try
-    # so that basic exception handling can still happen rather than crashing.
-    visit_TryStar = visit_Try

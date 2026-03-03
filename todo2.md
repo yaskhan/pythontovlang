@@ -10,14 +10,14 @@ Based on recent Python ecosystem developments (mypy, PyPy, Numba, NumPy, Nuitka,
   - Parse `TypeForm[T]` in argument and return annotations.
   - *V Translation:* Since V lacks type reification, generate overloaded functions or use `Any` with runtime checks (optionally behind an `--experimental` flag).
   - Use `--enable-incomplete-feature=TypeForm` when running mypy for validation.
-- [x] **PEP 800: Disjoint Base Classes (`@disjoint_base`)**
+- [ ] **PEP 800: Disjoint Base Classes (`@disjoint_base`)**
   - Add support for detecting `@disjoint_base` decorator.
-- [x] **PEP 742: TypeIs (mypy 1.10+)**
+- [ ] **PEP 742: TypeIs (mypy 1.10+)**
   - *Context:* Improved type guard that narrows the type in both branches of a condition.
   - Recognize functions returning `TypeIs[T]` instead of `bool`.
   - *V Translation:* Generate an `if` with an automatic type cast inside the block (using narrowing info from mypy).
   - Differentiate from `TypeGuard`: `TypeIs` narrows in the `else`-branch (to the negation). Implement handling for both branches.
-- [x] **PEP 696: Type Variable Defaults**
+- [ ] **PEP 696: Type Variable Defaults**
   - Support new Python 3.13 syntax for generic defaults: `class Box[T = int]: ...`
 - [x] **PEP 702: `@deprecated` Decorator**
   - Transpile `warnings.deprecated` to V's `[deprecated]` attribute on functions/structs.
@@ -29,29 +29,29 @@ Based on recent Python ecosystem developments (mypy, PyPy, Numba, NumPy, Nuitka,
   - While V does not support fully dynamic attributes natively, consider adding a mechanism (e.g., a fallback `map[string]Any` inside the struct) to support dynamic attribute access where needed.
 - [x] **Enum Membership Semantics (PEP 736/typing updates)**
   - Ensure transpiler correctly handles unannotated vs annotated Enum members based on new typing rules.
-- [x] **PEP 705: ReadOnly in TypedDict (mypy 1.12+)**
+- [ ] **PEP 705: ReadOnly in TypedDict (mypy 1.12+)**
   - *Context:* Marking TypedDict fields as immutable.
   - Detect the `ReadOnly` wrapper in field annotations.
   - *V Translation:* Generate struct fields as `const` or use getter methods (since V lacks built-in read-only semantics at the field level).
   - Emit a transpiler error if mypy complains about assignment to a `ReadOnly` field.
-- [x] **PEP 675: LiteralString (improved support in mypy 1.14+)**
+- [ ] **PEP 675: LiteralString (improved support in mypy 1.14+)**
   - *Context:* A type for strings known at compile time (injection protection).
   - Detect `LiteralString` by tracking string origin: literal, literal concatenation, f-string without variables.
   - *V Translation:* Mark as `const string` if possible for optimization and safety.
   - Warn if a `LiteralString` variable receives a value from `input()` (loss of guarantee).
 
 ## Type Narrowing Improvements (Based on mypy 1.14–1.19)
-- [x] **Index Narrowing in for-loops (mypy 1.14)**
+- [ ] **Index Narrowing in for-loops (mypy 1.14)**
   - *Context:* Mypy now preserves the literal type of loop variables (e.g., `for key in ("name", "age"):`).
   - Retrieve the narrowed literal type of the loop variable from the mypy AST.
   - *V Translation:* Generate more precise types instead of a generic `string`/`int`.
   - Optimize collection access: if mypy guarantees the key exists, generate direct access without an `in` check.
-- [x] **Narrowing in match/case with union types (mypy 1.19)**
+- [ ] **Narrowing in match/case with union types (mypy 1.19)**
   - *Context:* Improved type narrowing inside class patterns with a union base.
   - Synchronize with mypy CFG: use control-flow info to determine the exact type in each `case`.
   - *V Translation:* Ensure V code uses the specific struct type inside `match` branches.
   - Support capture patterns with type narrowing (e.g., `case Point(x=int() as x_val)` -> `x_val` must be `int` in V).
-- [x] **Attribute and Descriptor Narrowing**
+- [ ] **Attribute and Descriptor Narrowing**
   - If mypy narrowed an object's type, narrow the attribute's type during V generation (e.g., calling a subclass method after `isinstance`).
   - Add narrowing for descriptors (`__get__`, `__set__`): if a descriptor returns a specific type, use it in V.
 
@@ -187,11 +187,11 @@ Based on recent Python ecosystem developments (mypy, PyPy, Numba, NumPy, Nuitka,
 - [ ] **PEP 695: Full type parameter syntax**
   - Support syntax like `def func[T](x: T) -> T: ...`, `class Box[T]: value: T`, `type Alias[T] = list[T]`.
   - Handle new AST nodes: `TypeVar`, `ParamSpec`, `TypeVarTuple`, `type_params` list.
-- [x] **PEP 696: Type parameter defaults (Python 3.13+)**
+- [ ] **PEP 696: Type parameter defaults (Python 3.13+)**
   - Support generic defaults: `def foo[T = int](x: T): ...` or `class Container[T = list[int]]: ...`.
 - [x] **PEP 750: Template string literals (`t-strings`)**
   - Support `t"Hello {name=}"`, `T"Value: {value!r}"` by mapping the returned `Template` object to a custom string builder or interpolation mechanism in V.
-- [x] **PEP 758: Bracketless `except` / `except*` clauses (Python 3.14)**
+- [ ] **PEP 758: Bracketless `except` / `except*` clauses (Python 3.14)**
   - Support multi-exception syntax without parenthesis: `except ValueError, TypeError:` and `except* OSError, IOError:`.
 - [ ] **PEP 649 / PEP 749: Deferred evaluation of annotations**
   - Now default in 3.14. Correctly handle `__annotations__` as deferred objects without requiring `from __future__ import annotations`.
