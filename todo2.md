@@ -527,6 +527,6 @@ Based on the transpilation of the `bm_richards.py` benchmark, several critical a
   - *Context:* Mypy forward references like `Optional['Packet']` (or `Optional['Task']`) are failing to map accurately in the `else` block fallback type generation, falling back to `?int(none)` instead of `?Packet(none)`.
   - *Task:* Update type mapping to correctly resolve and strip string quotes from forward reference annotations like `'Packet'` so they properly map to their concrete V types.
 
-- [ ] **Explicit Base Class Constructor Calls (`Base.__init__`)**
+- [x] **Explicit Base Class Constructor Calls (`Base.__init__`)**
   - *Context:* Calls like `Task.__init__(self, i, p, w, s, r)` are emitted directly, which doesn't correctly update the embedded V struct unless the explicit embedded struct is initialized or fields are copied.
   - *Task:* Refactor explicit `BaseClass.__init__(self, ...)` calls to properly initialize the embedded struct fields inside the derived V struct.

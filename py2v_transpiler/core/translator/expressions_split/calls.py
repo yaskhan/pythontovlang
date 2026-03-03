@@ -229,6 +229,15 @@ class CallsMixin(TranslatorBase):
                 else:
                     return f"/* super().{method_name} call without known parent */"
 
+        # Handle explicit BaseClass.__init__(self, ...)
+        if isinstance(func_node, ast.Attribute) and func_node.attr == "__init__":
+            if isinstance(func_node.value, ast.Name):
+                class_name = func_node.value.id
+                if self.current_class_bases and class_name in self.current_class_bases:
+                    if len(args) >= 1 and args[0] == "self":
+                        base_args = args[1:]
+                        return f"self.{class_name} = new_{class_name}({', '.join(base_args)})"
+
         # Handle unittest assertions
         # Strictly check for self.assertX if possible to avoid regressions
         # We check if receiver is "self"
