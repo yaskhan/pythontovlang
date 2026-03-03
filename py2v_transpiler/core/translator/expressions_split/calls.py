@@ -28,11 +28,12 @@ class CallsMixin(TranslatorBase):
         qualified_name_parts: List[str] = []
         curr = func_node
         while isinstance(curr, ast.Attribute):
-            qualified_name_parts.insert(0, curr.attr)
+            qualified_name_parts.append(curr.attr)
             curr = curr.value
 
         if isinstance(curr, ast.Name):
-            qualified_name_parts.insert(0, curr.id)
+            qualified_name_parts.append(curr.id)
+            qualified_name_parts.reverse()
             # Check if any prefix is a known module (longest match first)
             for i in range(len(qualified_name_parts), 0, -1):
                 prefix = ".".join(qualified_name_parts[:i])
@@ -229,6 +230,15 @@ class CallsMixin(TranslatorBase):
                 else:
                     return f"/* super().{method_name} call without known parent */"
 
+        # Handle explicit BaseClass.__init__(self, ...)
+        if isinstance(func_node, ast.Attribute) and func_node.attr == "__init__":
+            if isinstance(func_node.value, ast.Name):
+                class_name = func_node.value.id
+                if self.current_class_bases and class_name in self.current_class_bases:
+                    if len(args) >= 1 and args[0] == "self":
+                        base_args = args[1:]
+                        return f"self.{class_name} = new_{class_name}({', '.join(base_args)})"
+
         # Handle unittest assertions
         # Strictly check for self.assertX if possible to avoid regressions
         # We check if receiver is "self"
@@ -266,8 +276,17 @@ class CallsMixin(TranslatorBase):
 
         # Fallback to existing logic
         func_name_str = self.visit(node.func)
+
+        # If func_name_str was mangled/sanitized by visit_Name, we need the original to check builtins
+        # like "map", "filter", "print". Let's check if the un-sanitized version matches anything.
+        original_id = None
+        if isinstance(node.func, ast.Name):
+            original_id = node.func.id
+
         if func_name_str in self.renamed_functions:
             func_name_str = self.renamed_functions[func_name_str]
+        elif original_id and f"py_{original_id}" == func_name_str and original_id in ("map", "filter"):
+             func_name_str = original_id
 
         # Extract mypy plugin signature if available for this call
         loc_key = f"{getattr(node, 'lineno', 0)}:{getattr(node, 'col_offset', 0)}"
@@ -373,7 +392,28 @@ class CallsMixin(TranslatorBase):
                 func_name_str = f"{func_name_str}_noargs"
 
         # Handle dataclass constructor call
-        if hasattr(self, 'dataclasses') and func_name_str in self.dataclasses:
+        dataclass_metadata = None
+        if call_sig and "dataclass_metadata" in call_sig:
+            dataclass_metadata = call_sig["dataclass_metadata"]
+
+        if dataclass_metadata:
+            # Reconstruct the fields based on mypy's exact attributes
+            struct_args = []
+            init_fields = [attr for attr in dataclass_metadata.get('attributes', []) if attr.get('is_in_init')]
+
+            # Map positional args
+            for i, arg_val in enumerate(args):
+                if i < len(init_fields):
+                    struct_args.append(f"{self._sanitize_name(init_fields[i]['name'])}: {arg_val}")
+            # Map keyword args
+            for keyword in node.keywords:
+                if keyword.arg:
+                     kw_val_str = str(self.visit(keyword.value))
+                     # We might want to verify it's a valid init field, but trust python logic for now
+                     struct_args.append(f"{self._sanitize_name(keyword.arg)}: {kw_val_str}")
+
+            return f"{func_name_str}{{{', '.join(struct_args)}}}"
+        elif hasattr(self, 'dataclasses') and func_name_str in self.dataclasses:
             field_order = self.dataclasses[func_name_str]
             struct_args = []
             # Map positional args
@@ -384,7 +424,7 @@ class CallsMixin(TranslatorBase):
             for keyword in node.keywords:
                 if keyword.arg:
                      kw_val_str = str(self.visit(keyword.value))
-                     struct_args.append(f"{keyword.arg}: {kw_val_str}")
+                     struct_args.append(f"{self._sanitize_name(keyword.arg)}: {kw_val_str}")
 
             return f"{func_name_str}{{{', '.join(struct_args)}}}"
 
@@ -484,6 +524,23 @@ class CallsMixin(TranslatorBase):
             if len(args) == 1:
                 return f"f64({args[0]})"
             return "0.0"
+
+        elif func_name_str == "bytes":
+            if len(args) == 2:
+                return f"{args[0]}.bytes()"
+        elif func_name_str == "int":
+            if len(args) == 0:
+                return "0"
+            elif len(args) == 1:
+                arg_type = self._guess_type(node.args[0])
+                if arg_type == "string":
+                    return f"{args[0]}.int()"
+                return f"int({args[0]})"
+            elif len(args) == 2:
+                # E.g. int('ff', 16) - V has strconv.parse_int
+                # but let's keep it simple or use strconv if required
+                self.emitter.add_import("strconv")
+                return f"int(strconv.parse_int({args[0]}, {args[1]}, 32) or {{ 0 }})"
 
         elif func_name_str == "isinstance":
             if len(args) == 2:
@@ -590,6 +647,7 @@ class CallsMixin(TranslatorBase):
         elif func_name_str == "print":
             sep = " "
             end = "\\n"
+            is_stderr = False
 
             for keyword in node.keywords:
                 if keyword.arg == "sep":
@@ -600,6 +658,10 @@ class CallsMixin(TranslatorBase):
                         end = keyword.value.value
                         if end == "\n":
                             end = "\\n"
+                elif keyword.arg == "file":
+                    file_val = self.visit(keyword.value)
+                    if file_val == "sys.stderr":
+                        is_stderr = True
 
             parts = []
             for arg in node.args:
@@ -612,12 +674,20 @@ class CallsMixin(TranslatorBase):
 
             joined_content = sep.join(parts)
 
-            if end == "\\n":
-                return f"println('{joined_content}')"
-            elif end == "":
-                return f"print('{joined_content}')"
+            if is_stderr:
+                if end == "\\n":
+                    return f"eprintln('{joined_content}')"
+                elif end == "":
+                    return f"eprint('{joined_content}')"
+                else:
+                    return f"eprint('{joined_content}{end}')"
             else:
-                return f"print('{joined_content}{end}')"
+                if end == "\\n":
+                    return f"println('{joined_content}')"
+                elif end == "":
+                    return f"print('{joined_content}')"
+                else:
+                    return f"print('{joined_content}{end}')"
 
         # Check if it is a generator call
         if self.coroutine_handler.is_generator(func_name_str):

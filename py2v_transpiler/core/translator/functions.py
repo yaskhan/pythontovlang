@@ -42,7 +42,7 @@ class FunctionsMixin(TranslatorBase):
                 args = args[1:]
 
             for arg in args:
-                arg_name = arg.arg
+                arg_name = self._sanitize_name(arg.arg)
                 if arg.annotation:
                     try:
                         type_str = ast.unparse(arg.annotation)
@@ -120,13 +120,29 @@ class FunctionsMixin(TranslatorBase):
         if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
              is_generator = self.coroutine_handler.is_generator(original_name if 'original_name' in locals() else node.name)
 
-        # Save current state
-        old_output = self.output
-        self.output = []
-        self._indent_level = 0
-
         # Analyze decorators
         dec_info = self.decorator_processor.analyze(node, self.current_class)
+
+        is_method = self.current_class is not None
+        # Ensure struct_name is always a string
+        base_struct_name: str = self.current_class if self.current_class else ""
+
+        # Check if the class is a mixin and get list of main struct names if needed
+        is_mixin = False
+        struct_names = [base_struct_name]
+        if is_method and hasattr(self.type_inference, 'mixin_to_main'):
+            if base_struct_name in self.type_inference.mixin_to_main:
+                struct_names = self.type_inference.mixin_to_main[base_struct_name]
+                is_mixin = True
+
+        old_output = self.output
+        for struct_name in struct_names:
+            self._generate_function_for_struct(node, is_async, is_method, struct_name, dec_info, is_generator)
+        self.output = old_output
+
+    def _generate_function_for_struct(self, node: Any, is_async: bool, is_method: bool, struct_name: str, dec_info: Any, is_generator: bool) -> None:
+        self.output = []
+        self._indent_level = 0
 
         # Handle decorators comments (emit all for clarity)
         for decorator in node.decorator_list:
@@ -146,10 +162,6 @@ class FunctionsMixin(TranslatorBase):
              # Avoid duplicating if in handled list?
              # Just emit comments for all decorators as metadata
              self.output.append(f"// @{dec_str}")
-
-        is_method = self.current_class is not None
-        # Ensure struct_name is always a string
-        struct_name: str = self.current_class if self.current_class else ""
 
         args_str_list: List[str] = []
         receiver_str: str = ""
@@ -212,7 +224,7 @@ class FunctionsMixin(TranslatorBase):
              args = args[1:]
 
         for arg in args:
-            arg_name = arg.arg
+            arg_name = self._sanitize_name(arg.arg)
             args_names.append(arg_name)
             # Use annotation if available for better type mapping
             if arg.annotation:
@@ -227,7 +239,7 @@ class FunctionsMixin(TranslatorBase):
             args_str_list.append(f"{arg_name} {arg_type}")
 
         if node.args.vararg:
-            arg_name = node.args.vararg.arg
+            arg_name = self._sanitize_name(node.args.vararg.arg)
             arg_type = "int" # Default
             if node.args.vararg.annotation:
                 try:
@@ -239,7 +251,7 @@ class FunctionsMixin(TranslatorBase):
             args_names.append(arg_name)
 
         if node.args.kwarg:
-            arg_name = node.args.kwarg.arg
+            arg_name = self._sanitize_name(node.args.kwarg.arg)
             arg_type = "map[string]string"
             if node.args.kwarg.annotation:
                 try:
@@ -276,7 +288,7 @@ class FunctionsMixin(TranslatorBase):
                  pass
 
         if not is_unittest_method:
-            func_name = node.name
+            func_name = self._sanitize_name(node.name)
 
             # Check if this is the implementation of an overloaded function
             if func_name in self.overloaded_signatures and not is_new_method:
@@ -302,7 +314,7 @@ class FunctionsMixin(TranslatorBase):
                  func_name = f"set_{func_name}"
 
             if self.current_class and not is_new_method:
-                func_name = self._mangle_name(func_name, self.current_class)
+                func_name = self._mangle_name(func_name, struct_name)
 
             if func_name in self.renamed_functions:
                 func_name = self.renamed_functions[func_name]
@@ -405,7 +417,14 @@ class FunctionsMixin(TranslatorBase):
 
         self.emitter.add_function("\n".join(self.output))
 
-        self.output = old_output
+        # We cannot just restore self.output to old_output entirely if it's called in a loop,
+        # but since we create a new scope for the generated function, we append it to emitter.
+        # Wait, if it was inside a class, the method doesn't return anything to self.output usually,
+        # it just uses self.output as a buffer.
+        # But if we want it to be isolated, we should keep old_output logic correct.
+        # old_output was saved in _visit_function_common.
+        # We need to manage self.output per _generate_function_for_struct call.
+        # So we move old_output = self.output inside _generate_function_for_struct
 
     def _generate_overload_variants(self, node: Any, struct_name: str, is_method: bool, dec_info: Any, is_generator: bool) -> None:
         """Generates V functions for each @overload signature using the implementation body."""
@@ -439,7 +458,7 @@ class FunctionsMixin(TranslatorBase):
             # Generate mangled name based on argument types
             type_suffix_parts = []
             for arg in sig["args"]:
-                arg_name = arg["name"]
+                arg_name = self._sanitize_name(arg["name"])
                 arg_type = arg["type"]
                 args_str_list.append(f"{arg_name} {arg_type}")
                 args_names.append(arg_name)
@@ -450,9 +469,9 @@ class FunctionsMixin(TranslatorBase):
             args_str = ", ".join(args_str_list)
             ret_type = sig["return"]
 
-            base_func_name = node.name
+            base_func_name = self._sanitize_name(node.name)
             if self.current_class:
-                base_func_name = self._mangle_name(base_func_name, self.current_class)
+                base_func_name = self._sanitize_name(self._mangle_name(base_func_name, self.current_class))
 
             if type_suffix_parts:
                 func_name = f"{base_func_name}_{'_'.join(type_suffix_parts)}"
@@ -512,7 +531,7 @@ class FunctionsMixin(TranslatorBase):
         # lambda args: expr -> fn (args) { return expr }
         args_str_list = []
         for arg in node.args.args:
-            arg_name = arg.arg
+            arg_name = self._sanitize_name(arg.arg)
             arg_type = "int" # Default type for now
             args_str_list.append(f"{arg_name} {arg_type}")
 
