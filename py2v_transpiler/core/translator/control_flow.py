@@ -127,8 +127,24 @@ class ControlFlowMixin(TranslatorBase):
 
         # Push loop context to stack for break handling
         self.loop_stack.append({'vexc_depth': self.vexc_depth})
+# 1. Сначала проверяем на деструктуризацию кортежа (из feat-ветки)
+        if isinstance(node.target, ast.Tuple) and target.startswith("[") and target.endswith("]"):
+            val_name = f"_val_{id(node)}"
+            self.output.append(f"{self._indent()}for {val_name} in {iter_expr} {{")
+            self._indent_level += 1
+            for i, elt in enumerate(node.target.elts):
+                elt_name = self.visit(elt)
+                self.output.append(f"{self._indent()}{elt_name} := {val_name}[{i}]")
+            for stmt in node.body:
+                self.visit(stmt)
+            self._indent_level -= 1
+            self.output.append(f"{self._indent()}}}")
+            self.loop_stack.pop()
+            if node.orelse:
+                self.output.append(f"{self._indent()}// else clause in async for not supported yet")
+            return
 
-        # Handle string iteration: V yields u8 for strings, so we convert using .ascii_str()
+        # 2. Если это не кортеж, проверяем итерацию по строке (из main-ветки)
         is_string_iter = False
         if isinstance(node.iter, ast.Call) and getattr(node.iter.func, 'id', '') == "str":
             is_string_iter = True
@@ -136,16 +152,20 @@ class ControlFlowMixin(TranslatorBase):
             is_string_iter = True
 
         if is_string_iter:
+            # Специфичная логика V: u8 -> string
             self.output.append(f"{self._indent()}for {target}_u8 in {iter_expr} {{")
             self._indent_level += 1
             self.output.append(f"{self._indent()}{target} := {target}_u8.ascii_str()")
             for stmt in node.body:
                 self.visit(stmt)
         else:
+            # Стандартный цикл для всех остальных случаев
             self.output.append(f"{self._indent()}for {target} in {iter_expr} {{")
             self._indent_level += 1
             for stmt in node.body:
                 self.visit(stmt)
+
+        # 3. Закрываем блок (это было общим в обеих ветках)       
         self._indent_level -= 1
         self.output.append(f"{self._indent()}}}")
 
@@ -286,24 +306,56 @@ class ControlFlowMixin(TranslatorBase):
                      else:
                          self.output.append(f"{self._indent()}// TODO: handle enumerate with single target variable")
 
-        # Handle string iteration: V yields u8 for strings, so we convert using .ascii_str()
+        # Определяем вспомогательные флаги из обеих веток
+        is_enumerate = isinstance(node.iter, ast.Call) and getattr(node.iter.func, "id", "") == "enumerate"
+        is_dict_items = isinstance(node.iter, ast.Call) and isinstance(node.iter.func, ast.Attribute) and node.iter.func.attr == "items"
+        
         is_string_iter = False
         if isinstance(node.iter, ast.Call) and getattr(node.iter.func, 'id', '') == "str":
             is_string_iter = True
         elif hasattr(self, '_guess_type') and self._guess_type(node.iter) == "string":
             is_string_iter = True
 
+        # 1. Обработка деструктуризации кортежа (кроме случаев с enumerate/dict.items)
+        if isinstance(node.target, ast.Tuple) and target.startswith("[") and target.endswith("]") and not is_enumerate and not is_dict_items:
+            val_name = f"_val_{id(node)}"
+            self.output.append(f"{self._indent()}for {val_name} in {iter_expr} {{")
+            self._indent_level += 1
+            for i, elt in enumerate(node.target.elts):
+                elt_name = self.visit(elt)
+                self.output.append(f"{self._indent()}{elt_name} := {val_name}[{i}]")
+            for stmt in node.body:
+                self.visit(stmt)
+            self._indent_level -= 1
+            self.output.append(f"{self._indent()}}}")
+            self.loop_stack.pop()
+            
+            # Обработка orelse (из feat ветки)
+            if node.orelse:
+                self.output.append(f"{self._indent()}if {flag_name} {{")
+                self._indent_level += 1
+                for stmt in node.orelse:
+                    self.visit(stmt)
+                self._indent_level -= 1
+                self.output.append(f"{self._indent()}}}")
+            return
+
+        # 2. Подготовка таргета для dict.items
+        if is_dict_items and target.startswith("[") and target.endswith("]"):
+            target = target[1:-1]
+
+        # 3. Генерация основного цикла (с учетом специфики строк в V)
         if is_string_iter:
             self.output.append(f"{self._indent()}for {target}_u8 in {iter_expr} {{")
             self._indent_level += 1
             self.output.append(f"{self._indent()}{target} := {target}_u8.ascii_str()")
-            for stmt in node.body:
-                self.visit(stmt)
         else:
             self.output.append(f"{self._indent()}for {target} in {iter_expr} {{")
             self._indent_level += 1
-            for stmt in node.body:
-                self.visit(stmt)
+
+        # Тело цикла (общее для строк и обычного случая)
+        for stmt in node.body:
+            self.visit(stmt)
         self._indent_level -= 1
         self.output.append(f"{self._indent()}}}")
 
