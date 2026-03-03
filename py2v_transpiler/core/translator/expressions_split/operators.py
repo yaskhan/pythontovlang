@@ -56,14 +56,26 @@ class OperatorsMixin(TranslatorBase):
                   length = right
                   elem_type = self._guess_type(node.left.elts[0])
                   if init_val == "none":
-                       elem_type = "?Any"
+                       expected_type = getattr(self, "current_assignment_type", None)
+                       if expected_type and expected_type.startswith("[]"):
+                           elem_type = expected_type[2:]
+                           if not elem_type.startswith("?"):
+                               elem_type = f"?{elem_type}"
+                       else:
+                           elem_type = "?Any"
                   return f"[]{elem_type}{{len: {length}, init: {init_val}}}"
              elif isinstance(node.right, ast.List) and len(node.right.elts) == 1:
                   init_val = self.visit(node.right.elts[0])
                   length = left
                   elem_type = self._guess_type(node.right.elts[0])
                   if init_val == "none":
-                       elem_type = "?Any"
+                       expected_type = getattr(self, "current_assignment_type", None)
+                       if expected_type and expected_type.startswith("[]"):
+                           elem_type = expected_type[2:]
+                           if not elem_type.startswith("?"):
+                               elem_type = f"?{elem_type}"
+                       else:
+                           elem_type = "?Any"
                   return f"[]{elem_type}{{len: {length}, init: {init_val}}}"
 
         # Check for bytes formatting: b"%s" % b"a"

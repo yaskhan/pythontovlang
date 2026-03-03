@@ -515,7 +515,7 @@ Based on the transpilation of the `bm_richards.py` benchmark, several critical a
   - *Context:* Python method named `fn` (e.g., `def fn(self, pkt, r):`) is transpiled directly as `fn (self Task) fn(...)`, which causes a syntax error in V because `fn` is a reserved keyword.
   - *Task:* Implement an AST sanitization pass to rename or prefix Python identifiers that conflict with Vlang reserved keywords (e.g., mapping `fn` to `fn_` or `py_fn`).
 
-- [ ] **Array Initialization with `[None] * N`**
+- [x] **Array Initialization with `[None] * N`**
   - *Context:* Python's `[None] * TASKTABSIZE` is emitted directly as `[none] * TASKTABSIZE`, which is invalid V syntax for initializing arrays.
   - *Task:* Transpile list repetitions containing `None` into proper V array initialization (e.g., `[]?Task{len: TASKTABSIZE, init: none}`).
 
