@@ -14,9 +14,27 @@ class ControlFlowMixin(TranslatorBase):
                     self.visit(stmt)
                 return
 
+        if_vars = self._collect_assigned_vars(node.body)
+        else_vars = self._collect_assigned_vars(node.orelse) if node.orelse else set()
+
+        # Pre-declare conditionally initialized variables
+        for var in (if_vars | else_vars):
+            if not self.in_main and var not in self._local_vars_in_scope:
+                v_type = self._guess_type(ast.Name(id=var, ctx=ast.Store()))
+                if v_type == "unknown":
+                    v_type = "Any"
+                if not v_type.startswith("?"):
+                    v_type = f"?{v_type}"
+                self.output.append(f"{self._indent()}mut {var} := {v_type}(none)")
+                self._local_vars_in_scope.add(var)
+
         # Check for walrus operator
         self._walrus_assignments = []
         test_expr = self.visit(node.test)
+
+        node_type = self._guess_type(node.test)
+        if node_type.startswith("[]") or node_type.startswith("map[") or node_type == "string":
+            test_expr = f"{test_expr}.len > 0"
 
         if self._walrus_assignments:
              for assign in self._walrus_assignments:
@@ -62,6 +80,10 @@ class ControlFlowMixin(TranslatorBase):
         self._walrus_assignments = []
         test_expr = self.visit(node.test)
 
+        node_type = self._guess_type(node.test)
+        if node_type.startswith("[]") or node_type.startswith("map[") or node_type == "string":
+            test_expr = f"{test_expr}.len > 0"
+
         if self._walrus_assignments:
              # Found walrus! Transform loop.
              self.output.append(f"{self._indent()}for {{")
@@ -106,10 +128,24 @@ class ControlFlowMixin(TranslatorBase):
         # Push loop context to stack for break handling
         self.loop_stack.append({'vexc_depth': self.vexc_depth})
 
-        self.output.append(f"{self._indent()}for {target} in {iter_expr} {{")
-        self._indent_level += 1
-        for stmt in node.body:
-            self.visit(stmt)
+        # Handle string iteration: V yields u8 for strings, so we convert using .ascii_str()
+        is_string_iter = False
+        if isinstance(node.iter, ast.Call) and getattr(node.iter.func, 'id', '') == "str":
+            is_string_iter = True
+        elif hasattr(self, '_guess_type') and self._guess_type(node.iter) == "string":
+            is_string_iter = True
+
+        if is_string_iter:
+            self.output.append(f"{self._indent()}for {target}_u8 in {iter_expr} {{")
+            self._indent_level += 1
+            self.output.append(f"{self._indent()}{target} := {target}_u8.ascii_str()")
+            for stmt in node.body:
+                self.visit(stmt)
+        else:
+            self.output.append(f"{self._indent()}for {target} in {iter_expr} {{")
+            self._indent_level += 1
+            for stmt in node.body:
+                self.visit(stmt)
         self._indent_level -= 1
         self.output.append(f"{self._indent()}}}")
 
@@ -193,11 +229,18 @@ class ControlFlowMixin(TranslatorBase):
                 if func_node.id in ("range", "xrange"):
                     is_range = True
             elif isinstance(func_node, ast.Attribute):
+                # Поддержка six.moves.xrange или подобных конструкций
                 if func_node.attr == "xrange":
                     is_range = True
 
+        # Логика для dict.items() из main
+        if isinstance(node.iter, ast.Call) and isinstance(node.iter.func, ast.Attribute) and node.iter.func.attr == "items":
+            if isinstance(node.target, ast.Tuple):
+                if target.startswith("[") and target.endswith("]"):
+                    target = target[1:-1]
+            iter_expr = self.visit(node.iter.func.value)
+
         if is_range:
-             if True: # To keep indentation
                  range_args = node.iter.args
                  if len(range_args) == 3:
                      start = self.visit(range_args[0])
@@ -243,10 +286,24 @@ class ControlFlowMixin(TranslatorBase):
                      else:
                          self.output.append(f"{self._indent()}// TODO: handle enumerate with single target variable")
 
-        self.output.append(f"{self._indent()}for {target} in {iter_expr} {{")
-        self._indent_level += 1
-        for stmt in node.body:
-            self.visit(stmt)
+        # Handle string iteration: V yields u8 for strings, so we convert using .ascii_str()
+        is_string_iter = False
+        if isinstance(node.iter, ast.Call) and getattr(node.iter.func, 'id', '') == "str":
+            is_string_iter = True
+        elif hasattr(self, '_guess_type') and self._guess_type(node.iter) == "string":
+            is_string_iter = True
+
+        if is_string_iter:
+            self.output.append(f"{self._indent()}for {target}_u8 in {iter_expr} {{")
+            self._indent_level += 1
+            self.output.append(f"{self._indent()}{target} := {target}_u8.ascii_str()")
+            for stmt in node.body:
+                self.visit(stmt)
+        else:
+            self.output.append(f"{self._indent()}for {target} in {iter_expr} {{")
+            self._indent_level += 1
+            for stmt in node.body:
+                self.visit(stmt)
         self._indent_level -= 1
         self.output.append(f"{self._indent()}}}")
 
