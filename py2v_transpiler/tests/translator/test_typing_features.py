@@ -209,3 +209,20 @@ def check(x: int) -> None:
     v_code = translate(source)
     # assert_never should be translated to a panic or similar
     assert "panic" in v_code.lower() or "assert_never" in v_code
+
+def test_typing_disjoint_base():
+    source = """
+from typing import disjoint_base
+
+@disjoint_base
+class BaseClass:
+    pass
+
+@disjoint_base
+class AnotherBase:
+    pass
+"""
+    v_code = translate(source)
+    assert "[disjoint_base]" in v_code
+    assert "struct BaseClass {" in v_code
+    assert "struct AnotherBase {" in v_code
