@@ -1,6 +1,6 @@
 import ast
 import os
-from typing import Dict, Set, List
+from typing import Dict, Set
 
 class DependencyAnalyzer(ast.NodeVisitor):
     def __init__(self):
