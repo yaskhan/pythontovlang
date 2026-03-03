@@ -697,8 +697,18 @@ class VariablesMixin(TranslatorBase):
         if node.id in self.name_remap:
             return self.name_remap[node.id]
 
+        # Resolve SCC symbols
+        if node.id in self.imported_symbols:
+            return self.imported_symbols[node.id]
+
         # Name mangling for class-private attributes
-        return self._sanitize_name(self._mangle_name(node.id, self.current_class))
+        name = self._mangle_name(node.id, self.current_class)
+
+        # Avoid prefixing local variables in SCC
+        if name in self._local_vars_in_scope:
+            return self._sanitize_name(name)
+
+        return self._sanitize_name(name)
 
     def visit_TypeAlias(self, node: Any) -> None:
         name = self._sanitize_name(node.name.id)

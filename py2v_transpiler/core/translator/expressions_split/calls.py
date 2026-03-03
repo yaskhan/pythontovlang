@@ -60,8 +60,11 @@ class CallsMixin(TranslatorBase):
                 # from mod import func
                 full_name = self.imported_symbols[func_node.id]
                 parts = full_name.split(".")
-                module_name = parts[0]
-                func_name = parts[1]
+                if len(parts) > 1:
+                    module_name = parts[0]
+                    func_name = parts[1]
+                else:
+                    func_name = parts[0]
             elif func_node.id == "open":
                 module_name = "os" # synthetic
                 func_name = "open"
@@ -389,6 +392,24 @@ class CallsMixin(TranslatorBase):
                 func_name_str = f"{func_name_str}_{'_'.join(type_suffix_parts)}"
             else:
                 func_name_str = f"{func_name_str}_noargs"
+
+        # Resolve SCC Attribute calls (module.Func)
+        if isinstance(node.func, ast.Attribute) and isinstance(node.func.value, ast.Name):
+            if node.func.value.id in self.imported_modules:
+                module_name_scc = self.imported_modules[node.func.value.id]
+                scc_file = next((f for f in self.scc_files if module_name_scc.endswith(f.split('.')[0])), None)
+                if scc_file:
+                    prefix = self._get_scc_prefix(scc_file)
+                    func_name_scc = f"{prefix}__{self._sanitize_name(node.func.attr)}"
+                    # Transform to direct function call
+                    return f"{func_name_scc}({', '.join(args)})"
+
+        # Resolve SCC direct calls (from mod import func)
+        if isinstance(node.func, ast.Name) and node.func.id in self.imported_symbols:
+            full_name = self.imported_symbols[node.func.id]
+            # If it has a prefix from SCC
+            if "__" in full_name:
+                 return f"{full_name}({', '.join(args)})"
 
         # Handle dataclass constructor call
         dataclass_metadata = None

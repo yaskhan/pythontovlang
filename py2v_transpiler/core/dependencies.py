@@ -30,26 +30,22 @@ class DependencyAnalyzer(ast.NodeVisitor):
         """Resolves a Python module name to a relative file path within the project."""
         parts = module_name.split(".")
 
-        # Try absolute project import
-        potential_path = os.path.join(root_path, *parts)
-        if os.path.exists(potential_path + ".py"):
-            return os.path.relpath(potential_path + ".py", root_path)
-
-        # Try resolving by stripping components from the left (to handle project-prefixed imports)
-        # e.g. reproduction.nested.models.order -> models/order.py
+        # 1. Try absolute project import or stripping components from the left
         for i in range(len(parts)):
             sub_parts = parts[i:]
             potential_path = os.path.join(root_path, *sub_parts)
             if os.path.exists(potential_path + ".py"):
                 return os.path.relpath(potential_path + ".py", root_path)
-        if os.path.isdir(potential_path) and os.path.exists(os.path.join(potential_path, "__init__.py")):
-            return os.path.relpath(os.path.join(potential_path, "__init__.py"), root_path)
+            if os.path.isdir(potential_path) and os.path.exists(os.path.join(potential_path, "__init__.py")):
+                return os.path.relpath(os.path.join(potential_path, "__init__.py"), root_path)
 
-        # Try relative import (relative to current_file_path)
+        # 2. Try relative import (relative to current_file_path)
         current_dir = os.path.dirname(os.path.join(root_path, current_file_path))
         potential_path = os.path.join(current_dir, *parts)
         if os.path.exists(potential_path + ".py"):
             return os.path.relpath(potential_path + ".py", root_path)
+        if os.path.isdir(potential_path) and os.path.exists(os.path.join(potential_path, "__init__.py")):
+            return os.path.relpath(os.path.join(potential_path, "__init__.py"), root_path)
 
         return None
 
@@ -62,7 +58,7 @@ class DependencyAnalyzer(ast.NodeVisitor):
                     full_path = os.path.join(root, file)
                     rel_path = os.path.relpath(full_path, root_path)
                     # Support dot-notation keys for SCC lookup
-                    dot_path = rel_path.replace('.py', '').replace('/', '.')
+                    dot_path = rel_path.replace('.py', '').replace('/', '.').replace('\\', '.')
                     file_list.append(rel_path)
                     deps = self.analyze_file(full_path)
                     raw_graph[rel_path] = deps

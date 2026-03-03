@@ -1,4 +1,5 @@
 import ast
+import os
 from typing import Any, List, Optional, Dict, Set
 from py2v_transpiler.core.generator import VCodeEmitter
 from py2v_transpiler.stdlib_map.mapper import StdLibMapper
@@ -124,6 +125,24 @@ class TranslatorBase(ast.NodeVisitor):
     def _indent(self) -> str:
         return "    " * self._indent_level
 
+    def _get_scc_prefix(self, file_path: str) -> str:
+        """Generates a consistent prefix for a file within an SCC."""
+        # Fix: ensure we don't return empty string or fail
+        # Use filename only, normalized
+        filename = os.path.basename(file_path)
+        base = filename.split('.')[0]
+        if not base:
+             # Fallback if filename is empty or weird
+             base = "py_mod"
+        return base.replace('.', '_').replace('/', '_').replace('\\', '_')
+
+    def _is_top_level_symbol(self, name: str) -> bool:
+        """Heuristic to check if a name refers to a top-level symbol (class/func/global)."""
+        # In a real transpiler, this would check a pre-populated symbol table.
+        # Here we check if it's NOT a method (which would have self.current_class set)
+        # and NOT a known local variable.
+        return not self.current_class and name not in self._local_vars_in_scope
+
     def _sanitize_name(self, name: str) -> str:
         """
         Sanitizes Python identifiers that collide with V lang reserved keywords
@@ -139,11 +158,14 @@ class TranslatorBase(ast.NodeVisitor):
             return f"py_{name}"
 
         # Naming collision resolution for SCC flattened modules
-        if self.current_file_name and len(self.scc_files) > 1 and not self.current_class:
-            # If we are in a flattened SCC, prefix top-level names if they might collide.
-            # We prefix with the sanitized file name (removing path and .py)
-            prefix = self.current_file_name.replace('.py', '').replace('/', '_').split('.')[-1]
-            return f"{prefix}__{name}"
+        current_file_name = getattr(self, 'current_file_name', '')
+        scc_files = getattr(self, 'scc_files', set())
+        if current_file_name and len(scc_files) > 1 and not getattr(self, 'current_class', None):
+            # If we are in a flattened SCC, prefix top-level names to avoid collisions.
+            # BUT avoid double prefixing or prefixing builtins
+            if "__" not in name and name not in self._local_vars_in_scope:
+                prefix = self._get_scc_prefix(current_file_name)
+                return f"{prefix}__{name}"
 
         return name
 

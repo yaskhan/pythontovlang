@@ -236,6 +236,19 @@ class FunctionsMixin(TranslatorBase):
             else:
                 arg_type = self.type_inference.type_map.get(arg_name, "int")
 
+            # Adjust arg type for SCC
+            if arg_type in self.imported_symbols:
+                 arg_type = self.imported_symbols[arg_type]
+            elif "." in arg_type:
+                 # Check if it is module.Type
+                 parts = arg_type.split('.')
+                 module_prefix = ".".join(parts[:-1])
+                 typename = parts[-1]
+                 scc_file = next((f for f in self.scc_files if module_prefix.replace('reproduction.cyclic.', '').replace('reproduction.nested.', '').endswith(f.split('.')[0])), None)
+                 if scc_file:
+                      prefix = self._get_scc_prefix(scc_file)
+                      arg_type = f"{prefix}__{typename}"
+
             args_str_list.append(f"{arg_name} {arg_type}")
 
         if node.args.vararg:
@@ -360,6 +373,19 @@ class FunctionsMixin(TranslatorBase):
              decl = f"fn {receiver_str}{func_name}() string {{"
 
         noreturn_attr = "[noreturn]\n" if is_noreturn else ""
+
+        # Adjust return type for SCC if it refers to a top-level symbol
+        if ret_type in self.imported_symbols:
+             ret_type = self.imported_symbols[ret_type]
+        elif "." in ret_type:
+             # Check if it is module.Type
+             parts = ret_type.split('.')
+             module_prefix = ".".join(parts[:-1])
+             typename = parts[-1]
+             scc_file = next((f for f in self.scc_files if module_prefix.replace('reproduction.cyclic.', '').replace('reproduction.nested.', '').endswith(f.split('.')[0])), None)
+             if scc_file:
+                  prefix = self._get_scc_prefix(scc_file)
+                  ret_type = f"{prefix}__{typename}"
 
         if 'decl' not in locals():
             decl = f"{noreturn_attr}fn {receiver_str}{func_name}({args_str}) {ret_type} {{"

@@ -7,7 +7,18 @@ class ImportsMixin(TranslatorBase):
             module_name = alias.name
 
             # Skip imports if they are within the same SCC (same V package)
-            if any(module_name == f.replace('.py', '').replace('/', '.') for f in self.scc_files):
+            # Map the imported module name to its SCC prefix for cross-file references
+            scc_file = next((f for f in self.scc_files if module_name.endswith(f.split('.')[0])), None)
+            if scc_file:
+                # We don't need a V import, but we need to track that names from this module
+                # are available in the current namespace (package-level).
+                # However, top-level names in that file are now prefixed.
+                # So we mark this module in imported_modules to handle Attribute access.
+                as_name = alias.asname if alias.asname else module_name
+                self.imported_modules[as_name] = module_name
+
+                # If it's a 'from ... import *' or similar, we'd need more logic.
+                # But for 'import mod', we just skip.
                 continue
 
             as_name = alias.asname if alias.asname else module_name
@@ -27,11 +38,14 @@ class ImportsMixin(TranslatorBase):
             module_name = node.module
 
             # Skip if module is in the same SCC
-            if any(module_name == f.replace('.py', '').replace('/', '.') for f in self.scc_files):
+            scc_file = next((f for f in self.scc_files if module_name.endswith(f.split('.')[0])), None)
+            if scc_file:
+                prefix = self._get_scc_prefix(scc_file)
                 for alias in node.names:
                     name = alias.name
                     as_name = alias.asname if alias.asname else name
-                    self.imported_symbols[as_name] = name # No prefix needed
+                    # The symbol is actually named 'prefix__name' in the flattened module
+                    self.imported_symbols[as_name] = f"{prefix}__{name}"
                 return
 
             # Suppress __future__ imports

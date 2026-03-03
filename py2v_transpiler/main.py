@@ -137,7 +137,7 @@ def transpile_file(source_file: str, config: TranspilerConfig, global_helpers: O
                 v_code_helpers = translator.emitter.emit_helpers()
     except Exception as e:
         print(f"Translation error in {source_file}: {e}")
-        # import traceback; traceback.print_exc()
+        import traceback; traceback.print_exc()
         return False
 
     # 5. Output
@@ -192,6 +192,7 @@ def process_directory(path: str, config: TranspilerConfig, recursive: bool) -> N
 
     # Identify SCCs that span multiple directories and decide on their consolidation
     scc_to_dir = {}
+    scc_to_module = {}
     for scc_set in sccs:
         scc = list(scc_set)
         if len(scc) > 1:
@@ -199,8 +200,12 @@ def process_directory(path: str, config: TranspilerConfig, recursive: bool) -> N
             first_file = scc[0]
             scc_dir = os.path.dirname(os.path.join(path, first_file))
             scc_to_dir[id(scc_set)] = scc_dir
+            # If multi-file SCC, use directory name as module
+            scc_to_module[id(scc_set)] = os.path.basename(scc_dir) if os.path.basename(scc_dir) else "models"
         else:
-            scc_to_dir[id(scc_set)] = os.path.dirname(os.path.join(path, scc[0]))
+            scc_dir = os.path.dirname(os.path.join(path, scc[0]))
+            scc_to_dir[id(scc_set)] = scc_dir
+            scc_to_module[id(scc_set)] = "main"
 
     # Group files by their final destination directory
     final_dir_to_files = {}
@@ -210,16 +215,21 @@ def process_directory(path: str, config: TranspilerConfig, recursive: bool) -> N
             final_dir_to_files[d] = []
         final_dir_to_files[d].append(f)
 
-    # Within each directory, ensure all files share the same module name
+    # Within each directory, ensure ALL files share the same module name
     for d, files in final_dir_to_files.items():
         global_helpers = GlobalHelpers()
         processed_files = 0
 
-        # Determine module name for this directory
-        # If any file in this directory belongs to a multi-file SCC,
-        # use the directory name as module name. Otherwise use "main".
-        has_scc = any(len(file_to_scc[f]) > 1 for f in files)
-        current_module = os.path.basename(d) if has_scc and os.path.basename(d) else "main"
+        # Determine a consistent module name for this directory.
+        # If any file in the directory belongs to a multi-file SCC,
+        # use the module name associated with that SCC for the whole directory.
+        # Otherwise, use "main".
+        current_module = "main"
+        for f in files:
+            scc = file_to_scc[f]
+            if len(scc) > 1:
+                current_module = scc_to_module[id(scc)]
+                break
 
         for f in files:
             full_path = os.path.join(path, f)

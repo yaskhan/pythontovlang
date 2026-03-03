@@ -47,4 +47,12 @@ class AttributesMixin(TranslatorBase):
             # Map func.attr -> func__attr
             return f"{obj}__{attr_name}"
 
+        # Handle SCC Attribute access: imported_module.attr -> prefix__attr
+        if isinstance(node.value, ast.Name) and node.value.id in self.imported_modules:
+            module_name = self.imported_modules[node.value.id]
+            scc_file = next((f for f in self.scc_files if module_name.endswith(f.split('.')[0])), None)
+            if scc_file:
+                prefix = self._get_scc_prefix(scc_file)
+                return f"{prefix}__{attr_name}"
+
         return f"{obj}.{attr_name}"
