@@ -73,6 +73,18 @@ class ClassesMixin(TranslatorBase):
         is_named_tuple = False
         is_typed_dict = False
 
+        # If it's a dataclass, try to find perfectly inferred metadata from mypy
+        dataclass_metadata = None
+        if is_dataclass and hasattr(self.type_inference, 'call_signatures'):
+            # Look for the constructor signature which contains the metadata
+            for k, sig_data in self.type_inference.call_signatures.items():
+                if "dataclass_metadata" in sig_data:
+                    # check if it matches this class name
+                    # signatures keys are usually "module.ClassName@line:col" or "ClassName@line:col"
+                    if k.startswith(f"{node.name}@") or k.split('@')[0].endswith(f".{node.name}") or k.startswith(f"{struct_name}@"):
+                        dataclass_metadata = sig_data["dataclass_metadata"]
+                        break
+
         # Record direct bases for class hierarchy
         direct_bases = []
         for base in node.bases:
@@ -255,26 +267,31 @@ class ClassesMixin(TranslatorBase):
 
                 if field_name in added_fields:
                     continue
-                added_fields.add(field_name)
 
-                field_type = "int" # default
-                if stmt.annotation:
-                    try:
-                        type_str = ast.unparse(stmt.annotation)
-                        field_type = map_python_type_to_v(type_str, self_name=struct_name)
-                    except Exception:
-                        if isinstance(stmt.annotation, ast.Name):
-                            field_type = stmt.annotation.id
+                # If we have perfect dataclass metadata, wait to emit fields later to avoid duplicates
+                if is_dataclass and dataclass_metadata:
+                    # just collect it in added_fields for processing later if needed
+                    pass
+                else:
+                    added_fields.add(field_name)
+                    field_type = "int" # default
+                    if stmt.annotation:
+                        try:
+                            type_str = ast.unparse(stmt.annotation)
+                            field_type = map_python_type_to_v(type_str, self_name=struct_name)
+                        except Exception:
+                            if isinstance(stmt.annotation, ast.Name):
+                                field_type = stmt.annotation.id
 
-                if is_dataclass or is_typed_dict:
-                    dataclass_field_order.append(field_name)
-                    if stmt.value:
-                        default_val = self.visit(stmt.value)
-                        fields.append(f"    {field_name} {field_type} = {default_val}")
+                    if is_dataclass or is_typed_dict:
+                        dataclass_field_order.append(field_name)
+                        if stmt.value:
+                            default_val = self.visit(stmt.value)
+                            fields.append(f"    {field_name} {field_type} = {default_val}")
+                        else:
+                            fields.append(f"    {field_name} {field_type}")
                     else:
                         fields.append(f"    {field_name} {field_type}")
-                else:
-                    fields.append(f"    {field_name} {field_type}")
             elif isinstance(stmt, ast.Assign):
                  # Check for __slots__
                  for target in stmt.targets:
@@ -292,6 +309,55 @@ class ClassesMixin(TranslatorBase):
                              if slot not in added_fields:
                                  fields.append(f"    {slot} int") # Default to int
                                  added_fields.add(slot)
+
+        if is_dataclass and dataclass_metadata:
+            # Emit fields purely from mypy's evaluation
+            for attr in dataclass_metadata.get('attributes', []):
+                # mypy filters out ClassVar, but tracks InitVar.
+                # Usually InitVar shouldn't be a struct field unless we keep it for reference.
+                # Let's emit InitVars and regular fields, or just regular fields if `is_in_init`?
+                # Actually, standard python dataclasses don't store InitVar on the instance!
+                # V structs shouldn't have them either if they are just InitVars.
+                # mypy's metadata: 'is_init_var': True/False
+                is_init_var = attr.get('is_init_var', False)
+                if is_init_var:
+                    continue
+
+                field_name = self._sanitize_name(attr['name'])
+                if field_name in added_fields:
+                    continue
+                added_fields.add(field_name)
+
+                # Mypy gives types like 'builtins.int', map them to V
+                raw_type = attr.get('type', 'Any')
+                norm_typ = raw_type.replace("builtins.", "")
+                try:
+                    field_type = map_python_type_to_v(norm_typ)
+                except Exception:
+                    field_type = "Any"
+
+                # Fallback cleanups
+                if field_type == "int" or norm_typ == "int": field_type = "int"
+                elif field_type == "str" or norm_typ == "str": field_type = "string"
+                elif field_type == "float" or norm_typ == "float": field_type = "f64"
+                elif field_type == "bool" or norm_typ == "bool": field_type = "bool"
+
+                # For defaults, we might need to find the node again to evaluate the value,
+                # but V allows initializing without explicit defaults in struct definition if zero-init is fine.
+                # If it has a default, we ideally want to fetch it.
+                has_default = attr.get('has_default', False)
+                default_str = ""
+                if has_default:
+                    # Scan body for the exact assignment to get the default expression
+                    for stmt in body:
+                        if isinstance(stmt, ast.AnnAssign) and isinstance(stmt.target, ast.Name) and stmt.target.id == attr['name']:
+                            if stmt.value:
+                                default_str = f" = {self.visit(stmt.value)}"
+                            break
+
+                dataclass_field_order.append(field_name)
+                fields.append(f"    {field_name} {field_type}{default_str}")
+
 
         if is_dataclass or is_typed_dict:
             if not hasattr(self, 'dataclasses'):

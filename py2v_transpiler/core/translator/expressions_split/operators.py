@@ -23,6 +23,17 @@ class OperatorsMixin(TranslatorBase):
 
             elt_str = self.visit(elt)
             right_str = self.visit(node.right)
+
+            if elt_str == "none":
+                expected_type = getattr(self, "current_assignment_type", None)
+                if expected_type and expected_type.startswith("[]"):
+                    elem_type = expected_type[2:]
+                    if not elem_type.startswith("?"):
+                        elem_type = f"?{elem_type}"
+                    elt_type = elem_type
+                else:
+                    elt_type = "?Any"
+
             return f"[]{elt_type}{{len: {right_str}, init: {elt_str}}}"
 
         left = self.visit(node.left)

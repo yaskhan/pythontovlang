@@ -391,7 +391,28 @@ class CallsMixin(TranslatorBase):
                 func_name_str = f"{func_name_str}_noargs"
 
         # Handle dataclass constructor call
-        if hasattr(self, 'dataclasses') and func_name_str in self.dataclasses:
+        dataclass_metadata = None
+        if call_sig and "dataclass_metadata" in call_sig:
+            dataclass_metadata = call_sig["dataclass_metadata"]
+
+        if dataclass_metadata:
+            # Reconstruct the fields based on mypy's exact attributes
+            struct_args = []
+            init_fields = [attr for attr in dataclass_metadata.get('attributes', []) if attr.get('is_in_init')]
+
+            # Map positional args
+            for i, arg_val in enumerate(args):
+                if i < len(init_fields):
+                    struct_args.append(f"{self._sanitize_name(init_fields[i]['name'])}: {arg_val}")
+            # Map keyword args
+            for keyword in node.keywords:
+                if keyword.arg:
+                     kw_val_str = str(self.visit(keyword.value))
+                     # We might want to verify it's a valid init field, but trust python logic for now
+                     struct_args.append(f"{self._sanitize_name(keyword.arg)}: {kw_val_str}")
+
+            return f"{func_name_str}{{{', '.join(struct_args)}}}"
+        elif hasattr(self, 'dataclasses') and func_name_str in self.dataclasses:
             field_order = self.dataclasses[func_name_str]
             struct_args = []
             # Map positional args
