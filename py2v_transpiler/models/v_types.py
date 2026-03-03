@@ -160,7 +160,7 @@ def _map_ast_type(node: ast.AST, self_name: str = "Self", allow_union: bool = Fa
                 return mapped_args[0]
             return 'Any'
 
-        elif value_id in ('Final', 'ClassVar', 'Annotated'):
+        elif value_id in ('Final', 'ClassVar', 'Annotated', 'ReadOnly'):
             # Strip
             if mapped_args:
                 return mapped_args[0]
