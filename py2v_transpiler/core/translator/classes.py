@@ -52,14 +52,17 @@ class ClassesMixin(TranslatorBase):
                      dec_args_list.append(f"{kw.arg}={val}")
                  dec_str = f"{func}({', '.join(dec_args_list)})"
                  
-                 # Check for @warnings.deprecated("message")
-                 if func == "warnings.deprecated" and dec_args_list:
+                 # Check for @deprecated("message")
+                 if (func == "deprecated" or func == "warnings.deprecated") and dec_args_list:
                      is_deprecated = True
                      # Extract message from first positional argument
                      msg = dec_args_list[0].strip("'\"")
                      deprecated_message = msg
             else:
                  dec_str = self.visit(decorator)
+                 # Check for @deprecated without args (rare but possible)
+                 if dec_str == "deprecated":
+                     is_deprecated = True
 
             decorators.append(f"// @{dec_str}")
             if dec_str.startswith("dataclass") or dec_str.startswith("dataclasses.dataclass"):
@@ -493,7 +496,7 @@ class ClassesMixin(TranslatorBase):
                     struct_def += f"[deprecated: '{deprecated_message}']\n"
                 else:
                     struct_def += "[deprecated]\n"
-                    
+
             if decorators:
                 struct_def += "\n".join(decorators) + "\n"
 

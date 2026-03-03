@@ -117,11 +117,12 @@ class MyClass:
     # The argument 'cls' is present. Type defaults to int.
     assert "fn factory(cls int)" in code, f"Code:\n{code}"
 
-def test_deprecated_function():
+    """Test PEP 702 @deprecated decorator on function"""
     source = """
-import warnings
+from warnings import deprecated
 
-@warnings.deprecated("Use new_func instead")
+@deprecated("Use new_func instead")
+
 def old_func():
     pass
 """
@@ -129,14 +130,31 @@ def old_func():
     tree = ast.parse(source)
     code = visitor.visit(tree)
 
+    # Check for [deprecated] attribute with message
     assert "[deprecated: 'Use new_func instead']" in code, f"Code:\n{code}"
     assert "fn old_func() {" in code, f"Code:\n{code}"
 
-def test_deprecated_class():
+def test_deprecated_function_no_message():
+    """Test @deprecated decorator without message"""
     source = """
-import warnings
+@deprecated
+def old_func():
+    pass
+"""
+    visitor = VNodeVisitor(TypeInference())
+    tree = ast.parse(source)
+    code = visitor.visit(tree)
 
-@warnings.deprecated("Use NewClass instead")
+    # Check for [deprecated] attribute without message
+    assert "[deprecated]" in code, f"Code:\n{code}"
+    assert "[deprecated: '" not in code, f"Code:\n{code}"
+
+def test_deprecated_class():
+    """Test PEP 702 @deprecated decorator on class"""
+    source = """
+from warnings import deprecated
+
+@deprecated("Use NewClass instead")
 class OldClass:
     pass
 """
@@ -144,5 +162,25 @@ class OldClass:
     tree = ast.parse(source)
     code = visitor.visit(tree)
 
+    # Check for [deprecated] attribute on struct
     assert "[deprecated: 'Use NewClass instead']" in code, f"Code:\n{code}"
     assert "struct OldClass {" in code, f"Code:\n{code}"
+
+def test_deprecated_method():
+    """Test @deprecated decorator on method"""
+    source = """
+from warnings import deprecated
+
+class MyClass:
+    @deprecated("Use new_method instead")
+    def old_method(self):
+        pass
+"""
+    visitor = VNodeVisitor(TypeInference())
+    tree = ast.parse(source)
+    code = visitor.visit(tree)
+
+    # Check for [deprecated] attribute on method
+    assert "[deprecated: 'Use new_method instead']" in code, f"Code:\n{code}"
+    assert "fn (self MyClass) old_method() {" in code, f"Code:\n{code}"
+

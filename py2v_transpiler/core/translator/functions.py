@@ -406,6 +406,13 @@ class FunctionsMixin(TranslatorBase):
              if scc_file:
                   prefix = self._get_scc_prefix(scc_file)
                   ret_type = f"{prefix}__{typename}"
+        # PEP 702: Add [deprecated] attribute for @warnings.deprecated decorator
+        deprecated_attr = ""
+        if dec_info.deprecated:
+            if dec_info.deprecated_message:
+                deprecated_attr = f"[deprecated: '{dec_info.deprecated_message}']\n"
+            else:
+                deprecated_attr = "[deprecated]\n"
 
         if 'decl' not in locals():
             decl = f"{noreturn_attr}{deprecated_attr}fn {receiver_str}{func_name}({args_str}) {ret_type} {{"
