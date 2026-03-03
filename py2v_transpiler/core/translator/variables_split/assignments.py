@@ -376,18 +376,12 @@ class AssignmentsMixin(TranslatorBase):
                                     v_type = "Any"
                                 self.emitter.add_global(f"{lhs} {v_type}")
 
-                if self.in_main and isinstance(target, ast.Name) and (lhs in getattr(self, "global_vars", set()) or lhs.isupper() or is_implicit_literal):
-                    # Для compile-time констант мы уже сделали return выше — присваивание не нужно
-                    if is_implicit_literal and self._is_compile_time_evaluable(node.value) and not lhs.isupper():
+                if self.in_main and isinstance(target, ast.Name) and (lhs in getattr(self, "global_vars", set()) or lhs.isupper()):
+                    # UPPER_CASE переменные с compile-time значениями идут в const блок
+                    if is_implicit_literal and self._is_compile_time_evaluable(node.value) and lhs.isupper():
                         self.emitter.add_constant(f"{lhs} = {rhs}")
                         return
-                    if is_implicit_literal and not self._is_compile_time_evaluable(node.value) and not lhs.isupper():
-                        if lhs not in getattr(self, "global_vars", set()):
-                            self.emitter.add_global(f"{lhs} string")
-                        self.emitter.add_init_statement(f"{lhs} = {rhs}")
-                        return
-                    if not (lhs.isupper() and self._is_compile_time_evaluable(node.value)):
-                        emit_fn(f"{self._indent()}{lhs} = {rhs}")
+                    emit_fn(f"{self._indent()}{lhs} = {rhs}")
                 elif rhs == "none":
                     # v_type might be defined above if we were checking is_simple_list, but let's be safe
                     local_v_type = getattr(self, "_guess_type", lambda x: "unknown")(target)

@@ -367,7 +367,19 @@ class ClassesMixin(TranslatorBase):
                     if stmt.annotation:
                         try:
                             type_str = ast.unparse(stmt.annotation)
-                            field_type = map_python_type_to_v(type_str, self_name=struct_name)
+                            # Handle ReadOnly[T] -> extract T and mark field as readonly
+                            if type_str.startswith("ReadOnly[") or type_str.startswith("typing.ReadOnly["):
+                                # Extract inner type
+                                inner_type = type_str[type_str.find("[")+1:-1]
+                                field_type = map_python_type_to_v(inner_type, self_name=struct_name)
+                                # Mark field as readonly for assignment checking
+                                if not hasattr(self, 'readonly_fields'):
+                                    self.readonly_fields = {}
+                                if struct_name not in self.readonly_fields:
+                                    self.readonly_fields[struct_name] = set()
+                                self.readonly_fields[struct_name].add(field_name)
+                            else:
+                                field_type = map_python_type_to_v(type_str, self_name=struct_name)
                         except Exception:
                             if isinstance(stmt.annotation, ast.Name):
                                 field_type = stmt.annotation.id

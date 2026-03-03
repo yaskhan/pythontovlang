@@ -133,15 +133,16 @@ class AnnotationsMixin(TranslatorBase):
 
                 # Обычное присваивание, если не перехвачено выше
                 if self.in_main and isinstance(node.target, ast.Name) and \
-                   (target in getattr(self, "global_vars", set()) or target.isupper() or type_str in ("LiteralString", "typing.LiteralString", "typing_extensions.LiteralString")):
+                   (target in getattr(self, "global_vars", set()) or target.isupper()):
 
                     if type_str in ("LiteralString", "typing.LiteralString", "typing_extensions.LiteralString"):
-                         # Only literal string expressions and compile time evaluables are placed in const
-                         if self._is_literal_string_expr(node.value) or self._is_compile_time_evaluable(node.value):
+                         # UPPER_CASE LiteralString переменные идут в const, lowercase — как обычные
+                         if target.isupper() and (self._is_literal_string_expr(node.value) or self._is_compile_time_evaluable(node.value)):
                               self.emitter.add_constant(f"{target} = {rhs}")
+                              return
                          else:
                               self.emitter.add_init_statement(f"{target} = {rhs}")
-                         return
+                              return
                     emit_fn(f"{self._indent()}{target} = {rhs}")
 
                 elif rhs == "none":
