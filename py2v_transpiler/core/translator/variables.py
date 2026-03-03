@@ -719,12 +719,12 @@ class VariablesMixin(TranslatorBase):
         ParamSpecType = getattr(ast, 'ParamSpec', type(None))
         TypeVarTupleType = getattr(ast, 'TypeVarTuple', type(None))
 
-        if node.type_params:
+        if getattr(node, "type_params", None):
             # Handle generics [T, U]
             params = []
-            for param in node.type_params:
+            for param in getattr(node, "type_params"):
                 if isinstance(param, (TypeVarType, ParamSpecType, TypeVarTupleType)):
-                    params.append(param.name)
+                    params.append(getattr(param, "name"))
             if params:
                 type_params = f"[{', '.join(params)}]"
 

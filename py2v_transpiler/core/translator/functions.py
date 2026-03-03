@@ -150,9 +150,9 @@ class FunctionsMixin(TranslatorBase):
         ParamSpecType = getattr(ast, 'ParamSpec', type(None))
         TypeVarTupleType = getattr(ast, 'TypeVarTuple', type(None))
         if getattr(node, "type_params", None):
-            for param in node.type_params:
+            for param in getattr(node, "type_params"):
                 if isinstance(param, (TypeVarType, ParamSpecType, TypeVarTupleType)):
-                    type_params_list.append(param.name)
+                    type_params_list.append(getattr(param, "name"))
 
         # Handle decorators and check for @warnings.deprecated
         is_deprecated = False

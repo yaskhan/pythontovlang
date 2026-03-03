@@ -40,9 +40,9 @@ class ClassesMixin(TranslatorBase):
         TypeVarTupleType = getattr(ast, 'TypeVarTuple', type(None))
 
         if getattr(node, "type_params", None):
-            for param in node.type_params:
+            for param in getattr(node, "type_params"):
                 if isinstance(param, (TypeVarType, ParamSpecType, TypeVarTupleType)):
-                    self.current_class_generics.append(param.name)
+                    self.current_class_generics.append(getattr(param, "name"))
 
         # Handle decorators
         decorators = []
