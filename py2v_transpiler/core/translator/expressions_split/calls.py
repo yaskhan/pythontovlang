@@ -28,11 +28,12 @@ class CallsMixin(TranslatorBase):
         qualified_name_parts: List[str] = []
         curr = func_node
         while isinstance(curr, ast.Attribute):
-            qualified_name_parts.insert(0, curr.attr)
+            qualified_name_parts.append(curr.attr)
             curr = curr.value
 
         if isinstance(curr, ast.Name):
-            qualified_name_parts.insert(0, curr.id)
+            qualified_name_parts.append(curr.id)
+            qualified_name_parts.reverse()
             # Check if any prefix is a known module (longest match first)
             for i in range(len(qualified_name_parts), 0, -1):
                 prefix = ".".join(qualified_name_parts[:i])
@@ -604,6 +605,38 @@ class CallsMixin(TranslatorBase):
                      return f"/* isinstance({obj}, {types}) - multi-type check not supported */ false"
                 return f"{obj} is {types}"
 
+        elif func_name_str == "assert_never":
+            if len(args) == 1:
+                return f"panic('assert_never reached: ${{{args[0]}}}')"
+            return "panic('assert_never reached')"
+
+        elif func_name_str == "assert_type":
+            if len(args) >= 2:
+                # Compile-time evaluation of assert_type
+                # args[0] is the expression, args[1] is the type
+                # We need the actual AST node of the type to map it correctly
+                expr_node = node.args[0]
+                type_node = node.args[1]
+
+                expr_type = self._guess_type(expr_node)
+
+                try:
+                    type_str = ast.unparse(type_node)
+                    # For assert_type error messages, it might be better to compare original mapped type names
+                    # but map_python_type_to_v converts float to f64, so test expects f64.
+                    from py2v_transpiler.models.v_types import map_python_type_to_v as local_map_fn
+                    expected_type = local_map_fn(type_str)
+                except Exception:
+                    # Fallback if unparse fails
+                    type_str = str(self.visit(type_node))
+                    from py2v_transpiler.models.v_types import map_python_type_to_v as local_map_fn
+                    expected_type = local_map_fn(type_str)
+
+                if expr_type == expected_type:
+                    return f"// assert_type({args[0]}, {expected_type}) passed statically"
+                else:
+                    return f"$compile_error('assert_type failed: expected {expected_type} but got {expr_type}')"
+            return "// assert_type requires 2 arguments"
 
         elif func_name_str == "input":
             self.emitter.add_import("os")

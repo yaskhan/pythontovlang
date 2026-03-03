@@ -10,7 +10,7 @@ def transpile(code: str) -> str:
     analyzer = TypeInference()
     analyzer.analyze(tree)
     translator = VNodeVisitor(analyzer)
-    return translator.visit_Module(tree)
+    return translator.visit_Module(tree)  # type: ignore[arg-type]
 
 def test_none_initialization_untyped():
     code = "planner = None"
