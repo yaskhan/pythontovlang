@@ -46,7 +46,7 @@ Based on recent Python ecosystem developments (mypy, PyPy, Numba, NumPy, Nuitka,
   - Retrieve the narrowed literal type of the loop variable from the mypy AST.
   - *V Translation:* Generate more precise types instead of a generic `string`/`int`.
   - Optimize collection access: if mypy guarantees the key exists, generate direct access without an `in` check.
-- [ ] **Narrowing in match/case with union types (mypy 1.19)**
+- [x] **Narrowing in match/case with union types (mypy 1.19)**
   - *Context:* Improved type narrowing inside class patterns with a union base.
   - Synchronize with mypy CFG: use control-flow info to determine the exact type in each `case`.
   - *V Translation:* Ensure V code uses the specific struct type inside `match` branches.
