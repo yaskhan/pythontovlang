@@ -1,7 +1,8 @@
 from typing import List
 
 class VCodeEmitter:
-    def __init__(self):
+    def __init__(self, module_name: str = "main"):
+        self.module_name = module_name
         self.imports: List[str] = []
         self.structs: List[str] = []
         self.functions: List[str] = []
@@ -67,7 +68,7 @@ class VCodeEmitter:
 
     def emit(self) -> str:
         """Generates the full V source code."""
-        lines = ["module main\n"]
+        lines = [f"module {self.module_name}\n"]
 
         if self.imports:
             for imp in self.imports:
@@ -114,9 +115,9 @@ class VCodeEmitter:
         )
 
     @staticmethod
-    def emit_global_helpers(imports: List[str], structs: List[str], functions: List[str]) -> str:
+    def emit_global_helpers(imports: List[str], structs: List[str], functions: List[str], module_name: str = "main") -> str:
         """Generates the V source code for an aggregated set of helpers."""
-        lines = ["module main\n"]
+        lines = [f"module {module_name}\n"]
 
         # Define custom Any type
         lines.append("type Any = bool | int | i64 | f64 | string | []u8\n")

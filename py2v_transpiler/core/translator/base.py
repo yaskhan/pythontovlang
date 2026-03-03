@@ -1,4 +1,5 @@
 import ast
+import os
 from typing import Any, List, Optional, Dict, Set
 from py2v_transpiler.core.generator import VCodeEmitter
 from py2v_transpiler.stdlib_map.mapper import StdLibMapper
@@ -117,13 +118,33 @@ class TranslatorBase(ast.NodeVisitor):
         self.unique_id_counter: int = 0
         self.vexc_depth: int = 0
         self._local_vars_in_scope: Set[str] = set()
+        self.current_module_name: str = "main"
+        self.current_file_name: str = ""
+        self.scc_files: Set[str] = set()
 
     def _indent(self) -> str:
         return "    " * self._indent_level
 
+    def _get_scc_prefix(self, file_path: str) -> str:
+        """Generates a consistent prefix for a file within an SCC."""
+        # Use relative path without extension, replacing separators with underscores
+        # to ensure uniqueness within a consolidated package.
+        base = file_path.replace('.py', '').replace('/', '__').replace('\\', '__').replace('.', '__')
+        if not base:
+             base = "py_mod"
+        return base
+
+    def _is_top_level_symbol(self, name: str) -> bool:
+        """Heuristic to check if a name refers to a top-level symbol (class/func/global)."""
+        # In a real transpiler, this would check a pre-populated symbol table.
+        # Here we check if it's NOT a method (which would have self.current_class set)
+        # and NOT a known local variable.
+        return not self.current_class and name not in self._local_vars_in_scope
+
     def _sanitize_name(self, name: str) -> str:
         """
-        Sanitizes Python identifiers that collide with V lang reserved keywords.
+        Sanitizes Python identifiers that collide with V lang reserved keywords
+        or other files in the same SCC cluster.
         """
         reserved = {
             "fn", "type", "struct", "mut", "if", "else", "for", "return", "match",
@@ -133,6 +154,19 @@ class TranslatorBase(ast.NodeVisitor):
         }
         if name in reserved:
             return f"py_{name}"
+
+        # Naming collision resolution for SCC flattened modules
+        current_file_name = getattr(self, 'current_file_name', '')
+        scc_files: set = getattr(self, 'scc_files', set())
+        if current_file_name and len(scc_files) > 1 and not getattr(self, 'current_class', None):
+            # If we are in a flattened SCC, prefix top-level names to avoid collisions.
+            # BUT avoid double prefixing or prefixing builtins
+            if not name.startswith("__") and name not in self._local_vars_in_scope:
+                prefix = self._get_scc_prefix(current_file_name)
+                # Check if already prefixed
+                if not name.startswith(prefix + "__"):
+                    return f"{prefix}__{name}"
+
         return name
 
     def _mangle_name(self, name: str, class_name: Optional[str]) -> str:

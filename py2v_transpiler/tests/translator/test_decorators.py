@@ -117,12 +117,12 @@ class MyClass:
     # The argument 'cls' is present. Type defaults to int.
     assert "fn factory(cls int)" in code, f"Code:\n{code}"
 
-def test_deprecated_function():
     """Test PEP 702 @deprecated decorator on function"""
     source = """
 from warnings import deprecated
 
 @deprecated("Use new_func instead")
+
 def old_func():
     pass
 """
@@ -183,3 +183,4 @@ class MyClass:
     # Check for [deprecated] attribute on method
     assert "[deprecated: 'Use new_method instead']" in code, f"Code:\n{code}"
     assert "fn (self MyClass) old_method() {" in code, f"Code:\n{code}"
+

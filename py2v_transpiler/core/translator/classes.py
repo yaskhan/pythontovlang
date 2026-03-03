@@ -37,8 +37,8 @@ class ClassesMixin(TranslatorBase):
         # Handle decorators
         decorators = []
         is_dataclass = False
-        deprecated_message: Optional[str] = None
         is_deprecated = False
+        deprecated_message: Optional[str] = None
         
         for decorator in node.decorator_list:
             if isinstance(decorator, ast.Call):
@@ -53,7 +53,7 @@ class ClassesMixin(TranslatorBase):
                  dec_str = f"{func}({', '.join(dec_args_list)})"
                  
                  # Check for @deprecated("message")
-                 if func == "deprecated" and dec_args_list:
+                 if (func == "deprecated" or func == "warnings.deprecated") and dec_args_list:
                      is_deprecated = True
                      # Extract message from first positional argument
                      msg = dec_args_list[0].strip("'\"")
@@ -496,7 +496,7 @@ class ClassesMixin(TranslatorBase):
                     struct_def += f"[deprecated: '{deprecated_message}']\n"
                 else:
                     struct_def += "[deprecated]\n"
-            
+
             if decorators:
                 struct_def += "\n".join(decorators) + "\n"
 

@@ -32,5 +32,5 @@ def test_analyze_project_graph(tmp_path):
     assert "main.py" in graph
     assert "utils.py" in graph
 
-    assert "utils" in graph["main.py"]
-    assert "math" in graph["utils.py"]
+    assert "utils.py" in graph["main.py"]
+    # math is a standard library, not in the project files, so it's not in the resolved graph

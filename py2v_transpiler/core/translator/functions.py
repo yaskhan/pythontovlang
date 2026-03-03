@@ -144,7 +144,10 @@ class FunctionsMixin(TranslatorBase):
         self.output = []
         self._indent_level = 0
 
-        # Handle decorators comments (emit all for clarity)
+        # Handle decorators and check for @warnings.deprecated
+        is_deprecated = False
+        deprecated_message: str | None = None
+        
         for decorator in node.decorator_list:
              if isinstance(decorator, ast.Call):
                  # Decorator with args: @dec(arg)
@@ -156,6 +159,13 @@ class FunctionsMixin(TranslatorBase):
                      val = self.visit(kw.value)
                      dec_args_list.append(f"{kw.arg}={val}")
                  dec_str = f"{func}({', '.join(dec_args_list)})"
+                 
+                 # Check for @warnings.deprecated("message")
+                 if func == "warnings.deprecated" and dec_args_list:
+                     is_deprecated = True
+                     # Extract message from first positional argument
+                     msg = dec_args_list[0].strip("'\"")
+                     deprecated_message = msg
              else:
                  dec_str = self.visit(decorator)
 
@@ -235,6 +245,20 @@ class FunctionsMixin(TranslatorBase):
                     arg_type = self.type_inference.type_map.get(arg_name, "int")
             else:
                 arg_type = self.type_inference.type_map.get(arg_name, "int")
+
+            # Adjust arg type for SCC
+            if arg_type in self.imported_symbols:
+                 arg_type = self.imported_symbols[arg_type]
+            elif "." in arg_type:
+                 # Check if it is module.Type
+                 parts = arg_type.split('.')
+                 module_prefix = ".".join(parts[:-1])
+                 typename = parts[-1]
+                 # Match against SCC files by checking if the module path ends with the file path
+                 scc_file = next((f for f in self.scc_files if module_prefix.endswith(f.replace('.py', '').replace('/', '.').replace('\\', '.'))), None)
+                 if scc_file:
+                      prefix = self._get_scc_prefix(scc_file)
+                      arg_type = f"{prefix}__{typename}"
 
             args_str_list.append(f"{arg_name} {arg_type}")
 
@@ -344,6 +368,16 @@ class FunctionsMixin(TranslatorBase):
                 func_name += gen_str
                 ret_type += gen_str
 
+        noreturn_attr = "[noreturn]\n" if is_noreturn else ""
+
+        # PEP 702: Add [deprecated] attribute for @warnings.deprecated decorator
+        deprecated_attr = ""
+        if is_deprecated:
+            if deprecated_message:
+                deprecated_attr = f"[deprecated: '{deprecated_message}']\n"
+            else:
+                deprecated_attr = "[deprecated]\n"
+
         elif is_method and func_name in ("__add__", "__sub__", "__mul__", "__truediv__", "__mod__", "__lt__", "__le__", "__eq__", "__ne__"):
              # Operator overloading
              op_map = {
@@ -354,13 +388,24 @@ class FunctionsMixin(TranslatorBase):
              op = op_map.get(func_name)
              if op:
                  func_name = op
-                 decl = f"fn {receiver_str}{op} ({args_str}) {ret_type} {{"
+                 decl = f"{deprecated_attr}fn {receiver_str}{op} ({args_str}) {ret_type} {{"
         elif func_name in ("__str__", "__repr__"):
              func_name = "str"
-             decl = f"fn {receiver_str}{func_name}() string {{"
+             decl = f"{deprecated_attr}fn {receiver_str}{func_name}() string {{"
 
-        noreturn_attr = "[noreturn]\n" if is_noreturn else ""
-
+        # Adjust return type for SCC if it refers to a top-level symbol
+        if ret_type in self.imported_symbols:
+             ret_type = self.imported_symbols[ret_type]
+        elif "." in ret_type:
+             # Check if it is module.Type
+             parts = ret_type.split('.')
+             module_prefix = ".".join(parts[:-1])
+             typename = parts[-1]
+             # Match against SCC files
+             scc_file = next((f for f in self.scc_files if module_prefix.endswith(f.replace('.py', '').replace('/', '.').replace('\\', '.'))), None)
+             if scc_file:
+                  prefix = self._get_scc_prefix(scc_file)
+                  ret_type = f"{prefix}__{typename}"
         # PEP 702: Add [deprecated] attribute for @warnings.deprecated decorator
         deprecated_attr = ""
         if dec_info.deprecated:
@@ -428,6 +473,25 @@ class FunctionsMixin(TranslatorBase):
 
     def _generate_overload_variants(self, node: Any, struct_name: str, is_method: bool, dec_info: Any, is_generator: bool) -> None:
         """Generates V functions for each @overload signature using the implementation body."""
+        # Check for @warnings.deprecated
+        is_deprecated = False
+        deprecated_message: str | None = None
+        deprecated_attr = ""
+        
+        for decorator in node.decorator_list:
+            if isinstance(decorator, ast.Call):
+                func = self.visit(decorator.func)
+                if func == "warnings.deprecated":
+                    is_deprecated = True
+                    if decorator.args:
+                        msg = self.visit(decorator.args[0])
+                        deprecated_message = msg.strip("'\"")
+        
+        if is_deprecated and deprecated_message:
+            deprecated_attr = f"[deprecated: '{deprecated_message}']\n"
+        elif is_deprecated:
+            deprecated_attr = "[deprecated]\n"
+        
         for sig in self.overloaded_signatures[node.name]:
             old_output = self.output
             self.output = []
@@ -493,11 +557,11 @@ class FunctionsMixin(TranslatorBase):
             self.function_names.add(func_name)
 
             if is_operator:
-                decl = f"fn {receiver_str}{op_str} ({args_str}) {ret_type} {{"
+                decl = f"{deprecated_attr}fn {receiver_str}{op_str} ({args_str}) {ret_type} {{"
             else:
-                decl = f"fn {receiver_str}{func_name}({args_str}) {ret_type} {{"
+                decl = f"{deprecated_attr}fn {receiver_str}{func_name}({args_str}) {ret_type} {{"
                 if ret_type == "void":
-                    decl = f"fn {receiver_str}{func_name}({args_str}) {{"
+                    decl = f"{deprecated_attr}fn {receiver_str}{func_name}({args_str}) {{"
 
             self.output.append(decl)
             self._indent_level += 1
