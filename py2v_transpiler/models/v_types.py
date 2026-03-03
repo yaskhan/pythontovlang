@@ -18,11 +18,6 @@ def map_python_type_to_v(py_type: str, self_name: str = "Self", allow_union: boo
     if not py_type:
         return 'void'
 
-    # Strip surrounding quotes for forward references
-    if (py_type.startswith("'") and py_type.endswith("'")) or \
-       (py_type.startswith('"') and py_type.endswith('"')):
-        py_type = py_type[1:-1]
-
     # Pre-process basic types to avoid overhead
     if py_type == 'int': return 'int'
     if py_type == 'float': return 'f64'
@@ -55,12 +50,6 @@ def _map_ast_type(node: ast.AST, self_name: str = "Self", allow_union: bool = Fa
             return 'none'
         if node.value is Ellipsis:
             return '...'
-        if isinstance(node.value, str):
-            try:
-                inner_node = ast.parse(node.value, mode='eval').body
-                return _map_ast_type(inner_node, self_name, allow_union)
-            except SyntaxError:
-                return node.value
         return str(node.value)
 
     elif isinstance(node, ast.Subscript):

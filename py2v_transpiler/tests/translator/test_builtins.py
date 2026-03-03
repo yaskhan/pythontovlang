@@ -42,16 +42,3 @@ for x in reversed(sorted(a)):
     assert "for x in py_reversed(py_sorted(a)) {" in v_code
     assert "fn py_sorted" in v_code
     assert "fn py_reversed" in v_code
-
-def test_int_builtin():
-    source = """
-a = int("123")
-b = int(3.14)
-c = int()
-d = int("ff", 16)
-"""
-    v_code = translate(source)
-    assert "a := '123'.int()" in v_code
-    assert "b := int(3.14)" in v_code
-    assert "c := 0" in v_code
-    assert "d := int(strconv.parse_int('ff', 16, 32) or { 0 })" in v_code

@@ -27,8 +27,3 @@ def test_none_initialization_optional():
     code = "planner: Optional[int] = None"
     v_code = transpile(code)
     assert "mut planner := ?int(none)" in v_code
-
-def test_none_initialization_optional_forward_ref():
-    code = "planner: Optional['Packet'] = None"
-    v_code = transpile(code)
-    assert "mut planner := ?Packet(none)" in v_code
