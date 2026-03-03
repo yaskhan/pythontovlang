@@ -146,7 +146,15 @@ class VariablesMixin(TranslatorBase):
             if hasattr(self, 'dataclasses') and obj_type in self.dataclasses:
                 list_obj = self.visit(target.value)
                 if isinstance(target.slice, ast.Constant) and isinstance(target.slice.value, str):
-                    lhs = f"{list_obj}.{self._sanitize_name(target.slice.value)}"
+                    field_name = self._sanitize_name(target.slice.value)
+
+                    # Check for ReadOnly field assignment
+                    if hasattr(self, 'readonly_fields') and obj_type in self.readonly_fields:
+                        if field_name in self.readonly_fields[obj_type]:
+                            self.output.append(f"{self._indent()}$compile_error('Cannot assign to ReadOnly TypedDict field \\'{field_name}\\'')")
+                            return
+
+                    lhs = f"{list_obj}.{field_name}"
                     rhs = self.visit(node.value)
                     self.output.append(f"{self._indent()}{lhs} = {rhs}")
                     return

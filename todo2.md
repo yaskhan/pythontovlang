@@ -29,7 +29,7 @@ Based on recent Python ecosystem developments (mypy, PyPy, Numba, NumPy, Nuitka,
   - While V does not support fully dynamic attributes natively, consider adding a mechanism (e.g., a fallback `map[string]Any` inside the struct) to support dynamic attribute access where needed.
 - [x] **Enum Membership Semantics (PEP 736/typing updates)**
   - Ensure transpiler correctly handles unannotated vs annotated Enum members based on new typing rules.
-- [ ] **PEP 705: ReadOnly in TypedDict (mypy 1.12+)**
+- [x] **PEP 705: ReadOnly in TypedDict (mypy 1.12+)**
   - *Context:* Marking TypedDict fields as immutable.
   - Detect the `ReadOnly` wrapper in field annotations.
   - *V Translation:* Generate struct fields as `const` or use getter methods (since V lacks built-in read-only semantics at the field level).

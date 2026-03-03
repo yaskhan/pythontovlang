@@ -221,6 +221,10 @@ class ClassesMixin(TranslatorBase):
             is_protocol = True
             self.known_interfaces.add(struct_name)
 
+        # Init readonly_fields
+        if not hasattr(self, 'readonly_fields'):
+            self.readonly_fields: dict[str, set[str]] = {}
+
         # Handle inheritance (bases)
         is_flag = False
         for base in node.bases:
@@ -330,6 +334,9 @@ class ClassesMixin(TranslatorBase):
                 if val != "builtins.object":
                     self.current_class_bases.append(base.attr)
 
+        if is_typed_dict:
+            self.readonly_fields[struct_name] = set()
+
         methods = []
 
         # Check for docstring (emit as comment before struct?)
@@ -374,6 +381,16 @@ class ClassesMixin(TranslatorBase):
                         except Exception:
                             if isinstance(stmt.annotation, ast.Name):
                                 field_type = stmt.annotation.id
+
+                    if is_typed_dict:
+                        # Check for ReadOnly in annotation
+                        if stmt.annotation:
+                            try:
+                                ann_str = ast.unparse(stmt.annotation)
+                                if "ReadOnly[" in ann_str or ann_str.startswith("ReadOnly"):
+                                    self.readonly_fields[struct_name].add(field_name)
+                            except Exception:
+                                pass
 
                     if is_dataclass or is_typed_dict:
                         dataclass_field_order.append(field_name)
