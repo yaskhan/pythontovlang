@@ -10,7 +10,7 @@ from py2v_transpiler.core.coroutines import CoroutineHandler
 from .base import TranslatorBase
 from .literals import LiteralsMixin
 from .variables import VariablesMixin
-from .control_flow import ControlFlowMixin
+from .control_flow_split import ControlFlowMixin
 from .functions import FunctionsMixin
 from .classes import ClassesMixin
 from .expressions import ExpressionsMixin
