@@ -144,6 +144,16 @@ class FunctionsMixin(TranslatorBase):
         self.output = []
         self._indent_level = 0
 
+        # Extract type parameters (PEP 695)
+        type_params_list = []
+        TypeVarType = getattr(ast, 'TypeVar', type(None))
+        ParamSpecType = getattr(ast, 'ParamSpec', type(None))
+        TypeVarTupleType = getattr(ast, 'TypeVarTuple', type(None))
+        if getattr(node, "type_params", None):
+            for param in node.type_params:
+                if isinstance(param, (TypeVarType, ParamSpecType, TypeVarTupleType)):
+                    type_params_list.append(param.name)
+
         # Handle decorators and check for @warnings.deprecated
         is_deprecated = False
         deprecated_message: str | None = None
@@ -319,6 +329,9 @@ class FunctionsMixin(TranslatorBase):
                 # We need to generate a variant for each overload signature
                 self._generate_overload_variants(node, struct_name, is_method, dec_info, is_generator)
                 return
+
+            if type_params_list and not is_method:
+                func_name += f"[{', '.join(type_params_list)}]"
 
             self.function_names.add(func_name)
 

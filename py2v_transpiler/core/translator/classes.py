@@ -34,6 +34,16 @@ class ClassesMixin(TranslatorBase):
         self.current_class_bases = []
         self.current_class_is_unittest = False
 
+        # Extract type parameters (PEP 695)
+        TypeVarType = getattr(ast, 'TypeVar', type(None))
+        ParamSpecType = getattr(ast, 'ParamSpec', type(None))
+        TypeVarTupleType = getattr(ast, 'TypeVarTuple', type(None))
+
+        if getattr(node, "type_params", None):
+            for param in node.type_params:
+                if isinstance(param, (TypeVarType, ParamSpecType, TypeVarTupleType)):
+                    self.current_class_generics.append(param.name)
+
         # Handle decorators
         decorators = []
         is_dataclass = False

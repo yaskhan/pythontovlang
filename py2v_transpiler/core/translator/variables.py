@@ -715,15 +715,16 @@ class VariablesMixin(TranslatorBase):
         type_params = ""
 
         # Safe access to ast.TypeVar for Py < 3.12 compatibility
-        TypeVar = getattr(ast, 'TypeVar', type(None))
+        TypeVarType = getattr(ast, 'TypeVar', type(None))
+        ParamSpecType = getattr(ast, 'ParamSpec', type(None))
+        TypeVarTupleType = getattr(ast, 'TypeVarTuple', type(None))
 
         if node.type_params:
             # Handle generics [T, U]
             params = []
             for param in node.type_params:
-                if isinstance(param, TypeVar):
+                if isinstance(param, (TypeVarType, ParamSpecType, TypeVarTupleType)):
                     params.append(param.name)
-                # Basic support for TypeVar only for now
             if params:
                 type_params = f"[{', '.join(params)}]"
 

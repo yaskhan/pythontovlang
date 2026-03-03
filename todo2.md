@@ -184,7 +184,7 @@ Based on recent Python ecosystem developments (mypy, PyPy, Numba, NumPy, Nuitka,
   - Similar to py2many's ability to emit enhanced Python code, add a mode to the transpiler that writes the fully type-inferred AST back out as Python code with added static type hints, serving as an auto-annotator tool prior to V translation.
 
 ## Language Features — High Priority (new syntax Python 3.12+)
-- [ ] **PEP 695: Full type parameter syntax**
+- [x] **PEP 695: Full type parameter syntax**
   - Support syntax like `def func[T](x: T) -> T: ...`, `class Box[T]: value: T`, `type Alias[T] = list[T]`.
   - Handle new AST nodes: `TypeVar`, `ParamSpec`, `TypeVarTuple`, `type_params` list.
 - [ ] **PEP 696: Type parameter defaults (Python 3.13+)**
