@@ -39,7 +39,7 @@ class StdLibMapper:
                 "dumps": "json.encode",
             },
             "time": {
-                "time": "time.now().unix",
+                "time": self._time_time,
                 "sleep": self._time_sleep,
             },
             "datetime": {
@@ -372,6 +372,11 @@ class StdLibMapper:
              # Default to map[string]string for generic JSON object
              return f"json.decode(map[string]string, {args[0]}) or {{}}"
         return "/* json.loads args error */"
+
+    def _time_time(self, args: List[str]) -> str:
+        if len(args) == 0:
+            return "f64(time.now().unix_time_milli()) / 1000.0"
+        return "/* time.time args error */"
 
     def _time_sleep(self, args: List[str]) -> str:
         if len(args) == 1:
