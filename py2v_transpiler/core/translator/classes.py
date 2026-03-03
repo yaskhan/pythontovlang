@@ -61,6 +61,10 @@ class ClassesMixin(TranslatorBase):
                 meta_val = self.visit(keyword.value)
                 decorators.append(f"// Metaclass: {meta_val}")
 
+        # Check if it's a mixin or main struct
+        is_mixin = struct_name in getattr(self.type_inference, 'mixin_to_main', {})
+        is_main_struct = struct_name in getattr(self.type_inference, 'main_to_mixins', {})
+
         # Extract fields from __init__ or class body annotations (simplified)
         fields = []
         dataclass_field_order = []
@@ -72,6 +76,41 @@ class ClassesMixin(TranslatorBase):
         is_protocol = False
         is_named_tuple = False
         is_typed_dict = False
+
+        # If this is a main struct, collect fields from its mixins first
+        if is_main_struct:
+            mixin_nodes = getattr(self.type_inference, 'mixin_nodes', {})
+            for mixin_name in self.type_inference.main_to_mixins[struct_name]:
+                if mixin_name in mixin_nodes:
+                    mixin_node = mixin_nodes[mixin_name]
+                    for stmt in mixin_node.body:
+                        if isinstance(stmt, ast.AnnAssign) and isinstance(stmt.target, ast.Name):
+                            field_name = self._sanitize_name(stmt.target.id)
+                            if field_name not in added_fields:
+                                added_fields.add(field_name)
+                                field_type = "int"
+                                if stmt.annotation:
+                                    try:
+                                        type_str = ast.unparse(stmt.annotation)
+                                        field_type = map_python_type_to_v(type_str, self_name=struct_name)
+                                    except Exception:
+                                        if isinstance(stmt.annotation, ast.Name):
+                                            field_type = stmt.annotation.id
+                                if getattr(stmt, 'value', None) is not None:
+                                    default_val = self.visit(stmt.value) # type: ignore
+                                    fields.append(f"    {field_name} {field_type} = {default_val}")
+                                else:
+                                    fields.append(f"    {field_name} {field_type}")
+                        elif isinstance(stmt, ast.Assign):
+                            for target in stmt.targets:
+                                if isinstance(target, ast.Name) and target.id != "__slots__":
+                                    field_name = self._sanitize_name(target.id)
+                                    if field_name not in added_fields:
+                                        added_fields.add(field_name)
+                                        # Infer type from value
+                                        field_type = self._guess_type(stmt.value)
+                                        default_val = self.visit(stmt.value)
+                                        fields.append(f"    {field_name} {field_type} = {default_val}")
 
         # If it's a dataclass, try to find perfectly inferred metadata from mypy
         dataclass_metadata = None
@@ -218,7 +257,7 @@ class ClassesMixin(TranslatorBase):
                 else:
                     # Regular generic base: Parent[T]
                     # Add to fields as embedded struct if not an interface
-                    if base_name not in self.known_interfaces:
+                    if base_name not in self.known_interfaces and base_name not in getattr(self.type_inference, 'mixin_to_main', {}):
                         type_str = ast.unparse(base)
                         v_type = map_python_type_to_v(type_str)
                         fields.append(f"    {v_type}")
@@ -226,14 +265,14 @@ class ClassesMixin(TranslatorBase):
 
             elif isinstance(base, ast.Name):
                 if base.id not in ("Generic", "Protocol", "NamedTuple", "TypedDict", "object", "ABC"):
-                    if base.id not in self.known_interfaces:
+                    if base.id not in self.known_interfaces and base.id not in getattr(self.type_inference, 'mixin_to_main', {}):
                         fields.append(f"    {base.id}")
                     self.current_class_bases.append(base.id)
             elif isinstance(base, ast.Attribute):
                 val = self.visit(base)
                 # Skip TypedDict in fields (check for typing.TypedDict or just TypedDict)
                 if val not in ("TypedDict", "typing.TypedDict", "builtins.object", "ABC"):
-                    if base.attr not in self.known_interfaces:
+                    if base.attr not in self.known_interfaces and base.attr not in getattr(self.type_inference, 'mixin_to_main', {}):
                         fields.append(f"    {val}")
                 if val != "builtins.object":
                     self.current_class_bases.append(base.attr)
@@ -418,6 +457,21 @@ class ClassesMixin(TranslatorBase):
              interface_def += "}"
              self.emitter.add_struct(interface_def)
 
+        elif is_mixin:
+            # Mixin struct is not emitted, but we still generate its methods
+            # They will map to the main class in visit_FunctionDef
+            if doc_comment:
+                # Add doc comment to emitter's globals or functions?
+                pass
+
+            has_str = any(m.name == "__str__" for m in methods)
+            if has_str:
+                for method in methods:
+                    if method.name == "__repr__":
+                        method.name = "repr"
+
+            for method in methods:
+                self.visit(method)
         else:
             struct_def = ""
             if doc_comment:

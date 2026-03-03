@@ -51,11 +51,36 @@ class AliasInferer(ast.NodeVisitor):
             else:
                 self.alias_to_type[alias] = f"[]Any" if base_type == 'list' else f"map[int]Any"
 
+class MixinInferer(ast.NodeVisitor):
+    def __init__(self):
+        self.mixin_to_main: Dict[str, list[str]] = {}
+        self.main_to_mixins: Dict[str, list[str]] = {}
+        self.mixin_nodes: Dict[str, ast.ClassDef] = {}
+
+    def analyze(self, tree: ast.AST):
+        # Pass 1: find mixins and their inheritances
+        for node in ast.walk(tree):
+            if isinstance(node, ast.ClassDef):
+                if node.name.endswith("Mixin"):
+                    self.mixin_nodes[node.name] = node
+                else:
+                    for base in node.bases:
+                        if isinstance(base, ast.Name) and base.id.endswith("Mixin"):
+                            if base.id not in self.mixin_to_main:
+                                self.mixin_to_main[base.id] = []
+                            self.mixin_to_main[base.id].append(node.name)
+                            if node.name not in self.main_to_mixins:
+                                self.main_to_mixins[node.name] = []
+                            self.main_to_mixins[node.name].append(base.id)
+
 class TypeInference(ast.NodeVisitor):
     def __init__(self):
         self.type_map: Dict[str, str] = {}
         self.location_map: Dict[str, str] = {}
         self.call_signatures: Dict[str, Dict[str, Any]] = {}
+        self.mixin_to_main: Dict[str, list[str]] = {}
+        self.main_to_mixins: Dict[str, list[str]] = {}
+        self.mixin_nodes: Dict[str, ast.ClassDef] = {}
 
     def analyze(self, tree: ast.AST) -> Dict[str, str]:
         """Analyzes the AST to infer variable types."""
@@ -64,6 +89,14 @@ class TypeInference(ast.NodeVisitor):
         alias_inferer = AliasInferer()
         alias_inferer.analyze(tree)
         self.type_map.update(alias_inferer.alias_to_type)
+
+        # Mixin Inference
+        mixin_inferer = MixinInferer()
+        mixin_inferer.analyze(tree)
+        self.mixin_to_main = mixin_inferer.mixin_to_main
+        self.main_to_mixins = mixin_inferer.main_to_mixins
+        self.mixin_nodes = mixin_inferer.mixin_nodes
+
         return self.type_map
 
 
