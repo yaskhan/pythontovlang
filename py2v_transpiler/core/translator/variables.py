@@ -408,7 +408,12 @@ class VariablesMixin(TranslatorBase):
 
         elif isinstance(target, ast.Name):
             lhs = self.visit(target)
-            self.output.append(f"{self._indent()}{lhs} := {source_expr}")
+            if not self.in_main and lhs in self._local_vars_in_scope:
+                self.output.append(f"{self._indent()}{lhs} = {source_expr}")
+            else:
+                self.output.append(f"{self._indent()}{lhs} := {source_expr}")
+                if not self.in_main:
+                    self._local_vars_in_scope.add(lhs)
 
         elif isinstance(target, (ast.Attribute, ast.Subscript)):
              lhs = self.visit(target)

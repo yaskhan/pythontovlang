@@ -103,6 +103,7 @@ class TranslatorBase(ast.NodeVisitor):
         self.loop_stack: List[Dict[str, Any]] = [] # Stack of active loops for break/continue tracking
         self.unique_id_counter: int = 0
         self.vexc_depth: int = 0
+        self._local_vars_in_scope: Set[str] = set()
 
     def _indent(self) -> str:
         return "    " * self._indent_level
@@ -166,6 +167,27 @@ class TranslatorBase(ast.NodeVisitor):
 
         return "int"
 
+
+    def _collect_assigned_vars(self, nodes: List[ast.stmt]) -> Set[str]:
+        """Collects names of all variables assigned in a list of statements."""
+        assigned: Set[str] = set()
+        for node in nodes:
+            for child in ast.walk(node):
+                if isinstance(child, ast.Assign):
+                    for target in child.targets:
+                        if isinstance(target, ast.Name):
+                            assigned.add(target.id)
+                        elif isinstance(target, (ast.Tuple, ast.List)):
+                            for elt in target.elts:
+                                if isinstance(elt, ast.Name):
+                                    assigned.add(elt.id)
+                elif isinstance(child, ast.AnnAssign):
+                    if isinstance(child.target, ast.Name):
+                        assigned.add(child.target.id)
+                elif isinstance(child, ast.AugAssign):
+                    if isinstance(child.target, ast.Name):
+                        assigned.add(child.target.id)
+        return assigned
 
     def _infer_generator_types(self, gen: ast.comprehension) -> None:
         """Infers types of loop variables from the generator and updates type_map."""

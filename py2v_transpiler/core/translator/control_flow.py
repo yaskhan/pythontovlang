@@ -14,6 +14,20 @@ class ControlFlowMixin(TranslatorBase):
                     self.visit(stmt)
                 return
 
+        if_vars = self._collect_assigned_vars(node.body)
+        else_vars = self._collect_assigned_vars(node.orelse) if node.orelse else set()
+
+        # Pre-declare conditionally initialized variables
+        for var in (if_vars | else_vars):
+            if not self.in_main and var not in self._local_vars_in_scope:
+                v_type = self._guess_type(ast.Name(id=var, ctx=ast.Store()))
+                if v_type == "unknown":
+                    v_type = "Any"
+                if not v_type.startswith("?"):
+                    v_type = f"?{v_type}"
+                self.output.append(f"{self._indent()}mut {var} := {v_type}(none)")
+                self._local_vars_in_scope.add(var)
+
         # Check for walrus operator
         self._walrus_assignments = []
         test_expr = self.visit(node.test)
