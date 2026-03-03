@@ -1,5 +1,5 @@
 import ast
-from typing import List, Optional, Set
+from typing import List, Optional, Set, Dict
 from py2v_transpiler.models.v_types import map_python_type_to_v
 from .base import TranslatorBase
 
@@ -126,7 +126,7 @@ class ClassesMixin(TranslatorBase):
                                         fields.append(f"    {field_name} {field_type} = {default_val}")
 
         # For deferred annotations (PEP 649 / 749)
-        class_annotations = {}
+        class_annotations: Dict[str, str] = {}
 
         # If it's a dataclass, try to find perfectly inferred metadata from mypy
         dataclass_metadata = None

@@ -178,7 +178,7 @@ class FunctionsMixin(TranslatorBase):
         args_names: List[str] = []
 
         # For deferred annotations (PEP 649 / 749)
-        func_annotations = {}
+        func_annotations: Dict[str, str] = {}
         self._current_func_annotations = func_annotations
 
         # Special handling for unittest methods: flatten to function calls

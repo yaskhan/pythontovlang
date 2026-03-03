@@ -58,7 +58,8 @@ class ModuleMixin(TranslatorBase):
 
         # For PEP 649 / 749, emit module-level get_annotations_for_module if needed
         # We can extract top-level annotations from the AST
-        mod_annotations = {}
+        from typing import Dict
+        mod_annotations: Dict[str, str] = {}
         for stmt in body:
             if isinstance(stmt, ast.AnnAssign) and isinstance(stmt.target, ast.Name):
                 if stmt.annotation:
