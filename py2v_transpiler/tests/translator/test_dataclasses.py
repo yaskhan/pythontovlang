@@ -1,7 +1,7 @@
 import ast
 from py2v_transpiler.core.translator.classes import ClassesMixin
 from py2v_transpiler.core.translator.functions import FunctionsMixin
-from py2v_transpiler.core.translator.variables import VariablesMixin
+from py2v_transpiler.core.translator.variables_split import VariablesMixin
 from py2v_transpiler.core.translator.expressions import ExpressionsMixin
 from py2v_transpiler.core.translator.literals import LiteralsMixin
 from py2v_transpiler.core.translator.base import TranslatorBase

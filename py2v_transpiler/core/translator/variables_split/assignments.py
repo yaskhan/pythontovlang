@@ -1,9 +1,24 @@
 import ast
-from typing import Optional, Any
+from typing import Any
+from ..base import TranslatorBase
 from py2v_transpiler.models.v_types import map_python_type_to_v
-from .base import TranslatorBase
 
-class VariablesMixin(TranslatorBase):
+
+class AssignmentsMixin(TranslatorBase):
+    """Обработка присваиваний: visit_Assign и вспомогательные методы"""
+    
+    def _is_literal_string_expr(self, node: ast.AST) -> bool:
+        """Checks if an expression is a literal string, literal concatenation, or f-string without variables."""
+        if isinstance(node, ast.Constant) and isinstance(node.value, str):
+            return True
+        if isinstance(node, ast.JoinedStr):
+            return all(self._is_literal_string_expr(v) for v in node.values)
+        if isinstance(node, ast.FormattedValue):
+            return self._is_literal_string_expr(node.value)
+        if isinstance(node, ast.BinOp) and isinstance(node.op, ast.Add):
+            return self._is_literal_string_expr(node.left) and self._is_literal_string_expr(node.right)
+        return False
+
     def _is_compile_time_evaluable(self, node: ast.AST) -> bool:
         """
         Checks if an AST node represents a value that can be evaluated at compile time in V.
@@ -146,7 +161,15 @@ class VariablesMixin(TranslatorBase):
             if hasattr(self, 'dataclasses') and obj_type in self.dataclasses:
                 list_obj = self.visit(target.value)
                 if isinstance(target.slice, ast.Constant) and isinstance(target.slice.value, str):
-                    lhs = f"{list_obj}.{self._sanitize_name(target.slice.value)}"
+                    field_name = self._sanitize_name(target.slice.value)
+
+                    # Check for ReadOnly field assignment
+                    if hasattr(self, 'readonly_fields') and obj_type in self.readonly_fields:
+                        if field_name in self.readonly_fields[obj_type]:
+                            self.output.append(f"{self._indent()}$compile_error('Cannot assign to ReadOnly TypedDict field \\'{field_name}\\'')")
+                            return
+
+                    lhs = f"{list_obj}.{field_name}"
                     rhs = self.visit(node.value)
                     self.output.append(f"{self._indent()}{lhs} = {rhs}")
                     return
@@ -282,6 +305,23 @@ class VariablesMixin(TranslatorBase):
                         if target.id not in self.type_inference.type_map:
                             self.type_inference.type_map[target.id] = assigned_type
 
+
+            # Check for implicit LiteralString (constant strings, concatenation, f-strings without vars)
+            # If so, we track it as string and potentially as a constant
+            is_implicit_literal = False
+            # Ensure it is a known literal string expression but ONLY convert to const
+            # if we explicitly have a LiteralString annotation. Implicit literals
+            # should remain runtime variables unless explicitly requested as const via type
+            if self._is_literal_string_expr(node.value):
+                 is_implicit_literal = True
+                 if v_type == "unknown":
+                     v_type = "string"
+                     # mark the type as literal string if not already typed
+                     if isinstance(target, ast.Name):
+                          if hasattr(self, 'type_inference') and hasattr(self.type_inference, 'type_map'):
+                              if target.id not in self.type_inference.type_map:
+                                  self.type_inference.type_map[target.id] = "string"
+
             if is_simple_list and v_type.startswith("[]") and cap > 0:
                 # To initialize V arrays with exact capacities (`[]int{cap: N}`) during assignments like `arr = [x, y, z]`
                 # We emit:
@@ -336,8 +376,16 @@ class VariablesMixin(TranslatorBase):
                                     v_type = "Any"
                                 self.emitter.add_global(f"{lhs} {v_type}")
 
-                if self.in_main and isinstance(target, ast.Name) and (lhs in getattr(self, "global_vars", set()) or lhs.isupper()):
+                if self.in_main and isinstance(target, ast.Name) and (lhs in getattr(self, "global_vars", set()) or lhs.isupper() or is_implicit_literal):
                     # Для compile-time констант мы уже сделали return выше — присваивание не нужно
+                    if is_implicit_literal and self._is_compile_time_evaluable(node.value) and not lhs.isupper():
+                        self.emitter.add_constant(f"{lhs} = {rhs}")
+                        return
+                    if is_implicit_literal and not self._is_compile_time_evaluable(node.value) and not lhs.isupper():
+                        if lhs not in getattr(self, "global_vars", set()):
+                            self.emitter.add_global(f"{lhs} string")
+                        self.emitter.add_init_statement(f"{lhs} = {rhs}")
+                        return
                     if not (lhs.isupper() and self._is_compile_time_evaluable(node.value)):
                         emit_fn(f"{self._indent()}{lhs} = {rhs}")
                 elif rhs == "none":
@@ -425,6 +473,13 @@ class VariablesMixin(TranslatorBase):
         else:
              self.output.append(f"{self._indent()}// Unsupported destructuring target: {type(target)}")
 
+    def visit_NamedExpr(self, node: ast.NamedExpr) -> str:
+        # (target := value)
+        target = self._sanitize_name(node.target.id)
+        value = self.visit(node.value)
+        self._walrus_assignments.append(f"{target} := {value}")
+        return target
+
     def _create_temp(self) -> str:
         self.unique_id_counter += 1
         return f"_aug_tmp_{self.unique_id_counter}"
@@ -476,263 +531,3 @@ class VariablesMixin(TranslatorBase):
             return f"{base_expr}[{idx_expr}]", base_setup + idx_setup
 
         return self.visit(node), [] # Fallback
-
-    def visit_AugAssign(self, node: ast.AugAssign) -> None:
-        if isinstance(node.op, (ast.Pow, ast.FloorDiv)):
-            # Handle special cases **= and //= which need expansion to target = func(target, value)
-            # We must ensure target components (e.g. index) are evaluated once.
-            new_target, setup_stmts = self._capture_target(node.target)
-            value = self.visit(node.value)
-
-            for stmt in setup_stmts:
-                self.output.append(stmt)
-
-            emit_fn = self.output.append
-            if self.in_main:
-                base_target = new_target.split('.')[0].split('[')[0]
-                if base_target in getattr(self, "global_vars", set()) or base_target.isupper():
-                    emit_fn = lambda stmt: self.emitter.add_init_statement(stmt.strip())
-
-            if isinstance(node.op, ast.Pow):
-                self.emitter.add_import("math")
-                target_type = self._guess_type(node.target) if hasattr(self, '_guess_type') else "unknown"
-                if target_type == "int":
-                     emit_fn(f"{self._indent()}{new_target} = int(math.pow({new_target}, {value}))")
-                else:
-                     emit_fn(f"{self._indent()}{new_target} = math.pow({new_target}, {value})")
-            elif isinstance(node.op, ast.FloorDiv):
-                target_type = self._guess_type(node.target) if hasattr(self, '_guess_type') else "unknown"
-                self.emitter.add_import("math")
-                if target_type == "f64" or target_type == "float":
-                     emit_fn(f"{self._indent()}{new_target} = math.floor({new_target} / {value})")
-                else:
-                     emit_fn(f"{self._indent()}{new_target} = int(math.floor(f64({new_target}) / f64({value})))")
-            return
-
-        target = self.visit(node.target)
-        value = self.visit(node.value)
-        op_map = {
-            ast.Add: "+=", ast.Sub: "-=", ast.Mult: "*=", ast.Div: "/=",
-            ast.Mod: "%="
-        }
-
-        emit_fn = self.output.append
-        if self.in_main:
-            base_target = target.split('.')[0].split('[')[0]
-            if base_target in getattr(self, "global_vars", set()) or base_target.isupper():
-                emit_fn = lambda stmt: self.emitter.add_init_statement(stmt.strip())
-
-        # V supports +=, -=, *=, /=, %=
-        op_str = op_map.get(type(node.op))
-        if op_str:
-             emit_fn(f"{self._indent()}{target} {op_str} {value}")
-        elif isinstance(node.op, ast.MatMult):
-             emit_fn(f"{self._indent()}{target} = {target}.matmul({value})")
-        else:
-             emit_fn(f"{self._indent()}// Unsupported AugAssign operator: {type(node.op)}")
-
-    def visit_Delete(self, node: ast.Delete) -> None:
-        # Support for multiple delete targets (e.g. del a, b)
-        for target in node.targets:
-            if isinstance(target, ast.Subscript):
-                # del l[i] -> l.delete(i)
-                value = self.visit(target.value)
-                index = self.visit(target.slice)
-                self.output.append(f"{self._indent()}{value}.delete({index})")
-            elif isinstance(target, ast.Name):
-                self.output.append(f"{self._indent()}/* del {target.id} */")
-            elif isinstance(target, ast.Attribute):
-                value = self.visit(target.value)
-                self.output.append(f"{self._indent()}/* del {value}.{target.attr} */")
-            else:
-                self.output.append(f"{self._indent()}// del statement with unsupported target type")
-
-    def visit_NamedExpr(self, node: ast.NamedExpr) -> str:
-        # (target := value)
-        target = self._sanitize_name(node.target.id)
-        value = self.visit(node.value)
-        self._walrus_assignments.append(f"{target} := {value}")
-        return target
-
-    def visit_AnnAssign(self, node: ast.AnnAssign) -> None:
-        target = self.visit(node.target)
-        if node.value:
-            # Pre-allocated Capacity for Typed Collections
-            # Context: assignments like `arr: list[int] = [x, y, z]`
-            is_simple_list = False
-            cap = 0
-            if isinstance(node.value, (ast.List, ast.Tuple)):
-                has_starred = any(isinstance(elt, ast.Starred) for elt in node.value.elts)
-                if not has_starred:
-                    is_simple_list = True
-                    cap = len(node.value.elts)
-
-            # Determine type
-            v_type = None
-            if hasattr(ast, 'unparse'):
-                try:
-                    type_str = ast.unparse(node.annotation)
-                    v_type = map_python_type_to_v(type_str)
-                except Exception:
-                    pass
-
-            if not v_type:
-                v_type = getattr(self, "_guess_type", lambda x: "unknown")(node.target)
-
-            if is_simple_list and v_type.startswith("[]") and cap > 0:
-                self.output.append(f"{self._indent()}mut {target} := {v_type}{{cap: {cap}}}")
-                value_node: Any = node.value
-                for elt in value_node.elts:
-                    val = self.visit(elt)
-                    self.output.append(f"{self._indent()}{target} << {val}")
-            elif hasattr(self, 'dataclasses') and v_type in self.dataclasses and isinstance(node.value, ast.Dict):
-                # TypedDict assignment
-                pairs = []
-                for k, v in zip(node.value.keys, node.value.values):
-                    if isinstance(k, ast.Constant) and isinstance(k.value, str):
-                        key_str = self._sanitize_name(k.value)
-                        val_str = self.visit(v)
-                        pairs.append(f"{key_str}: {val_str}")
-
-                rhs = f"{v_type}{{{', '.join(pairs)}}}"
-                self.output.append(f"{self._indent()}{target} := {rhs}")
-
-            else:
-                if isinstance(node.value, ast.Dict) and not node.value.keys and v_type.startswith("map["):
-                    rhs = f"{v_type}{{}}"
-                else:
-                    self.current_assignment_type = v_type
-                    rhs = self.visit(node.value)
-                    if hasattr(self, "current_assignment_type"):
-                        del self.current_assignment_type
-
-                emit_fn = self.output.append
-                if self.in_main:
-                    base_lhs = target.split('.')[0].split('[')[0]
-
-                    if base_lhs in getattr(self, "global_vars", set()):
-                        emit_fn = lambda stmt: self.emitter.add_init_statement(stmt.strip())
-                        if isinstance(node.target, ast.Name):
-                            if not v_type or v_type == "unknown":
-                                v_type = "Any"
-                            self.emitter.add_global(f"{target} {v_type}")
-
-                    elif base_lhs.isupper() or \
-                         (v_type == "Final" or
-                          getattr(node, "annotation", None) and
-                          (getattr(getattr(node, "annotation", None), "id", "") == "Final" or
-                           getattr(getattr(node, "annotation", None), "attr", "") == "Final")):
-                        emit_fn = lambda stmt: self.emitter.add_init_statement(stmt.strip())
-                        if isinstance(node.target, ast.Name):
-                            if not v_type or v_type in ("unknown", "Final"):
-                                v_type = "Any"
-                            self.emitter.add_global(f"{target} {v_type}")
-
-                            if self._is_compile_time_evaluable(node.value):
-                                # Настоящая compile-time константа → const блок
-                                self.emitter.add_constant(f"{target} = {rhs}")
-                                return   # ← важно: не выводим присваивание в init или output
-                            else:
-                                self.emitter.add_init_statement(f"{target} = {rhs}")
-                                return
-
-                # Обычное присваивание, если не перехвачено выше
-                if self.in_main and isinstance(node.target, ast.Name) and \
-                   (target in getattr(self, "global_vars", set()) or target.isupper()):
-                    # Для compile-time мы уже вернулись выше → здесь только runtime-случаи
-                    emit_fn(f"{self._indent()}{target} = {rhs}")
-
-                elif rhs == "none":
-                    if v_type and v_type != "unknown":
-                        if not v_type.startswith("?"):
-                            v_type = f"?{v_type}"
-                        emit_fn(f"{self._indent()}mut {target} := {v_type}(none)")
-                    else:
-                        emit_fn(f"{self._indent()}mut {target} := ?Any(none)")
-                else:
-                    # We ignore the annotation for now and rely on type inference and V's auto-typing
-                    # But we could potentially use it to hint types for empty lists/maps
-                    if isinstance(node.target, ast.Attribute) or isinstance(node.target, ast.Subscript):
-                        emit_fn(f"{self._indent()}{target} = {rhs}")
-                    else:
-                        if emit_fn == self.output.append:
-                            emit_fn(f"{self._indent()}{target} := {rhs}")
-                        else:
-                            emit_fn(f"{self._indent()}{target} = {rhs}")
-        else:
-            # Declaration only: x: int
-            # V needs initialization. We map type to default value.
-            try:
-                type_str = ast.unparse(node.annotation)
-                v_type = map_python_type_to_v(type_str)
-
-                if self.in_main and isinstance(node.target, ast.Name):
-                    target_name = target
-                    if not v_type or v_type == "unknown":
-                        v_type = "Any"
-                    if target_name in getattr(self, "global_vars", set()):
-                        self.emitter.add_global(f"{target_name} {v_type}")
-                        return
-                    elif target_name.isupper():
-                        # V requires consts to be initialized
-                        self.emitter.add_constant(f"{target_name} = /* uninitialized constant */ 0")
-                        return
-                default_val = "0"
-                if v_type == "int": default_val = "0"
-                elif v_type == "f64": default_val = "0.0"
-                elif v_type == "bool": default_val = "false"
-                elif v_type == "string": default_val = "''"
-                elif v_type.startswith("[]"): default_val = f"{v_type}{{}}"
-                elif v_type.startswith("map["): default_val = f"{v_type}{{}}"
-                elif v_type.startswith("?"): default_val = "none"
-                else:
-                    # Fallback for structs? or unknowns
-                    pass
-
-                self.output.append(f"{self._indent()}{target} := {default_val}")
-            except:
-                self.output.append(f"{self._indent()}// {target} declared (annotation processing failed)")
-
-    def visit_Name(self, node: ast.Name) -> str:
-        if node.id == "__annotations__":
-            return "get_annotations_for_module()"
-
-        if node.id in self.name_remap:
-            return self.name_remap[node.id]
-
-        # Resolve SCC symbols
-        if node.id in self.imported_symbols:
-            return self.imported_symbols[node.id]
-
-        # Name mangling for class-private attributes
-        name = self._mangle_name(node.id, self.current_class)
-
-        # Avoid prefixing local variables in SCC
-        if name in self._local_vars_in_scope:
-            return self._sanitize_name(name)
-
-        return self._sanitize_name(name)
-
-    def visit_TypeAlias(self, node: Any) -> None:
-        name = self._sanitize_name(node.name.id)
-        type_params = ""
-
-        # Safe access to ast.TypeVar for Py < 3.12 compatibility
-        TypeVar = getattr(ast, 'TypeVar', type(None))
-
-        if node.type_params:
-            # Handle generics [T, U]
-            params = []
-            for param in node.type_params:
-                if isinstance(param, TypeVar):
-                    params.append(param.name)
-                # Basic support for TypeVar only for now
-            if params:
-                type_params = f"[{', '.join(params)}]"
-
-        if hasattr(ast, 'unparse'):
-            val_str = ast.unparse(node.value)
-            v_type = map_python_type_to_v(val_str, allow_union=True)
-            self.emitter.add_struct(f"type {name}{type_params} = {v_type}")
-        else:
-            self.output.append(f"{self._indent()}// TypeAlias {name} skipped (no ast.unparse)")
