@@ -28,7 +28,7 @@ class AttributesMixin(TranslatorBase):
 
         # Mangling for self.__private attributes
         # We need to know if we are accessing self inside a class
-        attr_name = node.attr
+        attr_name = self._sanitize_name(node.attr)
         if self.current_class and isinstance(node.value, ast.Name):
             # Checking if the receiver is 'self' is tricky because 'self' is not guaranteed name.
             # But usually it is the first arg.
@@ -37,7 +37,7 @@ class AttributesMixin(TranslatorBase):
             # if the attribute starts with __
             # Wait, python mangles `self.__x` but also `other.__x` if inside Class.
             # So we apply mangling regardless of receiver, if we are inside a class.
-            attr_name = self._mangle_name(node.attr, self.current_class)
+            attr_name = self._sanitize_name(self._mangle_name(node.attr, self.current_class))
 
         # Check if obj corresponds to a known function (Function Attributes)
         # obj is already visited code, e.g. "func_name".
@@ -46,5 +46,13 @@ class AttributesMixin(TranslatorBase):
         if obj in self.function_names:
             # Map func.attr -> func__attr
             return f"{obj}__{attr_name}"
+
+        # Handle SCC Attribute access: imported_module.attr -> prefix__attr
+        if isinstance(node.value, ast.Name) and node.value.id in self.imported_modules:
+            module_name = self.imported_modules[node.value.id]
+            scc_file = next((f for f in self.scc_files if module_name.endswith(f.replace('.py', '').replace('/', '.').replace('\\', '.'))), None)
+            if scc_file:
+                prefix = self._get_scc_prefix(scc_file)
+                return f"{prefix}__{attr_name}"
 
         return f"{obj}.{attr_name}"

@@ -28,11 +28,12 @@ class CallsMixin(TranslatorBase):
         qualified_name_parts: List[str] = []
         curr = func_node
         while isinstance(curr, ast.Attribute):
-            qualified_name_parts.insert(0, curr.attr)
+            qualified_name_parts.append(curr.attr)
             curr = curr.value
 
         if isinstance(curr, ast.Name):
-            qualified_name_parts.insert(0, curr.id)
+            qualified_name_parts.append(curr.id)
+            qualified_name_parts.reverse()
             # Check if any prefix is a known module (longest match first)
             for i in range(len(qualified_name_parts), 0, -1):
                 prefix = ".".join(qualified_name_parts[:i])
@@ -60,14 +61,23 @@ class CallsMixin(TranslatorBase):
                 # from mod import func
                 full_name = self.imported_symbols[func_node.id]
                 parts = full_name.split(".")
-                module_name = parts[0]
-                func_name = parts[1]
+                if len(parts) > 1:
+                    module_name = parts[0]
+                    func_name = parts[1]
+                else:
+                    func_name = parts[0]
             elif func_node.id == "open":
                 module_name = "os" # synthetic
                 func_name = "open"
             elif func_node.id in ("hasattr", "getattr", "setattr", "type", "super"):
                  module_name = "builtins" # synthetic
                  func_name = func_node.id
+
+        if module_name == "six":
+            if func_name == "u" and len(args) == 1:
+                return args[0]
+            elif func_name == "text_type" and len(args) == 1:
+                return f"{args[0]}.str()"
 
         if module_name == "os" and func_name == "open":
              # Handle open() -> os.open()
@@ -124,17 +134,18 @@ class CallsMixin(TranslatorBase):
 
         if module_name and func_name:
             # Check for typing.cast before using standard mapper so we have AST node access
-            if module_name == "typing" and func_name == "cast":
-                if len(args) == 2:
-                    try:
-                        type_str = ast.unparse(node.args[0])
-                        from py2v_transpiler.models.v_types import map_python_type_to_v
-                        v_type = map_python_type_to_v(type_str)
-                    except Exception:
-                        v_type = str(self.visit(node.args[0]))
-                    val = args[1]
-                    return f"({val} as {v_type})"
-                return f"/* typing.cast missing args */"
+            if module_name == "typing":
+                if func_name == "cast":
+                    if len(args) == 2:
+                        try:
+                            type_str = ast.unparse(node.args[0])
+                            from py2v_transpiler.models.v_types import map_python_type_to_v
+                            v_type = map_python_type_to_v(type_str)
+                        except Exception:
+                            v_type = str(self.visit(node.args[0]))
+                        val = args[1]
+                        return f"({val} as {v_type})"
+                    return f"/* typing.cast missing args */"
 
             mapped = self.mapper.get_mapping(module_name, func_name, args)
             if mapped:
@@ -223,6 +234,15 @@ class CallsMixin(TranslatorBase):
                 else:
                     return f"/* super().{method_name} call without known parent */"
 
+        # Handle explicit BaseClass.__init__(self, ...)
+        if isinstance(func_node, ast.Attribute) and func_node.attr == "__init__":
+            if isinstance(func_node.value, ast.Name):
+                class_name = func_node.value.id
+                if self.current_class_bases and class_name in self.current_class_bases:
+                    if len(args) >= 1 and args[0] == "self":
+                        base_args = args[1:]
+                        return f"self.{class_name} = new_{class_name}({', '.join(base_args)})"
+
         # Handle unittest assertions
         # Strictly check for self.assertX if possible to avoid regressions
         # We check if receiver is "self"
@@ -260,8 +280,18 @@ class CallsMixin(TranslatorBase):
 
         # Fallback to existing logic
         func_name_str = self.visit(node.func)
+
+
+        # If func_name_str was mangled/sanitized by visit_Name, we need the original to check builtins
+        # like "map", "filter", "print". Let's check if the un-sanitized version matches anything.
+        original_id = None
+        if isinstance(node.func, ast.Name):
+            original_id = node.func.id
+
         if func_name_str in self.renamed_functions:
             func_name_str = self.renamed_functions[func_name_str]
+        elif original_id and f"py_{original_id}" == func_name_str and original_id in ("map", "filter"):
+             func_name_str = original_id
 
         # Extract mypy plugin signature if available for this call
         loc_key = f"{getattr(node, 'lineno', 0)}:{getattr(node, 'col_offset', 0)}"
@@ -334,6 +364,27 @@ class CallsMixin(TranslatorBase):
                         best_match_suffix = "_".join(sig_suffix_parts)
                         break
 
+            # Operator overloading: if the method is an operator, don't mangle the call site,
+            # because V handles operators intrinsically if they are mapped correctly.
+            # But wait, python ast maps operators (e.g. `a + b`) to `BinOp(Add)`, which we already translate
+            # to `a + b` in `OperatorsMixin.visit_BinOp`.
+            # What if someone calls `a.__add__(b)` directly?
+            # V does not allow calling operators as methods (`a.+(b)`).
+            # We must map `__add__` to `+`.
+            op_map = {
+                "__add__": "+", "__sub__": "-", "__mul__": "*", "__truediv__": "/",
+                "__mod__": "%", "__lt__": "<", "__le__": "<=", "__eq__": "==",
+                "__ne__": "!="
+            }
+            if func_name_str in op_map:
+                op_str = op_map[func_name_str]
+                # If we are in obj.method(arg), then we need to restructure it to obj + arg
+                if len(args) == 1 and isinstance(node.func, ast.Attribute):
+                    obj = self.visit(node.func.value)
+                    return f"{obj} {op_str} {args[0]}"
+                # Fallback if something weird happened (e.g. called without args)
+                pass
+
             if best_match_suffix:
                 func_name_str = f"{func_name_str}_{best_match_suffix}"
             elif type_suffix_parts:
@@ -345,8 +396,75 @@ class CallsMixin(TranslatorBase):
             else:
                 func_name_str = f"{func_name_str}_noargs"
 
+        # Resolve SCC Attribute calls (module.Func)
+        if isinstance(node.func, ast.Attribute) and isinstance(node.func.value, ast.Name):
+            if node.func.value.id in self.imported_modules:
+                module_name_scc = self.imported_modules[node.func.value.id]
+                scc_file = next((f for f in self.scc_files if module_name_scc.endswith(f.replace('.py', '').replace('/', '.').replace('\\', '.'))), None)
+                if scc_file:
+                    prefix = self._get_scc_prefix(scc_file)
+                    func_name_scc = f"{prefix}__{self._sanitize_name(node.func.attr)}"
+                    # Transform to direct function call
+                    return f"{func_name_scc}({', '.join(args)})"
+
+        # Resolve SCC direct calls (from mod import func)
+        if isinstance(node.func, ast.Name) and node.func.id in self.imported_symbols:
+            full_name = self.imported_symbols[node.func.id]
+            # If it has a prefix from SCC
+            if "__" in full_name:
+                 return f"{full_name}({', '.join(args)})"
+
+        # Special handling for typing.assert_type
+        if func_name_str == "typing.assert_type" or (original_id == "assert_type" and func_name_str == "assert_type"):
+            if len(args) >= 2:
+                expr_node = node.args[0]
+                type_node = node.args[1]
+                expr_type = self._guess_type(expr_node)
+                try:
+                    type_str = ast.unparse(type_node)
+                    from py2v_transpiler.models.v_types import map_python_type_to_v as local_map_fn
+                    expected_type = local_map_fn(type_str)
+                except Exception:
+                    type_str = str(self.visit(type_node))
+                    from py2v_transpiler.models.v_types import map_python_type_to_v as local_map_fn
+                    expected_type = local_map_fn(type_str)
+
+                if expr_type == expected_type:
+                    return f"// assert_type({args[0]}, {expected_type}) passed statically"
+                else:
+                    return f"$compile_error('assert_type failed: expected {expected_type} but got {expr_type}')"
+            return "// assert_type requires 2 arguments"
+
+        # Special handling for typing.assert_never
+        if func_name_str == "typing.assert_never" or (original_id == "assert_never" and func_name_str == "assert_never"):
+            if len(args) >= 1:
+                # assert_never should never be reached - translate to panic
+                return f"panic('assert_never reached: ${{args[0]}}')"
+            return "// assert_never requires 1 argument"
+
         # Handle dataclass constructor call
-        if hasattr(self, 'dataclasses') and func_name_str in self.dataclasses:
+        dataclass_metadata = None
+        if call_sig and "dataclass_metadata" in call_sig:
+            dataclass_metadata = call_sig["dataclass_metadata"]
+
+        if dataclass_metadata:
+            # Reconstruct the fields based on mypy's exact attributes
+            struct_args = []
+            init_fields = [attr for attr in dataclass_metadata.get('attributes', []) if attr.get('is_in_init')]
+
+            # Map positional args
+            for i, arg_val in enumerate(args):
+                if i < len(init_fields):
+                    struct_args.append(f"{self._sanitize_name(init_fields[i]['name'])}: {arg_val}")
+            # Map keyword args
+            for keyword in node.keywords:
+                if keyword.arg:
+                     kw_val_str = str(self.visit(keyword.value))
+                     # We might want to verify it's a valid init field, but trust python logic for now
+                     struct_args.append(f"{self._sanitize_name(keyword.arg)}: {kw_val_str}")
+
+            return f"{func_name_str}{{{', '.join(struct_args)}}}"
+        elif hasattr(self, 'dataclasses') and func_name_str in self.dataclasses:
             field_order = self.dataclasses[func_name_str]
             struct_args = []
             # Map positional args
@@ -357,7 +475,7 @@ class CallsMixin(TranslatorBase):
             for keyword in node.keywords:
                 if keyword.arg:
                      kw_val_str = str(self.visit(keyword.value))
-                     struct_args.append(f"{keyword.arg}: {kw_val_str}")
+                     struct_args.append(f"{self._sanitize_name(keyword.arg)}: {kw_val_str}")
 
             return f"{func_name_str}{{{', '.join(struct_args)}}}"
 
@@ -458,6 +576,23 @@ class CallsMixin(TranslatorBase):
                 return f"f64({args[0]})"
             return "0.0"
 
+        elif func_name_str == "bytes":
+            if len(args) == 2:
+                return f"{args[0]}.bytes()"
+        elif func_name_str == "int":
+            if len(args) == 0:
+                return "0"
+            elif len(args) == 1:
+                arg_type = self._guess_type(node.args[0])
+                if arg_type == "string":
+                    return f"{args[0]}.int()"
+                return f"int({args[0]})"
+            elif len(args) == 2:
+                # E.g. int('ff', 16) - V has strconv.parse_int
+                # but let's keep it simple or use strconv if required
+                self.emitter.add_import("strconv")
+                return f"int(strconv.parse_int({args[0]}, {args[1]}, 32) or {{ 0 }})"
+
         elif func_name_str == "isinstance":
             if len(args) == 2:
                 obj = args[0]
@@ -476,6 +611,11 @@ class CallsMixin(TranslatorBase):
                 if types.startswith("[") and types.endswith("]"):
                      return f"/* isinstance({obj}, {types}) - multi-type check not supported */ false"
                 return f"{obj} is {types}"
+
+        elif func_name_str == "assert_never":
+            if len(args) == 1:
+                return f"panic('assert_never reached: ${{{args[0]}}}')"
+            return "panic('assert_never reached')"
 
         elif func_name_str == "assert_type":
             if len(args) >= 2:
@@ -558,6 +698,7 @@ class CallsMixin(TranslatorBase):
         elif func_name_str == "print":
             sep = " "
             end = "\\n"
+            is_stderr = False
 
             for keyword in node.keywords:
                 if keyword.arg == "sep":
@@ -568,6 +709,10 @@ class CallsMixin(TranslatorBase):
                         end = keyword.value.value
                         if end == "\n":
                             end = "\\n"
+                elif keyword.arg == "file":
+                    file_val = self.visit(keyword.value)
+                    if file_val == "sys.stderr":
+                        is_stderr = True
 
             parts = []
             for arg in node.args:
@@ -580,12 +725,20 @@ class CallsMixin(TranslatorBase):
 
             joined_content = sep.join(parts)
 
-            if end == "\\n":
-                return f"println('{joined_content}')"
-            elif end == "":
-                return f"print('{joined_content}')"
+            if is_stderr:
+                if end == "\\n":
+                    return f"eprintln('{joined_content}')"
+                elif end == "":
+                    return f"eprint('{joined_content}')"
+                else:
+                    return f"eprint('{joined_content}{end}')"
             else:
-                return f"print('{joined_content}{end}')"
+                if end == "\\n":
+                    return f"println('{joined_content}')"
+                elif end == "":
+                    return f"print('{joined_content}')"
+                else:
+                    return f"print('{joined_content}{end}')"
 
         # Check if it is a generator call
         if self.coroutine_handler.is_generator(func_name_str):

@@ -39,7 +39,7 @@ class StdLibMapper:
                 "dumps": "json.encode",
             },
             "time": {
-                "time": "time.now().unix",
+                "time": self._time_time,
                 "sleep": self._time_sleep,
             },
             "datetime": {
@@ -50,6 +50,12 @@ class StdLibMapper:
                 "exit": "exit",
                 "argv": "os.args",
                 "platform": "os.user_os()", # Approximation
+            },
+            "io": {
+                "StringIO": self._io_stringio,
+            },
+            "six.moves": {
+                "StringIO": self._io_stringio,
             },
             "os": {
                 "environ": "os.environ()",
@@ -174,6 +180,7 @@ class StdLibMapper:
             "platform": {
                 "system": "os.user_os",
                 "machine": "py_platform_machine",
+                "python_implementation": self._platform_python_implementation,
             },
             "hashlib": {
                 "sha256": "py_hash_sha256",
@@ -253,6 +260,8 @@ class StdLibMapper:
             "time": ["time"],
             "datetime": ["time"],
             "sys": ["os"],
+            "io": ["strings"],
+            "six.moves": ["strings"],
             "os": ["os"],
             "re": ["regex"],
             "shutil": ["os"],
@@ -343,6 +352,11 @@ class StdLibMapper:
 
     # specialized handlers
 
+    def _io_stringio(self, args: List[str]) -> str:
+        if len(args) == 0:
+            return "strings.new_builder(1024)"
+        return f"py_io_stringio({args[0]})"
+
     def _random_randint(self, args: List[str]) -> str:
         if len(args) == 2:
             return f"rand.intn({args[1]} - {args[0]} + 1) + {args[0]}"
@@ -358,6 +372,11 @@ class StdLibMapper:
              # Default to map[string]string for generic JSON object
              return f"json.decode(map[string]string, {args[0]}) or {{}}"
         return "/* json.loads args error */"
+
+    def _time_time(self, args: List[str]) -> str:
+        if len(args) == 0:
+            return "f64(time.now().unix_time_milli()) / 1000.0"
+        return "/* time.time args error */"
 
     def _time_sleep(self, args: List[str]) -> str:
         if len(args) == 1:
@@ -573,3 +592,6 @@ class StdLibMapper:
     def _typing_cast(self, args: List[str]) -> str:
         # We handle this directly in expressions.py now for type resolution
         return "/* typing.cast intercepted by expressions.py */"
+
+    def _platform_python_implementation(self, args: List[str]) -> str:
+        return "'V'"

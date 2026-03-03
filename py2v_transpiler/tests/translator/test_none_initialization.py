@@ -10,7 +10,7 @@ def transpile(code: str) -> str:
     analyzer = TypeInference()
     analyzer.analyze(tree)
     translator = VNodeVisitor(analyzer)
-    return translator.visit_Module(tree)
+    return translator.visit_Module(tree)  # type: ignore[arg-type]
 
 def test_none_initialization_untyped():
     code = "planner = None"
@@ -27,3 +27,8 @@ def test_none_initialization_optional():
     code = "planner: Optional[int] = None"
     v_code = transpile(code)
     assert "mut planner := ?int(none)" in v_code
+
+def test_none_initialization_optional_forward_ref():
+    code = "planner: Optional['Packet'] = None"
+    v_code = transpile(code)
+    assert "mut planner := ?Packet(none)" in v_code

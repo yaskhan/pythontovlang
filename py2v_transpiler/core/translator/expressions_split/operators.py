@@ -16,8 +16,44 @@ class OperatorsMixin(TranslatorBase):
             if v_type != "void":
                  op_type = v_type
 
-        left = self.visit(node.left)
-        right = self.visit(node.right)
+        # Support for array initialization: [element] * length
+        if isinstance(node.op, ast.Mult):
+            if isinstance(node.left, ast.List) and len(node.left.elts) == 1:
+                init_val = self.visit(node.left.elts[0])
+                length = self.visit(node.right)
+                elem_type = self._guess_type(node.left.elts[0])
+
+                if init_val == "none":
+                    expected_type = getattr(self, "current_assignment_type", None)
+                    if expected_type and expected_type.startswith("[]"):
+                        elem_type = expected_type[2:]
+                        if not elem_type.startswith("?"):
+                            elem_type = f"?{elem_type}"
+                    else:
+                        elem_type = "?Any"
+
+                return f"[]{elem_type}{{len: {length}, init: {init_val}}}"
+
+            elif isinstance(node.right, ast.List) and len(node.right.elts) == 1:
+                init_val = self.visit(node.right.elts[0])
+                length = self.visit(node.left)
+                elem_type = self._guess_type(node.right.elts[0])
+
+                if init_val == "none":
+                    expected_type = getattr(self, "current_assignment_type", None)
+                    if expected_type and expected_type.startswith("[]"):
+                        elem_type = expected_type[2:]
+                        if not elem_type.startswith("?"):
+                            elem_type = f"?{elem_type}"
+                    else:
+                        elem_type = "?Any"
+
+                return f"[]{elem_type}{{len: {length}, init: {init_val}}}"
+
+
+        # If mypy  # ← дальше идёт остальной код файла без изменений
+        left = self._visit_with_parens(node, node.left, is_right_operand=False)
+        right = self._visit_with_parens(node, node.right, is_right_operand=True)
 
         # If mypy successfully inferred a concrete primitive numeric type (e.g. f64) for the operation,
         # and the operands' inferred types are not correctly matching or they are unknown ('Any'),
@@ -43,6 +79,7 @@ class OperatorsMixin(TranslatorBase):
 
         if isinstance(node.op, ast.MatMult):
              return f"{left}.matmul({right})"
+
 
         # Check for bytes formatting: b"%s" % b"a"
         if isinstance(node.op, ast.Mod):
@@ -116,6 +153,23 @@ class OperatorsMixin(TranslatorBase):
                  is_string_fmt = True
              elif left_type == "string":
                  is_string_fmt = True
+             # Extended checks to robustly identify string formatting:
+             if isinstance(node.left, ast.Name):
+                 inferred = self.type_inference.resolve_type(node.left)
+                 if inferred == "string":
+                     is_string_fmt = True
+                 elif node.left.id in self.type_inference.type_map and self.type_inference.type_map[node.left.id] == "string":
+                     is_string_fmt = True
+             elif isinstance(node.left, ast.BinOp) and self._guess_type(node.left) == "string":
+                 is_string_fmt = True
+             elif isinstance(node.left, ast.Attribute) and self._guess_type(node.left) == "string":
+                 is_string_fmt = True
+
+             # Fallback check: if we are still unsure about the left operand but we know the right operand is a string or a tuple
+             # we can reasonably assume the user intended string formatting if the left operand is not definitively a number.
+             if not is_string_fmt and left_type not in ("int", "f64", "float", "i64"):
+                 if right_type == "string" or isinstance(node.right, ast.Tuple):
+                     is_string_fmt = True
 
              if is_string_fmt:
                  self.used_string_format = True
@@ -137,11 +191,14 @@ class OperatorsMixin(TranslatorBase):
     def visit_BoolOp(self, node: ast.BoolOp) -> str:
         op_map = {ast.And: "&&", ast.Or: "||"}
         op_str = op_map.get(type(node.op), "and")
-        values = [str(self.visit(val)) for val in node.values]
+        values = []
+        for i, val in enumerate(node.values):
+            # The first value is considered left-hand side, the rest right-hand side.
+            values.append(str(self._visit_with_parens(node, val, is_right_operand=(i > 0))))
         return f" {op_str} ".join(values)
 
     def visit_UnaryOp(self, node: ast.UnaryOp) -> str:
-        operand = self.visit(node.operand)
+        operand = self._visit_with_parens(node, node.operand, is_right_operand=True)
         op_map = {
             ast.Not: "!", ast.UAdd: "+", ast.USub: "-",
             ast.Invert: "~"

@@ -19,11 +19,13 @@ Based on recent Python ecosystem developments (mypy, PyPy, Numba, NumPy, Nuitka,
   - Differentiate from `TypeGuard`: `TypeIs` narrows in the `else`-branch (to the negation). Implement handling for both branches.
 - [ ] **PEP 696: Type Variable Defaults**
   - Support new Python 3.13 syntax for generic defaults: `class Box[T = int]: ...`
-- [ ] **PEP 702: `@deprecated` Decorator**
+- [x] **PEP 702: `@deprecated` Decorator**
   - Transpile `warnings.deprecated` to V's `[deprecated]` attribute on functions/structs.
-- [ ] **Property Setters and Getters with Different Types**
+- [x] **Property Setters and Getters with Different Types**
   - Ensure the translator can handle and correctly emit V code when a `@property` and its `@foo.setter` have slightly mismatched type hints (e.g., returning `int` but accepting `str | int`).
-- [ ] **`__getattr__`, `__setattr__`, `__delattr__` Support**
+  - Implemented: Union types in setters are mapped to `Any` in V, with runtime type checks using `is` operator.
+  - Added comprehensive test suite in `test_property_mismatched_types.py`.
+- [x] **`__getattr__`, `__setattr__`, `__delattr__` Support**
   - While V does not support fully dynamic attributes natively, consider adding a mechanism (e.g., a fallback `map[string]Any` inside the struct) to support dynamic attribute access where needed.
 - [ ] **Enum Membership Semantics (PEP 736/typing updates)**
   - Ensure transpiler correctly handles unannotated vs annotated Enum members based on new typing rules.
@@ -392,38 +394,38 @@ Based on the transpilation of the `bm_deltablue.py` benchmark, several critical 
 ## Analysis of `bm_hexiom.py` Transpilation Issues
 Based on the transpilation of the `bm_hexiom.py` benchmark, several critical areas for improvement have been identified:
 
-- [ ] **Inline List and Generator Comprehensions**
+- [x] **Inline List and Generator Comprehensions**
   - *Context:* Comprehensions such as `[self.cells[i][:] for i in range(self.count)]` and generator expressions inside functions like `max(...)` or `sum(...)` emit `/* unknown */` or `// List comprehension expression not supported inline yet`.
   - *Task:* Implement full support for inline list comprehensions and generator expressions, mapping them to V's `map`/`filter` array methods, or extracting them into inline loops or closure helpers.
 
-- [ ] **`six` Module and Legacy Compatibility Helpers**
+- [x] **`six` Module and Legacy Compatibility Helpers**
   - *Context:* Functions from `six` (`u as u_lit`, `text_type`) are emitted directly, resulting in undefined V functions.
   - *Task:* Add AST node interception or standard library mapping for common `six` module utilities, translating `text_type(x)` to `x.str()` and bypassing `u_lit` wrappers for string literals.
 
-- [ ] **Type Inference for Module-Level Dictionaries and Tuple Values**
+- [x] **Type Inference for Module-Level Dictionaries and Tuple Values**
   - *Context:* The `LEVELS` global dictionary is inferred as `map[string]int{}`, but is populated with integer keys and string-tuple values (e.g., `LEVELS[2] = ("...", "...")`).
   - *Task:* Improve type inference for dictionaries populated by subsequent index assignments (`dict[key] = value`). Correctly map Python tuples to V structs, arrays, or multiple return values when used as dictionary values.
 
-- [ ] **Module-Level Dictionary Initialization Scope**
+- [x] **Module-Level Dictionary Initialization Scope**
   - *Context:* `LEVELS[2] = ...` assignments are placed inside the generated `fn main()`, trapping the global state in a local scope.
   - *Task:* Ensure that module-level collection mutations (like dict assignments) are placed in a V `fn init()` block or a `__global` initialization routine so that global constants are properly populated and accessible to other functions.
 
-- [ ] **`StringIO` and `IO` Type Mappings**
+- [x] **`StringIO` and `IO` Type Mappings**
   - *Context:* `bm_hexiom.py` uses `StringIO` for stream output, which maps directly to undefined `StringIO` and `IO[string]` types in V.
   - *Task:* Map `io.StringIO` (and `six.moves.StringIO`) to V's `strings.Builder`. Map `IO[str]` to `&strings.Builder` or an appropriate stream interface in V.
 
-- [ ] **Modulo `%` String Formatting**
+- [x] **Modulo `%` String Formatting**
   - *Context:* Python's string formatting `"%s " % c` is emitted directly as `'%s ' % c`, which is invalid syntax in V.
   - *Task:* Intercept the `%` binary operator when the left operand is a string, and transpile it to V's string interpolation (e.g., `'$c '`) or generate calls using V's `fmt` module.
 
 ## Analysis of `bm_raytrace.py` Transpilation Issues
 Based on the transpilation of the `bm_raytrace.py` benchmark, several critical areas for improvement have been identified:
 
-- [ ] **Magic Methods with Overloads (`__add__`, `__sub__`, etc.)**
+- [x] **Magic Methods with Overloads (`__add__`, `__sub__`, etc.)**
   - *Context:* Python's magic methods like `__add__` with `@overload` are currently emitted as uniquely named functions (e.g., `__add___Vector` or `__add___Point`) instead of V's overloaded operators (`+`). Normal magic methods like `__sub__` correctly map to V's `-` operator, but overloaded ones do not fallback or combine into operator overloads properly.
   - *Task:* Ensure that when overloaded magic methods are encountered, they map correctly to V's operator overloading syntax (e.g. `fn (a Vector) + (b Vector) Vector`), generating multiple overloaded operators if V supports them, or handling type disjunctions cleanly.
 
-- [ ] **Duplicate Global Variable Emission (`Final`)**
+- [x] **Duplicate Global Variable Emission (`Final`)**
   - *Context:* Module-level variables defined as `Final` and instantiated (e.g., `Vector_ZERO: Final = Vector(0, 0, 0)`) are emitted multiple times inside `fn main()` in the transpiled output.
   - *Task:* Fix the bug in the module/variable visitation logic to prevent duplicate generation of `Final` or uppercase module-level constants.
 
@@ -431,10 +433,102 @@ Based on the transpilation of the `bm_raytrace.py` benchmark, several critical a
   - *Context:* Constants like `DEFAULT_WIDTH := 100` and `Vector_ZERO := new_Vector(0, 0, 0)` are placed inside the generated `fn main()` block rather than an appropriate V `const ( ... )` block or global state.
   - *Task:* Refactor module-level assignment handling so that constants (e.g., `Final` or uppercase variables) are correctly emitted in a V `const` block (if compile-time evaluable) or an `init` block/global struct (if they require runtime instantiation like `new_Vector`).
 
-- [ ] **Duplicate Method Generation (`__str__` and `__repr__`)**
+- [x] **Duplicate Method Generation (`__str__` and `__repr__`)**
   - *Context:* Both `__str__` and `__repr__` methods on a Python class map to V's `.str() string` method, leading to compilation errors due to duplicate method declarations (e.g., `fn (self Vector) str() string { ... }` defined twice).
   - *Task:* Handle duplicate V method mapping by either combining `__str__` and `__repr__`, taking precedence of `__str__` over `__repr__`, or renaming `__repr__` to `repr()` instead of mapping both to `.str()`.
 
-- [ ] **Class Instantiation Fallbacks in Method Returns**
+- [x] **Class Instantiation Fallbacks in Method Returns**
   - *Context:* Inside methods like `__add__` and `__sub__`, the transpiled code emits returns like `return Point(...)` instead of `return new_Point(...)` or `return Point{...}`, which fails to compile in V because `Point(...)` is invalid syntax for struct initialization or function calls unless it's a cast.
   - *Task:* Ensure that instantiation of objects within internal methods correctly tracks class names and forces `new_ClassName(...)` or `ClassName{...}` syntax as it does in standard assignments.
+
+## Analysis of `primes.py` Transpilation Issues
+Based on the transpilation of the `primes.py` benchmark, several critical areas for improvement have been identified:
+
+- [ ] **Array Multiplication for Initialization (`[False] * (limit + 1)`)**
+  - *Context:* Python's `[False] * (limit + 1)` is currently transpiled as `[false] * limit + 1`. This is invalid V syntax for array initialization and loses the parentheses.
+  - *Task:* Map Python array multiplication (when the left operand is a single-element list) to V's array initialization syntax: `[]bool{len: limit + 1, init: false}`. Ensure parentheses around binary operations are correctly preserved during unparsing.
+
+- [x] **Parentheses Preservation in Boolean Expressions**
+  - *Context:* Python's `n <= self.limit and (n % 12 == 1 or n % 12 == 5)` drops the parentheses around the `or` clause in V: `n <= self.limit && n % 12 == 1 || n % 12 == 5`. This changes operator precedence.
+  - *Task:* Ensure the AST transpilation correctly preserves grouping parentheses for binary and boolean operations.
+
+- [x] **Dictionary Type Inference (`self.children = {}`)**
+  - *Context:* In `Node.__init__`, `self.children = {}` causes `self.children` to be inferred as `map[string]int{}`, which is incorrect since it stores `Node` instances later.
+  - *Task:* Improve type inference for empty dictionaries by analyzing subsequent dictionary assignments (like `head.children[ch] = Node()`) to infer the correct value type (`map[string]Node`).
+
+- [x] **String Iteration (`for ch in str(el):`)**
+  - *Context:* Iterating over a string in V yields bytes (`u8`), but the Python code expects string characters to be used as map keys (`head.children[ch]`).
+  - *Task:* Handle string iteration correctly by mapping the iterated byte to a string (e.g., using a custom iterator or `.ascii_str()`) when the string semantics are required.
+
+- [x] **Truth Value Testing for Arrays/Queues (`while queue:`)**
+  - *Context:* `while queue:` is transpiled directly to `for queue {`, which is invalid in V.
+  - *Task:* Map truth value testing of collections (lists, dicts, etc.) to explicit `.len > 0` checks in V (e.g., `for queue.len > 0 {`).
+
+- [x] **Iterating over Dictionary Items (`for ch, v in top.children.items():`)**
+  - *Context:* Emits `for [ch, v] in top.children.items() {` which is not idiomatic V.
+  - *Task:* Map `.items()` iteration on maps directly to V's native map iteration syntax: `for ch, v in top.children {`.
+
+- [x] **String to Integer Conversion (`int(prefix)`)**
+  - *Context:* `int(prefix)` where `prefix` is a string is emitted literally, but V requires `prefix.int()`.
+  - *Task:* Map `int()` casts on string variables to the `.int()` method in V.
+
+- [x] **String `bytes()` Encoding**
+  - *Context:* `bytes(msg, "utf8")` is emitted as `bytes(msg, 'utf8')`.
+  - *Task:* Map `bytes(string, encoding)` to V's native `string.bytes()` method.
+
+- [x] **`sys.stderr` Redirection (`print(..., file=sys.stderr)`)**
+  - *Context:* `print` statements with `file=sys.stderr` are transpiled to standard `println`.
+  - *Task:* Recognize `file=sys.stderr` in `print` calls and map them to V's `eprintln`.
+
+- [x] **Missing Modules (`platform`)**
+  - *Context:* `platform.python_implementation()` is emitted directly but `platform` doesn't exist in V.
+  - *Task:* Provide an AST mapping or standard library mock for `platform.python_implementation()` returning `'V'` or similar.
+## Analysis of `bm_spectral_norm.py` Transpilation Issues
+Based on the transpilation of the `bm_spectral_norm.py` benchmark, several critical areas for improvement have been identified:
+
+- [x] **Parentheses Dropped in Binary Operations**
+  - *Context:* The Python expression `(i + j) * (i + j + 1) // 2` is transpiled to `int(math.floor(f64(i + j * i + j + 1) / f64(2)))`, completely dropping the required parentheses and changing the mathematical logic.
+  - *Task:* Ensure that AST grouping parentheses are preserved or reconstructed during binary operation transpilation.
+
+- [x] **Inline List Comprehensions**
+  - *Context:* `[func((i, u)) for i in xrange(len(list(u)))]` emits `// List comprehension expression not supported inline yet` and returns `None` (which is invalid in V).
+  - *Task:* Implement full support for inline list comprehensions, either mapping them to V's array methods (`.map()`, `.filter()`) or extracting them into inline closures or helper variables.
+
+- [x] **List Replication (`[x] * N`)**
+  - *Context:* `[1] * DEFAULT_N` is emitted directly as `[1] * DEFAULT_N`, which is not valid V array repetition syntax.
+  - *Task:* Transpile Python list repetition into V's array initialization syntax with `len` and `init` (e.g., `[]int{len: DEFAULT_N, init: 1}`).
+
+- [x] **`six.moves` and `itertools` Compatibility**
+  - *Context:* Functions `xrange` and `izip` from `six.moves` are emitted directly without mapping, causing undefined function errors in V.
+  - *Task:* Map `xrange` to V ranges (e.g., `0 .. loops`) or a range generator. Map `izip` (and `zip`) to V's `arrays.zip()` or handle simultaneous iteration natively.
+
+- [x] **Destructuring in `for` loops**
+  - *Context:* `for ue, ve in izip(u, v):` emits `for [ue, ve] in izip(u, v) {`, which is invalid V syntax.
+  - *Task:* Fix tuple unpacking syntax inside V `for` loop assignments, likely requiring translation to indexed loops or `arrays.zip()`.
+
+- [x] **`time.time()` Precision Mapping**
+  - *Context:* `time.time()` maps to `time.now().unix()`, returning an integer (seconds), losing the fractional millisecond precision expected in Python benchmarking.
+  - *Task:* Map `time.time()` to a V equivalent that returns an `f64` timestamp, such as `f64(time.now().unix_time_milli()) / 1000.0`.
+
+## Analysis of `bm_richards.py` Transpilation Issues
+Based on the transpilation of the `bm_richards.py` benchmark, several critical areas for improvement have been identified:
+
+- [x] **V Keyword Collision (`fn`)**
+  - *Context:* Python method named `fn` (e.g., `def fn(self, pkt, r):`) is transpiled directly as `fn (self Task) fn(...)`, which causes a syntax error in V because `fn` is a reserved keyword.
+  - *Task:* Implement an AST sanitization pass to rename or prefix Python identifiers that conflict with Vlang reserved keywords (e.g., mapping `fn` to `fn_` or `py_fn`).
+
+- [x] **Array Initialization with `[None] * N`**
+  - *Context:* Python's `[None] * TASKTABSIZE` is emitted directly as `[none] * TASKTABSIZE`, which is invalid V syntax for initializing arrays.
+  - *Task:* Transpile list repetitions containing `None` into proper V array initialization (e.g., `[]?Task{len: TASKTABSIZE, init: none}`).
+
+- [x] **Scoping Issues with `if/else` Variable Assignments**
+  - *Context:* In `Task.runTask()`, a variable `msg` is initialized conditionally in `if/else` blocks (e.g., `msg := self.input` in `if`, `mut msg := ?int(none)` in `else`), making it inaccessible outside the blocks when passed to `return self.fn(msg, self.handle)`.
+  - *Task:* Improve variable scoping generation. If a variable is conditionally declared and used outside the condition, pre-declare it as `mut` before the `if/else` block (e.g., `mut msg := ?Packet(none)`).
+
+- [x] **`Optional` Type Inference with Forward References (`'Packet'`)**
+  - *Context:* Mypy forward references like `Optional['Packet']` (or `Optional['Task']`) are failing to map accurately in the `else` block fallback type generation, falling back to `?int(none)` instead of `?Packet(none)`.
+  - *Task:* Update type mapping to correctly resolve and strip string quotes from forward reference annotations like `'Packet'` so they properly map to their concrete V types.
+
+- [x] **Explicit Base Class Constructor Calls (`Base.__init__`)**
+  - *Context:* Calls like `Task.__init__(self, i, p, w, s, r)` are emitted directly, which doesn't correctly update the embedded V struct unless the explicit embedded struct is initialized or fields are copied.
+  - *Task:* Refactor explicit `BaseClass.__init__(self, ...)` calls to properly initialize the embedded struct fields inside the derived V struct.

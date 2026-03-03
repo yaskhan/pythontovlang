@@ -1,12 +1,14 @@
 import ast
-from typing import List, Optional, Any
+from typing import List, Optional, Any, Union
 from ..base import TranslatorBase
 
 class ComprehensionsMixin(TranslatorBase):
-    def visit_ListComp(self, node: ast.ListComp, target_var: Optional[str] = None) -> None:
-        if not target_var:
-            self.output.append(f"{self._indent()}// List comprehension expression not supported inline yet")
-            return
+    def visit_ListComp(self, node: Union[ast.ListComp, ast.GeneratorExp], target_var: Optional[str] = None) -> Optional[str]:
+        is_inline = False
+        if target_var is None:
+            is_inline = True
+            self.unique_id_counter += 1
+            target_var = f"_comp_{self.unique_id_counter}"
 
         gen = node.generators[0] # Handle first generator
 
@@ -62,8 +64,19 @@ class ComprehensionsMixin(TranslatorBase):
         if getattr(gen, 'is_async', False):
              self.output.append(f"{self._indent()}// TODO: Async comprehension - Verify iterator semantics")
 
-        if isinstance(gen.iter, ast.Call) and isinstance(gen.iter.func, ast.Name) and gen.iter.func.id == "zip":
-             zip_args = gen.iter.args
+        is_zip = False
+        if isinstance(gen.iter, ast.Call):
+            func_node = gen.iter.func
+            if isinstance(func_node, ast.Name):
+                if func_node.id in ("zip", "izip"):
+                    is_zip = True
+            elif isinstance(func_node, ast.Attribute):
+                if func_node.attr == "izip":
+                    is_zip = True
+
+        if is_zip and isinstance(gen.iter, ast.Call):
+             if True: # To keep indentation
+                 zip_args = gen.iter.args
              if len(zip_args) == 2:
                  self._zip_counter += 1
                  zip_id = self._zip_counter
@@ -109,13 +122,23 @@ class ComprehensionsMixin(TranslatorBase):
 
                  self._indent_level -= 1
                  self.output.append(f"{self._indent()}}}")
-                 return
+                 return target_var if is_inline else None
 
         target = self.visit(gen.target)
         iter_expr = self.visit(gen.iter)
 
-        if isinstance(gen.iter, ast.Call) and isinstance(gen.iter.func, ast.Name):
-             if gen.iter.func.id == "range":
+        is_range = False
+        if isinstance(gen.iter, ast.Call):
+            func_node = gen.iter.func
+            if isinstance(func_node, ast.Name):
+                if func_node.id in ("range", "xrange"):
+                    is_range = True
+            elif isinstance(func_node, ast.Attribute):
+                if func_node.attr == "xrange":
+                    is_range = True
+
+        if is_range and isinstance(gen.iter, ast.Call):
+             if True: # To keep indentation
                  range_args = gen.iter.args
                  if len(range_args) == 3:
                      # range(start, stop, step) -> C-style for loop
@@ -160,7 +183,7 @@ class ComprehensionsMixin(TranslatorBase):
 
                      self._indent_level -= 1
                      self.output.append(f"{self._indent()}}}")
-                     return
+                     return target_var if is_inline else None
 
                  start_str = "0"
                  stop_str = "0"
@@ -170,7 +193,8 @@ class ComprehensionsMixin(TranslatorBase):
                       start_str = str(self.visit(range_args[0]))
                       stop_str = str(self.visit(range_args[1]))
                  iter_expr = f"{start_str}..{stop_str}"
-             elif gen.iter.func.id == "enumerate":
+        elif isinstance(gen.iter, ast.Call) and isinstance(gen.iter.func, ast.Name):
+             if gen.iter.func.id == "enumerate":
                  if gen.iter.args:
                      iter_expr = self.visit(gen.iter.args[0])
                      # Handle target for enumerate: for i, v in items
@@ -198,11 +222,18 @@ class ComprehensionsMixin(TranslatorBase):
 
         self._indent_level -= 1
         self.output.append(f"{self._indent()}}}")
+        return target_var if is_inline else None
 
-    def visit_DictComp(self, node: ast.DictComp, target_var: Optional[str] = None) -> None:
-        if not target_var:
-            self.output.append(f"{self._indent()}// Dict comprehension expression not supported inline yet")
-            return
+    def visit_GeneratorExp(self, node: ast.GeneratorExp, target_var: Optional[str] = None) -> Optional[str]:
+        # Eagerly evaluate generator expressions into lists
+        return self.visit_ListComp(node, target_var)
+
+    def visit_DictComp(self, node: ast.DictComp, target_var: Optional[str] = None) -> Optional[str]:
+        is_inline = False
+        if target_var is None:
+            is_inline = True
+            self.unique_id_counter += 1
+            target_var = f"_comp_{self.unique_id_counter}"
 
         gen = node.generators[0] # Handle first generator
         self._infer_generator_types(gen)
@@ -217,8 +248,19 @@ class ComprehensionsMixin(TranslatorBase):
         if getattr(gen, 'is_async', False):
              self.output.append(f"{self._indent()}// TODO: Async comprehension - Verify iterator semantics")
 
-        if isinstance(gen.iter, ast.Call) and isinstance(gen.iter.func, ast.Name) and gen.iter.func.id == "zip":
-             zip_args = gen.iter.args
+        is_zip = False
+        if isinstance(gen.iter, ast.Call):
+            func_node = gen.iter.func
+            if isinstance(func_node, ast.Name):
+                if func_node.id in ("zip", "izip"):
+                    is_zip = True
+            elif isinstance(func_node, ast.Attribute):
+                if func_node.attr == "izip":
+                    is_zip = True
+
+        if is_zip and isinstance(gen.iter, ast.Call):
+             if True: # To keep indentation
+                 zip_args = gen.iter.args
              if len(zip_args) == 2:
                  self._zip_counter += 1
                  zip_id = self._zip_counter
@@ -265,13 +307,23 @@ class ComprehensionsMixin(TranslatorBase):
 
                  self._indent_level -= 1
                  self.output.append(f"{self._indent()}}}")
-                 return
+                 return target_var if is_inline else None
 
         target = self.visit(gen.target)
         iter_expr = self.visit(gen.iter)
 
-        if isinstance(gen.iter, ast.Call) and isinstance(gen.iter.func, ast.Name):
-             if gen.iter.func.id == "range":
+        is_range = False
+        if isinstance(gen.iter, ast.Call):
+            func_node = gen.iter.func
+            if isinstance(func_node, ast.Name):
+                if func_node.id in ("range", "xrange"):
+                    is_range = True
+            elif isinstance(func_node, ast.Attribute):
+                if func_node.attr == "xrange":
+                    is_range = True
+
+        if is_range and isinstance(gen.iter, ast.Call):
+             if True: # To keep indentation
                  range_args = gen.iter.args
                  if len(range_args) == 3:
                      # range(start, stop, step) -> C-style for loop
@@ -305,7 +357,7 @@ class ComprehensionsMixin(TranslatorBase):
 
                      self._indent_level -= 1
                      self.output.append(f"{self._indent()}}}")
-                     return
+                     return target_var if is_inline else None
 
                  start = "0"
                  stop = "0"
@@ -315,7 +367,8 @@ class ComprehensionsMixin(TranslatorBase):
                       start = self.visit(range_args[0])
                       stop = self.visit(range_args[1])
                  iter_expr = f"{start}..{stop}"
-             elif gen.iter.func.id == "enumerate":
+        elif isinstance(gen.iter, ast.Call) and isinstance(gen.iter.func, ast.Name):
+             if gen.iter.func.id == "enumerate":
                  if gen.iter.args:
                      iter_expr = self.visit(gen.iter.args[0])
                      # Handle target for enumerate: for i, v in items
@@ -344,11 +397,14 @@ class ComprehensionsMixin(TranslatorBase):
 
         self._indent_level -= 1
         self.output.append(f"{self._indent()}}}")
+        return target_var if is_inline else None
 
-    def visit_SetComp(self, node: ast.SetComp, target_var: Optional[str] = None) -> None:
-        if not target_var:
-            self.output.append(f"{self._indent()}// Set comprehension expression not supported inline yet")
-            return
+    def visit_SetComp(self, node: ast.SetComp, target_var: Optional[str] = None) -> Optional[str]:
+        is_inline = False
+        if target_var is None:
+            is_inline = True
+            self.unique_id_counter += 1
+            target_var = f"_comp_{self.unique_id_counter}"
 
         gen = node.generators[0] # Handle first generator
         self._infer_generator_types(gen)
@@ -362,8 +418,19 @@ class ComprehensionsMixin(TranslatorBase):
         if getattr(gen, 'is_async', False):
              self.output.append(f"{self._indent()}// TODO: Async comprehension - Verify iterator semantics")
 
-        if isinstance(gen.iter, ast.Call) and isinstance(gen.iter.func, ast.Name) and gen.iter.func.id == "zip":
-             zip_args = gen.iter.args
+        is_zip = False
+        if isinstance(gen.iter, ast.Call):
+            func_node = gen.iter.func
+            if isinstance(func_node, ast.Name):
+                if func_node.id in ("zip", "izip"):
+                    is_zip = True
+            elif isinstance(func_node, ast.Attribute):
+                if func_node.attr == "izip":
+                    is_zip = True
+
+        if is_zip and isinstance(gen.iter, ast.Call):
+             if True: # To keep indentation
+                 zip_args = gen.iter.args
              if len(zip_args) == 2:
                  self._zip_counter += 1
                  zip_id = self._zip_counter
@@ -409,13 +476,23 @@ class ComprehensionsMixin(TranslatorBase):
 
                  self._indent_level -= 1
                  self.output.append(f"{self._indent()}}}")
-                 return
+                 return target_var if is_inline else None
 
         target = self.visit(gen.target)
         iter_expr = self.visit(gen.iter)
 
-        if isinstance(gen.iter, ast.Call) and isinstance(gen.iter.func, ast.Name):
-             if gen.iter.func.id == "range":
+        is_range = False
+        if isinstance(gen.iter, ast.Call):
+            func_node = gen.iter.func
+            if isinstance(func_node, ast.Name):
+                if func_node.id in ("range", "xrange"):
+                    is_range = True
+            elif isinstance(func_node, ast.Attribute):
+                if func_node.attr == "xrange":
+                    is_range = True
+
+        if is_range and isinstance(gen.iter, ast.Call):
+             if True: # To keep indentation
                  range_args = gen.iter.args
                  if len(range_args) == 3:
                      # range(start, stop, step) -> C-style for loop
@@ -448,7 +525,7 @@ class ComprehensionsMixin(TranslatorBase):
 
                      self._indent_level -= 1
                      self.output.append(f"{self._indent()}}}")
-                     return
+                     return target_var if is_inline else None
 
                  start = "0"
                  stop = "0"
@@ -458,7 +535,8 @@ class ComprehensionsMixin(TranslatorBase):
                       start = self.visit(range_args[0])
                       stop = self.visit(range_args[1])
                  iter_expr = f"{start}..{stop}"
-             elif gen.iter.func.id == "enumerate":
+        elif isinstance(gen.iter, ast.Call) and isinstance(gen.iter.func, ast.Name):
+             if gen.iter.func.id == "enumerate":
                  if gen.iter.args:
                      iter_expr = self.visit(gen.iter.args[0])
                      # Handle target for enumerate: for i, v in items
@@ -486,3 +564,4 @@ class ComprehensionsMixin(TranslatorBase):
 
         self._indent_level -= 1
         self.output.append(f"{self._indent()}}}")
+        return target_var if is_inline else None

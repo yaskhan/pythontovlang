@@ -42,7 +42,7 @@ class FunctionsMixin(TranslatorBase):
                 args = args[1:]
 
             for arg in args:
-                arg_name = arg.arg
+                arg_name = self._sanitize_name(arg.arg)
                 if arg.annotation:
                     try:
                         type_str = ast.unparse(arg.annotation)
@@ -120,15 +120,34 @@ class FunctionsMixin(TranslatorBase):
         if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
              is_generator = self.coroutine_handler.is_generator(original_name if 'original_name' in locals() else node.name)
 
-        # Save current state
-        old_output = self.output
-        self.output = []
-        self._indent_level = 0
-
         # Analyze decorators
         dec_info = self.decorator_processor.analyze(node, self.current_class)
 
-        # Handle decorators comments (emit all for clarity)
+        is_method = self.current_class is not None
+        # Ensure struct_name is always a string
+        base_struct_name: str = self.current_class if self.current_class else ""
+
+        # Check if the class is a mixin and get list of main struct names if needed
+        is_mixin = False
+        struct_names = [base_struct_name]
+        if is_method and hasattr(self.type_inference, 'mixin_to_main'):
+            if base_struct_name in self.type_inference.mixin_to_main:
+                struct_names = self.type_inference.mixin_to_main[base_struct_name]
+                is_mixin = True
+
+        old_output = self.output
+        for struct_name in struct_names:
+            self._generate_function_for_struct(node, is_async, is_method, struct_name, dec_info, is_generator)
+        self.output = old_output
+
+    def _generate_function_for_struct(self, node: Any, is_async: bool, is_method: bool, struct_name: str, dec_info: Any, is_generator: bool) -> None:
+        self.output = []
+        self._indent_level = 0
+
+        # Handle decorators and check for @warnings.deprecated
+        is_deprecated = False
+        deprecated_message: str | None = None
+        
         for decorator in node.decorator_list:
              if isinstance(decorator, ast.Call):
                  # Decorator with args: @dec(arg)
@@ -140,16 +159,19 @@ class FunctionsMixin(TranslatorBase):
                      val = self.visit(kw.value)
                      dec_args_list.append(f"{kw.arg}={val}")
                  dec_str = f"{func}({', '.join(dec_args_list)})"
+                 
+                 # Check for @warnings.deprecated("message")
+                 if func == "warnings.deprecated" and dec_args_list:
+                     is_deprecated = True
+                     # Extract message from first positional argument
+                     msg = dec_args_list[0].strip("'\"")
+                     deprecated_message = msg
              else:
                  dec_str = self.visit(decorator)
 
              # Avoid duplicating if in handled list?
              # Just emit comments for all decorators as metadata
              self.output.append(f"// @{dec_str}")
-
-        is_method = self.current_class is not None
-        # Ensure struct_name is always a string
-        struct_name: str = self.current_class if self.current_class else ""
 
         args_str_list: List[str] = []
         receiver_str: str = ""
@@ -212,7 +234,7 @@ class FunctionsMixin(TranslatorBase):
              args = args[1:]
 
         for arg in args:
-            arg_name = arg.arg
+            arg_name = self._sanitize_name(arg.arg)
             args_names.append(arg_name)
             # Use annotation if available for better type mapping
             if arg.annotation:
@@ -224,10 +246,24 @@ class FunctionsMixin(TranslatorBase):
             else:
                 arg_type = self.type_inference.type_map.get(arg_name, "int")
 
+            # Adjust arg type for SCC
+            if arg_type in self.imported_symbols:
+                 arg_type = self.imported_symbols[arg_type]
+            elif "." in arg_type:
+                 # Check if it is module.Type
+                 parts = arg_type.split('.')
+                 module_prefix = ".".join(parts[:-1])
+                 typename = parts[-1]
+                 # Match against SCC files by checking if the module path ends with the file path
+                 scc_file = next((f for f in self.scc_files if module_prefix.endswith(f.replace('.py', '').replace('/', '.').replace('\\', '.'))), None)
+                 if scc_file:
+                      prefix = self._get_scc_prefix(scc_file)
+                      arg_type = f"{prefix}__{typename}"
+
             args_str_list.append(f"{arg_name} {arg_type}")
 
         if node.args.vararg:
-            arg_name = node.args.vararg.arg
+            arg_name = self._sanitize_name(node.args.vararg.arg)
             arg_type = "int" # Default
             if node.args.vararg.annotation:
                 try:
@@ -239,7 +275,7 @@ class FunctionsMixin(TranslatorBase):
             args_names.append(arg_name)
 
         if node.args.kwarg:
-            arg_name = node.args.kwarg.arg
+            arg_name = self._sanitize_name(node.args.kwarg.arg)
             arg_type = "map[string]string"
             if node.args.kwarg.annotation:
                 try:
@@ -276,7 +312,7 @@ class FunctionsMixin(TranslatorBase):
                  pass
 
         if not is_unittest_method:
-            func_name = node.name
+            func_name = self._sanitize_name(node.name)
 
             # Check if this is the implementation of an overloaded function
             if func_name in self.overloaded_signatures and not is_new_method:
@@ -302,7 +338,7 @@ class FunctionsMixin(TranslatorBase):
                  func_name = f"set_{func_name}"
 
             if self.current_class and not is_new_method:
-                func_name = self._mangle_name(func_name, self.current_class)
+                func_name = self._mangle_name(func_name, struct_name)
 
             if func_name in self.renamed_functions:
                 func_name = self.renamed_functions[func_name]
@@ -332,6 +368,16 @@ class FunctionsMixin(TranslatorBase):
                 func_name += gen_str
                 ret_type += gen_str
 
+        noreturn_attr = "[noreturn]\n" if is_noreturn else ""
+
+        # PEP 702: Add [deprecated] attribute for @warnings.deprecated decorator
+        deprecated_attr = ""
+        if is_deprecated:
+            if deprecated_message:
+                deprecated_attr = f"[deprecated: '{deprecated_message}']\n"
+            else:
+                deprecated_attr = "[deprecated]\n"
+
         elif is_method and func_name in ("__add__", "__sub__", "__mul__", "__truediv__", "__mod__", "__lt__", "__le__", "__eq__", "__ne__"):
              # Operator overloading
              op_map = {
@@ -342,17 +388,36 @@ class FunctionsMixin(TranslatorBase):
              op = op_map.get(func_name)
              if op:
                  func_name = op
-                 decl = f"fn {receiver_str}{op} ({args_str}) {ret_type} {{"
+                 decl = f"{deprecated_attr}fn {receiver_str}{op} ({args_str}) {ret_type} {{"
         elif func_name in ("__str__", "__repr__"):
              func_name = "str"
-             decl = f"fn {receiver_str}{func_name}() string {{"
+             decl = f"{deprecated_attr}fn {receiver_str}{func_name}() string {{"
 
-        noreturn_attr = "[noreturn]\n" if is_noreturn else ""
+        # Adjust return type for SCC if it refers to a top-level symbol
+        if ret_type in self.imported_symbols:
+             ret_type = self.imported_symbols[ret_type]
+        elif "." in ret_type:
+             # Check if it is module.Type
+             parts = ret_type.split('.')
+             module_prefix = ".".join(parts[:-1])
+             typename = parts[-1]
+             # Match against SCC files
+             scc_file = next((f for f in self.scc_files if module_prefix.endswith(f.replace('.py', '').replace('/', '.').replace('\\', '.'))), None)
+             if scc_file:
+                  prefix = self._get_scc_prefix(scc_file)
+                  ret_type = f"{prefix}__{typename}"
+        # PEP 702: Add [deprecated] attribute for @warnings.deprecated decorator
+        deprecated_attr = ""
+        if dec_info.deprecated:
+            if dec_info.deprecated_message:
+                deprecated_attr = f"[deprecated: '{dec_info.deprecated_message}']\n"
+            else:
+                deprecated_attr = "[deprecated]\n"
 
         if 'decl' not in locals():
-            decl = f"{noreturn_attr}fn {receiver_str}{func_name}({args_str}) {ret_type} {{"
+            decl = f"{noreturn_attr}{deprecated_attr}fn {receiver_str}{func_name}({args_str}) {ret_type} {{"
         if ret_type == "void":
-             decl = f"{noreturn_attr}fn {receiver_str}{func_name}({args_str}) {{"
+             decl = f"{noreturn_attr}{deprecated_attr}fn {receiver_str}{func_name}({args_str}) {{"
 
         self.output.append(f"{decl}")
         self._indent_level += 1
@@ -397,10 +462,36 @@ class FunctionsMixin(TranslatorBase):
 
         self.emitter.add_function("\n".join(self.output))
 
-        self.output = old_output
+        # We cannot just restore self.output to old_output entirely if it's called in a loop,
+        # but since we create a new scope for the generated function, we append it to emitter.
+        # Wait, if it was inside a class, the method doesn't return anything to self.output usually,
+        # it just uses self.output as a buffer.
+        # But if we want it to be isolated, we should keep old_output logic correct.
+        # old_output was saved in _visit_function_common.
+        # We need to manage self.output per _generate_function_for_struct call.
+        # So we move old_output = self.output inside _generate_function_for_struct
 
     def _generate_overload_variants(self, node: Any, struct_name: str, is_method: bool, dec_info: Any, is_generator: bool) -> None:
         """Generates V functions for each @overload signature using the implementation body."""
+        # Check for @warnings.deprecated
+        is_deprecated = False
+        deprecated_message: str | None = None
+        deprecated_attr = ""
+        
+        for decorator in node.decorator_list:
+            if isinstance(decorator, ast.Call):
+                func = self.visit(decorator.func)
+                if func == "warnings.deprecated":
+                    is_deprecated = True
+                    if decorator.args:
+                        msg = self.visit(decorator.args[0])
+                        deprecated_message = msg.strip("'\"")
+        
+        if is_deprecated and deprecated_message:
+            deprecated_attr = f"[deprecated: '{deprecated_message}']\n"
+        elif is_deprecated:
+            deprecated_attr = "[deprecated]\n"
+        
         for sig in self.overloaded_signatures[node.name]:
             old_output = self.output
             self.output = []
@@ -431,7 +522,7 @@ class FunctionsMixin(TranslatorBase):
             # Generate mangled name based on argument types
             type_suffix_parts = []
             for arg in sig["args"]:
-                arg_name = arg["name"]
+                arg_name = self._sanitize_name(arg["name"])
                 arg_type = arg["type"]
                 args_str_list.append(f"{arg_name} {arg_type}")
                 args_names.append(arg_name)
@@ -442,20 +533,35 @@ class FunctionsMixin(TranslatorBase):
             args_str = ", ".join(args_str_list)
             ret_type = sig["return"]
 
-            base_func_name = node.name
+            base_func_name = self._sanitize_name(node.name)
             if self.current_class:
-                base_func_name = self._mangle_name(base_func_name, self.current_class)
+                base_func_name = self._sanitize_name(self._mangle_name(base_func_name, self.current_class))
 
             if type_suffix_parts:
                 func_name = f"{base_func_name}_{'_'.join(type_suffix_parts)}"
             else:
                 func_name = f"{base_func_name}_noargs"
 
+            op_map = {
+                "__add__": "+", "__sub__": "-", "__mul__": "*", "__truediv__": "/",
+                "__mod__": "%", "__lt__": "<", "__le__": "<=", "__eq__": "==",
+                "__ne__": "!="
+            }
+            is_operator = False
+            op_str = ""
+            if is_method and node.name in op_map:
+                is_operator = True
+                op_str = op_map[node.name]
+                func_name = op_str
+
             self.function_names.add(func_name)
 
-            decl = f"fn {receiver_str}{func_name}({args_str}) {ret_type} {{"
-            if ret_type == "void":
-                 decl = f"fn {receiver_str}{func_name}({args_str}) {{"
+            if is_operator:
+                decl = f"{deprecated_attr}fn {receiver_str}{op_str} ({args_str}) {ret_type} {{"
+            else:
+                decl = f"{deprecated_attr}fn {receiver_str}{func_name}({args_str}) {ret_type} {{"
+                if ret_type == "void":
+                    decl = f"{deprecated_attr}fn {receiver_str}{func_name}({args_str}) {{"
 
             self.output.append(decl)
             self._indent_level += 1
@@ -489,7 +595,7 @@ class FunctionsMixin(TranslatorBase):
         # lambda args: expr -> fn (args) { return expr }
         args_str_list = []
         for arg in node.args.args:
-            arg_name = arg.arg
+            arg_name = self._sanitize_name(arg.arg)
             arg_type = "int" # Default type for now
             args_str_list.append(f"{arg_name} {arg_type}")
 

@@ -26,3 +26,8 @@ def test_bytes_literal_empty():
     code = "b = b''"
     v_code = transpile(code)
     assert "[]u8{}" in v_code
+
+def test_bytes_encoding_call():
+    code = "b = bytes('hello', 'utf-8')"
+    v_code = transpile(code)
+    assert "'hello'.bytes()" in v_code
