@@ -3,7 +3,7 @@ import sys
 import os
 import argparse
 import ast
-from typing import List, Optional
+from typing import List, Optional, Set
 from py2v_transpiler.config import TranspilerConfig
 from py2v_transpiler.core.parser import PyASTParser
 from py2v_transpiler.core.analyzer import TypeInference
@@ -82,8 +82,8 @@ def generate_all_helpers(output_path: str) -> None:
         print(f"Error writing global helpers to {output_path}: {e}")
 
 
-def transpile_file(source_file: str, config: TranspilerConfig, global_helpers: Optional[GlobalHelpers] = None) -> bool:
-    print(f"Transpiling {source_file}...")
+def transpile_file(source_file: str, config: TranspilerConfig, global_helpers: Optional[GlobalHelpers] = None, current_module: str = "main", scc_files: Optional[Set[str]] = None, output_path: Optional[str] = None) -> bool:
+    print(f"Transpiling {source_file} (module: {current_module})...")
 
     # 1. Read source
     try:
@@ -123,6 +123,11 @@ def transpile_file(source_file: str, config: TranspilerConfig, global_helpers: O
 
     # 4. Translate
     translator = VNodeVisitor(analyzer)
+    translator.current_module_name = current_module
+    translator.current_file_name = os.path.basename(source_file)
+    if scc_files:
+        translator.scc_files = scc_files
+
     try:
         v_code_intermediate = translator.visit_Module(tree)
         if not config.no_helpers:
@@ -136,7 +141,10 @@ def transpile_file(source_file: str, config: TranspilerConfig, global_helpers: O
         return False
 
     # 5. Output
-    output_file = os.path.splitext(source_file)[0] + ".v"
+    if output_path:
+        output_file = output_path
+    else:
+        output_file = os.path.splitext(source_file)[0] + ".v"
     output_dir = os.path.dirname(output_file)
 
     try:
@@ -173,22 +181,67 @@ def transpile_file(source_file: str, config: TranspilerConfig, global_helpers: O
         return False
 
 def process_directory(path: str, config: TranspilerConfig, recursive: bool) -> None:
-    for root, dirs, files in os.walk(path):
+    analyzer = DependencyAnalyzer()
+    sccs = analyzer.find_sccs(path, recursive=recursive)
+
+    # Map file path to its SCC
+    file_to_scc = {}
+    for scc in sccs:
+        for f in scc:
+            file_to_scc[f] = scc
+
+    # Identify SCCs that span multiple directories and decide on their consolidation
+    scc_to_dir = {}
+    for scc_set in sccs:
+        scc = list(scc_set)
+        if len(scc) > 1:
+            # Consolidation directory for the SCC
+            first_file = scc[0]
+            scc_dir = os.path.dirname(os.path.join(path, first_file))
+            scc_to_dir[id(scc_set)] = scc_dir
+        else:
+            scc_to_dir[id(scc_set)] = os.path.dirname(os.path.join(path, scc[0]))
+
+    # Group files by their final destination directory
+    final_dir_to_files = {}
+    for f, scc in file_to_scc.items():
+        d = scc_to_dir[id(scc)]
+        if d not in final_dir_to_files:
+            final_dir_to_files[d] = []
+        final_dir_to_files[d].append(f)
+
+    # Within each directory, ensure all files share the same module name
+    for d, files in final_dir_to_files.items():
         global_helpers = GlobalHelpers()
         processed_files = 0
 
-        for file in files:
-            if file.endswith(".py"):
-                full_path = os.path.join(root, file)
-                if transpile_file(full_path, config, global_helpers):
-                    processed_files += 1
+        # Determine module name for this directory
+        # If any file in this directory belongs to a multi-file SCC,
+        # use the directory name as module name. Otherwise use "main".
+        has_scc = any(len(file_to_scc[f]) > 1 for f in files)
+        current_module = os.path.basename(d) if has_scc and os.path.basename(d) else "main"
+
+        for f in files:
+            full_path = os.path.join(path, f)
+            scc = file_to_scc[f]
+
+            # Ensure the output file is in the consolidated directory
+            out_name = os.path.basename(f).replace('.py', '.v')
+            output_path = os.path.join(d, out_name)
+
+            if transpile_file(full_path, config, global_helpers, current_module=current_module, scc_files=scc, output_path=output_path):
+                processed_files += 1
 
         if processed_files > 0 and not config.no_helpers:
-            helpers_file = os.path.join(root, "py2v_helpers.v")
-            global_helpers.write(helpers_file)
-
-        if not recursive:
-            break
+            helpers_file = os.path.join(d, "py2v_helpers.v")
+            # Ensure helpers use the same module name
+            v_code_helpers = VCodeEmitter.emit_global_helpers(global_helpers.imports, global_helpers.structs, global_helpers.functions, module_name=current_module)
+            try:
+                with open(helpers_file, "w", encoding="utf-8") as f_out:
+                    f_out.write(v_code_helpers)
+                print(f"Generated global helpers: {helpers_file}")
+            except Exception as e:
+                print(f"Error writing global helpers to {helpers_file}: {e}")
 
 def main():
     parser = argparse.ArgumentParser(description="Python to V Transpiler")

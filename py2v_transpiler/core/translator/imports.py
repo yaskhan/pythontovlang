@@ -5,6 +5,11 @@ class ImportsMixin(TranslatorBase):
     def visit_Import(self, node: ast.Import) -> None:
         for alias in node.names:
             module_name = alias.name
+
+            # Skip imports if they are within the same SCC (same V package)
+            if any(module_name == f.replace('.py', '').replace('/', '.') for f in self.scc_files):
+                continue
+
             as_name = alias.asname if alias.asname else module_name
             self.imported_modules[as_name] = module_name
 
@@ -20,6 +25,14 @@ class ImportsMixin(TranslatorBase):
     def visit_ImportFrom(self, node: ast.ImportFrom) -> None:
         if node.module:
             module_name = node.module
+
+            # Skip if module is in the same SCC
+            if any(module_name == f.replace('.py', '').replace('/', '.') for f in self.scc_files):
+                for alias in node.names:
+                    name = alias.name
+                    as_name = alias.asname if alias.asname else name
+                    self.imported_symbols[as_name] = name # No prefix needed
+                return
 
             # Suppress __future__ imports
             if module_name == "__future__":

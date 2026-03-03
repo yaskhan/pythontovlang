@@ -4,6 +4,7 @@ from .base import TranslatorBase
 
 class ModuleMixin(TranslatorBase):
     def visit_Module(self, node: ast.Module) -> str:
+        self.emitter.module_name = self.current_module_name
         self.global_vars = set()
         for subnode in ast.walk(node):
             if isinstance(subnode, ast.Global):

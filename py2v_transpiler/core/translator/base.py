@@ -117,13 +117,17 @@ class TranslatorBase(ast.NodeVisitor):
         self.unique_id_counter: int = 0
         self.vexc_depth: int = 0
         self._local_vars_in_scope: Set[str] = set()
+        self.current_module_name: str = "main"
+        self.current_file_name: str = ""
+        self.scc_files: Set[str] = set()
 
     def _indent(self) -> str:
         return "    " * self._indent_level
 
     def _sanitize_name(self, name: str) -> str:
         """
-        Sanitizes Python identifiers that collide with V lang reserved keywords.
+        Sanitizes Python identifiers that collide with V lang reserved keywords
+        or other files in the same SCC cluster.
         """
         reserved = {
             "fn", "type", "struct", "mut", "if", "else", "for", "return", "match",
@@ -133,6 +137,14 @@ class TranslatorBase(ast.NodeVisitor):
         }
         if name in reserved:
             return f"py_{name}"
+
+        # Naming collision resolution for SCC flattened modules
+        if self.current_file_name and len(self.scc_files) > 1 and not self.current_class:
+            # If we are in a flattened SCC, prefix top-level names if they might collide.
+            # We prefix with the sanitized file name (removing path and .py)
+            prefix = self.current_file_name.replace('.py', '').replace('/', '_').split('.')[-1]
+            return f"{prefix}__{name}"
+
         return name
 
     def _mangle_name(self, name: str, class_name: Optional[str]) -> str:
