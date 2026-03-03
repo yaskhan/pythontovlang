@@ -434,6 +434,13 @@ class CallsMixin(TranslatorBase):
                     return f"$compile_error('assert_type failed: expected {expected_type} but got {expr_type}')"
             return "// assert_type requires 2 arguments"
 
+        # Special handling for typing.assert_never
+        if func_name_str == "typing.assert_never" or (original_id == "assert_never" and func_name_str == "assert_never"):
+            if len(args) >= 1:
+                # assert_never should never be reached - translate to panic
+                return f"panic('assert_never reached: ${{args[0]}}')"
+            return "// assert_never requires 1 argument"
+
         # Handle dataclass constructor call
         dataclass_metadata = None
         if call_sig and "dataclass_metadata" in call_sig:

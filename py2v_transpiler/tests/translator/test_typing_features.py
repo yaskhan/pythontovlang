@@ -182,3 +182,17 @@ def foo(x):
     assert "fn foo_string(x string) string {" in v_code
     # And both should have the implementation body `return x`
     assert v_code.count("return x") >= 2
+
+def test_typing_assert_never():
+    source = """
+from typing import assert_never
+
+def check(x: int) -> None:
+    if x == 1:
+        pass
+    else:
+        assert_never(x)
+"""
+    v_code = translate(source)
+    # assert_never should be translated to a panic or similar
+    assert "panic" in v_code.lower() or "assert_never" in v_code

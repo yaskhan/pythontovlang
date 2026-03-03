@@ -116,3 +116,33 @@ class MyClass:
     # Treated as static method (no receiver)
     # The argument 'cls' is present. Type defaults to int.
     assert "fn factory(cls int)" in code, f"Code:\n{code}"
+
+def test_deprecated_function():
+    source = """
+import warnings
+
+@warnings.deprecated("Use new_func instead")
+def old_func():
+    pass
+"""
+    visitor = VNodeVisitor(TypeInference())
+    tree = ast.parse(source)
+    code = visitor.visit(tree)
+
+    assert "[deprecated: 'Use new_func instead']" in code, f"Code:\n{code}"
+    assert "fn old_func() {" in code, f"Code:\n{code}"
+
+def test_deprecated_class():
+    source = """
+import warnings
+
+@warnings.deprecated("Use NewClass instead")
+class OldClass:
+    pass
+"""
+    visitor = VNodeVisitor(TypeInference())
+    tree = ast.parse(source)
+    code = visitor.visit(tree)
+
+    assert "[deprecated: 'Use NewClass instead']" in code, f"Code:\n{code}"
+    assert "struct OldClass {" in code, f"Code:\n{code}"
