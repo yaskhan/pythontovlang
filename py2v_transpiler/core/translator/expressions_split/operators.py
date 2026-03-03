@@ -16,8 +16,22 @@ class OperatorsMixin(TranslatorBase):
             if v_type != "void":
                  op_type = v_type
 
+        # Support for array initialization: [element] * length
+        if isinstance(node.op, ast.Mult) and isinstance(node.left, ast.List) and len(node.left.elts) == 1:
+            elt = node.left.elts[0]
+            elt_type = self._guess_type(elt)
+
+            elt_str = self.visit(elt)
+            right_str = self.visit(node.right)
+            return f"[]{elt_type}{{len: {right_str}, init: {elt_str}}}"
+
         left = self.visit(node.left)
+        if isinstance(node.left, (ast.BinOp, ast.BoolOp, ast.Compare)):
+            left = f"({left})"
+
         right = self.visit(node.right)
+        if isinstance(node.right, (ast.BinOp, ast.BoolOp, ast.Compare)):
+            right = f"({right})"
 
         if self._wrap_with_parens_if_needed(node, node.left, False):
             left = f"({left})"
@@ -188,7 +202,12 @@ class OperatorsMixin(TranslatorBase):
     def visit_BoolOp(self, node: ast.BoolOp) -> str:
         op_map = {ast.And: "&&", ast.Or: "||"}
         op_str = op_map.get(type(node.op), "and")
-        values = [str(self.visit(val)) for val in node.values]
+        values = []
+        for val in node.values:
+            val_str = str(self.visit(val))
+            if isinstance(val, (ast.BoolOp, ast.BinOp, ast.Compare)):
+                val_str = f"({val_str})"
+            values.append(val_str)
         return f" {op_str} ".join(values)
 
     def visit_UnaryOp(self, node: ast.UnaryOp) -> str:
