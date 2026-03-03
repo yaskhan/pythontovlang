@@ -189,7 +189,7 @@ Based on recent Python ecosystem developments (mypy, PyPy, Numba, NumPy, Nuitka,
   - Handle new AST nodes: `TypeVar`, `ParamSpec`, `TypeVarTuple`, `type_params` list.
 - [ ] **PEP 696: Type parameter defaults (Python 3.13+)**
   - Support generic defaults: `def foo[T = int](x: T): ...` or `class Container[T = list[int]]: ...`.
-- [ ] **PEP 750: Template string literals (`t-strings`)**
+- [x] **PEP 750: Template string literals (`t-strings`)**
   - Support `t"Hello {name=}"`, `T"Value: {value!r}"` by mapping the returned `Template` object to a custom string builder or interpolation mechanism in V.
 - [ ] **PEP 758: Bracketless `except` / `except*` clauses (Python 3.14)**
   - Support multi-exception syntax without parenthesis: `except ValueError, TypeError:` and `except* OSError, IOError:`.

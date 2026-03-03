@@ -442,6 +442,32 @@ class CallsMixin(TranslatorBase):
                 return f"panic('assert_never reached: ${{args[0]}}')"
             return "// assert_never requires 1 argument"
 
+        # Special handling for py2v_t_string (PEP 750 t-strings)
+        if func_name_str == "py2v_t_string" and len(node.args) == 1:
+            arg = node.args[0]
+            self.emitter.add_import("strings")
+            if isinstance(arg, ast.JoinedStr):
+                # Custom string builder approach in V for template strings
+                parts = []
+                for val in arg.values:
+                    if isinstance(val, ast.Constant) and isinstance(val.value, str):
+                        s = val.value.replace('\\', '\\\\').replace("'", "\\'").replace('\n', '\\n').replace('\r', '\\r').replace('\t', '\\t')
+                        parts.append(f"_t_b.write_string('{s}')")
+                    else:
+                        if isinstance(val, ast.FormattedValue):
+                            # FormattedValue will be processed by visit_FormattedValue which returns an interpolated string
+                            # e.g. ${name:x} -> we can just evaluate it inside a string and write it.
+                            v_expr = self.visit(val)
+                            parts.append(f"_t_b.write_string('{v_expr}')")
+                        else:
+                            v_expr = self.visit(val)
+                            parts.append(f"_t_b.write_string({v_expr}.str())")
+                builder_code = "\n    ".join(parts)
+                return f"fn () string {{\n    mut _t_b := strings.new_builder(64)\n    {builder_code}\n    return _t_b.str()\n}}()"
+            elif isinstance(arg, ast.Constant) and isinstance(arg.value, str):
+                s = arg.value.replace('\\', '\\\\').replace("'", "\\'").replace('\n', '\\n').replace('\r', '\\r').replace('\t', '\\t')
+                return f"fn () string {{\n    mut _t_b := strings.new_builder(64)\n    _t_b.write_string('{s}')\n    return _t_b.str()\n}}()"
+
         # Handle dataclass constructor call
         dataclass_metadata = None
         if call_sig and "dataclass_metadata" in call_sig:
