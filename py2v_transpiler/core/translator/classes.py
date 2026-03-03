@@ -209,7 +209,7 @@ class ClassesMixin(TranslatorBase):
 
         # Init readonly_fields
         if not hasattr(self, 'readonly_fields'):
-            self.readonly_fields = {}
+            self.readonly_fields: dict[str, set[str]] = {}
 
         # Handle inheritance (bases)
         is_flag = False
