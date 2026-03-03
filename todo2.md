@@ -17,7 +17,7 @@ Based on recent Python ecosystem developments (mypy, PyPy, Numba, NumPy, Nuitka,
   - Recognize functions returning `TypeIs[T]` instead of `bool`.
   - *V Translation:* Generate an `if` with an automatic type cast inside the block (using narrowing info from mypy).
   - Differentiate from `TypeGuard`: `TypeIs` narrows in the `else`-branch (to the negation). Implement handling for both branches.
-- [ ] **PEP 696: Type Variable Defaults**
+- [x] **PEP 696: Type Variable Defaults**
   - Support new Python 3.13 syntax for generic defaults: `class Box[T = int]: ...`
 - [x] **PEP 702: `@deprecated` Decorator**
   - Transpile `warnings.deprecated` to V's `[deprecated]` attribute on functions/structs.
@@ -187,7 +187,7 @@ Based on recent Python ecosystem developments (mypy, PyPy, Numba, NumPy, Nuitka,
 - [ ] **PEP 695: Full type parameter syntax**
   - Support syntax like `def func[T](x: T) -> T: ...`, `class Box[T]: value: T`, `type Alias[T] = list[T]`.
   - Handle new AST nodes: `TypeVar`, `ParamSpec`, `TypeVarTuple`, `type_params` list.
-- [ ] **PEP 696: Type parameter defaults (Python 3.13+)**
+- [x] **PEP 696: Type parameter defaults (Python 3.13+)**
   - Support generic defaults: `def foo[T = int](x: T): ...` or `class Container[T = list[int]]: ...`.
 - [ ] **PEP 750: Template string literals (`t-strings`)**
   - Support `t"Hello {name=}"`, `T"Value: {value!r}"` by mapping the returned `Template` object to a custom string builder or interpolation mechanism in V.

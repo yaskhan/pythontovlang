@@ -34,6 +34,17 @@ class ClassesMixin(TranslatorBase):
         self.current_class_bases = []
         self.current_class_is_unittest = False
 
+        if hasattr(node, 'type_params') and node.type_params:
+            for param in node.type_params:
+                # TypeVar, ParamSpec, TypeVarTuple might have 'name' as string or attribute
+                # PEP 696 type defaults (param.default) are intentionally ignored since V doesn't support them
+                if hasattr(param, 'name'):
+                    name = param.name
+                    if isinstance(name, str):
+                        self.current_class_generics.append(name)
+                    elif hasattr(name, 'id'):
+                        self.current_class_generics.append(name.id)
+
         # Handle decorators
         decorators = []
         is_dataclass = False
