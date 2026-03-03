@@ -10,9 +10,7 @@ class TestTodoTasks(unittest.TestCase):
 
     def transpile(self, source):
         tree = ast.parse(source)
-        self.translator.visit(tree)
-        # Fix: use emitter output, not internal buffer which is cleared
-        return self.translator.emitter.emit()
+        return self.translator.visit(tree)
 
     def test_metaclass(self):
         source = """
