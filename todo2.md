@@ -19,7 +19,7 @@ Based on recent Python ecosystem developments (mypy, PyPy, Numba, NumPy, Nuitka,
   - Differentiate from `TypeGuard`: `TypeIs` narrows in the `else`-branch (to the negation). Implement handling for both branches.
 - [ ] **PEP 696: Type Variable Defaults**
   - Support new Python 3.13 syntax for generic defaults: `class Box[T = int]: ...`
-- [ ] **PEP 702: `@deprecated` Decorator**
+- [x] **PEP 702: `@deprecated` Decorator**
   - Transpile `warnings.deprecated` to V's `[deprecated]` attribute on functions/structs.
 - [ ] **Property Setters and Getters with Different Types**
   - Ensure the translator can handle and correctly emit V code when a `@property` and its `@foo.setter` have slightly mismatched type hints (e.g., returning `int` but accepting `str | int`).
