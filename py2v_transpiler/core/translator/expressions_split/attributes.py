@@ -15,6 +15,23 @@ class AttributesMixin(TranslatorBase):
              obj = self.visit(node.value)
              return f"typeof({obj})"
 
+        if node.attr == "__annotations__":
+             obj_str = self.visit(node.value)
+             # If obj is a known class, it's just the class name.
+             if obj_str in getattr(self, "defined_classes", {}):
+                 return f"get_annotations_for_{obj_str}()"
+             # If obj is a known function
+             if obj_str in getattr(self, "function_names", set()):
+                 return f"get_annotations_for_{obj_str}()"
+
+             # Try to get instance type
+             t = self._guess_type(node.value)
+             if t != "Any" and t in getattr(self, "defined_classes", {}):
+                 return f"get_annotations_for_{t}()"
+
+             # Fallback
+             return "map[string]string{}"
+
         if node.attr == "real":
              if self._guess_type(node.value) == "PyComplex":
                  obj = self.visit(node.value)

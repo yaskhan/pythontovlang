@@ -177,6 +177,10 @@ class FunctionsMixin(TranslatorBase):
         receiver_str: str = ""
         args_names: List[str] = []
 
+        # For deferred annotations (PEP 649 / 749)
+        func_annotations = {}
+        self._current_func_annotations = func_annotations
+
         # Special handling for unittest methods: flatten to function calls
         is_unittest_method = False
         if hasattr(self, 'current_class_is_unittest') and self.current_class_is_unittest:
@@ -240,6 +244,7 @@ class FunctionsMixin(TranslatorBase):
             if arg.annotation:
                 try:
                     type_str = ast.unparse(arg.annotation)
+                    func_annotations[arg.arg] = type_str
                     arg_type = map_python_type_to_v(type_str, self_name=struct_name or "Self")
                 except Exception:
                     arg_type = self.type_inference.type_map.get(arg_name, "int")
@@ -292,6 +297,7 @@ class FunctionsMixin(TranslatorBase):
         if not is_generator and node.returns:
              try:
                  type_str = ast.unparse(node.returns)
+                 func_annotations['return'] = type_str
                  ret_type = map_python_type_to_v(type_str, self_name=struct_name or "Self")
              except:
                  if isinstance(node.returns, ast.Name):
@@ -589,6 +595,22 @@ class FunctionsMixin(TranslatorBase):
             self.output.append("}")
 
             self.emitter.add_function("\n".join(self.output))
+
+            # PEP 649 / 749: Emit get_annotations_for_{func_name}
+            # Only if it's a top level function (no receiver) and not a unittest
+            is_test_method = False
+            if hasattr(self, 'current_class_is_unittest') and getattr(self, 'current_class_is_unittest'):
+                if node.name.startswith("test_"):
+                    is_test_method = True
+
+            if not is_test_method and not receiver_str and func_name not in ("str", "repr", "init_subclass", "+", "-", "*", "/", "%", "<", "<=", "==", "!="):
+                 map_entries = [f"        '{k}': '{v}'" for k, v in getattr(self, '_current_func_annotations', {}).items()]
+                 entries_str = ",\n".join(map_entries)
+                 if map_entries:
+                     entries_str = "\n" + entries_str + "\n    "
+                 annot_fn = f"fn get_annotations_for_{func_name}() map[string]string {{\n    return map[string]string{{{entries_str}}}\n}}\n"
+                 self.emitter.add_function(annot_fn)
+
             self.output = old_output
 
     def visit_Lambda(self, node: ast.Lambda) -> str:

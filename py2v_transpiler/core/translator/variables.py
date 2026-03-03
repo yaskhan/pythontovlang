@@ -694,6 +694,9 @@ class VariablesMixin(TranslatorBase):
                 self.output.append(f"{self._indent()}// {target} declared (annotation processing failed)")
 
     def visit_Name(self, node: ast.Name) -> str:
+        if node.id == "__annotations__":
+            return "get_annotations_for_module()"
+
         if node.id in self.name_remap:
             return self.name_remap[node.id]
 

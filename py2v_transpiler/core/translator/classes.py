@@ -125,6 +125,9 @@ class ClassesMixin(TranslatorBase):
                                         default_val = self.visit(stmt.value)
                                         fields.append(f"    {field_name} {field_type} = {default_val}")
 
+        # For deferred annotations (PEP 649 / 749)
+        class_annotations = {}
+
         # If it's a dataclass, try to find perfectly inferred metadata from mypy
         dataclass_metadata = None
         if is_dataclass and hasattr(self.type_inference, 'call_signatures'):
@@ -342,6 +345,14 @@ class ClassesMixin(TranslatorBase):
             elif isinstance(stmt, ast.AnnAssign) and isinstance(stmt.target, ast.Name):
                 # Class attribute with annotation -> struct field
                 field_name = self._sanitize_name(stmt.target.id)
+
+                # PEP 649 / 749: Record the stringified annotation for deferred evaluation
+                if stmt.annotation:
+                    try:
+                        type_str_raw = ast.unparse(stmt.annotation)
+                        class_annotations[stmt.target.id] = type_str_raw
+                    except Exception:
+                        pass
 
                 if field_name in added_fields:
                     continue
@@ -655,6 +666,15 @@ class ClassesMixin(TranslatorBase):
         if not hasattr(self, 'defined_classes'):
             self.defined_classes = {}
         self.defined_classes[struct_name] = has_init
+
+        # Emit get_annotations_for_{struct_name} (PEP 649 / 749 deferred evaluation)
+        if not is_unittest and not is_protocol and not is_mixin:
+            map_entries = [f"        '{k}': '{v}'" for k, v in class_annotations.items()]
+            entries_str = ",\n".join(map_entries)
+            if map_entries:
+                entries_str = "\n" + entries_str + "\n    "
+            annot_fn = f"fn get_annotations_for_{struct_name}() map[string]string {{\n    return map[string]string{{{entries_str}}}\n}}\n"
+            self.emitter.add_function(annot_fn)
 
         # Ensure we output the nested struct definition at the top level
         # visit_ClassDef processes body elements via iteration.

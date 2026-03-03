@@ -193,7 +193,7 @@ Based on recent Python ecosystem developments (mypy, PyPy, Numba, NumPy, Nuitka,
   - Support `t"Hello {name=}"`, `T"Value: {value!r}"` by mapping the returned `Template` object to a custom string builder or interpolation mechanism in V.
 - [ ] **PEP 758: Bracketless `except` / `except*` clauses (Python 3.14)**
   - Support multi-exception syntax without parenthesis: `except ValueError, TypeError:` and `except* OSError, IOError:`.
-- [ ] **PEP 649 / PEP 749: Deferred evaluation of annotations**
+- [x] **PEP 649 / PEP 749: Deferred evaluation of annotations**
   - Now default in 3.14. Correctly handle `__annotations__` as deferred objects without requiring `from __future__ import annotations`.
 
 ## Advanced Syntax & Edge Cases

@@ -56,6 +56,26 @@ class ModuleMixin(TranslatorBase):
                     self.emitter.add_main_statement(line.strip())
                 self.output = []
 
+        # For PEP 649 / 749, emit module-level get_annotations_for_module if needed
+        # We can extract top-level annotations from the AST
+        mod_annotations = {}
+        for stmt in body:
+            if isinstance(stmt, ast.AnnAssign) and isinstance(stmt.target, ast.Name):
+                if stmt.annotation:
+                    try:
+                        type_str_raw = ast.unparse(stmt.annotation)
+                        mod_annotations[stmt.target.id] = type_str_raw
+                    except Exception:
+                        pass
+
+        # Always emit a get_annotations_for_module function so it exists for module-level `__annotations__` access
+        map_entries = [f"        '{k}': '{v}'" for k, v in mod_annotations.items()]
+        entries_str = ",\n".join(map_entries)
+        if map_entries:
+            entries_str = "\n" + entries_str + "\n    "
+        annot_fn = f"fn get_annotations_for_module() map[string]string {{\n    return map[string]string{{{entries_str}}}\n}}\n"
+        self.emitter.add_function(annot_fn)
+
         # Generate single dispatchers
         for func_name, registry in self.single_dispatch_functions.items():
             # fn func_name(arg Any) {
