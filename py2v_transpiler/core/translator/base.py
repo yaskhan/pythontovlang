@@ -136,6 +136,12 @@ class TranslatorBase(ast.NodeVisitor):
             if hasattr(self.type_inference, "type_map") and node.id in self.type_inference.type_map:
                 return self.type_inference.type_map[node.id]
             return "int" # Fallback
+        elif isinstance(node, ast.Attribute):
+            if isinstance(node.value, ast.Name):
+                attr_name = f"{node.value.id}.{node.attr}"
+                if hasattr(self.type_inference, "type_map") and attr_name in self.type_inference.type_map:
+                    return self.type_inference.type_map[attr_name]
+            return "Any"
         elif isinstance(node, ast.BinOp):
             if isinstance(node.op, ast.Div):
                 left = self._guess_type(node.left)

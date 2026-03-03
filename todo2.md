@@ -450,7 +450,7 @@ Based on the transpilation of the `primes.py` benchmark, several critical areas 
   - *Context:* Python's `n <= self.limit and (n % 12 == 1 or n % 12 == 5)` drops the parentheses around the `or` clause in V: `n <= self.limit && n % 12 == 1 || n % 12 == 5`. This changes operator precedence.
   - *Task:* Ensure the AST transpilation correctly preserves grouping parentheses for binary and boolean operations.
 
-- [ ] **Dictionary Type Inference (`self.children = {}`)**
+- [x] **Dictionary Type Inference (`self.children = {}`)**
   - *Context:* In `Node.__init__`, `self.children = {}` causes `self.children` to be inferred as `map[string]int{}`, which is incorrect since it stores `Node` instances later.
   - *Task:* Improve type inference for empty dictionaries by analyzing subsequent dictionary assignments (like `head.children[ch] = Node()`) to infer the correct value type (`map[string]Node`).
 
