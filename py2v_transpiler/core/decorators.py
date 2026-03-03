@@ -16,6 +16,9 @@ class DecoratorInfo:
     injected_start: List[str] = field(default_factory=list)
     injected_end: List[str] = field(default_factory=list)
     implementation_name: Optional[str] = None
+    # PEP 702: @deprecated decorator support
+    deprecated: bool = False
+    deprecated_message: Optional[str] = None
 
 class DecoratorProcessor:
     def __init__(self, visitor: Any):
@@ -53,6 +56,15 @@ class DecoratorProcessor:
                 info.injected_start.append(f"println('Start {node.name}...')")
                 # Using defer for end logging is idiomatic in V
                 info.injected_end.append(f"defer {{ println('End {node.name}...') }}")
+                info.decorators_to_handle.append(dec_name)
+            elif dec_name == "deprecated":
+                # PEP 702: @warnings.deprecated decorator
+                info.deprecated = True
+                # Extract the message from the decorator call
+                if isinstance(decorator, ast.Call) and decorator.args:
+                    msg_arg = decorator.args[0]
+                    if isinstance(msg_arg, ast.Constant) and isinstance(msg_arg.value, str):
+                        info.deprecated_message = msg_arg.value
                 info.decorators_to_handle.append(dec_name)
             else:
                 # Custom or unknown -> emit as comment in visitor
