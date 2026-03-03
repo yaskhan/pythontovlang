@@ -26,7 +26,7 @@ class VariablesMixin(TranslatorBase):
         target = node.targets[0]
         lhs = ""
         if isinstance(target, ast.Name):
-            lhs = target.id
+            lhs = self._sanitize_name(target.id)
 
             # Check for NewType: UserId = NewType('UserId', int)
             if isinstance(node.value, ast.Call) and isinstance(node.value.func, ast.Name) and node.value.func.id == "NewType":
@@ -146,7 +146,7 @@ class VariablesMixin(TranslatorBase):
             if hasattr(self, 'dataclasses') and obj_type in self.dataclasses:
                 list_obj = self.visit(target.value)
                 if isinstance(target.slice, ast.Constant) and isinstance(target.slice.value, str):
-                    lhs = f"{list_obj}.{target.slice.value}"
+                    lhs = f"{list_obj}.{self._sanitize_name(target.slice.value)}"
                     rhs = self.visit(node.value)
                     self.output.append(f"{self._indent()}{lhs} = {rhs}")
                     return
@@ -297,7 +297,7 @@ class VariablesMixin(TranslatorBase):
                 pairs = []
                 for k, v in zip(node.value.keys, node.value.values):
                     if isinstance(k, ast.Constant) and isinstance(k.value, str):
-                        key_str = k.value
+                        key_str = self._sanitize_name(k.value)
                         val_str = self.visit(v)
                         pairs.append(f"{key_str}: {val_str}")
 
@@ -544,7 +544,7 @@ class VariablesMixin(TranslatorBase):
 
     def visit_NamedExpr(self, node: ast.NamedExpr) -> str:
         # (target := value)
-        target = node.target.id
+        target = self._sanitize_name(node.target.id)
         value = self.visit(node.value)
         self._walrus_assignments.append(f"{target} := {value}")
         return target
@@ -585,7 +585,7 @@ class VariablesMixin(TranslatorBase):
                 pairs = []
                 for k, v in zip(node.value.keys, node.value.values):
                     if isinstance(k, ast.Constant) and isinstance(k.value, str):
-                        key_str = k.value
+                        key_str = self._sanitize_name(k.value)
                         val_str = self.visit(v)
                         pairs.append(f"{key_str}: {val_str}")
 
@@ -693,10 +693,10 @@ class VariablesMixin(TranslatorBase):
             return self.name_remap[node.id]
 
         # Name mangling for class-private attributes
-        return self._mangle_name(node.id, self.current_class)
+        return self._sanitize_name(self._mangle_name(node.id, self.current_class))
 
     def visit_TypeAlias(self, node: Any) -> None:
-        name = node.name.id
+        name = self._sanitize_name(node.name.id)
         type_params = ""
 
         # Safe access to ast.TypeVar for Py < 3.12 compatibility

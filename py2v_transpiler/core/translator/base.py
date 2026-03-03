@@ -107,6 +107,20 @@ class TranslatorBase(ast.NodeVisitor):
     def _indent(self) -> str:
         return "    " * self._indent_level
 
+    def _sanitize_name(self, name: str) -> str:
+        """
+        Sanitizes Python identifiers that collide with V lang reserved keywords.
+        """
+        reserved = {
+            "fn", "type", "struct", "mut", "if", "else", "for", "return", "match",
+            "interface", "enum", "pub", "import", "module", "const", "unsafe",
+            "defer", "go", "chan", "shared", "spawn", "assert", "sizeof", "typeof",
+            "__global", "as", "in", "is", "none", "map", "array", "string", "bool"
+        }
+        if name in reserved:
+            return f"py_{name}"
+        return name
+
     def _mangle_name(self, name: str, class_name: Optional[str]) -> str:
         """
         Implements Python's name mangling rules for private attributes.

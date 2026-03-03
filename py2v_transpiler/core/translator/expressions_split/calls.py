@@ -266,8 +266,17 @@ class CallsMixin(TranslatorBase):
 
         # Fallback to existing logic
         func_name_str = self.visit(node.func)
+
+        # If func_name_str was mangled/sanitized by visit_Name, we need the original to check builtins
+        # like "map", "filter", "print". Let's check if the un-sanitized version matches anything.
+        original_id = None
+        if isinstance(node.func, ast.Name):
+            original_id = node.func.id
+
         if func_name_str in self.renamed_functions:
             func_name_str = self.renamed_functions[func_name_str]
+        elif original_id and f"py_{original_id}" == func_name_str and original_id in ("map", "filter"):
+             func_name_str = original_id
 
         # Extract mypy plugin signature if available for this call
         loc_key = f"{getattr(node, 'lineno', 0)}:{getattr(node, 'col_offset', 0)}"
@@ -384,7 +393,7 @@ class CallsMixin(TranslatorBase):
             for keyword in node.keywords:
                 if keyword.arg:
                      kw_val_str = str(self.visit(keyword.value))
-                     struct_args.append(f"{keyword.arg}: {kw_val_str}")
+                     struct_args.append(f"{self._sanitize_name(keyword.arg)}: {kw_val_str}")
 
             return f"{func_name_str}{{{', '.join(struct_args)}}}"
 
