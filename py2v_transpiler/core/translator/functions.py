@@ -120,13 +120,29 @@ class FunctionsMixin(TranslatorBase):
         if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
              is_generator = self.coroutine_handler.is_generator(original_name if 'original_name' in locals() else node.name)
 
-        # Save current state
-        old_output = self.output
-        self.output = []
-        self._indent_level = 0
-
         # Analyze decorators
         dec_info = self.decorator_processor.analyze(node, self.current_class)
+
+        is_method = self.current_class is not None
+        # Ensure struct_name is always a string
+        base_struct_name: str = self.current_class if self.current_class else ""
+
+        # Check if the class is a mixin and get list of main struct names if needed
+        is_mixin = False
+        struct_names = [base_struct_name]
+        if is_method and hasattr(self.type_inference, 'mixin_to_main'):
+            if base_struct_name in self.type_inference.mixin_to_main:
+                struct_names = self.type_inference.mixin_to_main[base_struct_name]
+                is_mixin = True
+
+        old_output = self.output
+        for struct_name in struct_names:
+            self._generate_function_for_struct(node, is_async, is_method, struct_name, dec_info, is_generator)
+        self.output = old_output
+
+    def _generate_function_for_struct(self, node: Any, is_async: bool, is_method: bool, struct_name: str, dec_info: Any, is_generator: bool) -> None:
+        self.output = []
+        self._indent_level = 0
 
         # Handle decorators comments (emit all for clarity)
         for decorator in node.decorator_list:
@@ -146,10 +162,6 @@ class FunctionsMixin(TranslatorBase):
              # Avoid duplicating if in handled list?
              # Just emit comments for all decorators as metadata
              self.output.append(f"// @{dec_str}")
-
-        is_method = self.current_class is not None
-        # Ensure struct_name is always a string
-        struct_name: str = self.current_class if self.current_class else ""
 
         args_str_list: List[str] = []
         receiver_str: str = ""
@@ -302,7 +314,7 @@ class FunctionsMixin(TranslatorBase):
                  func_name = f"set_{func_name}"
 
             if self.current_class and not is_new_method:
-                func_name = self._mangle_name(func_name, self.current_class)
+                func_name = self._mangle_name(func_name, struct_name)
 
             if func_name in self.renamed_functions:
                 func_name = self.renamed_functions[func_name]
@@ -397,7 +409,14 @@ class FunctionsMixin(TranslatorBase):
 
         self.emitter.add_function("\n".join(self.output))
 
-        self.output = old_output
+        # We cannot just restore self.output to old_output entirely if it's called in a loop,
+        # but since we create a new scope for the generated function, we append it to emitter.
+        # Wait, if it was inside a class, the method doesn't return anything to self.output usually,
+        # it just uses self.output as a buffer.
+        # But if we want it to be isolated, we should keep old_output logic correct.
+        # old_output was saved in _visit_function_common.
+        # We need to manage self.output per _generate_function_for_struct call.
+        # So we move old_output = self.output inside _generate_function_for_struct
 
     def _generate_overload_variants(self, node: Any, struct_name: str, is_method: bool, dec_info: Any, is_generator: bool) -> None:
         """Generates V functions for each @overload signature using the implementation body."""
