@@ -504,7 +504,7 @@ Based on the transpilation of the `bm_spectral_norm.py` benchmark, several criti
   - *Context:* `for ue, ve in izip(u, v):` emits `for [ue, ve] in izip(u, v) {`, which is invalid V syntax.
   - *Task:* Fix tuple unpacking syntax inside V `for` loop assignments, likely requiring translation to indexed loops or `arrays.zip()`.
 
-- [ ] **`time.time()` Precision Mapping**
+- [x] **`time.time()` Precision Mapping**
   - *Context:* `time.time()` maps to `time.now().unix()`, returning an integer (seconds), losing the fractional millisecond precision expected in Python benchmarking.
   - *Task:* Map `time.time()` to a V equivalent that returns an `f64` timestamp, such as `f64(time.now().unix_time_milli()) / 1000.0`.
 
