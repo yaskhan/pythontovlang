@@ -41,7 +41,7 @@ Based on recent Python ecosystem developments (mypy, PyPy, Numba, NumPy, Nuitka,
   - Warn if a `LiteralString` variable receives a value from `input()` (loss of guarantee).
 
 ## Type Narrowing Improvements (Based on mypy 1.14–1.19)
-- [ ] **Index Narrowing in for-loops (mypy 1.14)**
+- [x] **Index Narrowing in for-loops (mypy 1.14)**
   - *Context:* Mypy now preserves the literal type of loop variables (e.g., `for key in ("name", "age"):`).
   - Retrieve the narrowed literal type of the loop variable from the mypy AST.
   - *V Translation:* Generate more precise types instead of a generic `string`/`int`.
