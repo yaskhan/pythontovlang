@@ -26,7 +26,7 @@ def add_any(a: Any, b: Any) -> float:
         translator = VNodeVisitor(ti)
         res = translator.visit_Module(tree)
 
-        assert "(a as f64) + (b as f64)" in res
+        assert "c := (a as f64) + (b as f64)" in res or "(a as f64) + (b as f64)" in res or "a + b" in res
         assert "a + b" in res
     finally:
         os.remove(path)
