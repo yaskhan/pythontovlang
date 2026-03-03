@@ -39,7 +39,7 @@ class StdLibMapper:
                 "dumps": "json.encode",
             },
             "time": {
-                "time": self._time_time,
+                "time": "time.now().unix",
                 "sleep": self._time_sleep,
             },
             "datetime": {
@@ -180,7 +180,6 @@ class StdLibMapper:
             "platform": {
                 "system": "os.user_os",
                 "machine": "py_platform_machine",
-                "python_implementation": self._platform_python_implementation,
             },
             "hashlib": {
                 "sha256": "py_hash_sha256",
@@ -372,11 +371,6 @@ class StdLibMapper:
              # Default to map[string]string for generic JSON object
              return f"json.decode(map[string]string, {args[0]}) or {{}}"
         return "/* json.loads args error */"
-
-    def _time_time(self, args: List[str]) -> str:
-        if len(args) == 0:
-            return "f64(time.now().unix_time_milli()) / 1000.0"
-        return "/* time.time args error */"
 
     def _time_sleep(self, args: List[str]) -> str:
         if len(args) == 1:
@@ -592,6 +586,3 @@ class StdLibMapper:
     def _typing_cast(self, args: List[str]) -> str:
         # We handle this directly in expressions.py now for type resolution
         return "/* typing.cast intercepted by expressions.py */"
-
-    def _platform_python_implementation(self, args: List[str]) -> str:
-        return "'V'"

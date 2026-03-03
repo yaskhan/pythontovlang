@@ -40,25 +40,12 @@ class VlangPlugin(Plugin):
                 except Exception:
                     pass
 
-                dataclass_metadata = None
-                try:
-                    from mypy.types import Instance
-                    if isinstance(ctx.default_return_type, Instance):
-                        type_info = ctx.default_return_type.type
-                        if 'dataclass' in type_info.metadata:
-                            dataclass_metadata = type_info.metadata['dataclass']
-                except Exception:
-                    pass
-
                 sig_data = {
                     "args": args,
                     "return": str(ctx.default_return_type),
                     "is_class": is_class,
                     "has_init": has_init
                 }
-                if dataclass_metadata:
-                    sig_data["dataclass_metadata"] = dataclass_metadata
-
                 self.collected_sigs[fullname][key] = json.dumps(sig_data)
 
             return ctx.default_return_type
@@ -70,7 +57,6 @@ class VlangPlugin(Plugin):
                 key = f"{ctx.context.line}:{ctx.context.column}"
                 self.collected_types[fullname][key] = str(ctx.default_return_type)
 
-                # Also store call signature
                 args = []
                 for arg_list in ctx.arg_types:
                     for arg in arg_list:
@@ -78,15 +64,12 @@ class VlangPlugin(Plugin):
 
                 is_class = False
                 has_init = False
-                dataclass_metadata = None
                 try:
                     from mypy.types import Instance
                     if isinstance(ctx.default_return_type, Instance):
                         type_info = ctx.default_return_type.type
                         is_class = type_info.fullname == fullname
                         has_init = '__init__' in type_info.names
-                        if 'dataclass' in type_info.metadata:
-                            dataclass_metadata = type_info.metadata['dataclass']
                 except Exception:
                     pass
 
@@ -96,9 +79,6 @@ class VlangPlugin(Plugin):
                     "is_class": is_class,
                     "has_init": has_init
                 }
-                if dataclass_metadata:
-                    sig_data["dataclass_metadata"] = dataclass_metadata
-
                 self.collected_sigs[fullname][key] = json.dumps(sig_data)
 
             return ctx.default_return_type

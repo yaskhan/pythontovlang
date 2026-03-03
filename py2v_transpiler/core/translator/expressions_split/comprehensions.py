@@ -74,7 +74,7 @@ class ComprehensionsMixin(TranslatorBase):
                 if func_node.attr == "izip":
                     is_zip = True
 
-        if is_zip:
+        if is_zip and isinstance(gen.iter, ast.Call):
              if True: # To keep indentation
                  zip_args = gen.iter.args
              if len(zip_args) == 2:
@@ -137,7 +137,7 @@ class ComprehensionsMixin(TranslatorBase):
                 if func_node.attr == "xrange":
                     is_range = True
 
-        if is_range:
+        if is_range and isinstance(gen.iter, ast.Call):
              if True: # To keep indentation
                  range_args = gen.iter.args
                  if len(range_args) == 3:
@@ -258,7 +258,7 @@ class ComprehensionsMixin(TranslatorBase):
                 if func_node.attr == "izip":
                     is_zip = True
 
-        if is_zip:
+        if is_zip and isinstance(gen.iter, ast.Call):
              if True: # To keep indentation
                  zip_args = gen.iter.args
              if len(zip_args) == 2:
@@ -322,7 +322,7 @@ class ComprehensionsMixin(TranslatorBase):
                 if func_node.attr == "xrange":
                     is_range = True
 
-        if is_range:
+        if is_range and isinstance(gen.iter, ast.Call):
              if True: # To keep indentation
                  range_args = gen.iter.args
                  if len(range_args) == 3:
@@ -428,7 +428,7 @@ class ComprehensionsMixin(TranslatorBase):
                 if func_node.attr == "izip":
                     is_zip = True
 
-        if is_zip:
+        if is_zip and isinstance(gen.iter, ast.Call):
              if True: # To keep indentation
                  zip_args = gen.iter.args
              if len(zip_args) == 2:
@@ -491,7 +491,7 @@ class ComprehensionsMixin(TranslatorBase):
                 if func_node.attr == "xrange":
                     is_range = True
 
-        if is_range:
+        if is_range and isinstance(gen.iter, ast.Call):
              if True: # To keep indentation
                  range_args = gen.iter.args
                  if len(range_args) == 3:

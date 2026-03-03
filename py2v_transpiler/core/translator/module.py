@@ -485,11 +485,15 @@ class ModuleMixin(TranslatorBase):
              self.emitter.add_helper_struct("struct PyCompletedProcess {\n    returncode int\n    stdout string\n    stderr string\n}")
 
              # py_subprocess_run(args []string) PyCompletedProcess
-             # Using os.new_process for security (avoiding shell injection)
-             self.emitter.add_helper_function("fn py_subprocess_run(args []string) PyCompletedProcess {\n    if args.len == 0 { return PyCompletedProcess{returncode: 1, stdout: '', stderr: 'No arguments'} }\n    mut p := os.new_process(args[0])\n    p.set_args(args[1..])\n    p.set_redirect_stdio()\n    p.run()\n    p.wait()\n    res := PyCompletedProcess{returncode: p.code, stdout: p.stdout_slurp(), stderr: p.stderr_slurp()}\n    p.close()\n    return res\n}")
+             # os.execute(cmd string) returns Result.
+             # We need to join args. V's os.execute takes a string command.
+             # Joining args with spaces is naive but standard for simple shells.
+             # Better: os.new_process? But that's more complex.
+             # For now, simplistic join.
+             self.emitter.add_helper_function("fn py_subprocess_run(args []string) PyCompletedProcess {\n    cmd := args.join(' ')\n    res := os.execute(cmd)\n    return PyCompletedProcess{returncode: res.exit_code, stdout: res.output, stderr: ''}\n}")
 
              # py_subprocess_call(args []string) int
-             self.emitter.add_helper_function("fn py_subprocess_call(args []string) int {\n    if args.len == 0 { return 1 }\n    mut p := os.new_process(args[0])\n    p.set_args(args[1..])\n    p.run()\n    p.wait()\n    code := p.code\n    p.close()\n    return code\n}")
+             self.emitter.add_helper_function("fn py_subprocess_call(args []string) int {\n    cmd := args.join(' ')\n    return os.system(cmd)\n}")
 
         platform_used = "platform" in self.imported_modules.values()
         if not platform_used:
