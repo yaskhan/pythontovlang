@@ -160,7 +160,7 @@ def _map_ast_type(node: ast.AST, self_name: str = "Self", allow_union: bool = Fa
                 return mapped_args[0]
             return 'Any'
 
-        elif value_id in ('Final', 'ClassVar', 'Annotated'):
+        elif value_id in ('Final', 'ClassVar', 'Annotated', 'ReadOnly'):
             # Strip
             if mapped_args:
                 return mapped_args[0]
@@ -176,7 +176,7 @@ def _map_ast_type(node: ast.AST, self_name: str = "Self", allow_union: bool = Fa
                 return f"?{mapped_args[0]}"
             return '?Any'
 
-        elif value_id == 'TypeGuard':
+        elif value_id in ('TypeGuard', 'TypeIs'):
             return 'bool'
 
         # Default generic mapping: Name[T]
@@ -221,5 +221,8 @@ def _map_basic_type(name: str) -> str:
         'builtins.float': 'f64',
         'builtins.str': 'string',
         'builtins.bool': 'bool',
+        'LiteralString': 'string',
+        'typing.LiteralString': 'string',
+        'typing_extensions.LiteralString': 'string',
     }
     return mapping.get(name, name)

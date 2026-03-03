@@ -115,3 +115,38 @@ print(d["a"])
     assert "d.a = 2" in v_code
     assert "d.b = 'world'" in v_code
     assert "d.a" in v_code
+
+def test_typed_dict_readonly():
+    code = """
+from typing import TypedDict, ReadOnly
+
+class MyDict(TypedDict):
+    a: int
+    b: ReadOnly[str]
+
+d: MyDict = {"a": 1, "b": "hello"}
+d["a"] = 2
+d["b"] = "world"
+"""
+    tree = ast.parse(code)
+    translator = _TestTranslator()
+
+    # Simulate mypy inferring type as TypedDict struct
+    translator.type_inference.type_map["d"] = "MyDict"
+
+    translator.visit(tree)
+
+    structs = translator.emitter.structs
+    assert any("struct MyDict {" in s for s in structs)
+
+    # Check that ReadOnly[str] is mapped to string
+    struct_code = next(s for s in structs if "struct MyDict" in s)
+    assert "b string" in struct_code
+
+    v_code = "\n".join(translator.output)
+    print("V_CODE:")
+    print(v_code)
+
+    assert "d := MyDict{a: 1, b: 'hello'}" in v_code
+    assert "d.a = 2" in v_code
+    assert "$compile_error('Cannot assign to ReadOnly TypedDict field \\'b\\'')" in v_code

@@ -194,6 +194,16 @@ class MatchMixin(TranslatorBase):
 
         elif isinstance(pattern, ast.MatchClass):
              cls_name = self.visit(pattern.cls)
+             # Map Python builtin types to V types
+             if cls_name == "int":
+                 cls_name = "int"
+             elif cls_name == "float":
+                 cls_name = "f64"
+             elif cls_name == "str":
+                 cls_name = "string"
+             elif cls_name == "bool":
+                 cls_name = "bool"
+
              cond = f"({subject_expr} is {cls_name})"
 
              for attr, sub_pat in zip(pattern.kwd_attrs, pattern.kwd_patterns):
@@ -219,9 +229,28 @@ class MatchMixin(TranslatorBase):
             return " || ".join(parts), bindings
 
         elif isinstance(pattern, ast.MatchAs):
+             cond = "true"
+             val_expr = subject_expr
+             if pattern.pattern:
+                 cond, sub_bindings = self._compile_pattern(pattern.pattern, subject_expr)
+                 bindings.extend(sub_bindings)
+                 # Narrowing: if the sub-pattern is a specific class, we can cast the variable
+                 if isinstance(pattern.pattern, ast.MatchClass):
+                     cls_name = self.visit(pattern.pattern.cls)
+                     if cls_name == "int":
+                         val_expr = f"({subject_expr} as int)"
+                     elif cls_name == "float":
+                         val_expr = f"({subject_expr} as f64)"
+                     elif cls_name == "str":
+                         val_expr = f"({subject_expr} as string)"
+                     elif cls_name == "bool":
+                         val_expr = f"({subject_expr} as bool)"
+                     else:
+                         val_expr = f"({subject_expr} as {cls_name})"
+
              if pattern.name:
-                 bindings.append(f"{pattern.name} := {subject_expr}")
-             return "true", bindings
+                 bindings.append(f"{pattern.name} := {val_expr}")
+             return cond, bindings
 
         elif isinstance(pattern, ast.MatchStar):
              if pattern.name:

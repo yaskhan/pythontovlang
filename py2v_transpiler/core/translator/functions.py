@@ -189,6 +189,23 @@ class FunctionsMixin(TranslatorBase):
                  self.output.append(f"// {node.name} method in unittest class ignored")
                  return
 
+        # Handle Python 3.12+ type_params (e.g. def foo[T](x: T):)
+        func_generics_str = ""
+        # Only add generics to the function itself if it's not a method of a generic struct
+        # because V methods inherit generics from the struct receiver `(s Struct[T]) method()`.
+        if not is_method and hasattr(node, 'type_params') and node.type_params:
+            func_generics = []
+            for param in node.type_params:
+                # PEP 696 type defaults (param.default) are intentionally ignored since V doesn't support them
+                if hasattr(param, 'name'):
+                    name = param.name
+                    if isinstance(name, str):
+                        func_generics.append(name)
+                    elif hasattr(name, 'id'):
+                        func_generics.append(name.id)
+            if func_generics:
+                func_generics_str = f"[{', '.join(func_generics)}]"
+
         if is_generator:
             # Inject channel argument
             yield_type = self.coroutine_handler.get_yield_type(node)
@@ -415,9 +432,9 @@ class FunctionsMixin(TranslatorBase):
                 deprecated_attr = "[deprecated]\n"
 
         if 'decl' not in locals():
-            decl = f"{noreturn_attr}{deprecated_attr}fn {receiver_str}{func_name}({args_str}) {ret_type} {{"
+            decl = f"{noreturn_attr}{deprecated_attr}fn {receiver_str}{func_name}{func_generics_str}({args_str}) {ret_type} {{"
         if ret_type == "void":
-             decl = f"{noreturn_attr}{deprecated_attr}fn {receiver_str}{func_name}({args_str}) {{"
+             decl = f"{noreturn_attr}{deprecated_attr}fn {receiver_str}{func_name}{func_generics_str}({args_str}) {{"
 
         self.output.append(f"{decl}")
         self._indent_level += 1
@@ -473,6 +490,21 @@ class FunctionsMixin(TranslatorBase):
 
     def _generate_overload_variants(self, node: Any, struct_name: str, is_method: bool, dec_info: Any, is_generator: bool) -> None:
         """Generates V functions for each @overload signature using the implementation body."""
+
+        func_generics_str = ""
+        if not is_method and hasattr(node, 'type_params') and node.type_params:
+            func_generics = []
+            for param in node.type_params:
+                # PEP 696 type defaults (param.default) are intentionally ignored since V doesn't support them
+                if hasattr(param, 'name'):
+                    name = param.name
+                    if isinstance(name, str):
+                        func_generics.append(name)
+                    elif hasattr(name, 'id'):
+                        func_generics.append(name.id)
+            if func_generics:
+                func_generics_str = f"[{', '.join(func_generics)}]"
+
         # Check for @warnings.deprecated
         is_deprecated = False
         deprecated_message: str | None = None
@@ -559,9 +591,9 @@ class FunctionsMixin(TranslatorBase):
             if is_operator:
                 decl = f"{deprecated_attr}fn {receiver_str}{op_str} ({args_str}) {ret_type} {{"
             else:
-                decl = f"{deprecated_attr}fn {receiver_str}{func_name}({args_str}) {ret_type} {{"
+                decl = f"{deprecated_attr}fn {receiver_str}{func_name}{func_generics_str}({args_str}) {ret_type} {{"
                 if ret_type == "void":
-                    decl = f"{deprecated_attr}fn {receiver_str}{func_name}({args_str}) {{"
+                    decl = f"{deprecated_attr}fn {receiver_str}{func_name}{func_generics_str}({args_str}) {{"
 
             self.output.append(decl)
             self._indent_level += 1

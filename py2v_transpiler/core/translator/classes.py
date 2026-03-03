@@ -34,10 +34,22 @@ class ClassesMixin(TranslatorBase):
         self.current_class_bases = []
         self.current_class_is_unittest = False
 
+        if hasattr(node, 'type_params') and node.type_params:
+            for param in node.type_params:
+                # TypeVar, ParamSpec, TypeVarTuple might have 'name' as string or attribute
+                # PEP 696 type defaults (param.default) are intentionally ignored since V doesn't support them
+                if hasattr(param, 'name'):
+                    name = param.name
+                    if isinstance(name, str):
+                        self.current_class_generics.append(name)
+                    elif hasattr(name, 'id'):
+                        self.current_class_generics.append(name.id)
+
         # Handle decorators
         decorators = []
         is_dataclass = False
         is_deprecated = False
+        is_disjoint_base = False
         deprecated_message: Optional[str] = None
         
         for decorator in node.decorator_list:
@@ -63,6 +75,8 @@ class ClassesMixin(TranslatorBase):
                  # Check for @deprecated without args (rare but possible)
                  if dec_str == "deprecated":
                      is_deprecated = True
+                 elif dec_str in ("disjoint_base", "typing.disjoint_base"):
+                     is_disjoint_base = True
 
             decorators.append(f"// @{dec_str}")
             if dec_str.startswith("dataclass") or dec_str.startswith("dataclasses.dataclass"):
@@ -207,6 +221,10 @@ class ClassesMixin(TranslatorBase):
             is_protocol = True
             self.known_interfaces.add(struct_name)
 
+        # Init readonly_fields
+        if not hasattr(self, 'readonly_fields'):
+            self.readonly_fields: dict[str, set[str]] = {}
+
         # Handle inheritance (bases)
         is_flag = False
         for base in node.bases:
@@ -316,6 +334,9 @@ class ClassesMixin(TranslatorBase):
                 if val != "builtins.object":
                     self.current_class_bases.append(base.attr)
 
+        if is_typed_dict:
+            self.readonly_fields[struct_name] = set()
+
         methods = []
 
         # Check for docstring (emit as comment before struct?)
@@ -360,6 +381,16 @@ class ClassesMixin(TranslatorBase):
                         except Exception:
                             if isinstance(stmt.annotation, ast.Name):
                                 field_type = stmt.annotation.id
+
+                    if is_typed_dict:
+                        # Check for ReadOnly in annotation
+                        if stmt.annotation:
+                            try:
+                                ann_str = ast.unparse(stmt.annotation)
+                                if "ReadOnly[" in ann_str or ann_str.startswith("ReadOnly"):
+                                    self.readonly_fields[struct_name].add(field_name)
+                            except Exception:
+                                pass
 
                     if is_dataclass or is_typed_dict:
                         dataclass_field_order.append(field_name)
@@ -522,6 +553,9 @@ class ClassesMixin(TranslatorBase):
                     struct_def += f"[deprecated: '{deprecated_message}']\n"
                 else:
                     struct_def += "[deprecated]\n"
+
+            if is_disjoint_base:
+                struct_def += "[disjoint_base]\n"
 
             if decorators:
                 struct_def += "\n".join(decorators) + "\n"
