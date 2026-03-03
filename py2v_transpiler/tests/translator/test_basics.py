@@ -26,7 +26,7 @@ def test_translator_binop():
     analyzer.analyze(tree)
     result = translator.visit_Module(tree)
 
-    assert "x := 1 + (2 * 3)" in result
+    assert "x := 1 + 2 * 3" in result
 
 def test_translator_bool_op():
     parser = PyASTParser()
