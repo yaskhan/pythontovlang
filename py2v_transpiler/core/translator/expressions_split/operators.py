@@ -18,10 +18,16 @@ class OperatorsMixin(TranslatorBase):
 
         # Support for array initialization: [element] * length
         if isinstance(node.op, ast.Mult):
+            if left_type == "string":
+                 return f"{self.visit(node.left)}.repeat({self.visit(node.right)})"
+            if right_type == "string":
+                 return f"{self.visit(node.right)}.repeat({self.visit(node.left)})"
+
             if isinstance(node.left, ast.List) and len(node.left.elts) == 1:
-                init_val = self.visit(node.left.elts[0])
+                init_node = node.left.elts[0]
+                init_val = self.visit(init_node)
                 length = self.visit(node.right)
-                elem_type = self._guess_type(node.left.elts[0])
+                elem_type = self._guess_type(init_node)
 
                 if init_val == "none":
                     expected_type = getattr(self, "current_assignment_type", None)
@@ -31,13 +37,19 @@ class OperatorsMixin(TranslatorBase):
                             elem_type = f"?{elem_type}"
                     else:
                         elem_type = "?Any"
+
+                # Check if init_val is a literal collection or complex expression that V cannot handle in 'init:'
+                if isinstance(init_node, (ast.List, ast.Tuple, ast.Dict, ast.Call, ast.BinOp)):
+                     self.used_builtins.add("py_repeat")
+                     return f"py_repeat({init_val}, {length})"
 
                 return f"[]{elem_type}{{len: {length}, init: {init_val}}}"
 
             elif isinstance(node.right, ast.List) and len(node.right.elts) == 1:
-                init_val = self.visit(node.right.elts[0])
+                init_node = node.right.elts[0]
+                init_val = self.visit(init_node)
                 length = self.visit(node.left)
-                elem_type = self._guess_type(node.right.elts[0])
+                elem_type = self._guess_type(init_node)
 
                 if init_val == "none":
                     expected_type = getattr(self, "current_assignment_type", None)
@@ -48,7 +60,19 @@ class OperatorsMixin(TranslatorBase):
                     else:
                         elem_type = "?Any"
 
+                if isinstance(init_node, (ast.List, ast.Tuple, ast.Dict, ast.Call, ast.BinOp)):
+                     self.used_builtins.add("py_repeat")
+                     return f"py_repeat({init_val}, {length})"
+
                 return f"[]{elem_type}{{len: {length}, init: {init_val}}}"
+
+            # General array repetition: [1, 2, 3] * n or list_var * n
+            if left_type.startswith("[]") and right_type == "int":
+                self.used_builtins.add("py_repeat_list")
+                return f"py_repeat_list({self.visit(node.left)}, {self.visit(node.right)})"
+            if right_type.startswith("[]") and left_type == "int":
+                self.used_builtins.add("py_repeat_list")
+                return f"py_repeat_list({self.visit(node.right)}, {self.visit(node.left)})"
 
 
         # If mypy  # ← дальше идёт остальной код файла без изменений

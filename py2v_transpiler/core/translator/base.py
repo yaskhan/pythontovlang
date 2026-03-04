@@ -189,7 +189,18 @@ class TranslatorBase(ast.NodeVisitor):
              if isinstance(node.value, float): return "f64"
              if isinstance(node.value, str): return "string"
              if isinstance(node.value, complex): return "PyComplex"
+             if node.value is None: return "int"
              return "int"
+        elif isinstance(node, (ast.List, ast.Tuple)):
+            if node.elts:
+                return f"[]{self._guess_type(node.elts[0])}"
+            return "[]int"
+        elif isinstance(node, ast.Dict):
+            if node.keys and node.keys[0]:
+                k_type = self._guess_type(node.keys[0])
+                v_type = self._guess_type(node.values[0])
+                return f"map[{k_type}]{v_type}"
+            return "map[string]int"
         elif isinstance(node, ast.Name):
             # Check for location-based type mapping (from mypy plugin)
             if hasattr(node, 'lineno') and hasattr(node, 'col_offset'):
@@ -212,17 +223,19 @@ class TranslatorBase(ast.NodeVisitor):
                     return self.type_inference.type_map[attr_name]
             return "Any"
         elif isinstance(node, ast.BinOp):
-            if isinstance(node.op, ast.Div):
-                left = self._guess_type(node.left)
-                right = self._guess_type(node.right)
-                if left == "PyComplex" or right == "PyComplex": return "PyComplex"
-                return "f64"
-            # For Add/Sub/Mult/Mod/Pow, check operands
             left = self._guess_type(node.left)
             right = self._guess_type(node.right)
+
+            if isinstance(node.op, ast.Div):
+                if left == "PyComplex" or right == "PyComplex": return "PyComplex"
+                return "f64"
+
+            # For Add/Sub/Mult/Mod/Pow, check operands
+            if left.startswith("[]"): return left
+            if right.startswith("[]"): return right
+            if left == "string" or right == "string": return "string"
             if left == "PyComplex" or right == "PyComplex": return "PyComplex"
             if left == "f64" or right == "f64": return "f64"
-            if left == "string" or right == "string": return "string"
             return "int"
         elif isinstance(node, ast.Call):
             if isinstance(node.func, ast.Name):
