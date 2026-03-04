@@ -393,7 +393,7 @@ class TranslatorBase(ast.NodeVisitor):
              if isinstance(node.value, float): return "f64"
              if isinstance(node.value, str): return "string"
              if isinstance(node.value, complex): return "PyComplex"
-             if node.value is None: return "int"
+             if node.value is None: return "int" # Fallback to int for uninitialized optionals
              return "int"
         elif isinstance(node, (ast.UnaryOp)):
             if isinstance(node.op, ast.Not):
@@ -412,15 +412,36 @@ class TranslatorBase(ast.NodeVisitor):
                 if fid == "input": return "string"
                 if fid in ("isinstance", "hasattr", "getattr", "setattr"): return "bool"
         elif isinstance(node, (ast.List, ast.Tuple)):
-            if node.elts:
-                return f"[]{self._guess_type(node.elts[0])}"
-            return "[]int"
+            if not node.elts:
+                return getattr(self, "current_assignment_type", "[]int")
+            types = [self._guess_type(elt) for elt in node.elts]
+            first_type = types[0]
+            if all(t == first_type for t in types):
+                return f"[]{first_type}"
+            return "[]Any"
+        elif isinstance(node, ast.Set):
+            if not node.elts:
+                return "map[int]bool"
+            types = [self._guess_type(elt) for elt in node.elts]
+            first_type = types[0]
+            if all(t == first_type for t in types):
+                return f"map[{first_type}]bool"
+            return "map[Any]bool"
         elif isinstance(node, ast.Dict):
-            if node.keys and node.keys[0]:
-                k_type = self._guess_type(node.keys[0])
-                v_type = self._guess_type(node.values[0])
-                return f"map[{k_type}]{v_type}"
-            return "map[string]int"
+            if not node.keys:
+                return getattr(self, "current_assignment_type", "map[string]int")
+            k_types = [self._guess_type(k) for k in node.keys if k]
+            v_types = [self._guess_type(v) for v in node.values]
+
+            k_type = k_types[0] if k_types else "string"
+            if not all(t == k_type for t in k_types):
+                k_type = "Any"
+
+            v_type = v_types[0] if v_types else "int"
+            if not all(t == v_type for t in v_types):
+                v_type = "Any"
+
+            return f"map[{k_type}]{v_type}"
         elif isinstance(node, ast.Name):
             # Check for location-based type mapping (from mypy plugin)
             if hasattr(node, 'lineno') and hasattr(node, 'col_offset'):

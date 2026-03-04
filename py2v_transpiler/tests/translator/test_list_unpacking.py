@@ -18,7 +18,7 @@ class TestListUnpacking(unittest.TestCase):
         source = "x = [1, *a, 2]"
         result = self.transpile(source)
         # Should be py_list_concat([1], a, [2])
-        # Note: visit_List emits [1] as [1], but py_list_concat args.
+        # Note: visit_List emits [1] within py_list_concat
         self.assertIn("py_list_concat", result)
         self.assertIn("([1], a, [2])", result)
 
