@@ -115,6 +115,7 @@ class TranslatorBase(ast.NodeVisitor):
         self.overloaded_signatures: Dict[str, List[Dict[str, Any]]] = {} # func_name -> list of overload signatures
         self.finally_stack: List[ast.Try] = [] # Stack of active try-finally blocks
         self.loop_stack: List[Dict[str, Any]] = [] # Stack of active loops for break/continue tracking
+        self.generic_scopes: List[Dict[str, str]] = [] # Stack of PEP 695 generic mappings
         self.unique_id_counter: int = 0
         self.vexc_depth: int = 0
         self._local_vars_in_scope: Set[str] = set()
@@ -212,7 +213,10 @@ class TranslatorBase(ast.NodeVisitor):
         Example: ['T_co', 'S_contra'] -> {'T_co': 'T', 'S_contra': 'S'}
         """
         mapping = {}
-        used_chars = set()
+        # We need to consider already used characters in outer scopes
+        used_chars: Set[str] = set()
+        for scope in self.generic_scopes:
+            used_chars.update(scope.values())
 
         # Priority mapping: try to use the first uppercase letter
         for name in generic_names:
@@ -233,6 +237,24 @@ class TranslatorBase(ast.NodeVisitor):
                         used_chars.add(c)
                         break
         return mapping
+
+    def _get_combined_generic_map(self) -> Dict[str, str]:
+        """Returns a merged dictionary of all active generic scopes."""
+        combined = {}
+        for scope in self.generic_scopes:
+            combined.update(scope)
+        return combined
+
+    def _get_all_active_v_generics(self) -> List[str]:
+        """Returns all unique V generic names from all active scopes, in order."""
+        all_v = []
+        seen = set()
+        for scope in self.generic_scopes:
+            for v_gen in scope.values():
+                if v_gen not in seen:
+                    all_v.append(v_gen)
+                    seen.add(v_gen)
+        return all_v
 
     def _sanitize_name(self, name: str, is_type: bool = False) -> str:
         """
