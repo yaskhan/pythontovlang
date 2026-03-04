@@ -406,6 +406,15 @@ class TypeInference(ast.NodeVisitor):
                         ):
                             self.location_map[location] = v_type
 
+                        # Store by name@location for easier lookup in translator
+                        name = fullname.split('.')[-1]
+                        if name.startswith("handler_") or name.startswith("py2v_handler_"):
+                             # Map 'handler_e@3:0' to 'e@3:0' for translator's handler lookup
+                             clean_name = name.split('_')[-1]
+                             self.type_map[f"{clean_name}@{location}"] = v_type
+                        else:
+                             self.type_map[f"{name}@{location}"] = v_type
+
             if collected_sigs:
                 for fullname, sigs in collected_sigs.items():
                     for location, sig_json in sigs.items():

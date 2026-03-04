@@ -112,7 +112,29 @@ class ExceptionsMixin(TranslatorBase):
                  if handler_opened_block:
                       self._indent_level += 1
                  if handler.name:
-                      self.output.append(f"{self._indent()}{handler.name} := {exc_var}")
+                      # Try to get strongly typed exception variable from mypy
+                      exc_type = "Any"
+                      # Try multiple possible coordinate points from mypy plugin
+                      # The coords in mypy and ast can vary based on whether it points to 'except', 'Exception' or 'as e'
+                      for loc_key in [
+                           f"{handler.name}@{handler.lineno}:{handler.col_offset}",
+                           f"{handler.name}@{handler.lineno}:{handler.col_offset + 7}",
+                      ]:
+                           if hasattr(self.type_inference, "type_map") and loc_key in self.type_inference.type_map:
+                                exc_type = self.type_inference.type_map[loc_key]
+                                break
+
+                      # Fallback: if we matched the exception type string in the handler, use it
+                      if exc_type == "Any" and handler.type and isinstance(handler.type, ast.Name):
+                           exc_type = handler.type.id
+
+                      if exc_type != "Any":
+                           if exc_type in ("int", "f64", "bool", "string"):
+                                self.output.append(f"{self._indent()}{handler.name} := {exc_type}({exc_var}.msg)")
+                           else:
+                                self.output.append(f"{self._indent()}{handler.name} := {exc_var} as {exc_type}")
+                      else:
+                           self.output.append(f"{self._indent()}{handler.name} := {exc_var}")
 
                  for stmt in handler.body:
                       self.visit(stmt)

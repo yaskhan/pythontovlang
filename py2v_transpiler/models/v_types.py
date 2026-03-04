@@ -238,6 +238,8 @@ def _map_ast_type(node: ast.AST, self_name: str = "Self", allow_union: bool = Fa
     return "void"
 
 def _map_basic_type(name: str) -> str:
+    if name.startswith("builtins."):
+        name = name[len("builtins."):]
     mapping = {
         'int': 'int',
         'float': 'f64',

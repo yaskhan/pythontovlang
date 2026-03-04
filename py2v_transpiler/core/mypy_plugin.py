@@ -153,10 +153,10 @@ class VlangPlugin(Plugin):
     def report_config_data(self, ctx: Any) -> Any:
         global _global_collected_types, _global_collected_sigs, _global_collected_mutability
 
-        # Collect mutability info from processed files
-        from mypy.nodes import Var, FuncDef, Block, AssignmentStmt, NameExpr, MypyFile
+        # Collect mutability and type info from processed files
+        from mypy.nodes import Var, FuncDef, Block, AssignmentStmt, NameExpr, MypyFile, MemberExpr
 
-        def collect_vars(node, collected, visited=None):
+        def collect_vars(node, collected_mut, collected_types, visited=None):
             if visited is None:
                 visited = set()
             if node is None or id(node) in visited:
@@ -165,55 +165,109 @@ class VlangPlugin(Plugin):
 
             if isinstance(node, Var):
                 key = f"{node.line}:{node.column}"
-                collected[node.fullname][key] = {
+                collected_mut[node.fullname][key] = {
                     "is_reassigned": getattr(node, "is_reassigned", False),
                     "is_final": node.is_final
                 }
+                if node.type:
+                    type_str = str(node.type)
+                    if "Deleted" in type_str:
+                         type_str = "Any"
+
+                    # Only set if not already set specifically (e.g. by handler)
+                    if key not in collected_types[node.fullname]:
+                        collected_types[node.fullname][key] = type_str
 
             # Manual traversal to avoid TypeError: interpreted classes cannot inherit from compiled traits
-            from mypy.nodes import IfStmt, WhileStmt, ForStmt, TryStmt, ClassDef, MemberExpr
+            from mypy.nodes import IfStmt, WhileStmt, ForStmt, TryStmt, ClassDef, MemberExpr, WithStmt, MatchStmt, Decorator
             if isinstance(node, MypyFile):
                 for name, sym in node.names.items():
-                    collect_vars(sym.node, collected, visited)
+                    collect_vars(sym.node, collected_mut, collected_types, visited)
             elif isinstance(node, ClassDef):
                 if node.info:
                     for name, sym in node.info.names.items():
-                        collect_vars(sym.node, collected, visited)
+                        collect_vars(sym.node, collected_mut, collected_types, visited)
                 for stmt in node.defs.body:
-                    collect_vars(stmt, collected, visited)
+                    collect_vars(stmt, collected_mut, collected_types, visited)
             elif isinstance(node, FuncDef):
                 for arg in node.arguments:
-                    collect_vars(arg.variable, collected, visited)
-                collect_vars(node.body, collected, visited)
+                    collect_vars(arg.variable, collected_mut, collected_types, visited)
+                collect_vars(node.body, collected_mut, collected_types, visited)
+            elif isinstance(node, Decorator):
+                collect_vars(node.func, collected_mut, collected_types, visited)
+                for dec in node.decorators:
+                    collect_vars(dec, collected_mut, collected_types, visited)
             elif isinstance(node, Block):
                 for stmt in node.body:
-                    collect_vars(stmt, collected, visited)
+                    collect_vars(stmt, collected_mut, collected_types, visited)
             elif isinstance(node, IfStmt):
-                for e in node.expr: collect_vars(e, collected, visited)
-                for b in node.body: collect_vars(b, collected, visited)
-                collect_vars(node.else_body, collected, visited)
+                for e in node.expr: collect_vars(e, collected_mut, collected_types, visited)
+                for b in node.body: collect_vars(b, collected_mut, collected_types, visited)
+                collect_vars(node.else_body, collected_mut, collected_types, visited)
             elif isinstance(node, (WhileStmt, ForStmt)):
-                collect_vars(getattr(node, 'expr', None), collected, visited)
-                collect_vars(getattr(node, 'index', None), collected, visited)
-                collect_vars(node.body, collected, visited)
-                collect_vars(node.else_body, collected, visited)
+                collect_vars(getattr(node, 'expr', None), collected_mut, collected_types, visited)
+                collect_vars(getattr(node, 'index', None), collected_mut, collected_types, visited)
+                collect_vars(node.body, collected_mut, collected_types, visited)
+                collect_vars(node.else_body, collected_mut, collected_types, visited)
             elif isinstance(node, TryStmt):
-                collect_vars(node.body, collected, visited)
-                for h in node.handlers: collect_vars(h.body, collected, visited)
-                collect_vars(node.else_body, collected, visited)
-                collect_vars(node.finally_body, collected, visited)
+                collect_vars(node.body, collected_mut, collected_types, visited)
+                for h in node.handlers:
+                    # Specific handling for exception variables to avoid DeletedType
+                    if h.name and h.type and isinstance(h.name.node, Var):
+                        v = h.name.node
+                        type_name = "Any"
+                        if isinstance(h.type, NameExpr):
+                             type_name = h.type.name
+                        elif isinstance(h.type, MemberExpr):
+                             type_name = h.type.name
+                        elif v.type:
+                             type_name = str(v.type).replace("builtins.", "")
+
+                        # Record under both handler and name coordinates
+                        key_h = f"{h.line}:{h.column}"
+                        key_n = f"{h.name.line}:{h.name.column}"
+                        for k in [key_h, key_n]:
+                            collected_types[v.fullname][k] = type_name
+                            collected_types[f"handler_{v.name}"][k] = type_name
+
+                        # Also record under fullname@location directly to be sure
+                        # Use a more generic key that analyzer will pick up
+                        _global_collected_types[v.fullname][key_h] = type_name
+                        _global_collected_types[v.fullname][key_n] = type_name
+                        _global_collected_types[f"handler_{v.name}"][key_h] = type_name
+                        _global_collected_types[f"handler_{v.name}"][key_n] = type_name
+
+                        # Also record in a way that doesn't depend on fullname (which might be mangled)
+                        # We use a special marker to say 'this is for the handler'
+                        _global_collected_types[f"py2v_handler_{v.name}"][key_h] = type_name
+                        _global_collected_types[f"py2v_handler_{v.name}"][key_n] = type_name
+
+                    collect_vars(h.name, collected_mut, collected_types, visited)
+                    collect_vars(h.body, collected_mut, collected_types, visited)
+                collect_vars(node.else_body, collected_mut, collected_types, visited)
+                collect_vars(node.finally_body, collected_mut, collected_types, visited)
+            elif isinstance(node, WithStmt):
+                for expr in node.expr: collect_vars(expr, collected_mut, collected_types, visited)
+                for target in node.target: collect_vars(target, collected_mut, collected_types, visited)
+                collect_vars(node.body, collected_mut, collected_types, visited)
+            elif isinstance(node, MatchStmt):
+                collect_vars(node.subject, collected_mut, collected_types, visited)
+                for i in range(len(node.patterns)):
+                    collect_vars(node.patterns[i], collected_mut, collected_types, visited)
+                    collect_vars(node.guards[i], collected_mut, collected_types, visited)
+                    collect_vars(node.bodies[i], collected_mut, collected_types, visited)
             elif isinstance(node, AssignmentStmt):
                 for lvalue in node.lvalues:
-                    collect_vars(lvalue, collected, visited)
-                collect_vars(node.rvalue, collected, visited)
+                    collect_vars(lvalue, collected_mut, collected_types, visited)
+                collect_vars(node.rvalue, collected_mut, collected_types, visited)
             elif isinstance(node, NameExpr):
-                collect_vars(node.node, collected, visited)
+                collect_vars(node.node, collected_mut, collected_types, visited)
             elif isinstance(node, MemberExpr):
-                collect_vars(node.expr, collected, visited)
-                collect_vars(node.node, collected, visited)
+                collect_vars(node.expr, collected_mut, collected_types, visited)
+                collect_vars(node.node, collected_mut, collected_types, visited)
 
         for file_node in self._files_to_process:
-            collect_vars(file_node, self.collected_mutability)
+            collect_vars(file_node, self.collected_mutability, self.collected_types)
 
         # Update the module-level global dictionary
         for k, v in self.collected_types.items():
