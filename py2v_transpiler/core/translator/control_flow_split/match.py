@@ -106,7 +106,7 @@ class MatchMixin(TranslatorBase):
                      else:
                          branches.append(f"{subject_expr} is {t} {{ Any(({subject_expr} as {t})[{idx}]) }}")
                 branches.append("else { Any(0) }") # Fallback
-                return f"if {' else if '.join(branches)}"
+                return f"if {' else if '.join(branches[:-1])} {branches[-1]}"
 
             # Generate condition
             num_patterns = len(patterns)
@@ -180,7 +180,7 @@ class MatchMixin(TranslatorBase):
                  for t in map_types:
                      branches.append(f"{subject_expr} is {t} {{ Any(({subject_expr} as {t})[{k_val}]) }}")
                  branches.append("else { Any(0) }")
-                 extract_expr = f"if {' else if '.join(branches)}"
+                 extract_expr = f"if {' else if '.join(branches[:-1])} {branches[-1]}"
 
                  sub_cond, sub_binds = self._compile_pattern(p, extract_expr)
                  cond += f" && ({sub_cond})"
@@ -206,6 +206,25 @@ class MatchMixin(TranslatorBase):
 
              cond = f"({subject_expr} is {cls_name})"
 
+             # Handle positional patterns using __match_args__ or dataclass fields
+             match_args = []
+             if cls_name in self.dataclasses:
+                 match_args = self.dataclasses[cls_name]
+
+             for i, sub_pat in enumerate(pattern.patterns):
+                 if i < len(match_args):
+                     attr = match_args[i]
+                 else:
+                     # Fallback to positional index if unknown
+                     # Python usually requires __match_args__ but we can try to be helpful
+                     attr = f"_{i}"
+
+                 cast_expr = f"({subject_expr} as {cls_name})"
+                 val_expr = f"Any({cast_expr}.{attr})"
+                 sub_cond, sub_bindings = self._compile_pattern(sub_pat, val_expr)
+                 cond += f" && ({sub_cond})"
+                 bindings.extend(sub_bindings)
+
              for attr, sub_pat in zip(pattern.kwd_attrs, pattern.kwd_patterns):
                  cast_expr = f"({subject_expr} as {cls_name})"
                  # Need to wrap in Any() for recursive generic check?
@@ -221,11 +240,42 @@ class MatchMixin(TranslatorBase):
 
         elif isinstance(pattern, ast.MatchOr):
             parts = []
-            # bindings must be identical
+            all_alternatives_bindings: List[List[str]] = []
             for p in pattern.patterns:
                 c, b = self._compile_pattern(p, subject_expr)
                 parts.append(f"({c})")
-                if not bindings: bindings.extend(b)
+                all_alternatives_bindings.append(b)
+
+            # Group bindings by variable name
+            binding_map = {}
+            for b_list in all_alternatives_bindings:
+                for b in b_list:
+                    name, expr = b.split(" := ", 1)
+                    if name not in binding_map:
+                        binding_map[name] = []
+                    binding_map[name].append((b_list, expr))
+
+            for name, alternatives in binding_map.items():
+                if len(alternatives) == len(pattern.patterns):
+                    # Variable is bound in all alternatives
+                    first_expr = alternatives[0][1]
+                    if all(alt[1] == first_expr for alt in alternatives):
+                        # All alternatives bind to the exact same expression
+                        bindings.append(f"{name} := {first_expr}")
+                    else:
+                        # Bindings differ (e.g., due to different narrowing)
+                        # Generate: var := if cond1 { expr1 } else if cond2 { expr2 } ... else { exprN }
+                        branches = []
+                        for i, (b_list, expr) in enumerate(alternatives):
+                            cond = parts[i]
+                            if i == len(alternatives) - 1:
+                                branches.append(f"else {{ {expr} }}")
+                            else:
+                                branches.append(f"{cond} {{ {expr} }}")
+
+                        binding_expr = f"if {' else if '.join(branches[:-1])} {branches[-1]}"
+                        bindings.append(f"{name} := {binding_expr}")
+
             return " || ".join(parts), bindings
 
         elif isinstance(pattern, ast.MatchAs):
