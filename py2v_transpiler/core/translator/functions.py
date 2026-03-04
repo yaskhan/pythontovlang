@@ -45,17 +45,11 @@ class FunctionsMixin(TranslatorBase):
                     try:
                         type_str = ast.unparse(arg.annotation)
                         self._check_experimental_type(type_str, arg.annotation)
-                        arg_type = map_python_type_to_v(
-                            type_str,
-                            self_name=self._get_full_self_type(ov_struct_name),
-                            generic_map=self._get_combined_generic_map(),
-                        )
-                        if arg_type == "LiteralString":
-                            arg_type = "string"
+                        arg_type = self._map_type(type_str, ov_struct_name)
                     except Exception:
-                        arg_type = self.type_inference.type_map.get(arg_name, "int")
+                        arg_type = self._map_type(self.type_inference.type_map.get(arg_name, "int"), ov_struct_name)
                 else:
-                    arg_type = self.type_inference.type_map.get(arg_name, "int")
+                    arg_type = self._map_type(self.type_inference.type_map.get(arg_name, "int"), ov_struct_name)
                 sig["args"].append({"name": arg_name, "type": arg_type})
 
             # Extract return type
@@ -63,13 +57,7 @@ class FunctionsMixin(TranslatorBase):
                 try:
                     type_str = ast.unparse(node.returns)
                     self._check_experimental_type(type_str, node.returns)
-                    sig["return"] = map_python_type_to_v(
-                        type_str,
-                        self_name=self._get_full_self_type(ov_struct_name),
-                        generic_map=self._get_combined_generic_map(),
-                    )
-                    if sig["return"] == "LiteralString":
-                        sig["return"] = "string"
+                    sig["return"] = self._map_type(type_str, ov_struct_name)
                 except:
                     if isinstance(node.returns, ast.Name):
                         sig["return"] = node.returns.id
@@ -321,48 +309,28 @@ class FunctionsMixin(TranslatorBase):
             # Remove self from unittest method args
             args = args[1:]
 
+        is_stub_function = False
+        if node.body and isinstance(node.body[0], ast.Expr) and isinstance(node.body[0].value, ast.Constant) and node.body[0].value.value is Ellipsis:
+             is_stub_function = True
+
         for arg in args:
             arg_name = self._sanitize_name(arg.arg)
-            args_names.append(arg_name)
             # Use annotation if available for better type mapping
             if arg.annotation:
                 try:
                     type_str = ast.unparse(arg.annotation)
                     self._check_experimental_type(type_str, arg.annotation)
-                    arg_type = map_python_type_to_v(
-                        type_str,
-                        self_name=self._get_full_self_type(struct_name),
-                        generic_map=combined_generic_map,
-                    )
-                    if arg_type == "LiteralString":
-                        arg_type = "string"
+                    arg_type = self._map_type(type_str, struct_name)
                 except Exception:
-                    arg_type = self.type_inference.type_map.get(arg_name, "int")
+                    arg_type = self._map_type(self.type_inference.type_map.get(arg_name, "int"), struct_name)
             else:
-                arg_type = self.type_inference.type_map.get(arg_name, "int")
+                arg_type = self._map_type(self.type_inference.type_map.get(arg_name, "int"), struct_name)
 
-            # Adjust arg type for SCC
-            if arg_type in self.imported_symbols:
-                arg_type = self.imported_symbols[arg_type]
-            elif "." in arg_type:
-                # Check if it is module.Type
-                parts = arg_type.split(".")
-                module_prefix = ".".join(parts[:-1])
-                typename = parts[-1]
-                # Match against SCC files by checking if the module path ends with the file path
-                scc_file = next(
-                    (
-                        f
-                        for f in self.scc_files
-                        if module_prefix.endswith(
-                            f.replace(".py", "").replace("/", ".").replace("\\", ".")
-                        )
-                    ),
-                    None,
-                )
-                if scc_file:
-                    prefix = self._get_scc_prefix(scc_file)
-                    arg_type = f"{prefix}__{typename}"
+            # In stubs, skip parameters that map to void (NoReturn)
+            if (is_stub_function or self.current_file_name.endswith('.pyi')) and arg_type == "void":
+                 continue
+
+            args_names.append(arg_name)
 
             is_mut = False
             if hasattr(self, 'type_inference') and hasattr(self.type_inference, 'mutability_map'):
@@ -381,11 +349,7 @@ class FunctionsMixin(TranslatorBase):
             if node.args.vararg.annotation:
                 try:
                     type_str = ast.unparse(node.args.vararg.annotation)
-                    arg_type = map_python_type_to_v(
-                        type_str,
-                        self_name=self._get_full_self_type(struct_name),
-                        generic_map=combined_generic_map,
-                    )
+                    arg_type = self._map_type(type_str, struct_name)
                 except Exception:
                     pass
             args_str_list.append(f"{arg_name} ...{arg_type}")
@@ -397,11 +361,7 @@ class FunctionsMixin(TranslatorBase):
             if node.args.kwarg.annotation:
                 try:
                     type_str = ast.unparse(node.args.kwarg.annotation)
-                    arg_type = map_python_type_to_v(
-                        type_str,
-                        self_name=self._get_full_self_type(struct_name),
-                        generic_map=combined_generic_map,
-                    )
+                    arg_type = self._map_type(type_str, struct_name)
                 except Exception:
                     pass
             args_str_list.append(f"{arg_name} {arg_type}")
@@ -414,13 +374,7 @@ class FunctionsMixin(TranslatorBase):
             try:
                 type_str = ast.unparse(node.returns)
                 self._check_experimental_type(type_str, node.returns)
-                ret_type = map_python_type_to_v(
-                    type_str,
-                    self_name=self._get_full_self_type(struct_name),
-                    generic_map=combined_generic_map,
-                )
-                if ret_type == "LiteralString":
-                    ret_type = "string"
+                ret_type = self._map_type(type_str, struct_name)
             except:
                 if isinstance(node.returns, ast.Name):
                     ret_type = node.returns.id
@@ -570,28 +524,6 @@ class FunctionsMixin(TranslatorBase):
             func_name = "iter"
             decl = f"{noreturn_attr}{deprecated_attr}fn {receiver_str}{func_name}{func_generics_str}({args_str}) {ret_type} {{"
 
-        # Adjust return type for SCC if it refers to a top-level symbol
-        if ret_type in self.imported_symbols:
-            ret_type = self.imported_symbols[ret_type]
-        elif "." in ret_type:
-            # Check if it is module.Type
-            parts = ret_type.split(".")
-            module_prefix = ".".join(parts[:-1])
-            typename = parts[-1]
-            # Match against SCC files
-            scc_file = next(
-                (
-                    f
-                    for f in self.scc_files
-                    if module_prefix.endswith(
-                        f.replace(".py", "").replace("/", ".").replace("\\", ".")
-                    )
-                ),
-                None,
-            )
-            if scc_file:
-                prefix = self._get_scc_prefix(scc_file)
-                ret_type = f"{prefix}__{typename}"
         # PEP 702: Add [deprecated] attribute for @warnings.deprecated decorator
         deprecated_attr = ""
         if dec_info.deprecated:

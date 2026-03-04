@@ -33,7 +33,7 @@ class TypeAliasMixin(TranslatorBase):
 
         if hasattr(ast, 'unparse'):
             val_str = ast.unparse(node.value)
-            v_type = map_python_type_to_v(val_str, allow_union=True)
+            v_type = self._map_type(val_str, allow_union=True)
             self.emitter.add_struct(f"type {name}{type_params} = {v_type}")
         else:
             self.output.append(f"{self._indent()}// TypeAlias {name} skipped (no ast.unparse)")

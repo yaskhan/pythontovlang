@@ -278,9 +278,7 @@ def _map_basic_type(name: str) -> str:
         'builtins.float': 'f64',
         'builtins.str': 'string',
         'builtins.bool': 'bool',
-        'LiteralString': 'LiteralString',
-        'typing.LiteralString': 'LiteralString',
-        'typing_extensions.LiteralString': 'LiteralString',
+        'builtins.object': 'Any',
         'bytearray': '[]u8',
         'memoryview': '[]u8',
         'LiteralString': 'string',
@@ -289,5 +287,9 @@ def _map_basic_type(name: str) -> str:
         'TypeForm': 'Any',
         'typing.TypeForm': 'Any',
         'typing_extensions.TypeForm': 'Any',
+        'Final': 'Any',
+        'typing.Final': 'Any',
+        'ClassVar': 'Any',
+        'typing.ClassVar': 'Any',
     }
     return mapping.get(name, name)

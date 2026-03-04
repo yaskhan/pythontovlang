@@ -491,37 +491,12 @@ class CallsMixin(TranslatorBase):
                 if arg_type == "string":
                     return f"{args[0]}.bytes()"
 
-                # For bytearray(other_bytes), ensure a copy is made if it's already a byte array
-                if func_name_str == "bytearray" and arg_type == "[]u8":
-                    return f"{args[0]}.clone()"
-
-                return args[0]
+                # Ensure a copy is made for buffer-like or list-like arguments
+                return f"{args[0]}.clone()"
             return "[]u8{}"
         elif func_name_str in ("bytes.fromhex", "bytearray.fromhex"):
             self.emitter.add_import("encoding.hex")
             return f"hex.decode({args[0]}) or {{ []u8{{}} }}"
-        elif func_name_str == "memoryview":
-            if len(args) >= 1:
-                arg_type = self._guess_type(node.args[0])
-                if arg_type == "int":
-                    return f"[]u8{{len: {args[0]}}}"
-                if arg_type == "string":
-                    return f"{args[0]}.bytes()"
-                if arg_type == "[]u8":
-                    return f"{args[0]}.clone()"
-                return f"{args[0]}.clone()"
-            return "[]u8{}"
-        elif func_name_str == "bytearray":
-            if len(args) >= 1:
-                arg_type = self._guess_type(node.args[0])
-                if arg_type == "int":
-                    return f"[]u8{{len: {args[0]}}}"
-                if arg_type == "string":
-                    return f"{args[0]}.bytes()"
-                if arg_type == "[]u8":
-                    return f"{args[0]}.clone()"
-                return f"{args[0]}.clone()"
-            return "[]u8{}"
         elif func_name_str == "memoryview":
             if len(args) >= 1:
                 return f"{args[0]}"
@@ -911,12 +886,7 @@ class CallsMixin(TranslatorBase):
              # visit_Call is expression visitor, but we are emitting statements.
              # self.output appends to current block.
              # This works if visit_Call is called at statement level (Expr).
-             # If called inside expression (e.g. x = gen()), emitting statements before x = ... works in V?
-             # V allows `x := { stmts; val }` block expressions but syntax is specific (unsafe block or similar).
-             # Standard V does not support arbitrary statement blocks in expressions.
-             # However, our TranslatorBase usually visits statements.
-             # If we are inside `visit_Assign`, `visit(value)` is called.
-             # If we emit statements here, they appear BEFORE the assignment statement in `self.output`.
+             # If called inside expression (e.g. x = gen()), emitting statements here, they appear BEFORE the assignment statement in `self.output`.
              # So:
              # ch := ...
              # gen := ...

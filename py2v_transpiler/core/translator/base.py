@@ -356,6 +356,57 @@ class TranslatorBase(ast.NodeVisitor):
             return f"{name}{gen_str}"
         return name
 
+    def _map_type(self, type_str: str, struct_name: Optional[str] = None, allow_union: bool = False) -> str:
+        """
+        Centralized type mapping that performs map_python_type_to_v
+        followed by imported_symbols and SCC-based re-mapping.
+        """
+        from py2v_transpiler.models.v_types import map_python_type_to_v
+
+        v_type = map_python_type_to_v(
+            type_str,
+            self_name=self._get_full_self_type(struct_name),
+            generic_map=self._get_combined_generic_map(),
+            allow_union=allow_union
+        )
+
+        # Centralize LiteralString to string mapping
+        if v_type == "LiteralString":
+            v_type = "string"
+
+        # Skip re-mapping for basic V types to prevent Any -> typing.Any
+        basic_v_types = (
+            'Any', 'int', 'string', 'bool', 'void', 'none', 'f64', 'i64', 'u32', 'u64', 'i8', 'i16', 'u8', 'u16',
+            'Final', 'ClassVar', 'LiteralString', 'Self'
+        )
+        if v_type in basic_v_types:
+            return v_type
+
+        # Adjust type for imported symbols (aliasing)
+        if v_type in self.imported_symbols:
+            v_type = self.imported_symbols[v_type]
+        elif "." in v_type:
+            # Check if it is module.Type
+            parts = v_type.split(".")
+            module_prefix = ".".join(parts[:-1])
+            typename = parts[-1]
+            # Match against SCC files
+            scc_file = next(
+                (
+                    f
+                    for f in self.scc_files
+                    if module_prefix.endswith(
+                        f.replace(".py", "").replace("/", ".").replace("\\", ".")
+                    )
+                ),
+                None,
+            )
+            if scc_file:
+                prefix = self._get_scc_prefix(scc_file)
+                v_type = f"{prefix}__{typename}"
+
+        return v_type
+
     def _create_temp(self) -> str:
         self.unique_id_counter += 1
         return f"_aug_tmp_{self.unique_id_counter}"
