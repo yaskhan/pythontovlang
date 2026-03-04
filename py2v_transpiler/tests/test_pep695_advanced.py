@@ -1,5 +1,7 @@
 import unittest
 import ast
+import sys
+import pytest
 from py2v_transpiler.core.parser import PyASTParser
 from py2v_transpiler.core.analyzer import TypeInference
 from py2v_transpiler.core.translator import VNodeVisitor
@@ -12,6 +14,7 @@ def transpile_code(source_code: str) -> str:
     translator = VNodeVisitor(analyzer)
     return translator.visit_Module(tree)
 
+@pytest.mark.skipif(sys.version_info < (3, 12), reason="PEP 695 requires Python 3.12+")
 class TestPEP695Advanced(unittest.TestCase):
     def test_paramspec_generic_function(self):
         code = """
