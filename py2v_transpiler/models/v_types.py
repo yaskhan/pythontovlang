@@ -59,7 +59,7 @@ def _map_ast_type(node: ast.AST, self_name: str = "Self", allow_union: bool = Fa
     elif isinstance(node, ast.Attribute):
         # Handle typing.Any etc.
         full_name = ""
-        curr = node
+        curr: ast.AST = node
         parts = []
         while isinstance(curr, ast.Attribute):
             parts.append(curr.attr)
@@ -90,13 +90,13 @@ def _map_ast_type(node: ast.AST, self_name: str = "Self", allow_union: bool = Fa
             value_id = node.value.id
         elif isinstance(node.value, ast.Attribute):
             # Also handle typing.List etc.
-            curr = node.value
+            curr_val: ast.AST = node.value
             parts = []
-            while isinstance(curr, ast.Attribute):
-                parts.append(curr.attr)
-                curr = curr.value
-            if isinstance(curr, ast.Name):
-                parts.append(curr.id)
+            while isinstance(curr_val, ast.Attribute):
+                parts.append(curr_val.attr)
+                curr_val = curr_val.value
+            if isinstance(curr_val, ast.Name):
+                parts.append(curr_val.id)
                 full_name = ".".join(reversed(parts))
                 if full_name.startswith("typing."):
                     value_id = node.value.attr
