@@ -79,8 +79,9 @@ class TranslatorBase(ast.NodeVisitor):
             return f"({child_str})"
         return str(child_str)
 
-    def __init__(self, type_inference: Any) -> None:
+    def __init__(self, type_inference: Any, config: Any = None) -> None:
         self.type_inference = type_inference
+        self.config = config
         # These will be initialized in VNodeVisitor.__init__
         self.decorator_processor: DecoratorProcessor
         self.coroutine_handler: CoroutineHandler
@@ -359,6 +360,13 @@ class TranslatorBase(ast.NodeVisitor):
 
 
     def _guess_type(self, node: ast.AST) -> str:
+        if self.config and self.config.strict_syntax_mode:
+             # Check if it's a call to a class in strict mode
+             if isinstance(node, ast.Call) and isinstance(node.func, ast.Name):
+                  sanitized = self._sanitize_name(node.func.id, is_type=True)
+                  if node.func.id in self.defined_classes or sanitized in self.defined_classes:
+                       return sanitized
+
         if isinstance(node, ast.Constant):
              if isinstance(node.value, bool): return "bool"
              if isinstance(node.value, int): return "int"
@@ -376,6 +384,9 @@ class TranslatorBase(ast.NodeVisitor):
         elif isinstance(node, ast.Call):
             if isinstance(node.func, ast.Name):
                 fid = node.func.id
+                # Check defined classes
+                if fid in self.defined_classes:
+                     return self._sanitize_name(fid, is_type=True)
                 if fid == "str": return "string"
                 if fid == "int": return "int"
                 if fid == "float": return "f64"
@@ -394,6 +405,8 @@ class TranslatorBase(ast.NodeVisitor):
                 return f"map[{k_type}]{v_type}"
             return "map[string]int"
         elif isinstance(node, ast.Name):
+            # In strict mode, if it's not in the type map, we might want it to be Any
+            # to force annotations. But many simple names are inferred.
             # Check for location-based type mapping (from mypy plugin)
             if hasattr(node, 'lineno') and hasattr(node, 'col_offset'):
                 loc_key = f"{node.id}@{node.lineno}:{node.col_offset}"
@@ -407,12 +420,21 @@ class TranslatorBase(ast.NodeVisitor):
             # Try to see if it's in our local map
             if hasattr(self.type_inference, "type_map") and node.id in self.type_inference.type_map:
                 return self.type_inference.type_map[node.id]
+
+            if self.config and self.config.strict_syntax_mode:
+                return "Any"
             return "int" # Fallback
         elif isinstance(node, ast.Attribute):
             if isinstance(node.value, ast.Name):
                 attr_name = f"{node.value.id}.{node.attr}"
                 if hasattr(self.type_inference, "type_map") and attr_name in self.type_inference.type_map:
                     return self.type_inference.type_map[attr_name]
+            # Check if we have a narrowed type for this attribute access
+            if hasattr(node, 'lineno') and hasattr(node, 'col_offset'):
+                 # Attribute narrowing uses 'attr@line:col' in TypeInference.type_map
+                 loc_key = f"{node.attr}@{node.lineno}:{node.col_offset}"
+                 if hasattr(self.type_inference, "type_map") and loc_key in self.type_inference.type_map:
+                      return self.type_inference.type_map[loc_key]
             return "Any"
         elif isinstance(node, ast.Subscript):
             if isinstance(node.value, ast.Attribute) and isinstance(node.value.value, ast.Name):
@@ -421,6 +443,11 @@ class TranslatorBase(ast.NodeVisitor):
             elif isinstance(node.value, ast.Name):
                 if node.value.id == "argv": # Common if from sys import argv
                     return "string"
+            # Check for location-based type mapping
+            if hasattr(node, 'lineno') and hasattr(node, 'col_offset'):
+                loc_key = f"{ast.unparse(node) if hasattr(ast, 'unparse') else ''}@{node.lineno}:{node.col_offset}"
+                if hasattr(self.type_inference, "type_map") and loc_key in self.type_inference.type_map:
+                    return self.type_inference.type_map[loc_key]
             return "Any"
         elif isinstance(node, ast.BinOp):
             left = self._guess_type(node.left)

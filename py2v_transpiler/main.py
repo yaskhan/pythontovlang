@@ -49,7 +49,8 @@ class GlobalHelpers:
 
 def generate_all_helpers(output_path: str) -> None:
     analyzer = TypeInference()
-    translator = VNodeVisitor(analyzer)
+    config = TranspilerConfig()
+    translator = VNodeVisitor(analyzer, config)
 
     # Force all flags to True to generate every possible helper
     translator.used_complex = True
@@ -122,7 +123,7 @@ def transpile_file(source_file: str, config: TranspilerConfig, global_helpers: O
                     print(f"Warning: Dynamic 'Any' type fallback for variable '{key}' in {source_file}")
 
     # 4. Translate
-    translator = VNodeVisitor(analyzer)
+    translator = VNodeVisitor(analyzer, config)
     translator.current_module_name = current_module
     # Use the same relative path key as SCC for consistent prefixing
     # Actually, we need the path relative to project root
@@ -141,6 +142,8 @@ def transpile_file(source_file: str, config: TranspilerConfig, global_helpers: O
                 global_helpers.merge(translator)
             else:
                 v_code_helpers = translator.emitter.emit_helpers()
+    except SyntaxError:
+        raise
     except Exception as e:
         print(f"Translation error in {source_file}: {e}")
         import traceback; traceback.print_exc()
@@ -271,6 +274,7 @@ def main():
     parser.add_argument("--warn-dynamic", action="store_true", help="Warn when falling back to dynamic Any type")
     parser.add_argument("--no-helpers", action="store_true", help="Do not generate a helper V file")
     parser.add_argument("--helpers-only", action="store_true", help="Only generate the helper V file (do not transpile individual scripts)")
+    parser.add_argument("--strict-syntax-mode", action="store_true", help="Refuse old Generic[T] syntax and require explicit annotations for Any")
 
     args = parser.parse_args()
 
@@ -296,7 +300,8 @@ def main():
         mypy_enabled=not args.no_mypy,
         warn_dynamic=args.warn_dynamic,
         no_helpers=args.no_helpers,
-        helpers_only=args.helpers_only
+        helpers_only=args.helpers_only,
+        strict_syntax_mode=args.strict_syntax_mode
     )
 
     if config.helpers_only:

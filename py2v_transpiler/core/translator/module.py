@@ -40,6 +40,16 @@ class ModuleMixin(TranslatorBase):
                 self.in_main = False
                 self.visit(stmt)
                 self.in_main = True
+            elif isinstance(stmt, (ast.Assign, ast.AnnAssign)):
+                # Top level assignment: count as in_main for global handling
+                # but we still want to visit it.
+                # Actually visit_Assign and visit_AnnAssign handle in_main correctly.
+                self.output = []
+                self.visit(stmt)
+                # Append buffer to main
+                for line in self.output:
+                    self.emitter.add_main_statement(line.strip())
+                self.output = []
             else:
                 # This is part of main body
                 # We need to capture the output of this statement

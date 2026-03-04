@@ -305,26 +305,33 @@ class TypeInference(ast.NodeVisitor):
 
         self.generic_visit(node)
 
-    def visit_FunctionDef(self, node: ast.FunctionDef) -> Any:
+    def _visit_function_any(self, node: Any) -> Any:
         for arg in node.args.args:
             if arg.annotation:
                 try:
                     type_str = ast.unparse(arg.annotation)
                     v_type = map_python_type_to_v(type_str)
                     self.type_map[arg.arg] = v_type
-                except AttributeError:
-                    if isinstance(arg.annotation, ast.Name):
-                        v_type = map_python_type_to_v(arg.annotation.id)
-                        self.type_map[arg.arg] = v_type
-                    elif isinstance(arg.annotation, ast.Constant) and isinstance(
-                        arg.annotation.value, str
-                    ):
-                        v_type = map_python_type_to_v(arg.annotation.value)
-                        self.type_map[arg.arg] = v_type
                 except Exception:
                     pass
 
+        # Also collect return type if present
+        if node.returns:
+            try:
+                type_str = ast.unparse(node.returns)
+                v_type = map_python_type_to_v(type_str)
+                loc_key = f"{node.name}@{node.lineno}:{node.col_offset}"
+                self.type_map[loc_key] = v_type
+            except:
+                pass
+
         self.generic_visit(node)
+
+    def visit_FunctionDef(self, node: ast.FunctionDef) -> Any:
+        return self._visit_function_any(node)
+
+    def visit_AsyncFunctionDef(self, node: ast.AsyncFunctionDef) -> Any:
+        return self._visit_function_any(node)
 
     def run_mypy(self, path: str) -> Tuple[str, str, int]:
         """Runs mypy on the given file path and returns the output."""

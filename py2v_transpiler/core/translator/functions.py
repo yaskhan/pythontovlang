@@ -330,7 +330,11 @@ class FunctionsMixin(TranslatorBase):
                 except Exception:
                     arg_type = self.type_inference.type_map.get(arg_name, "int")
             else:
-                arg_type = self.type_inference.type_map.get(arg_name, "int")
+                # Default to Any in strict mode to force annotations
+                default_type = "Any" if self.config and self.config.strict_syntax_mode else "int"
+                arg_type = self.type_inference.type_map.get(arg_name, default_type)
+                if self.config and self.config.strict_syntax_mode and arg_type == "Any":
+                    raise SyntaxError(f"Strict mode: Explicit annotation required for argument '{arg.arg}' in function '{node.name}' at line {node.lineno} because its type is inferred as 'Any'.")
 
             # Adjust arg type for SCC
             if arg_type in self.imported_symbols:
@@ -407,6 +411,14 @@ class FunctionsMixin(TranslatorBase):
                     node.returns.value, str
                 ):
                     ret_type = node.returns.value
+        elif not is_generator and self.config and self.config.strict_syntax_mode:
+            # Check if inferred return type is Any
+            # mypy_plugin stores function return types with a special suffix or just name@loc
+            loc_key = f"{node.name}@{node.lineno}:{node.col_offset}"
+            inferred_ret = self.type_inference.type_map.get(loc_key, "Any")
+            # Note: mypy might report it as 'Any' if it's missing and cannot be inferred
+            if inferred_ret == "Any":
+                raise SyntaxError(f"Strict mode: Explicit return annotation required for function '{node.name}' at line {node.lineno} because its return type is inferred as 'Any'.")
 
         # Check for NoReturn
         is_noreturn = False

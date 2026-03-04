@@ -255,6 +255,10 @@ class AssignmentsMixin(TranslatorBase):
 
         if not lhs:
              # Should be covered by destructuring
+             if self.config and self.config.strict_syntax_mode:
+                  # For destructuring, we might need to check if Any is being assigned without annotation
+                  # but let's stick to simple assignments for now to fulfill the basic requirement
+                  pass
              return
 
         if isinstance(node.value, ast.ListComp):
@@ -295,6 +299,15 @@ class AssignmentsMixin(TranslatorBase):
 
             # Determine type
             v_type = getattr(self, "_guess_type", lambda x: "unknown")(target)
+            if v_type == "Any" or v_type == "unknown":
+                 # Try guessing from value if target is unknown
+                 v_type = getattr(self, "_guess_type", lambda x: "unknown")(node.value)
+
+            # Enforce explicit annotations in strict mode
+            if self.config and self.config.strict_syntax_mode:
+                if v_type == "Any":
+                    target_id = self.visit(target)
+                    raise SyntaxError(f"Strict mode: Explicit annotation required for '{target_id}' at line {node.lineno} because its type is inferred as 'Any'.")
 
             # Update type map on normal assignment if type is unknown or we have a literal
             if isinstance(target, ast.Name):

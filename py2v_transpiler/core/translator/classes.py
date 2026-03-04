@@ -285,6 +285,17 @@ class ClassesMixin(TranslatorBase):
         # Handle inheritance (bases)
         is_flag = False
         for base in node.bases:
+            # Enforce PEP 695 in strict mode
+            if self.config and self.config.strict_syntax_mode:
+                base_id = ""
+                if isinstance(base, ast.Name):
+                    base_id = base.id
+                elif isinstance(base, ast.Subscript) and isinstance(base.value, ast.Name):
+                    base_id = base.value.id
+
+                if base_id == "Generic":
+                    raise SyntaxError(f"Strict mode: 'Generic[T]' is not allowed at line {node.lineno}. Use PEP 695 syntax 'class {node.name}[T]:' instead.")
+
             # Helper to check if a name refers to an Enum type
             def is_enum_type(name: str) -> tuple[bool, bool, bool]:
                 """Returns (is_enum, is_int_enum, is_flag)"""
