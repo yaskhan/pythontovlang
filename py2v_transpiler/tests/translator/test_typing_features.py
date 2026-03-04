@@ -116,6 +116,17 @@ class A:
     v_code = translate(source)
     assert "fn (self A) foo() A {" in v_code
 
+def test_typing_self_generic():
+    source = """
+from typing import Self
+
+class Builder[T]:
+    def set_value(self, value: T) -> Self:
+        return self
+"""
+    v_code = translate(source)
+    assert "fn (self Builder[T]) set_value[T](value T) Builder[T] {" in v_code
+
 def test_typing_cast():
     source = """
 from typing import cast

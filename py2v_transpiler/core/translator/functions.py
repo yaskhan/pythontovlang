@@ -46,7 +46,7 @@ class FunctionsMixin(TranslatorBase):
                         type_str = ast.unparse(arg.annotation)
                         arg_type = map_python_type_to_v(
                             type_str,
-                            self_name=ov_struct_name or "Self",
+                            self_name=self._get_full_self_type(ov_struct_name),
                             generic_map=self._get_combined_generic_map(),
                         )
                     except Exception:
@@ -61,7 +61,7 @@ class FunctionsMixin(TranslatorBase):
                     type_str = ast.unparse(node.returns)
                     sig["return"] = map_python_type_to_v(
                         type_str,
-                        self_name=ov_struct_name or "Self",
+                        self_name=self._get_full_self_type(ov_struct_name),
                         generic_map=self._get_combined_generic_map(),
                     )
                 except:
@@ -324,7 +324,7 @@ class FunctionsMixin(TranslatorBase):
                     type_str = ast.unparse(arg.annotation)
                     arg_type = map_python_type_to_v(
                         type_str,
-                        self_name=struct_name or "Self",
+                        self_name=self._get_full_self_type(struct_name),
                         generic_map=combined_generic_map,
                     )
                 except Exception:
@@ -365,7 +365,7 @@ class FunctionsMixin(TranslatorBase):
                     type_str = ast.unparse(node.args.vararg.annotation)
                     arg_type = map_python_type_to_v(
                         type_str,
-                        self_name=struct_name or "Self",
+                        self_name=self._get_full_self_type(struct_name),
                         generic_map=combined_generic_map,
                     )
                 except Exception:
@@ -381,7 +381,7 @@ class FunctionsMixin(TranslatorBase):
                     type_str = ast.unparse(node.args.kwarg.annotation)
                     arg_type = map_python_type_to_v(
                         type_str,
-                        self_name=struct_name or "Self",
+                        self_name=self._get_full_self_type(struct_name),
                         generic_map=combined_generic_map,
                     )
                 except Exception:
@@ -397,7 +397,7 @@ class FunctionsMixin(TranslatorBase):
                 type_str = ast.unparse(node.returns)
                 ret_type = map_python_type_to_v(
                     type_str,
-                    self_name=struct_name or "Self",
+                    self_name=self._get_full_self_type(struct_name),
                     generic_map=combined_generic_map,
                 )
             except:
