@@ -498,17 +498,17 @@ class ClassesMixin(TranslatorBase):
                  self.visit(method)
         elif is_protocol:
              # Emit interface
-             interface_def = ""
+             interface_parts = []
              if doc_comment:
-                 interface_def += doc_comment
+                 interface_parts.append(doc_comment)
              if decorators:
-                 interface_def += "\n".join(decorators) + "\n"
+                 interface_parts.append("\n".join(decorators) + "\n")
 
              generics_str = ""
              if self.current_class_generics:
                 generics_str = f"[{', '.join(self.current_class_generics)}]"
 
-             interface_def += f"interface {struct_name}{generics_str} {{\n"
+             interface_parts.append(f"interface {struct_name}{generics_str} {{")
              # Emit method signatures
              for method in methods:
                  # Manual extraction:
@@ -536,12 +536,12 @@ class ClassesMixin(TranslatorBase):
                       except: pass
 
                  if m_ret == "void":
-                      interface_def += f"    {m_name}({', '.join(m_args)})\n"
+                      interface_parts.append(f"    {m_name}({', '.join(m_args)})")
                  else:
-                      interface_def += f"    {m_name}({', '.join(m_args)}) {m_ret}\n"
+                      interface_parts.append(f"    {m_name}({', '.join(m_args)}) {m_ret}")
 
-             interface_def += "}"
-             self.emitter.add_struct(interface_def)
+             interface_parts.append("}")
+             self.emitter.add_struct("\n".join(interface_parts) + "\n")
 
         elif is_mixin:
             # Mixin struct is not emitted, but we still generate its methods
@@ -559,22 +559,22 @@ class ClassesMixin(TranslatorBase):
             for method in methods:
                 self.visit(method)
         else:
-            struct_def = ""
+            struct_parts = []
             if doc_comment:
-                struct_def += doc_comment
+                struct_parts.append(doc_comment)
             
             # PEP 702: Add [deprecated] attribute for @warnings.deprecated decorator
             if is_deprecated:
                 if deprecated_message:
-                    struct_def += f"[deprecated: '{deprecated_message}']\n"
+                    struct_parts.append(f"[deprecated: '{deprecated_message}']\n")
                 else:
-                    struct_def += "[deprecated]\n"
+                    struct_parts.append("[deprecated]\n")
 
             if is_disjoint_base:
-                struct_def += "[disjoint_base]\n"
+                struct_parts.append("[disjoint_base]\n")
 
             if decorators:
-                struct_def += "\n".join(decorators) + "\n"
+                struct_parts.append("\n".join(decorators) + "\n")
 
             if is_enum or is_int_enum or is_flag:
                 # Transpile to V enum or flag enum
@@ -636,8 +636,12 @@ class ClassesMixin(TranslatorBase):
                                     enum_fields.append(f"    {member_name} = {value}")
 
                 flag_attr = "[flag]\n" if is_flag else ""
-                struct_def += f"{flag_attr}enum {struct_name} {{\n" + "\n".join(enum_fields) + "\n}"
-                self.emitter.add_struct(struct_def)
+                struct_parts.append(f"{flag_attr}enum {struct_name} {{\n")
+                if enum_fields:
+                    struct_parts.append("\n".join(enum_fields))
+                    struct_parts.append("\n")
+                struct_parts.append("}")
+                self.emitter.add_struct("".join(struct_parts))
                 # Skip method generation for simple enums for now
                 return
 
@@ -645,8 +649,12 @@ class ClassesMixin(TranslatorBase):
             if self.current_class_generics:
                 generics_str = f"[{', '.join(self.current_class_generics)}]"
 
-            struct_def += f"struct {struct_name}{generics_str} {{\n" + "\n".join(fields) + "\n}"
-            self.emitter.add_struct(struct_def)
+            struct_parts.append(f"struct {struct_name}{generics_str} {{\n")
+            if fields:
+                struct_parts.append("\n".join(fields))
+                struct_parts.append("\n")
+            struct_parts.append("}")
+            self.emitter.add_struct("".join(struct_parts))
 
             has_str = any(m.name == "__str__" for m in methods)
             if has_str:
