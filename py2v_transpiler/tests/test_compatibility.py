@@ -18,7 +18,7 @@ except (ValueError, ZeroDivisionError) as e:
     print(e)
 """
     # The actual implementation might have different whitespace but the AST should be the same
-    processed = comp.preprocess_source(source)
+    processed, _ = comp.preprocess_source(source)
     assert "(ValueError, ZeroDivisionError) as e:" in processed
 
 def test_preprocess_bracketless_except_star():
@@ -29,7 +29,7 @@ try:
 except* ValueError, TypeError:
     pass
 """
-    processed = comp.preprocess_source(source)
+    processed, _ = comp.preprocess_source(source)
     assert "except* (ValueError, TypeError):" in processed
 
 def test_is_v_reserved():

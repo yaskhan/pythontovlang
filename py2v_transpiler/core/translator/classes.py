@@ -61,6 +61,19 @@ class ClassesMixin(TranslatorBase):
         self.generic_scopes.append(self.current_class_generic_map)
         self.current_class_generics = self._get_all_active_v_generics()
 
+        # Handle variance modifiers (PEP 695)
+        variance_comments = []
+        if hasattr(node, "type_params") and node.type_params:
+            for param in node.type_params:
+                variance = self._get_variance_for_param(param)
+                if variance:
+                    v_name = self.current_class_generic_map.get(param.name, param.name)
+                    variance_comments.append(f"{v_name}={variance}")
+
+        self._current_variance_comment = ""
+        if variance_comments:
+            self._current_variance_comment = f"// @variance: {', '.join(variance_comments)}\n"
+
         # Handle decorators
         decorators = []
         is_dataclass = False
@@ -625,6 +638,8 @@ class ClassesMixin(TranslatorBase):
             if self._is_exported(node.name):
                  pub = "pub "
 
+            if getattr(self, "_current_variance_comment", ""):
+                interface_parts.append(self._current_variance_comment)
             interface_parts.append(f"{pub}interface {struct_name}{generics_str} {{")
             # Emit method signatures
             has_str = any(m.name == "__str__" for m in methods)
@@ -816,6 +831,8 @@ class ClassesMixin(TranslatorBase):
             if self._is_exported(node.name):
                  pub = "pub "
 
+            if getattr(self, "_current_variance_comment", ""):
+                struct_parts.append(self._current_variance_comment)
             struct_parts.append(f"{pub}struct {struct_name}{generics_str} {{\n")
             if fields:
                 struct_parts.append("\n".join(fields))

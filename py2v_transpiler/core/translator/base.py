@@ -252,6 +252,10 @@ class TranslatorBase(ast.NodeVisitor):
             combined.update(scope)
         return combined
 
+    def _get_variance_for_param(self, param: Any) -> Optional[str]:
+        """Safely retrieves the pre-processed variance for a type parameter."""
+        return getattr(param, '_variance', None)
+
     def _get_all_active_v_generics(self) -> List[str]:
         """Returns all unique V generic names from all active scopes, in order."""
         all_v = []

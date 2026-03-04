@@ -264,6 +264,18 @@ class FunctionsMixin(TranslatorBase):
         self.generic_scopes.append(func_generic_map)
         combined_generic_map = self._get_combined_generic_map()
 
+        # Handle variance modifiers (PEP 695)
+        variance_comments = []
+        if hasattr(node, "type_params") and node.type_params:
+            for param in node.type_params:
+                variance = self._get_variance_for_param(param)
+                if variance:
+                    v_name = func_generic_map.get(param.name, param.name)
+                    variance_comments.append(f"{v_name}={variance}")
+
+        if variance_comments:
+            self.output.append(f"// @variance: {', '.join(variance_comments)}")
+
         # V requires generic methods to explicitly repeat the struct generics
         # if the receiver is generic. E.g. fn (s Struct[T]) foo[T]()
         # We use ALL active generics in the signature for now to be safe.
@@ -674,6 +686,18 @@ class FunctionsMixin(TranslatorBase):
         func_generic_map = self._get_generic_map(py_func_generics)
         self.generic_scopes.append(func_generic_map)
         combined_generic_map = self._get_combined_generic_map()
+
+        # Handle variance modifiers (PEP 695)
+        variance_comments = []
+        if hasattr(node, "type_params") and node.type_params:
+            for param in node.type_params:
+                variance = self._get_variance_for_param(param)
+                if variance:
+                    v_name = func_generic_map.get(param.name, param.name)
+                    variance_comments.append(f"{v_name}={variance}")
+
+        if variance_comments:
+            self.output.append(f"// @variance: {', '.join(variance_comments)}")
 
         all_v_generics = self._get_all_active_v_generics()
         if all_v_generics:

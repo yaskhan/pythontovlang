@@ -23,6 +23,7 @@ This transpiler supports a wide range of Python language features and standard l
 -   **Functions**: Function definitions, arguments, return values, lambdas, and decorators.
 -   **Object-Oriented Programming**: Classes, inheritance (via struct embedding), method overriding, `__init__`, and operator overloading (`__add__`, etc.).
 -   **Syntactic Sugar**: List comprehensions, f-strings, walrus operator (`:=`), slice notation (`list[1:3]`).
+-   **Generics (PEP 695)**: Support for Python 3.12+ type parameter syntax, including explicit variance modifiers (`+T`, `-T`). Note: V generics are invariant; the transpiler preserves variance modifiers as metadata comments (e.g., `// @variance: T=+`) for future-proofing and documentation.
 -   **Keywords**: `global`, `nonlocal` (as comments), `assert`, `del` (partially mapped).
 
 ### Standard Library Mapping

@@ -13,8 +13,21 @@ class PyASTParser:
     def parse(self, source: str) -> ast.AST:
         """Parses Python source code into an AST."""
         try:
-            processed_source = self.compatibility.preprocess_source(source)
-            return ast.parse(processed_source)
+            processed_source, variance_map = self.compatibility.preprocess_source(source)
+            tree = ast.parse(processed_source)
+
+            if variance_map:
+                # Walk the tree and attach variance info to TypeVar nodes in type_params
+                for node in ast.walk(tree):
+                    if isinstance(node, (ast.ClassDef, ast.FunctionDef, ast.AsyncFunctionDef, getattr(ast, 'TypeAlias', type(None)))):
+                        if hasattr(node, 'type_params') and node.type_params:
+                            for param in node.type_params:
+                                # ast.TypeVar (PEP 695) has lineno and col_offset
+                                loc = (param.lineno, param.col_offset)
+                                if loc in variance_map:
+                                    setattr(param, '_variance', variance_map[loc])
+
+            return tree
         except SyntaxError as e:
             logger.error(f"Syntax error: {e}")
             raise
