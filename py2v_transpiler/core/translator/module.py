@@ -795,7 +795,7 @@ class ModuleMixin(TranslatorBase):
 
         self.emitter.add_helper_struct("""struct PyGenerator[T] {
 mut:
-    out chan ?T
+    out chan T
     in_ chan PyGeneratorInput
     open bool = true
 }""")
@@ -829,7 +829,7 @@ mut:
         # py_yield(ch_out, ch_in, val)
         # Returns the value sent back via send(), or none if next() was called.
         # Panics if throw() was called.
-        self.emitter.add_helper_function("""fn py_yield[T](ch_out chan ?T, ch_in chan PyGeneratorInput, val T) Any {
+        self.emitter.add_helper_function("""fn py_yield[T](ch_out chan T, ch_in chan PyGeneratorInput, val T) Any {
     ch_out <- val
     inp := <-ch_in
     if inp.is_exc {

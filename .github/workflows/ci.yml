@@ -18,6 +18,9 @@ jobs:
       with:
         python-version: "3.10"
 
+    - name: Setup V
+      uses: vlang/setup-v@v1.4
+
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip
@@ -30,3 +33,14 @@ jobs:
     - name: Type check with mypy
       run: |
         mypy py2v_transpiler/core py2v_transpiler/models py2v_transpiler/stdlib_map py2v_transpiler/main.py py2v_transpiler/config.py --check-untyped-defs
+
+    - name: Mypy lib-stubs compatibility (Roadmap)
+      run: |
+        python py2v_transpiler/tests/scripts/generate_mypy_stubs_tests.py
+        # We loop over the generated folders to check them and allow failure so CI doesn't completely block on these WIP features,
+        # but we do report the errors in the CI logs as a roadmap.
+        # Use find to locate all directories within mypy_stubs except the root itself
+        find py2v_transpiler/tests/output/mypy_stubs -mindepth 1 -type d | while read -r dir; do
+          echo "Checking $dir"
+          v -check "$dir" || true
+        done
