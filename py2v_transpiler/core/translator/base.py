@@ -119,6 +119,7 @@ class TranslatorBase(ast.NodeVisitor):
         self.unique_id_counter: int = 0
         self.vexc_depth: int = 0
         self._local_vars_in_scope: Set[str] = set()
+        self.fstring_quote_stack: List[str] = []
         self.current_module_name: str = "main"
         self.current_file_name: str = ""
         self.scc_files: Set[str] = set()
