@@ -23,13 +23,13 @@ def test_dict_comp_string_key():
     code = "d = {str(x): x for x in range(5)}"
     v_code = transpile(code)
     assert "map[string]int" in v_code
-    assert "d[str(x)] = x" in v_code
+    assert "d[x.str()] = x" in v_code
 
 def test_dict_comp_string_val():
     code = "d = {x: str(x) for x in range(5)}"
     v_code = transpile(code)
     assert "map[int]string" in v_code
-    assert "d[x] = str(x)" in v_code
+    assert "d[x] = x.str()" in v_code
 
 def test_dict_comp_zip():
     code = "d = {k: v for k, v in zip(['a', 'b'], [1, 2])}"
