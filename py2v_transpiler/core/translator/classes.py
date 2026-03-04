@@ -12,6 +12,10 @@ class ClassesMixin(TranslatorBase):
             self.class_stack = []
 
         sanitized_name = self._sanitize_name(node.name, is_type=True)
+
+        if not self.class_stack:
+             self.defined_top_level_symbols.add(node.name)
+
         self.class_stack.append(sanitized_name)
         struct_name = self._sanitize_name("_".join(self.class_stack), is_type=True)
 
@@ -614,7 +618,11 @@ class ClassesMixin(TranslatorBase):
             if self.current_class_generics:
                 generics_str = f"[{', '.join(self.current_class_generics)}]"
 
-            interface_parts.append(f"interface {struct_name}{generics_str} {{")
+            pub = ""
+            if self._is_exported(node.name):
+                 pub = "pub "
+
+            interface_parts.append(f"{pub}interface {struct_name}{generics_str} {{")
             # Emit method signatures
             has_str = any(m.name == "__str__" for m in methods)
             for method in methods:
@@ -714,6 +722,9 @@ class ClassesMixin(TranslatorBase):
             if is_enum or is_int_enum or is_flag:
                 # Transpile to V enum or flag enum
                 enum_fields = []
+                pub = ""
+                if self._is_exported(node.name):
+                     pub = "pub "
                 _flag_counter = 0  # Track shift for auto() in flags
 
                 for stmt in node.body:
@@ -785,7 +796,7 @@ class ClassesMixin(TranslatorBase):
                                     enum_fields.append(f"    {member_name} = {value}")
 
                 flag_attr = "[flag]\n" if is_flag else ""
-                struct_parts.append(f"{flag_attr}enum {struct_name} {{\n")
+                struct_parts.append(f"{flag_attr}{pub}enum {struct_name} {{\n")
                 if enum_fields:
                     struct_parts.append("\n".join(enum_fields))
                     struct_parts.append("\n")
@@ -798,7 +809,11 @@ class ClassesMixin(TranslatorBase):
             if self.current_class_generics:
                 generics_str = f"[{', '.join(self.current_class_generics)}]"
 
-            struct_parts.append(f"struct {struct_name}{generics_str} {{\n")
+            pub = ""
+            if self._is_exported(node.name):
+                 pub = "pub "
+
+            struct_parts.append(f"{pub}struct {struct_name}{generics_str} {{\n")
             if fields:
                 struct_parts.append("\n".join(fields))
                 struct_parts.append("\n")

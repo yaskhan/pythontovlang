@@ -4,6 +4,27 @@ from .base import TranslatorBase
 
 class ModuleMixin(TranslatorBase):
     def visit_Module(self, node: ast.Module) -> str:
+        # Pre-scan for __all__ and symbols
+        self.module_all = None
+        for stmt in node.body:
+            # Track imported symbols for re-export
+            if isinstance(stmt, ast.Import):
+                for alias in stmt.names:
+                    self.defined_top_level_symbols.add(alias.asname if alias.asname else alias.name)
+            elif isinstance(stmt, ast.ImportFrom):
+                for alias in stmt.names:
+                    self.defined_top_level_symbols.add(alias.asname if alias.asname else alias.name)
+
+            if isinstance(stmt, ast.Assign):
+                for target in stmt.targets:
+                    if isinstance(target, ast.Name) and target.id == "__all__":
+                        if isinstance(stmt.value, (ast.List, ast.Tuple)):
+                            self.module_all = []
+                            for elt in stmt.value.elts:
+                                if isinstance(elt, ast.Constant) and isinstance(elt.value, str):
+                                    self.module_all.append(elt.value)
+                        break
+
         self.emitter.module_name = self.current_module_name
         self.global_vars = set()
         for subnode in ast.walk(node):
@@ -35,6 +56,16 @@ class ModuleMixin(TranslatorBase):
             body = node.body
 
         for stmt in body:
+            # Skip __all__ assignment in output
+            if isinstance(stmt, ast.Assign):
+                is_all = False
+                for target in stmt.targets:
+                    if isinstance(target, ast.Name) and target.id == "__all__":
+                        is_all = True
+                        break
+                if is_all:
+                    continue
+
             # Check if statement is top-level expression or assignment
             if isinstance(stmt, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef, ast.Import, ast.ImportFrom)):
                 self.in_main = False
@@ -55,6 +86,19 @@ class ModuleMixin(TranslatorBase):
                     # Because generator adds indentation for main()
                     self.emitter.add_main_statement(line.strip())
                 self.output = []
+
+        # Post-scan validation for __all__
+        if self.module_all is not None:
+            # Check for undefined symbols in __all__
+            for name in self.module_all:
+                if name not in self.defined_top_level_symbols:
+                    self.warnings.append(f"Symbol '{name}' listed in __all__ but not defined in module")
+
+            # Check for public symbols missing from __all__ if strict mode enabled
+            if getattr(self.config, 'strict_export_mode', False):
+                for name in self.defined_top_level_symbols:
+                    if name != "__all__" and not name.startswith('_') and name not in self.module_all:
+                        self.warnings.append(f"Public symbol '{name}' not listed in __all__")
 
         # Generate single dispatchers
         for func_name, registry in self.single_dispatch_functions.items():

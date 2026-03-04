@@ -5,7 +5,7 @@ from py2v_transpiler.models.v_types import map_python_type_to_v
 
 
 class AssignmentsMixin(TranslatorBase):
-    """Обработка присваиваний: visit_Assign и вспомогательные методы"""
+    """Assignment handling: visit_Assign and helper methods"""
     
     def _is_literal_string_expr(self, node: ast.AST) -> bool:
         """Checks if an expression is a literal string, literal concatenation, or f-string without variables."""
@@ -43,6 +43,9 @@ class AssignmentsMixin(TranslatorBase):
         if isinstance(target, ast.Name):
             lhs = self._sanitize_name(target.id)
 
+            if self.in_main:
+                 self.defined_top_level_symbols.add(target.id)
+
             # Check for NewType: UserId = NewType('UserId', int)
             if isinstance(node.value, ast.Call) and isinstance(node.value.func, ast.Name) and node.value.func.id == "NewType":
                 if len(node.value.args) == 2:
@@ -52,7 +55,8 @@ class AssignmentsMixin(TranslatorBase):
                         if hasattr(ast, 'unparse'):
                              base_str = ast.unparse(node.value.args[1])
                              mapped_base = map_python_type_to_v(base_str, allow_union=True)
-                             self.emitter.add_struct(f"type {lhs} = {mapped_base}")
+                             pub = "pub " if self._is_exported(target.id) else ""
+                             self.emitter.add_struct(f"{pub}type {lhs} = {mapped_base}")
                              return
                     except:
                         pass
@@ -90,7 +94,8 @@ class AssignmentsMixin(TranslatorBase):
                     # We need to be careful not to create "A | B | C" if they are distinct
 
                     final_type = " | ".join(constraints)
-                    self.emitter.add_struct(f"type {sanitized_lhs} = {final_type}")
+                    pub = "pub " if self._is_exported(target.id) else ""
+                    self.emitter.add_struct(f"{pub}type {sanitized_lhs} = {final_type}")
                 return
 
             # Check for type alias: MyType = int or MyType = OtherType or MyType = List[int]
@@ -144,7 +149,8 @@ class AssignmentsMixin(TranslatorBase):
                               pass
 
                 if is_type_alias:
-                     self.emitter.add_struct(f"type {lhs} = {type_alias_val}")
+                     pub = "pub " if self._is_exported(target.id) else ""
+                     self.emitter.add_struct(f"{pub}type {lhs} = {type_alias_val}")
                      return
 
         elif isinstance(target, ast.Attribute):
@@ -226,6 +232,18 @@ class AssignmentsMixin(TranslatorBase):
         elif isinstance(target, (ast.Tuple, ast.List)):
              # Destructuring assignment with nested support
              rhs = self.visit(node.value)
+
+             if self.in_main:
+                  # Track top-level symbols for destructuring
+                  def track_targets(t):
+                       if isinstance(t, (ast.Tuple, ast.List)):
+                            for elt in t.elts:
+                                 track_targets(elt)
+                       elif isinstance(t, ast.Starred):
+                            track_targets(t.value)
+                       elif isinstance(t, ast.Name):
+                            self.defined_top_level_symbols.add(t.id)
+                  track_targets(target)
 
              # Optimization: If simple unpacking a, b = 1, 2 (RHS is Tuple/List literal) and no starred elements
              # And no nested targets!
@@ -362,31 +380,34 @@ class AssignmentsMixin(TranslatorBase):
                         if isinstance(target, ast.Name):
                             if v_type == "unknown":
                                 v_type = "Any"
-                            self.emitter.add_global(f"{lhs} {v_type}")
+                            pub = "pub " if self._is_exported(target.id) else ""
+                            self.emitter.add_global(f"{pub}{lhs} {v_type}")
                     elif base_lhs.isupper():
                         emit_fn = lambda stmt: self.emitter.add_init_statement(stmt.strip())
                         if isinstance(target, ast.Name):
                             v_lhs = self._to_snake_case(lhs)
+                            pub = "pub " if self._is_exported(target.id) else ""
                             if self._is_compile_time_evaluable(node.value):
-                                # Compile-time константа (например DEFAULT_WIDTH = 100) → блок const
-                                self.emitter.add_constant(f"{v_lhs} = {rhs}")
+                                # Compile-time constant (e.g. DEFAULT_WIDTH = 100) -> const block
+                                self.emitter.add_constant(f"{pub}{v_lhs} = {rhs}")
                                 return
                             else:
-                                # Runtime UPPER_CASE (например Vector_ZERO = new_Vector(...)) → global + init()
+                                # Runtime UPPER_CASE (e.g. Vector_ZERO = new_Vector(...)) -> global + init()
                                 if v_type == "unknown" or v_type == "int":
                                     v_type = "Any"
-                                self.emitter.add_global(f"{v_lhs} {v_type}")
+                                self.emitter.add_global(f"{pub}{v_lhs} {v_type}")
                                 lhs = v_lhs
 
                 if self.in_main and isinstance(target, ast.Name) and (lhs in getattr(self, "global_vars", set()) or lhs.isupper() or is_implicit_literal):
                     v_lhs = self._to_snake_case(lhs) if not lhs.islower() else lhs
-                    # Для compile-time констант мы уже сделали return выше — присваивание не нужно
+                    # For compile-time constants we already returned above - assignment not needed
+                    pub = "pub " if self._is_exported(target.id) else ""
                     if is_implicit_literal and self._is_compile_time_evaluable(node.value) and not lhs.isupper():
-                        self.emitter.add_constant(f"{v_lhs} = {rhs}")
+                        self.emitter.add_constant(f"{pub}{v_lhs} = {rhs}")
                         return
                     if is_implicit_literal and not self._is_compile_time_evaluable(node.value) and not lhs.isupper():
                         if lhs not in getattr(self, "global_vars", set()):
-                            self.emitter.add_global(f"{v_lhs} string")
+                            self.emitter.add_global(f"{pub}{v_lhs} string")
                         self.emitter.add_init_statement(f"{v_lhs} = {rhs}")
                         return
                     if not (lhs.isupper() and self._is_compile_time_evaluable(node.value)):

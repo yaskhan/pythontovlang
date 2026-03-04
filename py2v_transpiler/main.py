@@ -122,7 +122,7 @@ def transpile_file(source_file: str, config: TranspilerConfig, global_helpers: O
                     print(f"Warning: Dynamic 'Any' type fallback for variable '{key}' in {source_file}")
 
     # 4. Translate
-    translator = VNodeVisitor(analyzer)
+    translator = VNodeVisitor(analyzer, config=config)
     translator.current_module_name = current_module
     # Use the same relative path key as SCC for consistent prefixing
     # Actually, we need the path relative to project root
@@ -136,6 +136,11 @@ def transpile_file(source_file: str, config: TranspilerConfig, global_helpers: O
 
     try:
         v_code_intermediate = translator.visit_Module(tree)
+
+        # Print warnings
+        for warning in getattr(translator, 'warnings', []):
+            print(f"Warning: {warning}")
+
         if not config.no_helpers:
             if global_helpers is not None:
                 global_helpers.merge(translator)
@@ -271,6 +276,8 @@ def main():
     parser.add_argument("--warn-dynamic", action="store_true", help="Warn when falling back to dynamic Any type")
     parser.add_argument("--no-helpers", action="store_true", help="Do not generate a helper V file")
     parser.add_argument("--helpers-only", action="store_true", help="Only generate the helper V file (do not transpile individual scripts)")
+    parser.add_argument("--include-all-symbols", action="store_true", help="Include all symbols even if not in __all__")
+    parser.add_argument("--strict-exports", action="store_true", help="Warn about public symbols missing from __all__")
 
     args = parser.parse_args()
 
@@ -296,7 +303,9 @@ def main():
         mypy_enabled=not args.no_mypy,
         warn_dynamic=args.warn_dynamic,
         no_helpers=args.no_helpers,
-        helpers_only=args.helpers_only
+        helpers_only=args.helpers_only,
+        include_all_symbols=args.include_all_symbols,
+        strict_export_mode=args.strict_exports
     )
 
     if config.helpers_only:

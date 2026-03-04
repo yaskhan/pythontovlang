@@ -419,6 +419,10 @@ class FunctionsMixin(TranslatorBase):
 
         if not is_unittest_method:
             func_name = self._sanitize_name(node.name)
+
+            if not is_method:
+                self.defined_top_level_symbols.add(node.name)
+
             if func_name == "__next__":
                 func_name = "next"
             elif func_name == "__await__":
@@ -564,10 +568,19 @@ class FunctionsMixin(TranslatorBase):
             else:
                 deprecated_attr = "[deprecated]\n"
 
+        pub = ""
+        if (not is_method and self._is_exported(node.name)) or (is_method and getattr(self, 'config', None) and not func_name.startswith('_') and not is_init):
+             pub = "pub "
+
+        # Factory function: pub if class is exported
+        if is_init:
+             if self._is_exported(struct_name):
+                  pub = "pub "
+
         if "decl" not in locals():
-            decl = f"{noreturn_attr}{deprecated_attr}fn {receiver_str}{func_name}{func_generics_str}({args_str}) {ret_type} {{"
+            decl = f"{noreturn_attr}{deprecated_attr}{pub}fn {receiver_str}{func_name}{func_generics_str}({args_str}) {ret_type} {{"
         if ret_type == "void":
-            decl = f"{noreturn_attr}{deprecated_attr}fn {receiver_str}{func_name}{func_generics_str}({args_str}) {{"
+            decl = f"{noreturn_attr}{deprecated_attr}{pub}fn {receiver_str}{func_name}{func_generics_str}({args_str}) {{"
 
         self.output.append(f"{decl}")
         self._indent_level += 1
@@ -758,12 +771,16 @@ class FunctionsMixin(TranslatorBase):
 
             self.function_names.add(func_name)
 
+            pub = ""
+            if (not is_method and self._is_exported(node.name)) or (is_method and getattr(self, 'config', None) and not func_name.startswith('_')):
+                 pub = "pub "
+
             if is_operator:
-                decl = f"{deprecated_attr}fn {receiver_str}{op_str} ({args_str}) {ret_type} {{"
+                decl = f"{deprecated_attr}{pub}fn {receiver_str}{op_str} ({args_str}) {ret_type} {{"
             else:
-                decl = f"{deprecated_attr}fn {receiver_str}{func_name}{func_generics_str}({args_str}) {ret_type} {{"
+                decl = f"{deprecated_attr}{pub}fn {receiver_str}{func_name}{func_generics_str}({args_str}) {ret_type} {{"
                 if ret_type == "void":
-                    decl = f"{deprecated_attr}fn {receiver_str}{func_name}{func_generics_str}({args_str}) {{"
+                    decl = f"{deprecated_attr}{pub}fn {receiver_str}{func_name}{func_generics_str}({args_str}) {{"
 
             self.output.append(decl)
             self._indent_level += 1
