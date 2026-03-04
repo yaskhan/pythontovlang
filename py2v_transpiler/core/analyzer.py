@@ -56,22 +56,182 @@ class MixinInferer(ast.NodeVisitor):
         self.mixin_to_main: Dict[str, list[str]] = {}
         self.main_to_mixins: Dict[str, list[str]] = {}
         self.mixin_nodes: Dict[str, ast.ClassDef] = {}
+        self.class_hierarchy: Dict[str, list[str]] = {}
+        self.is_abc: Dict[str, bool] = {}
+
+    def _get_all_ancestors(self, cls_name: str) -> set[str]:
+        ancestors = set()
+        stack = list(self.class_hierarchy.get(cls_name, []))
+        while stack:
+            curr = stack.pop()
+            if curr not in ancestors:
+                ancestors.add(curr)
+                stack.extend(self.class_hierarchy.get(curr, []))
+        return ancestors
 
     def analyze(self, tree: ast.AST):
-        # Pass 1: find mixins and their inheritances
+        # Pass 1: Build hierarchy and identify ABCs/Mixins
         for node in ast.walk(tree):
             if isinstance(node, ast.ClassDef):
-                if node.name.endswith("Mixin"):
-                    self.mixin_nodes[node.name] = node
+                self.is_abc[node.name] = False
+                self.mixin_nodes[node.name] = node
+                bases = []
+                for base in node.bases:
+                    if isinstance(base, ast.Name):
+                        bases.append(base.id)
+                    elif isinstance(base, ast.Attribute):
+                        bases.append(base.attr)
+                self.class_hierarchy[node.name] = bases
+
+        # A class is an ABC if:
+        # 1. It contains @abstractmethod
+        # 2. It inherits from ABC AND is inherited by others (it's an intermediate abstract class)
+        # 3. It's a Mixin (template)
+
+        explicit_abcs = set()
+        for node in ast.walk(tree):
+            if isinstance(node, ast.ClassDef):
+                has_abstract = False
+                for stmt in node.body:
+                    if isinstance(stmt, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                        for dec in stmt.decorator_list:
+                            if (isinstance(dec, ast.Name) and dec.id == "abstractmethod") or \
+                               (isinstance(dec, ast.Attribute) and dec.attr == "abstractmethod"):
+                                has_abstract = True
+                                break
+                    if has_abstract: break
+
+                if has_abstract:
+                    explicit_abcs.add(node.name)
+                elif node.name.endswith("Mixin"):
+                    explicit_abcs.add(node.name)
+                elif "ABC" in self.class_hierarchy[node.name]:
+                    # Inherits from ABC. Is it a leaf or intermediate?
+                    is_inherited = False
+                    for other_cls, other_bases in self.class_hierarchy.items():
+                        if node.name in other_bases:
+                            is_inherited = True
+                            break
+                    if is_inherited:
+                        explicit_abcs.add(node.name)
+                    else:
+                        # Leaf class inheriting from ABC with no abstract methods -> CONCRETE
+                        pass
                 else:
-                    for base in node.bases:
-                        if isinstance(base, ast.Name) and base.id.endswith("Mixin"):
-                            if base.id not in self.mixin_to_main:
-                                self.mixin_to_main[base.id] = []
-                            self.mixin_to_main[base.id].append(node.name)
-                            if node.name not in self.main_to_mixins:
-                                self.main_to_mixins[node.name] = []
-                            self.main_to_mixins[node.name].append(base.id)
+                    # Also check if it inherits from another ABC
+                    # We need a proper ancestor check here.
+                    pass
+
+        # Final pass for transitive ABC-ness
+        changed = True
+        while changed:
+            changed = False
+            for cls_name, bases in self.class_hierarchy.items():
+                if cls_name in explicit_abcs:
+                    continue
+
+                # If it inherits from an ABC...
+                is_inherited_from_abc = any(b in explicit_abcs for b in bases)
+                if is_inherited_from_abc:
+                     # Check if it has concrete methods. If NOT, it's an ABC too.
+                     node = self.mixin_nodes[cls_name]
+                     has_concrete = False
+                     for stmt in node.body:
+                        if isinstance(stmt, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                            # Check if it's empty
+                            is_empty = True
+                            for body_stmt in stmt.body:
+                                if isinstance(body_stmt, ast.Pass): continue
+                                if isinstance(body_stmt, ast.Expr) and isinstance(body_stmt.value, ast.Constant) and body_stmt.value.value is Ellipsis: continue
+                                if isinstance(body_stmt, ast.Raise) and isinstance(body_stmt.exc, ast.Name) and body_stmt.exc.id == "NotImplementedError": continue
+                                if isinstance(body_stmt, ast.Raise) and isinstance(body_stmt.exc, ast.Call) and isinstance(body_stmt.exc.func, ast.Name) and body_stmt.exc.func.id == "NotImplementedError": continue
+                                is_empty = False
+                                break
+                            if not is_empty:
+                                has_concrete = True
+                                break
+
+                     if not has_concrete:
+                         explicit_abcs.add(cls_name)
+                         changed = True
+                     else:
+                         # It has concrete methods. If it's inherited by others, it might still be an ABC (interface in V)
+                         # BUT ONLY if those descendants are themselves ABCs.
+                         # If it's inherited by a concrete class, then THIS class must be a struct (if we want to use V embedding)
+                         # or at least we should NOT mark it as ABC if it's intended to be a base struct.
+
+                         # Actually, in V, you can't embed an interface in a struct to get its methods.
+                         # So if a class has concrete methods and is inherited by a struct, it MUST be a struct.
+
+                         # Let's check if all descendants are ABCs.
+                         all_descendants_are_abcs = True
+                         stack = []
+                         for other_cls, other_bases in self.class_hierarchy.items():
+                            if cls_name in other_bases:
+                                stack.append(other_cls)
+
+                         if not stack:
+                             all_descendants_are_abcs = False # Leaf with concrete methods is NOT an ABC
+
+                         visited_desc = set()
+                         while stack:
+                             curr = stack.pop()
+                             if curr in visited_desc: continue
+                             visited_desc.add(curr)
+
+                             if curr not in explicit_abcs:
+                                 # We don't know yet if curr is an ABC.
+                                 # But if it's a leaf and has no @abstractmethod, it's concrete.
+
+                                 is_leaf = True
+                                 for c, b in self.class_hierarchy.items():
+                                     if curr in b:
+                                         is_leaf = False
+                                         stack.append(c)
+
+                                 if is_leaf:
+                                     # Check if it's an explicit ABC (we already know it's not in explicit_abcs yet)
+                                     all_descendants_are_abcs = False
+                                     break
+
+                         if all_descendants_are_abcs and visited_desc:
+                             explicit_abcs.add(cls_name)
+                             changed = True
+
+        for cls_name in self.class_hierarchy:
+            self.is_abc[cls_name] = cls_name in explicit_abcs
+
+        # Pass 2: Transitive closure to distribute methods from ABCs/Mixins to all concrete descendants
+        for cls_name in self.class_hierarchy:
+            ancestors = self._get_all_ancestors(cls_name)
+
+            # Re-evaluate is_abc: if it has abstract methods, it's an ABC.
+            # If it's inherited from ABC and not all ancestors are interfaces... wait.
+            # Simplified: if any ancestor is an ABC, it can be an interface.
+            # But the user specifically wants to transpile ABCs to V interfaces.
+
+            # Correct logic for V:
+            # 1. Any class explicitly marked as ABC or containing @abstractmethod is a V interface.
+            # 2. Any class inheriting from an ABC can be either another interface or a concrete struct.
+            # 3. If it's a concrete struct, it needs all concrete methods from its ABC ancestors.
+
+            if self.is_abc.get(cls_name):
+                # If it's an interface, it doesn't get concrete methods DISTRIBUTED to it as a struct,
+                # because it's not a struct.
+                continue
+
+            for ancestor in ancestors:
+                if self.is_abc.get(ancestor):
+                    # ABCs and Mixins act as templates: their concrete methods are pushed to descendants
+                    if ancestor not in self.mixin_to_main:
+                        self.mixin_to_main[ancestor] = []
+                    if cls_name not in self.mixin_to_main[ancestor]:
+                        self.mixin_to_main[ancestor].append(cls_name)
+
+                    if cls_name not in self.main_to_mixins:
+                        self.main_to_mixins[cls_name] = []
+                    if ancestor not in self.main_to_mixins[cls_name]:
+                        self.main_to_mixins[cls_name].append(ancestor)
 
 class TypeInference(ast.NodeVisitor):
     def __init__(self):
@@ -96,6 +256,7 @@ class TypeInference(ast.NodeVisitor):
         self.mixin_to_main = mixin_inferer.mixin_to_main
         self.main_to_mixins = mixin_inferer.main_to_mixins
         self.mixin_nodes = mixin_inferer.mixin_nodes
+        self.is_abc = mixin_inferer.is_abc
 
         return self.type_map
 

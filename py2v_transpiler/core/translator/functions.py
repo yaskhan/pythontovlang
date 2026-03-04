@@ -117,6 +117,13 @@ class FunctionsMixin(TranslatorBase):
              original_name = node.name
              node.name = impl_name
 
+        is_abstract = False
+        for decorator in node.decorator_list:
+            if (isinstance(decorator, ast.Name) and decorator.id == 'abstractmethod') or \
+               (isinstance(decorator, ast.Attribute) and decorator.attr == 'abstractmethod'):
+                is_abstract = True
+                break
+
         if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
              is_generator = self.coroutine_handler.is_generator(original_name if 'original_name' in locals() else node.name)
 
@@ -137,10 +144,15 @@ class FunctionsMixin(TranslatorBase):
 
         old_output = self.output
         for struct_name in struct_names:
-            self._generate_function_for_struct(node, is_async, is_method, struct_name, dec_info, is_generator)
+            self._generate_function_for_struct(node, is_async, is_method, struct_name, dec_info, is_generator, is_abstract)
         self.output = old_output
 
-    def _generate_function_for_struct(self, node: Any, is_async: bool, is_method: bool, struct_name: str, dec_info: Any, is_generator: bool) -> None:
+    def _generate_function_for_struct(self, node: Any, is_async: bool, is_method: bool, struct_name: str, dec_info: Any, is_generator: bool, is_abstract: bool = False) -> None:
+        # If we are distributing an abstract method to a descendant, skip it.
+        # It only needs to be in the interface.
+        if is_abstract and struct_name != self.current_class:
+            return
+
         self.output = []
         old_indent = self._indent_level
         self._indent_level = 0
