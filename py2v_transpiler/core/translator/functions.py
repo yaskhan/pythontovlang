@@ -428,6 +428,8 @@ class FunctionsMixin(TranslatorBase):
 
             if func_name == "__next__":
                 func_name = "next"
+            elif func_name == "__post_init__":
+                func_name = "post_init"
             elif func_name == "__await__":
                 func_name = "await_"
             elif func_name == "__iter__":
