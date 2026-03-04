@@ -977,7 +977,7 @@ class ClassesMixin(TranslatorBase):
         if not hasattr(self, "defined_classes"):
             self.defined_classes = {}
 
-        # Don't overwrite if it was already set to True (e.g. by dataclass factory)
+        # Don't overwrite if it was already set (e.g. by dataclass factory)
         current_info = self.defined_classes.get(struct_name)
         if not current_info or not (current_info.get("has_init") or current_info.get("has_new")):
             self.defined_classes[struct_name] = {"has_init": has_init, "has_new": False}
