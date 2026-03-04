@@ -849,7 +849,91 @@ fn (mut ctx PyDecimalContext) close() {
              self.emitter.add_helper_function("fn py_pickle_load[T](f os.File) T {\n    // Warning: Mapped to JSON deserialization\n    // This assumes the file contains one JSON object\n    // We need to read whole file? or stream?\n    // V json.decode takes string.\n    // We can't easily read from file inside generic func without reading all.\n    // Assuming small file for now, but we don't have read_all on File struct easily exposed in standard way? \n    // actually os.read_file(path) exists. But here we have File object.\n    // Let's panic for now or return zero.\n    panic('pickle.load not fully implemented')\n    return T{}\n}")
 
         # Helper for dynamic format specifiers
-        self.emitter.add_helper_function("fn py_format(val Any, spec string) string {\n    // Dynamic format specifier support is limited.\n    // V does not support runtime format string construction easily.\n    // We fallback to standard string representation.\n    return '${val}'\n}")
+        if "py_format" in self.used_builtins:
+            self.emitter.add_helper_function("""fn py_format(val Any, spec string) string {
+    // Basic implementation of Python-style formatting
+    // Supports: [fill][align][sign][#][0][width][grouping][.precision][type]
+    mut res := '${val}'
+    if spec == '' { return res }
+
+    // This is a placeholder for a more complete implementation.
+    // For now, we handle basic cases via V's built-in interpolation if possible,
+    // or manual padding.
+
+    mut fill := ` `
+    mut align := `>` // Default for numbers is >, for others is <. Python is complex.
+
+    mut s := spec
+    // Alignment
+    if s.len >= 2 && s[1] in [`<`, `>`, `^`, `=`] {
+        fill = s[0]
+        align = s[1]
+        s = s[2..]
+    } else if s.len >= 1 && s[0] in [`<`, `>`, `^`, `=`] {
+        align = s[0]
+        s = s[1..]
+    }
+
+    // Width
+    mut width := 0
+    mut j := 0
+    for j < s.len && s[j].is_digit() {
+        j++
+    }
+    if j > 0 {
+        width = s[..j].int()
+        s = s[j..]
+    }
+
+    // Precision
+    mut precision := -1
+    if s.starts_with('.') {
+        s = s[1..]
+        mut k := 0
+        for k < s.len && s[k].is_digit() {
+            k++
+        }
+        if k > 0 {
+            precision = s[..k].int()
+            s = s[k..]
+        }
+    }
+
+    // Type
+    typ := if s.len > 0 { s[s.len-1] } else { `s` }
+
+    // Simplified formatting
+    mut formatted := ''
+    if val is f64 {
+        prec := if precision >= 0 { precision } else { 6 }
+        formatted = '${val:.${prec}f}'
+    } else if val is int {
+        formatted = '${val}'
+    } else {
+        formatted = '${val}'
+    }
+
+    if width > formatted.len {
+        pad_len := width - formatted.len
+        if align == `<` {
+            formatted = formatted + fill.ascii_str().repeat(pad_len)
+        } else if align == `>` {
+            formatted = fill.ascii_str().repeat(pad_len) + formatted
+        } else if align == `^` {
+            left := pad_len / 2
+            right := pad_len - left
+            formatted = fill.ascii_str().repeat(left) + formatted + fill.ascii_str().repeat(right)
+        }
+    }
+
+    return formatted
+}""")
+
+        if "py_repr" in self.used_builtins:
+             self.emitter.add_helper_function("fn py_repr(val Any) string {\n    if val is string {\n        return \"'${val}'\"\n    }\n    return '${val}'\n}")
+
+        if "py_ascii" in self.used_builtins:
+             self.emitter.add_helper_function("fn py_ascii(val Any) string {\n    // Simplified ascii(): replace non-ascii with \\u escape\n    s := '${val}'\n    mut res := ''\n    for c in s {\n        if c < 128 {\n            res += c.ascii_str()\n        } else {\n            res += '\\\\u${int(c):04x}'\n        }\n    }\n    return res\n}")
 
         # PyGenerator support
         # We need a generic struct to wrap channels for send/throw/close.
