@@ -26,6 +26,16 @@ class VlangPlugin(Plugin):
 
     def get_function_hook(self, fullname: str):
         def hook(ctx):
+            self._scrape_type_map(ctx)
+
+            # Special case for builtins.len to capture its argument's type
+            if fullname == "builtins.len" and ctx.arg_types and ctx.arg_types[0]:
+                arg_type = ctx.arg_types[0][0]
+                if hasattr(ctx.context, 'line'):
+                    # This is tricky because we don't have the AST node for the argument here
+                    # but we can try to guess it's at the same line
+                    pass
+
             if hasattr(ctx.context, 'line'):
                 key = f"{ctx.context.line}:{ctx.context.column}"
                 self.collected_types[fullname][key] = str(ctx.default_return_type)
@@ -93,8 +103,38 @@ class VlangPlugin(Plugin):
             return ctx.default_return_type
         return hook
 
+    def _scrape_type_map(self, ctx):
+        if not hasattr(self, '_all_types_collected'):
+            self._all_types_collected = set()
+
+        type_map = getattr(ctx.api, 'type_map', None)
+        if type_map:
+            from mypy.nodes import NameExpr, MemberExpr, IndexExpr
+            for expr, typ in type_map.items():
+                if isinstance(expr, (NameExpr, MemberExpr, IndexExpr)) and expr not in self._all_types_collected:
+                    key = f"{expr.line}:{expr.column}"
+
+                    if isinstance(expr, (NameExpr, MemberExpr)):
+                        name = expr.name
+                        # For debugging local variable narrowing
+                        # if name == "key" or name == "k":
+                        #     print(f"DEBUG: Found {name} at {key} with type {typ}")
+
+                        self.collected_types[name][key] = str(typ)
+
+                        # Also store by fullname if available
+                        node = getattr(expr, 'node', None)
+                        node_fullname = getattr(node, 'fullname', None)
+                        if node_fullname and node_fullname != name:
+                            self.collected_types[node_fullname][key] = str(typ)
+                    elif isinstance(expr, IndexExpr):
+                        self.collected_types[f"expr_{id(expr)}"][key] = str(typ)
+
+                    self._all_types_collected.add(expr)
+
     def get_method_hook(self, fullname: str):
         def hook(ctx):
+            self._scrape_type_map(ctx)
             if hasattr(ctx.context, 'line'):
                 key = f"{ctx.context.line}:{ctx.context.column}"
                 self.collected_types[fullname][key] = str(ctx.default_return_type)
@@ -152,6 +192,49 @@ class VlangPlugin(Plugin):
 
     def report_config_data(self, ctx: Any) -> Any:
         global _global_collected_types, _global_collected_sigs, _global_collected_mutability
+
+        # Collect types from all symbols in processed files
+        from mypy.nodes import NameExpr, MemberExpr, IndexExpr, MypyFile
+
+        def collect_types_recursive(node, visited=None):
+            if visited is None:
+                visited = set()
+            if node is None or id(node) in visited:
+                return
+            visited.add(id(node))
+
+            if isinstance(node, (NameExpr, MemberExpr, IndexExpr)):
+                # If we have a type for it in the current file context
+                # This is tricky because we need the 'checker' or 'api' to get the type_map
+                pass
+
+            # Standard traversal
+            from mypy.nodes import IfStmt, WhileStmt, ForStmt, TryStmt, ClassDef, FuncDef, Block, AssignmentStmt, CallExpr
+            if isinstance(node, MypyFile):
+                for name, sym in node.names.items():
+                    collect_types_recursive(sym.node, visited)
+            elif isinstance(node, ClassDef):
+                for stmt in node.defs.body:
+                    collect_types_recursive(stmt, visited)
+            elif isinstance(node, FuncDef):
+                collect_types_recursive(node.body, visited)
+            elif isinstance(node, Block):
+                for stmt in node.body:
+                    collect_types_recursive(stmt, visited)
+            elif isinstance(node, IfStmt):
+                for e in node.expr: collect_types_recursive(e, visited)
+                for b in node.body: collect_types_recursive(b, visited)
+                collect_types_recursive(node.else_body, visited)
+            elif isinstance(node, (WhileStmt, ForStmt)):
+                collect_types_recursive(getattr(node, 'expr', None), visited)
+                collect_types_recursive(getattr(node, 'index', None), visited)
+                collect_types_recursive(node.body, visited)
+                collect_types_recursive(node.else_body, visited)
+            elif isinstance(node, AssignmentStmt):
+                collect_types_recursive(node.rvalue, visited)
+            elif isinstance(node, CallExpr):
+                collect_types_recursive(node.callee, visited)
+                for a in node.args: collect_types_recursive(a, visited)
 
         # Collect mutability info from processed files
         from mypy.nodes import Var, FuncDef, Block, AssignmentStmt, NameExpr, MypyFile
@@ -226,6 +309,18 @@ class VlangPlugin(Plugin):
             _global_collected_mutability[k].update(v)
 
         return self.collected_types
+
+    def get_attribute_hook(self, fullname: str):
+        def hook(ctx):
+            self._scrape_type_map(ctx)
+            return ctx.default_attr_type
+        return hook
+
+    def get_base_class_hook(self, fullname: str):
+        def hook(ctx):
+            self._scrape_type_map(ctx)
+            return None
+        return hook
 
 def plugin(version: str):
     return VlangPlugin

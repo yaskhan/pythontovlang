@@ -285,6 +285,26 @@ class LoopsMixin(TranslatorBase):
             target = target[1:-1]
 
         # 3. Генерация основного цикла (с учетом специфики строк в V)
+        # Narrow loop variable type if available from mypy
+        if isinstance(node.target, ast.Name):
+            # Check for name@line:col or fullname@line:col
+            target_id = node.target.id
+            line = node.target.lineno
+            col = node.target.col_offset
+
+            inferred_type = None
+            # Search in type_map for any key that ends with @line:col and matches the name
+            for key, typ in self.type_inference.type_map.items():
+                if "@" in key:
+                    name_part, loc_part = key.split("@", 1)
+                    if loc_part == f"{line}:{col}" and (name_part == target_id or name_part.endswith(f".{target_id}")):
+                        inferred_type = typ
+                        break
+
+            if inferred_type and "Literal[" in inferred_type:
+                # Propagate to type_map for the loop body
+                self.type_inference.type_map[target_id] = inferred_type
+
         if is_string_iter:
             if is_enumerate and "," in target:
                 parts = [p.strip() for p in target.split(",")]

@@ -338,7 +338,7 @@ class TypeInference(ast.NodeVisitor):
 
         # Create a temporary config file to load the plugin
         with tempfile.NamedTemporaryFile(mode="w", suffix=".ini", delete=False) as f:
-            f.write("[mypy]\nplugins = py2v_transpiler.core.mypy_plugin\n")
+            f.write("[mypy]\nplugins = py2v_transpiler.core.mypy_plugin\ncheck_untyped_defs = True\n")
             config_path = f.name
 
         # Store original PYTHONPATH to restore it later

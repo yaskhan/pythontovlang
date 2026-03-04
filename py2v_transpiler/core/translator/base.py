@@ -424,6 +424,18 @@ class TranslatorBase(ast.NodeVisitor):
         elif isinstance(node, ast.Name):
             # Check for location-based type mapping (from mypy plugin)
             if hasattr(node, 'lineno') and hasattr(node, 'col_offset'):
+                line = node.lineno
+                col = node.col_offset
+                target_id = node.id
+
+                if hasattr(self.type_inference, "type_map"):
+                    # Search in type_map for any key that ends with @line:col and matches the name
+                    for key, typ in self.type_inference.type_map.items():
+                        if "@" in key:
+                            name_part, loc_part = key.split("@", 1)
+                            if loc_part == f"{line}:{col}" and (name_part == target_id or name_part.endswith(f".{target_id}")):
+                                return typ
+
                 loc_key = f"{node.id}@{node.lineno}:{node.col_offset}"
                 if hasattr(self.type_inference, "type_map") and loc_key in self.type_inference.type_map:
                     return self.type_inference.type_map[loc_key]

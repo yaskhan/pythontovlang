@@ -7,27 +7,34 @@ class SubscriptsMixin(TranslatorBase):
         value = self.visit(node.value)
 
         val_type = self._guess_type(node.value)
-        # Check if value is a known TypedDict and index is string literal
-        if hasattr(self, 'dataclasses') and val_type in self.dataclasses:
+        # Check if value is a known TypedDict and index is string literal or narrowed literal
+        if (hasattr(self, 'dataclasses') and val_type in self.dataclasses) or val_type.startswith("map[string]"):
              # Fast path for TypedDict access: d["a"] -> d.a
              if isinstance(node.slice, ast.Constant) and isinstance(node.slice.value, str):
                   return f"{value}.{node.slice.value}"
 
-             # Fast path for narrowed loop variables: match key { 'name': d.name, ... }
+             # Fast path for narrowed loop variables: match key { 'name': d['name'], ... }
              idx_type = self._guess_type(node.slice)
              if idx_type.startswith("Literal["):
                  # Extract literals: Literal["name", "age"]
                  try:
-                     literals_str = idx_type[8:-1]
-                     # naive split by comma
+                     literals_str = idx_type[idx_type.find("[")+1 : idx_type.rfind("]")]
+                     # Handle Literal['a']? format from mypy
+                     literals_str = literals_str.split(']')[0]
+
                      parts = [p.strip().strip('"').strip("'") for p in literals_str.split(',')]
 
                      match_branches = []
                      idx_str = self.visit(node.slice)
-                     for part in parts:
-                         match_branches.append(f"'{part}' {{ Any({value}.{part}) }}")
+                     is_typeddict = hasattr(self, 'dataclasses') and val_type in self.dataclasses
 
-                     match_branches.append("else { panic('unreachable typeddict access') }")
+                     for part in parts:
+                         if is_typeddict:
+                             match_branches.append(f"'{part}' {{ Any({value}.{part}) }}")
+                         else:
+                             match_branches.append(f"'{part}' {{ {value}['{part}'] }}")
+
+                     match_branches.append("else { panic('unreachable literal access') }")
                      return f"match {idx_str} {{ " + " ".join(match_branches) + " }"
                  except Exception:
                      pass
