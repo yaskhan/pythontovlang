@@ -26,9 +26,12 @@ class AttributesMixin(TranslatorBase):
 
         obj = self.visit(node.value)
 
+        # Avoid double casting if visit(node.value) already applied casting (via NamesMixin)
+        if "(" in obj and " as " in obj:
+            pass
         # Apply narrowing if mypy type differs from local type mapping
         # Only do this if we can safely cast without syntax errors.
-        if isinstance(node.value, ast.Name):
+        elif isinstance(node.value, ast.Name):
             base_type = self.type_inference.type_map.get(node.value.id)
             # Find narrowed type via node location first, fall back to general guess_type
             narrowed_type = None
@@ -39,7 +42,7 @@ class AttributesMixin(TranslatorBase):
                 narrowed_type = self._guess_type(node.value)
 
             # If mypy narrowed the type and it's not "int" (fallback) or generic "Any"
-            if narrowed_type and base_type and narrowed_type != base_type and narrowed_type not in ("int", "Any"):
+            if narrowed_type and base_type and narrowed_type != base_type and narrowed_type not in ("int", "Any", "void"):
                 # Avoid casting to same primitive types or optionals
                 if not (base_type.startswith("?") and base_type[1:] == narrowed_type):
                     # Emit an explicit cast in V: (obj as NarrowedType)

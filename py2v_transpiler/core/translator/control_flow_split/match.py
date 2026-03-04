@@ -313,12 +313,25 @@ class MatchMixin(TranslatorBase):
                  else:
                      # General type narrowing from mypy for the bound name
                      if pattern.name:
-                        temp_node = ast.Name(id=pattern.name, ctx=ast.Store(), lineno=getattr(pattern, 'lineno', 0), col_offset=getattr(pattern, 'col_offset', 0))
-                        narrowed_type = self._guess_type(temp_node)
-                        if narrowed_type not in ("Any", "void"):
+                        # Use location of the pattern to find the narrowed type of the variable
+                        # In MatchAs, the variable is defined at this location.
+                        loc_key = f"{pattern.name}@{getattr(pattern, 'lineno', 0)}:{getattr(pattern, 'col_offset', 0)}"
+                        narrowed_type = self.type_inference.type_map.get(loc_key)
+
+                        if not narrowed_type:
+                            temp_node = ast.Name(id=pattern.name, ctx=ast.Store(), lineno=getattr(pattern, 'lineno', 0), col_offset=getattr(pattern, 'col_offset', 0))
+                            narrowed_type = self._guess_type(temp_node)
+
+                        if narrowed_type not in ("Any", "void", "int"):
                              val_expr = f"({subject_expr} as {narrowed_type})"
 
              if pattern.name:
+                 # Check if the name itself should be narrowed based on mypy info
+                 loc_key = f"{pattern.name}@{getattr(pattern, 'lineno', 0)}:{getattr(pattern, 'col_offset', 0)}"
+                 narrowed_type = self.type_inference.type_map.get(loc_key)
+                 if narrowed_type and narrowed_type not in ("Any", "void", "int"):
+                      if " as " not in val_expr: # Avoid double cast
+                           val_expr = f"({val_expr} as {narrowed_type})"
                  bindings.append(f"{pattern.name} := {val_expr}")
              return cond, bindings
 
