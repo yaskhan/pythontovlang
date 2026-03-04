@@ -116,33 +116,34 @@ class AnnotationsMixin(TranslatorBase):
                            getattr(getattr(node, "annotation", None), "attr", "") == "Final")):
                         emit_fn = lambda stmt: self.emitter.add_init_statement(stmt.strip())
                         if isinstance(node.target, ast.Name):
+                            v_target = self._to_snake_case(target)
                             if not v_type or v_type in ("unknown", "Final"):
                                 v_type = "Any"
                             if type_str in ("LiteralString", "typing.LiteralString", "typing_extensions.LiteralString"):
                                 v_type = "string"
                             if type_str not in ("LiteralString", "typing.LiteralString", "typing_extensions.LiteralString"):
-                                self.emitter.add_global(f"{target} {v_type}")
+                                self.emitter.add_global(f"{v_target} {v_type}")
 
                             # Use const block only if it evaluates at compile-time (e.g., literal string)
                             if self._is_compile_time_evaluable(node.value) or (type_str in ("LiteralString", "typing.LiteralString", "typing_extensions.LiteralString") and self._is_literal_string_expr(node.value)):
-                                self.emitter.add_constant(f"{target} = {rhs}")
+                                self.emitter.add_constant(f"{v_target} = {rhs}")
                                 return
                             else:
-                                self.emitter.add_init_statement(f"{target} = {rhs}")
+                                self.emitter.add_init_statement(f"{v_target} = {rhs}")
                                 return
 
                 # Обычное присваивание, если не перехвачено выше
                 if self.in_main and isinstance(node.target, ast.Name) and \
                    (target in getattr(self, "global_vars", set()) or target.isupper() or type_str in ("LiteralString", "typing.LiteralString", "typing_extensions.LiteralString")):
-
+                    v_target = self._to_snake_case(target)
                     if type_str in ("LiteralString", "typing.LiteralString", "typing_extensions.LiteralString"):
                          # Only literal string expressions and compile time evaluables are placed in const
                          if self._is_literal_string_expr(node.value) or self._is_compile_time_evaluable(node.value):
-                              self.emitter.add_constant(f"{target} = {rhs}")
+                              self.emitter.add_constant(f"{v_target} = {rhs}")
                          else:
-                              self.emitter.add_init_statement(f"{target} = {rhs}")
+                              self.emitter.add_init_statement(f"{v_target} = {rhs}")
                          return
-                    emit_fn(f"{self._indent()}{target} = {rhs}")
+                    emit_fn(f"{self._indent()}{v_target} = {rhs}")
 
                 elif rhs == "none":
                     if v_type and v_type != "unknown":
@@ -157,10 +158,11 @@ class AnnotationsMixin(TranslatorBase):
                     if isinstance(node.target, ast.Attribute) or isinstance(node.target, ast.Subscript):
                         emit_fn(f"{self._indent()}{target} = {rhs}")
                     else:
+                        v_target = self._to_snake_case(target) if not target.islower() else target
                         if emit_fn == self.output.append:
-                            emit_fn(f"{self._indent()}{target} := {rhs}")
+                            emit_fn(f"{self._indent()}{v_target} := {rhs}")
                         else:
-                            emit_fn(f"{self._indent()}{target} = {rhs}")
+                            emit_fn(f"{self._indent()}{v_target} = {rhs}")
         else:
             # Declaration only: x: int
             # V needs initialization. We map type to default value.

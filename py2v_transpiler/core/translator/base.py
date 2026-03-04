@@ -141,7 +141,58 @@ class TranslatorBase(ast.NodeVisitor):
         # and NOT a known local variable.
         return not self.current_class and name not in self._local_vars_in_scope
 
-    def _sanitize_name(self, name: str) -> str:
+    def _to_snake_case(self, name: str) -> str:
+        """Converts CamelCase or UPPER_CASE to snake_case."""
+        if not name: return name
+
+        # Handle already separated names
+        if '_' in name:
+            return "_".join(self._to_snake_case(p) for p in name.split('_') if p)
+
+        if name.isupper():
+            return name.lower()
+
+        res = []
+        for i, char in enumerate(name):
+            if char.isupper() and i > 0:
+                # Underscore if previous was lowercase
+                if name[i-1].islower():
+                    res.append('_')
+                # Or if next is lowercase (handling HTTPClient -> http_client)
+                elif i + 1 < len(name) and name[i+1].islower():
+                    res.append('_')
+            res.append(char.lower())
+        return "".join(res)
+
+    def _get_generic_map(self, generic_names: List[str]) -> Dict[str, str]:
+        """
+        Generates a mapping from Python generic names to unique single-character V generic names.
+        Example: ['T_co', 'S_contra'] -> {'T_co': 'T', 'S_contra': 'S'}
+        """
+        mapping = {}
+        used_chars = set()
+
+        # Priority mapping: try to use the first uppercase letter
+        for name in generic_names:
+            # Strip underscores and get first letter
+            clean = name.lstrip('_')
+            if not clean:
+                continue
+
+            char = clean[0].upper()
+            if char not in used_chars:
+                mapping[name] = char
+                used_chars.add(char)
+            else:
+                # Fallback: find next available uppercase letter
+                for c in "TUVWXYZABCDEFGHIJKLMNOPQR":
+                    if c not in used_chars:
+                        mapping[name] = c
+                        used_chars.add(c)
+                        break
+        return mapping
+
+    def _sanitize_name(self, name: str, is_type: bool = False) -> str:
         """
         Sanitizes Python identifiers that collide with V lang reserved keywords
         or other files in the same SCC cluster.
@@ -150,10 +201,19 @@ class TranslatorBase(ast.NodeVisitor):
             "fn", "type", "struct", "mut", "if", "else", "for", "return", "match",
             "interface", "enum", "pub", "import", "module", "const", "unsafe",
             "defer", "go", "chan", "shared", "spawn", "assert", "sizeof", "typeof",
-            "__global", "as", "in", "is", "none", "map", "array", "string", "bool"
+            "__global", "as", "in", "is", "none", "map", "array", "string", "bool", "Any"
         }
         if name in reserved:
+            if is_type:
+                return name # Any is valid as a type in our transpiler model
             return f"py_{name}"
+
+        if is_type:
+            # V types (structs) must be Capitalized
+            if name.startswith('_'):
+                name = name.lstrip('_')
+            if name and name[0].islower():
+                name = name[0].upper() + name[1:]
 
         # Naming collision resolution for SCC flattened modules
         current_file_name = getattr(self, 'current_file_name', '')

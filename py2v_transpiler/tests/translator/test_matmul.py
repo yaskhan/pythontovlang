@@ -14,7 +14,7 @@ def transpile(code):
 def test_matmul_operator():
     code = "C = A @ B"
     v_code = transpile(code)
-    assert "C = A.matmul(B)" in v_code
+    assert "c = A.matmul(B)" in v_code
 
 def test_matmul_augassign():
     code = "A @= B"

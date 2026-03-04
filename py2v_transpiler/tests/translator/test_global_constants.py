@@ -23,8 +23,8 @@ DEFAULT_HEIGHT: Final = 200
 """
     v_code = translate(source)
     assert "const (" in v_code
-    assert "DEFAULT_WIDTH = 100" in v_code
-    assert "DEFAULT_HEIGHT = 200" in v_code
+    assert "default_width = 100" in v_code
+    assert "default_height = 200" in v_code
     # They should not be in main
     main_body_start = v_code.find("fn main() {")
     assert "DEFAULT_WIDTH" not in v_code[main_body_start:]
@@ -39,14 +39,14 @@ Vector_ZERO: Final = Vector(0, 0, 0)
     v_code = translate(source)
     # Because Vector is not compile time evaluable, it should be in __global and initialized in init()
     assert "__global (" in v_code
-    assert "Vector_ZERO Any" in v_code
+    assert "vector_zero Any" in v_code
 
     assert "fn init() {" in v_code
-    assert "Vector_ZERO = Vector(0, 0, 0)" in v_code
+    assert "vector_zero = Vector(0, 0, 0)" in v_code
 
     # It should not be in main
     main_body_start = v_code.find("fn main() {")
-    assert "Vector_ZERO = Vector(0, 0, 0)" not in v_code[main_body_start:]
+    assert "vector_zero = Vector(0, 0, 0)" not in v_code[main_body_start:]
 
 def test_global_constants_assignment():
     source = """
@@ -55,7 +55,7 @@ VECTOR_ONE = Vector(1, 1, 1)
     v_code = translate(source)
     # Uppercase but runtime initialization
     assert "__global (" in v_code
-    assert "VECTOR_ONE Any" in v_code
+    assert "vector_one Any" in v_code
 
     assert "fn init() {" in v_code
-    assert "VECTOR_ONE = Vector(1, 1, 1)" in v_code
+    assert "vector_one = Vector(1, 1, 1)" in v_code

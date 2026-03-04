@@ -47,7 +47,12 @@ class AttributesMixin(TranslatorBase):
 
         # Mangling for self.__private attributes
         # We need to know if we are accessing self inside a class
-        attr_name = self._sanitize_name(node.attr)
+        attr_name = node.attr
+        if attr_name == "__next__": attr_name = "next"
+        elif attr_name == "__await__": attr_name = "await_"
+        elif attr_name == "__iter__": attr_name = "iter"
+
+        attr_name = self._sanitize_name(attr_name)
         if self.current_class and isinstance(node.value, ast.Name):
             # Checking if the receiver is 'self' is tricky because 'self' is not guaranteed name.
             # But usually it is the first arg.
