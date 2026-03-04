@@ -22,8 +22,10 @@ match x:
         pass
 """
     v_code = translate(source)
-    # Expect if condition with guard
-    assert "if (_match_subject_any_1 == 1) && (x > 0)" in v_code
+    # New refactored structure uses separate if blocks with _match_found flag
+    assert "_match_found_1" in v_code
+    assert "if !_match_found_1 && (_match_subject_any_1 == 1) {" in v_code
+    assert "if (x > 0) {" in v_code
 
 def test_match_sequence():
     source = """
@@ -102,7 +104,8 @@ match x:
         pass
 """
     v_code = translate(source)
-    assert "else {" in v_code
+    # New structure uses separate if blocks
+    assert "if !_match_found_1 {" in v_code
 
 def test_match_class():
     source = """
