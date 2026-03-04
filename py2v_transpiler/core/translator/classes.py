@@ -21,13 +21,16 @@ class ClassesMixin(TranslatorBase):
 
         # Pre-register class definition to allow class instantiation inside its own methods
         has_init = False
+        has_new = False
         for child in node.body:
-            if isinstance(child, ast.FunctionDef) and child.name == "__init__":
-                has_init = True
-                break
+            if isinstance(child, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                if child.name == "__init__":
+                    has_init = True
+                elif child.name == "__new__":
+                    has_new = True
         if not hasattr(self, "defined_classes"):
             self.defined_classes = {}
-        self.defined_classes[struct_name] = has_init
+        self.defined_classes[struct_name] = {"has_init": has_init, "has_new": has_new}
 
         # Save previous state to restore later (for nesting)
         prev_class = self.current_class
@@ -872,15 +875,6 @@ class ClassesMixin(TranslatorBase):
         # Standard Python `ast.NodeVisitor` visits children if we call generic_visit, but we override `visit_ClassDef`.
         # We need to manually visit nested classes.
 
-        has_init = False
-        for method in methods:
-            if method.name == "__init__":
-                has_init = True
-                break
-
-        if not hasattr(self, "defined_classes"):
-            self.defined_classes = {}
-        self.defined_classes[struct_name] = has_init
 
         # Ensure we output the nested struct definition at the top level
         # visit_ClassDef processes body elements via iteration.

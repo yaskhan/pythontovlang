@@ -281,6 +281,13 @@ class CallsMixin(TranslatorBase):
         # Fallback to existing logic
         func_name_str = self.visit(node.func)
 
+        # Handle object.__new__(cls) or super().__new__(cls)
+        if isinstance(node.func, ast.Attribute) and node.func.attr == "__new__":
+            receiver = self.visit(node.func.value)
+            if receiver in ("object", "super()") or (receiver == self.current_class):
+                # __new__ factory implementation: object.__new__(cls) -> Struct{}
+                if self.current_class:
+                    return f"{self.current_class}{{}}"
 
         # If func_name_str was mangled/sanitized by visit_Name, we need the original to check builtins
         # like "map", "filter", "print". Let's check if the un-sanitized version matches anything.
@@ -518,16 +525,27 @@ class CallsMixin(TranslatorBase):
 
         # Handle standard class instantiation
         is_class = False
-        has_init = False
+        has_factory = False
+
+        lookup_name = func_name_str
+        if lookup_name.startswith("py_"):
+            # Check if it was sanitized
+            for orig_id in ("int", "float", "bool", "str", "map", "filter"):
+                if f"py_{orig_id}" == lookup_name:
+                    lookup_name = orig_id
+                    break
+
         if call_sig and "is_class" in call_sig:
             is_class = call_sig["is_class"]
-            has_init = call_sig.get("has_init", False)
-        elif hasattr(self, 'defined_classes') and func_name_str in self.defined_classes:
+            has_factory = call_sig.get("has_init", False) or call_sig.get("has_new", False)
+        elif hasattr(self, 'defined_classes') and lookup_name in self.defined_classes:
             is_class = True
-            has_init = self.defined_classes[func_name_str]
+            class_info = self.defined_classes[lookup_name]
+            has_factory = class_info.get("has_init", False) or class_info.get("has_new", False)
+            func_name_str = lookup_name # Use non-prefixed name for call if it is a class
 
         if is_class:
-            if has_init:
+            if has_factory:
                 return f"new_{func_name_str}({', '.join(args)})"
             else:
                 return f"{func_name_str}{{{', '.join(args)}}}"
