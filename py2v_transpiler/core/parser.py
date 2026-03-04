@@ -1,12 +1,13 @@
 import ast
 import logging
 import re
+from typing import Optional
 from .compatibility import CompatibilityLayer
 
 logger = logging.getLogger(__name__)
 
 class PyASTParser:
-    def __init__(self, compatibility: CompatibilityLayer = None):
+    def __init__(self, compatibility: Optional[CompatibilityLayer] = None):
         self.compatibility = compatibility or CompatibilityLayer()
 
     def parse(self, source: str) -> ast.AST:
