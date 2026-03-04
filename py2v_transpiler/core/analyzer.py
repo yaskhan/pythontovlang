@@ -225,9 +225,59 @@ class TypeInference(ast.NodeVisitor):
 
         return self.type_map
 
+    def _guess_type(self, node: ast.AST) -> str:
+        """Heuristic type guessing for analyzer (simplified version of TranslatorBase._guess_type)."""
+        if isinstance(node, ast.Constant):
+            if isinstance(node.value, bool): return "bool"
+            if isinstance(node.value, int): return "int"
+            if isinstance(node.value, float): return "f64"
+            if isinstance(node.value, str): return "string"
+            if node.value is None: return "int"
+            return "int"
+        elif isinstance(node, (ast.List, ast.Tuple)):
+            if not node.elts: return "[]int"
+            types = [self._guess_type(elt) for elt in node.elts]
+            first = types[0]
+            return f"[]{first}" if all(t == first for t in types) else "[]Any"
+        elif isinstance(node, ast.Dict):
+            if not node.keys: return "map[string]int"
+            k_types = [self._guess_type(k) for k in node.keys if k]
+            v_types = [self._guess_type(v) for v in node.values]
+            k_type = k_types[0] if k_types and all(t == k_types[0] for t in k_types) else "Any"
+            v_type = v_types[0] if v_types and all(t == v_types[0] for t in v_types) else "Any"
+            if k_type == "Any" and k_types and all(isinstance(k, ast.Constant) and isinstance(k.value, str) for k in node.keys if k):
+                k_type = "string"
+            if v_type == "Any" and v_types and all(t != "Any" for t in v_types):
+                # Mixed but not Any? Still Any for now, but if it's mixed classes...
+                pass
+            return f"map[{k_type}]{v_type}"
+        elif isinstance(node, ast.Name):
+            return self.type_map.get(node.id, "Any")
+        elif isinstance(node, ast.Call):
+            if isinstance(node.func, ast.Name):
+                # Common builtins or class names
+                fid = node.func.id
+                if fid == "str": return "string"
+                if fid == "int": return "int"
+                if fid == "float": return "f64"
+                if fid == "bool": return "bool"
+                if fid == "list": return "[]Any"
+                if fid == "dict": return "map[string]Any"
+                return fid
+            elif isinstance(node.func, ast.Attribute):
+                # heuristic: .append() -> returns void, .split() -> []string
+                if node.func.attr == "split": return "[]string"
+                if node.func.attr == "join": return "string"
+                return "Any"
+        return "Any"
+
     def visit_Assign(self, node: ast.Assign) -> Any:
         for target in node.targets:
-            if isinstance(target, ast.Subscript):
+            if isinstance(target, ast.Name):
+                v_type = self._guess_type(node.value)
+                if v_type != "Any":
+                    self.type_map[target.id] = v_type
+            elif isinstance(target, ast.Subscript):
                 dict_name = None
                 if isinstance(target.value, ast.Name):
                     dict_name = target.value.id
@@ -251,32 +301,16 @@ class TypeInference(ast.NodeVisitor):
                         elif isinstance(target.slice.value, str):
                             key_type = "string"
 
-                    val_type = "Any"
-                    if isinstance(node.value, ast.Constant):
-                        if isinstance(node.value.value, int):
-                            val_type = "int"
-                        elif isinstance(node.value.value, str):
-                            val_type = "string"
-                    elif isinstance(node.value, ast.Tuple):
-                        if node.value.elts:
-                            if isinstance(node.value.elts[0], ast.Constant):
-                                if isinstance(node.value.elts[0].value, int):
-                                    val_type = "[]int"
-                                elif isinstance(node.value.elts[0].value, str):
-                                    val_type = "[]string"
-                                else:
-                                    val_type = "[]Any"
-                            else:
-                                val_type = "[]Any"
-                        else:
-                            val_type = "[]Any"
-                    elif isinstance(node.value, ast.Call) and isinstance(
-                        node.value.func, ast.Name
-                    ):
-                        val_type = node.value.func.id
+                    val_type = self._guess_type(node.value)
 
-                    new_type = f"map[{key_type}]{val_type}"
-                    self.type_map[dict_name] = new_type
+                    if dict_name in self.type_map and self.type_map[dict_name].startswith("map["):
+                        # Already known as a map, maybe we can refine it
+                        current_type = self.type_map[dict_name]
+                        if ("Any" in current_type or "int" in current_type) and "Any" not in val_type:
+                             self.type_map[dict_name] = f"map[{key_type}]{val_type}"
+                    else:
+                        new_type = f"map[{key_type}]{val_type}"
+                        self.type_map[dict_name] = new_type
 
         self.generic_visit(node)
 

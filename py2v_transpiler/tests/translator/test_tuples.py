@@ -14,7 +14,9 @@ def test_translator_tuple_literal():
     analyzer.analyze(tree)
     result = translator.visit_Module(tree)
 
-    assert "t := [1, 2]" in result
+    assert "mut t := []int{cap: 2}" in result
+    assert "t << 1" in result
+    assert "t << 2" in result
 
 def test_translator_tuple_mixed():
     parser = PyASTParser()
@@ -29,4 +31,6 @@ def test_translator_tuple_mixed():
     analyzer.analyze(tree)
     result = translator.visit_Module(tree)
 
-    assert "t := [1, 'a']" in result
+    assert "mut t := []Any{cap: 2}" in result
+    assert "t << 1" in result
+    assert "t << 'a'" in result
