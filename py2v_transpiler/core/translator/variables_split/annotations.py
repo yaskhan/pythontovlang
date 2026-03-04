@@ -93,6 +93,8 @@ class AnnotationsMixin(TranslatorBase):
             else:
                 if isinstance(node.value, ast.Dict) and not node.value.keys and v_type.startswith("map["):
                     rhs = f"{v_type}{{}}"
+                elif isinstance(node.value, (ast.List, ast.Tuple)) and not node.value.elts and v_type.startswith("[]"):
+                    rhs = f"{v_type}{{}}"
                 else:
                     self.current_assignment_type = v_type
                     rhs = self.visit(node.value)
