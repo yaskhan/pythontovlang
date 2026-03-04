@@ -150,6 +150,8 @@ class ClassesMixin(TranslatorBase):
                                             self_name=self._get_full_self_type(struct_name),
                                             generic_map=self._get_combined_generic_map(),
                                         )
+                                        if field_type == "LiteralString":
+                                            field_type = "string"
                                     except Exception:
                                         if isinstance(stmt.annotation, ast.Name):
                                             field_type = stmt.annotation.id
@@ -507,6 +509,8 @@ class ClassesMixin(TranslatorBase):
                                 self_name=self._get_full_self_type(struct_name),
                                 generic_map=self._get_combined_generic_map(),
                             )
+                            if field_type == "LiteralString":
+                                field_type = "string"
                         except Exception:
                             if isinstance(stmt.annotation, ast.Name):
                                 field_type = stmt.annotation.id
@@ -639,6 +643,8 @@ class ClassesMixin(TranslatorBase):
                 norm_typ = raw_type.replace("builtins.", "")
                 try:
                     f_type = map_python_type_to_v(norm_typ, generic_map=self._get_combined_generic_map())
+                    if f_type == "LiteralString":
+                        f_type = "string"
                 except:
                     f_type = "Any"
 
@@ -741,6 +747,8 @@ class ClassesMixin(TranslatorBase):
                                 self_name=self._get_full_self_type(struct_name),
                                 generic_map=self._get_combined_generic_map(),
                             )
+                            if a_type == "LiteralString":
+                                a_type = "string"
                         except:
                             pass
                     m_args.append(f"{a_name} {a_type}")
@@ -754,6 +762,8 @@ class ClassesMixin(TranslatorBase):
                             self_name=self._get_full_self_type(struct_name),
                             generic_map=self._get_combined_generic_map(),
                         )
+                        if m_ret == "LiteralString":
+                            m_ret = "string"
                     except:
                         pass
 
@@ -967,9 +977,10 @@ class ClassesMixin(TranslatorBase):
         if not hasattr(self, "defined_classes"):
             self.defined_classes = {}
 
-        # Don't overwrite if it was already set (e.g. by dataclass factory)
-        if struct_name not in self.defined_classes:
-            self.defined_classes[struct_name] = {"has_init": has_init, "has_new": has_new}
+        # Don't overwrite if it was already set to True (e.g. by dataclass factory)
+        current_info = self.defined_classes.get(struct_name)
+        if not current_info or not (current_info.get("has_init") or current_info.get("has_new")):
+            self.defined_classes[struct_name] = {"has_init": has_init, "has_new": False}
 
         # Ensure we output the nested struct definition at the top level
         # visit_ClassDef processes body elements via iteration.
