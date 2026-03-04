@@ -47,7 +47,7 @@ class FunctionsMixin(TranslatorBase):
                         arg_type = map_python_type_to_v(
                             type_str,
                             self_name=ov_struct_name or "Self",
-                            generic_map=getattr(self, "current_class_generic_map", {}),
+                            generic_map=self._get_combined_generic_map(),
                         )
                     except Exception:
                         arg_type = self.type_inference.type_map.get(arg_name, "int")
@@ -62,7 +62,7 @@ class FunctionsMixin(TranslatorBase):
                     sig["return"] = map_python_type_to_v(
                         type_str,
                         self_name=ov_struct_name or "Self",
-                        generic_map=getattr(self, "current_class_generic_map", {}),
+                        generic_map=self._get_combined_generic_map(),
                     )
                 except:
                     if isinstance(node.returns, ast.Name):
@@ -260,11 +260,14 @@ class FunctionsMixin(TranslatorBase):
                         py_func_generics.append(name.id)
 
         func_generic_map = self._get_generic_map(py_func_generics)
-        # For methods, we also need to include class generics
-        class_generic_map = getattr(self, "current_class_generic_map", {})
-        combined_generic_map = {**class_generic_map, **func_generic_map}
+        # We don't need to manually merge here anymore, as we'll push it to generic_scopes
+        self.generic_scopes.append(func_generic_map)
+        combined_generic_map = self._get_combined_generic_map()
 
-        all_v_generics = list(combined_generic_map.values())
+        # V requires generic methods to explicitly repeat the struct generics
+        # if the receiver is generic. E.g. fn (s Struct[T]) foo[T]()
+        # We use ALL active generics in the signature for now to be safe.
+        all_v_generics = self._get_all_active_v_generics()
         if all_v_generics:
             func_generics_str = f"[{', '.join(all_v_generics)}]"
 
@@ -606,6 +609,9 @@ class FunctionsMixin(TranslatorBase):
         for stmt in body:
             self.visit(stmt)
 
+        # Pop function generic scope
+        self.generic_scopes.pop()
+
         if is_generator:
             self.output.append(
                 f"{self._indent()}{self.coroutine_handler.active_channel}.close()"
@@ -653,10 +659,10 @@ class FunctionsMixin(TranslatorBase):
                         py_func_generics.append(name.id)
 
         func_generic_map = self._get_generic_map(py_func_generics)
-        class_generic_map = getattr(self, "current_class_generic_map", {})
-        combined_generic_map = {**class_generic_map, **func_generic_map}
+        self.generic_scopes.append(func_generic_map)
+        combined_generic_map = self._get_combined_generic_map()
 
-        all_v_generics = list(combined_generic_map.values())
+        all_v_generics = self._get_all_active_v_generics()
         if all_v_generics:
             func_generics_str = f"[{', '.join(all_v_generics)}]"
 
@@ -789,6 +795,9 @@ class FunctionsMixin(TranslatorBase):
 
             for stmt in body:
                 self.visit(stmt)
+
+            # Pop function generic scope
+            self.generic_scopes.pop()
 
             if is_generator:
                 self.output.append(
