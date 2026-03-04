@@ -1,6 +1,7 @@
 import ast
 import os
 from typing import Any, List, Optional, Dict, Set
+from py2v_transpiler.core.compatibility import CompatibilityLayer
 from py2v_transpiler.core.generator import VCodeEmitter
 from py2v_transpiler.stdlib_map.mapper import StdLibMapper
 from py2v_transpiler.core.decorators import DecoratorProcessor
@@ -81,11 +82,13 @@ class TranslatorBase(ast.NodeVisitor):
 
     def __init__(self, type_inference: Any) -> None:
         self.type_inference = type_inference
+        self.compatibility = CompatibilityLayer()
         # These will be initialized in VNodeVisitor.__init__
         self.decorator_processor: DecoratorProcessor
         self.coroutine_handler: CoroutineHandler
         self.emitter: VCodeEmitter
         self.mapper: StdLibMapper
+        self.config: Optional[Any] = None
 
         self.output: List[str] = []
         self._indent_level: int = 0
@@ -119,9 +122,13 @@ class TranslatorBase(ast.NodeVisitor):
         self.unique_id_counter: int = 0
         self.vexc_depth: int = 0
         self._local_vars_in_scope: Set[str] = set()
+        self.fstring_quote_stack: List[str] = []
         self.current_module_name: str = "main"
         self.current_file_name: str = ""
         self.scc_files: Set[str] = set()
+        self.module_all: Optional[List[str]] = None
+        self.defined_top_level_symbols: Set[str] = set()
+        self.warnings: List[str] = []
 
     def _indent(self) -> str:
         return "    " * self._indent_level
@@ -261,13 +268,9 @@ class TranslatorBase(ast.NodeVisitor):
         Sanitizes Python identifiers that collide with V lang reserved keywords
         or other files in the same SCC cluster.
         """
-        reserved = {
-            "fn", "type", "struct", "mut", "if", "else", "for", "return", "match",
-            "interface", "enum", "pub", "import", "module", "const", "unsafe",
-            "defer", "go", "chan", "shared", "spawn", "assert", "sizeof", "typeof",
-            "__global", "as", "in", "is", "none", "map", "array", "string", "bool", "Any"
-        }
-        if name in reserved:
+        # Ensure robustness against test classes and mock translators that do not fully initialize the base class.
+        compatibility = getattr(self, 'compatibility', None)
+        if compatibility and compatibility.is_v_reserved(name):
             if is_type:
                 return name # Any is valid as a type in our transpiler model
             return f"py_{name}"
@@ -304,6 +307,20 @@ class TranslatorBase(ast.NodeVisitor):
             stripped_cls = class_name.lstrip('_')
             return f"__{stripped_cls}_{name.lstrip('_')}"
         return name
+
+    def _is_exported(self, name: str) -> bool:
+        """Checks if a symbol should be marked as public in V."""
+        if not getattr(self, 'config', None):
+            return False
+
+        config = self.config
+        if config and hasattr(config, 'include_all_symbols') and config.include_all_symbols:
+            return not name.startswith('_')
+
+        if self.module_all is not None:
+            return name in self.module_all
+
+        return not name.startswith('_')
 
     def _create_temp(self) -> str:
         self.unique_id_counter += 1

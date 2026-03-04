@@ -51,7 +51,7 @@ class TestTodoFeatures(TranspilerTest):
             "x = 10\ns = f'{x=}'",
             """
             x := 10
-            s := 'x=${x}'
+            s := 'x=${py_repr(x)}'
             """
         )
 
