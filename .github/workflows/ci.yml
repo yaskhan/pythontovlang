@@ -63,7 +63,9 @@ jobs:
         fi
 
     - name: Create or Update Issue
-      if: env.HAS_ERRORS == 'true' && github.event_name == 'push' && github.ref == 'refs/heads/main'
+      # Temporarily enabled for all branches/PRs so the user can test the action.
+      # Consider adding '&& github.ref == '\''refs/heads/main'\''' back once testing is verified.
+      if: env.HAS_ERRORS == 'true'
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       run: |
