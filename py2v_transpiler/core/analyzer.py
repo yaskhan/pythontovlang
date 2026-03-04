@@ -360,7 +360,7 @@ class TypeInference(ast.NodeVisitor):
                 pass
 
             result, error, exit_code = mypy_api_module.run(
-                [path, "--config-file", config_path]
+                [path, "--config-file", config_path, "--show-column-numbers"]
             )
 
             collected_types = None
@@ -408,6 +408,8 @@ class TypeInference(ast.NodeVisitor):
                             sig_data = json.loads(sig_json)
                             # the function name itself is usually enough, but we store full location too
                             self.call_signatures[f"{fullname}@{location}"] = sig_data
+                            # Normalize location to match AST (strip leading zeros if mypy adds them, but usually they match)
+                            # Mypy uses line:column.
                             self.call_signatures[location] = sig_data
                         except Exception:
                             pass

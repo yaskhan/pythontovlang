@@ -20,6 +20,8 @@ class VlangPlugin(Plugin):
     def get_function_hook(self, fullname: str):
         def hook(ctx):
             if hasattr(ctx.context, 'line'):
+                # mypy column is 0-indexed, but AST col_offset is also 0-indexed usually.
+                # However, sometimes they differ.
                 key = f"{ctx.context.line}:{ctx.context.column}"
                 self.collected_types[fullname][key] = str(ctx.default_return_type)
 

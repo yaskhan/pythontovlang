@@ -56,6 +56,30 @@ def _map_ast_type(node: ast.AST, self_name: str = "Self", allow_union: bool = Fa
             return generic_map[node.id]
         return _map_basic_type(node.id)
 
+    elif isinstance(node, ast.Attribute):
+        # Handle qualified names like builtins.int or my_mod.MyType
+        # For builtins, we want to map them (e.g. builtins.int -> int)
+        # For others, we might want to keep the full name if it's imported correctly in V,
+        # but V usually uses simple names for structs in the same module.
+        # As a heuristic, if it's 'builtins', we map the attribute.
+        if isinstance(node.value, ast.Name) and node.value.id == "builtins":
+            return _map_basic_type(node.attr)
+
+        # Fallback: try to reconstruct the full name
+        try:
+            parts = []
+            curr = node
+            while isinstance(curr, ast.Attribute):
+                parts.append(curr.attr)
+                curr = curr.value
+            if isinstance(curr, ast.Name):
+                parts.append(curr.id)
+            parts.reverse()
+            full_name = ".".join(parts)
+            return _map_basic_type(full_name)
+        except Exception:
+            return _map_basic_type(node.attr)
+
     elif isinstance(node, ast.Constant):
         if node.value is None:
             return 'none'

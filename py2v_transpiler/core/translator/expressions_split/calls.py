@@ -294,22 +294,23 @@ class CallsMixin(TranslatorBase):
              func_name_str = original_id
 
         # Extract mypy plugin signature if available for this call
+        # Try both node location and function name location (mypy sometimes hooks at function start)
         loc_key = f"{getattr(node, 'lineno', 0)}:{getattr(node, 'col_offset', 0)}"
+        func_loc_key = f"{getattr(node.func, 'lineno', 0)}:{getattr(node.func, 'col_offset', 0)}"
+
         call_sig = None
         if hasattr(self.type_inference, "call_signatures"):
-            for k, v in self.type_inference.call_signatures.items():
-                if k.endswith(f".{func_name_str}@{loc_key}"):
-                    call_sig = v
-                    break
+            # Try to find signature by location first
+            if loc_key in self.type_inference.call_signatures:
+                call_sig = self.type_inference.call_signatures[loc_key]
+            elif func_loc_key in self.type_inference.call_signatures:
+                call_sig = self.type_inference.call_signatures[func_loc_key]
+
             if not call_sig:
                 for k, v in self.type_inference.call_signatures.items():
-                    if k.endswith(f"@{loc_key}"):
-                        if func_name_str in k:
-                            call_sig = v
-                            break
-            if not call_sig:
-                for k, v in self.type_inference.call_signatures.items():
-                    if k == loc_key:
+                    if k.endswith(f"@{loc_key}") or k.endswith(f"@{func_loc_key}"):
+                        # If it's a method call, k might be 'Class.method@line:col'
+                        # if it's a function call, k might be 'func@line:col'
                         call_sig = v
                         break
 
@@ -479,10 +480,30 @@ class CallsMixin(TranslatorBase):
             if len(args) >= 1:
                 return f"{args[0]}.bytes()"
 
-        # Handle dataclass constructor call
+        # Handle class instantiation (including dataclasses)
+        is_class = False
+        has_init = False
+        generic_args_str = ""
         dataclass_metadata = None
-        if call_sig and "dataclass_metadata" in call_sig:
-            dataclass_metadata = call_sig["dataclass_metadata"]
+
+        if call_sig and "is_class" in call_sig:
+            is_class = call_sig["is_class"]
+            has_init = call_sig.get("has_init", False)
+            dataclass_metadata = call_sig.get("dataclass_metadata")
+
+            # Extract explicit generic types from mypy signature
+            if is_class and "return" in call_sig:
+                ret_type = call_sig["return"]
+                if "[" in ret_type and "]" in ret_type:
+                    # e.g. Box[int] -> [int]
+                    # We use map_python_type_to_v to get the V version of the type
+                    from py2v_transpiler.models.v_types import map_python_type_to_v as map_fn
+                    v_ret_type = map_fn(ret_type)
+                    if "[" in v_ret_type:
+                        generic_args_str = f"[{v_ret_type[v_ret_type.find('[')+1 : v_ret_type.rfind(']') ]}]"
+        elif hasattr(self, 'defined_classes') and func_name_str in self.defined_classes:
+            is_class = True
+            has_init = self.defined_classes[func_name_str]
 
         if dataclass_metadata:
             # Reconstruct the fields based on mypy's exact attributes
@@ -500,7 +521,7 @@ class CallsMixin(TranslatorBase):
                      # We might want to verify it's a valid init field, but trust python logic for now
                      struct_args.append(f"{self._sanitize_name(keyword.arg)}: {kw_val_str}")
 
-            return f"{func_name_str}{{{', '.join(struct_args)}}}"
+            return f"{func_name_str}{generic_args_str}{{{', '.join(struct_args)}}}"
         elif hasattr(self, 'dataclasses') and func_name_str in self.dataclasses:
             field_order = self.dataclasses[func_name_str]
             struct_args = []
@@ -514,23 +535,13 @@ class CallsMixin(TranslatorBase):
                      kw_val_str = str(self.visit(keyword.value))
                      struct_args.append(f"{self._sanitize_name(keyword.arg)}: {kw_val_str}")
 
-            return f"{func_name_str}{{{', '.join(struct_args)}}}"
-
-        # Handle standard class instantiation
-        is_class = False
-        has_init = False
-        if call_sig and "is_class" in call_sig:
-            is_class = call_sig["is_class"]
-            has_init = call_sig.get("has_init", False)
-        elif hasattr(self, 'defined_classes') and func_name_str in self.defined_classes:
-            is_class = True
-            has_init = self.defined_classes[func_name_str]
+            return f"{func_name_str}{generic_args_str}{{{', '.join(struct_args)}}}"
 
         if is_class:
             if has_init:
-                return f"new_{func_name_str}({', '.join(args)})"
+                return f"new_{func_name_str}{generic_args_str}({', '.join(args)})"
             else:
-                return f"{func_name_str}{{{', '.join(args)}}}"
+                return f"{func_name_str}{generic_args_str}{{{', '.join(args)}}}"
 
         # Handle builtins handled by old logic (print, sorted, etc)
         # Note: 'open', 'hasattr' are handled above or fall through if not matched.
