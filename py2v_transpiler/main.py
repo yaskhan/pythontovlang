@@ -242,7 +242,11 @@ def process_directory(path: str, config: TranspilerConfig, recursive: bool) -> N
             scc = file_to_scc[f]
 
             # Ensure the output file is in the consolidated directory
-            out_name = os.path.basename(f).replace('.py', '.v')
+            base = os.path.basename(f)
+            if base.endswith('.pyi'):
+                out_name = base[:-4] + '.v'
+            else:
+                out_name = base[:-3] + '.v'
             output_path = os.path.join(d, out_name)
 
             # Temporarily attach relative path to config for translator
@@ -308,8 +312,8 @@ def main():
         return
 
     if os.path.isfile(path):
-        if not path.endswith(".py"):
-            print("Error: Input file must be a Python script (.py)")
+        if not (path.endswith(".py") or path.endswith(".pyi")):
+            print("Error: Input file must be a Python script (.py or .pyi)")
             sys.exit(1)
         transpile_file(path, config)
     elif os.path.isdir(path):
