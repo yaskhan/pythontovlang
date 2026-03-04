@@ -357,6 +357,7 @@ class TranslatorBase(ast.NodeVisitor):
                 if fid == "float": return "f64"
                 if fid == "bool": return "bool"
                 if fid == "len": return "int"
+                if fid == "input": return "string"
 
         return "int"
 

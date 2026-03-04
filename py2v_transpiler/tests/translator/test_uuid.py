@@ -30,4 +30,4 @@ import uuid
 u = str(uuid.uuid4())
 """
     v_code = translate(source)
-    assert "u := str(rand.uuid_v4())" in v_code # V's uuid_v4 returns string usually, so str() might be redundant but valid.
+    assert "u := rand.uuid_v4().str()" in v_code # V's uuid_v4 returns string usually, so .str() might be redundant but valid.
