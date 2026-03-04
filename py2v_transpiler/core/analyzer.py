@@ -85,8 +85,6 @@ class MixinInferer(ast.NodeVisitor):
         self.mixin_to_main: Dict[str, list[str]] = {}
         self.main_to_mixins: Dict[str, list[str]] = {}
         self.mixin_nodes: Dict[str, ast.ClassDef] = {}
-        self.narrowing_stack: list[Dict[str, str]] = [{}]
-        self.narrowing_stack: list[Dict[str, str]] = [{}]
         self.class_hierarchy: Dict[str, list[str]] = {}
         self.is_abc: Dict[str, bool] = {}
 
