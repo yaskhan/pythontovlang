@@ -683,7 +683,7 @@ class ClassesMixin(TranslatorBase):
             # Register that this class has a custom factory
             if not hasattr(self, "defined_classes"):
                 self.defined_classes = {}
-            self.defined_classes[struct_name] = True
+            self.defined_classes[struct_name] = {"has_init": True, "has_new": False}
 
         if is_unittest:
             self.current_class_is_unittest = True
@@ -968,8 +968,9 @@ class ClassesMixin(TranslatorBase):
             self.defined_classes = {}
 
         # Don't overwrite if it was already set to True (e.g. by dataclass factory)
-        if not self.defined_classes.get(struct_name):
-            self.defined_classes[struct_name] = has_init
+        current_info = self.defined_classes.get(struct_name)
+        if not current_info or not (current_info.get("has_init") or current_info.get("has_new")):
+            self.defined_classes[struct_name] = {"has_init": has_init, "has_new": False}
 
         # Ensure we output the nested struct definition at the top level
         # visit_ClassDef processes body elements via iteration.
