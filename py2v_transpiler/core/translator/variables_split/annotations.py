@@ -56,11 +56,14 @@ class AnnotationsMixin(TranslatorBase):
             if type_str in ("TypeAlias", "typing.TypeAlias") and self.in_main and isinstance(node.target, ast.Name):
                 sanitized_lhs = self._sanitize_name(node.target.id, is_type=True)
                 pub = "pub " if self._is_exported(node.target.id) else ""
-                rhs = self.visit(node.value)
-                # If RHS is a type (like Union), map_python_type_to_v should have been used or we use it now
-                if hasattr(ast, 'unparse'):
+                # If RHS is a type (like Union), we must use map_python_type_to_v with allow_union=True
+                if node.value and hasattr(ast, 'unparse'):
                     rhs_source = ast.unparse(node.value)
                     rhs = map_python_type_to_v(rhs_source, allow_union=True, self_name=self._get_full_self_type())
+                elif node.value:
+                    rhs = self.visit(node.value)
+                else:
+                    rhs = "Any"
 
                 self.emitter.add_struct(f"{pub}type {sanitized_lhs} = {rhs}")
                 return

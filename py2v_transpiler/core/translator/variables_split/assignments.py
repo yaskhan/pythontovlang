@@ -112,7 +112,7 @@ class AssignmentsMixin(TranslatorBase):
                                   # For int, it returns int.
                                   # For "unknown", it returns "unknown".
 
-                                  if mapped != "void" and mapped != rhs_source:
+                                  if mapped != "void" and (mapped != rhs_source or isinstance(node.value, (ast.Subscript, ast.BinOp))):
                                        is_type_alias = True
                                        type_alias_val = mapped
                                   elif mapped == "int" and rhs_source == "int": # Primitive
