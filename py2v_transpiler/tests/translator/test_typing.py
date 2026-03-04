@@ -68,5 +68,5 @@ def test_variable_assignment_list_literal():
 MyVar = [1, 2]
 """
     v_code = translate(source)
-    assert "MyVar := [1, 2]" in v_code
+    assert "my_var := [1, 2]" in v_code
     assert "type MyVar" not in v_code
