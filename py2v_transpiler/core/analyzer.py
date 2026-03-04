@@ -379,7 +379,7 @@ class TypeInference(ast.NodeVisitor):
 
         self.generic_visit(node)
 
-    def run_mypy(self, path: str) -> Tuple[str, str, int]:
+    def run_mypy(self, path: str, experimental: bool = False) -> Tuple[str, str, int]:
         """Runs mypy on the given file path and returns the output."""
         if not mypy_api_module:
             return ("Mypy not installed.", "", 1)
@@ -413,9 +413,11 @@ class TypeInference(ast.NodeVisitor):
             except ImportError:
                 pass
 
-            result, error, exit_code = mypy_api_module.run(
-                [path, "--config-file", config_path]
-            )
+            args = [path, "--config-file", config_path]
+            if experimental:
+                args.append("--enable-incomplete-feature=TypeForm")
+
+            result, error, exit_code = mypy_api_module.run(args)
 
             collected_types = None
             collected_sigs = None

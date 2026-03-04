@@ -200,6 +200,9 @@ def _map_ast_type(node: ast.AST, self_name: str = "Self", allow_union: bool = Fa
                 return mapped_args[0]
             return 'Any'
 
+        elif value_id == 'TypeForm':
+            return 'Any'
+
         elif value_id in ('Final', 'ClassVar', 'Annotated', 'ReadOnly'):
             # Strip
             if mapped_args:
@@ -276,5 +279,8 @@ def _map_basic_type(name: str) -> str:
         'LiteralString': 'string',
         'typing.LiteralString': 'string',
         'typing_extensions.LiteralString': 'string',
+        'TypeForm': 'Any',
+        'typing.TypeForm': 'Any',
+        'typing_extensions.TypeForm': 'Any',
     }
     return mapping.get(name, name)

@@ -386,6 +386,11 @@ class TranslatorBase(ast.NodeVisitor):
         return self.visit(node), [] # Fallback
 
 
+    def _check_experimental_type(self, type_str: str, node: ast.AST) -> None:
+        """Checks if a type is experimental and warns if the flag is not set."""
+        if "TypeForm" in type_str and not (self.config and self.config.experimental):
+             self.warnings.append(f"Experimental feature 'TypeForm' used at line {getattr(node, 'lineno', '?')} without --experimental flag.")
+
     def _guess_type(self, node: ast.AST) -> str:
         if isinstance(node, ast.Constant):
              if isinstance(node.value, bool): return "bool"
