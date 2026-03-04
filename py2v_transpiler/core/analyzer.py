@@ -340,7 +340,10 @@ class TypeInference(ast.NodeVisitor):
                     # Use ast.unparse to get the full type string (e.g. List[int])
                     # This works for Python 3.9+
                     type_str = ast.unparse(node.annotation)
-                    v_type = map_python_type_to_v(type_str)
+                    if type_str in ("LiteralString", "typing.LiteralString", "typing_extensions.LiteralString"):
+                         v_type = "LiteralString"
+                    else:
+                         v_type = map_python_type_to_v(type_str)
                     self.type_map[node.target.id] = v_type
                 except AttributeError:
                     # Fallback for older python without ast.unparse (though we are on 3.12)
@@ -359,11 +362,26 @@ class TypeInference(ast.NodeVisitor):
         self.generic_visit(node)
 
     def visit_FunctionDef(self, node: ast.FunctionDef) -> Any:
+        # Handle return type
+        if node.returns:
+            try:
+                type_str = ast.unparse(node.returns)
+                if type_str in ("LiteralString", "typing.LiteralString", "typing_extensions.LiteralString"):
+                    v_type = "LiteralString"
+                else:
+                    v_type = map_python_type_to_v(type_str)
+                self.type_map[f"{node.name}@return"] = v_type
+            except:
+                pass
+
         for arg in node.args.args:
             if arg.annotation:
                 try:
                     type_str = ast.unparse(arg.annotation)
-                    v_type = map_python_type_to_v(type_str)
+                    if type_str in ("LiteralString", "typing.LiteralString", "typing_extensions.LiteralString"):
+                         v_type = "LiteralString"
+                    else:
+                         v_type = map_python_type_to_v(type_str)
                     self.type_map[arg.arg] = v_type
                 except AttributeError:
                     if isinstance(arg.annotation, ast.Name):

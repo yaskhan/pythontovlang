@@ -130,11 +130,34 @@ class TranslatorBase(ast.NodeVisitor):
         self.defined_top_level_symbols: Set[str] = set()
         self.warnings: List[str] = []
 
+    def _is_literal_string_expr(self, node: ast.AST) -> bool:
+        """
+        Checks if an expression is a literal string, literal concatenation,
+        or f-string without non-literal variables.
+        """
+        if isinstance(node, ast.Constant) and isinstance(node.value, str):
+            return True
+        if isinstance(node, ast.JoinedStr):
+            return all(self._is_literal_string_expr(v) for v in node.values)
+        if isinstance(node, ast.FormattedValue):
+            return self._is_literal_string_expr(node.value)
+        if isinstance(node, ast.BinOp) and isinstance(node.op, ast.Add):
+            return self._is_literal_string_expr(node.left) and self._is_literal_string_expr(node.right)
+        if isinstance(node, ast.Name):
+            # Check if this name refers to a variable known to be LiteralString
+            if hasattr(self.type_inference, "type_map") and node.id in self.type_inference.type_map:
+                v_type = self.type_inference.type_map[node.id]
+                return v_type == "LiteralString"
+        return False
+
     def _indent(self) -> str:
         return "    " * self._indent_level
 
     def _is_collection_type(self, v_type: str) -> bool:
-        return v_type.startswith("[]") or v_type.startswith("map[") or v_type == "string"
+        return v_type.startswith("[]") or v_type.startswith("map[") or v_type == "string" or v_type == "LiteralString"
+
+    def _is_string_type(self, v_type: str) -> bool:
+        return v_type == "string" or v_type == "LiteralString"
 
     def _is_numeric_type(self, v_type: str) -> bool:
         return v_type in ("int", "f64", "i64", "u32", "u64", "i8", "i16", "u8", "u16")
@@ -410,7 +433,10 @@ class TranslatorBase(ast.NodeVisitor):
         elif isinstance(node, ast.Call):
             if isinstance(node.func, ast.Name):
                 fid = node.func.id
-                if fid == "str": return "string"
+                if fid == "str":
+                    if node.args and self._is_literal_string_expr(node.args[0]):
+                        return "LiteralString"
+                    return "string"
                 if fid == "int": return "int"
                 if fid == "float": return "f64"
                 if fid == "bool": return "bool"
@@ -497,7 +523,8 @@ class TranslatorBase(ast.NodeVisitor):
             # For Add/Sub/Mult/Mod/Pow, check operands
             if left.startswith("[]"): return left
             if right.startswith("[]"): return right
-            if left == "string" or right == "string": return "string"
+            if left == "LiteralString" and right == "LiteralString": return "LiteralString"
+            if self._is_string_type(left) or self._is_string_type(right): return "string"
             if left == "PyComplex" or right == "PyComplex": return "PyComplex"
             if left == "f64" or right == "f64": return "f64"
             return "int"
