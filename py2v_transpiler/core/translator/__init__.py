@@ -28,8 +28,9 @@ class VNodeVisitor(
     LiteralsMixin,
     TranslatorBase
 ):
-    def __init__(self, type_inference):
+    def __init__(self, type_inference, config=None):
         super().__init__(type_inference)
+        self.config = config
         self.decorator_processor = DecoratorProcessor(self)
         self.coroutine_handler = CoroutineHandler()
         # Use emitter for structured output

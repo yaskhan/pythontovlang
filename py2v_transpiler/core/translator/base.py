@@ -86,6 +86,7 @@ class TranslatorBase(ast.NodeVisitor):
         self.coroutine_handler: CoroutineHandler
         self.emitter: VCodeEmitter
         self.mapper: StdLibMapper
+        self.config: Optional[Any] = None
 
         self.output: List[str] = []
         self._indent_level: int = 0
@@ -122,6 +123,9 @@ class TranslatorBase(ast.NodeVisitor):
         self.current_module_name: str = "main"
         self.current_file_name: str = ""
         self.scc_files: Set[str] = set()
+        self.module_all: Optional[List[str]] = None
+        self.defined_top_level_symbols: Set[str] = set()
+        self.warnings: List[str] = []
 
     def _indent(self) -> str:
         return "    " * self._indent_level
@@ -304,6 +308,20 @@ class TranslatorBase(ast.NodeVisitor):
             stripped_cls = class_name.lstrip('_')
             return f"__{stripped_cls}_{name.lstrip('_')}"
         return name
+
+    def _is_exported(self, name: str) -> bool:
+        """Checks if a symbol should be marked as public in V."""
+        if not getattr(self, 'config', None):
+            return False
+
+        config = self.config
+        if config and hasattr(config, 'include_all_symbols') and config.include_all_symbols:
+            return not name.startswith('_')
+
+        if self.module_all is not None:
+            return name in self.module_all
+
+        return not name.startswith('_')
 
     def _create_temp(self) -> str:
         self.unique_id_counter += 1
