@@ -49,6 +49,8 @@ class FunctionsMixin(TranslatorBase):
                             self_name=self._get_full_self_type(ov_struct_name),
                             generic_map=self._get_combined_generic_map(),
                         )
+                        if arg_type == "LiteralString":
+                            arg_type = "string"
                     except Exception:
                         arg_type = self.type_inference.type_map.get(arg_name, "int")
                 else:
@@ -64,6 +66,8 @@ class FunctionsMixin(TranslatorBase):
                         self_name=self._get_full_self_type(ov_struct_name),
                         generic_map=self._get_combined_generic_map(),
                     )
+                    if sig["return"] == "LiteralString":
+                        sig["return"] = "string"
                 except:
                     if isinstance(node.returns, ast.Name):
                         sig["return"] = node.returns.id
@@ -327,6 +331,8 @@ class FunctionsMixin(TranslatorBase):
                         self_name=self._get_full_self_type(struct_name),
                         generic_map=combined_generic_map,
                     )
+                    if arg_type == "LiteralString":
+                        arg_type = "string"
                 except Exception:
                     arg_type = self.type_inference.type_map.get(arg_name, "int")
             else:
@@ -409,6 +415,8 @@ class FunctionsMixin(TranslatorBase):
                     self_name=self._get_full_self_type(struct_name),
                     generic_map=combined_generic_map,
                 )
+                if ret_type == "LiteralString":
+                    ret_type = "string"
             except:
                 if isinstance(node.returns, ast.Name):
                     ret_type = node.returns.id

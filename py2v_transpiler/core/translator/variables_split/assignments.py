@@ -6,18 +6,6 @@ from py2v_transpiler.models.v_types import map_python_type_to_v
 
 class AssignmentsMixin(TranslatorBase):
     """Assignment handling: visit_Assign and helper methods"""
-    
-    def _is_literal_string_expr(self, node: ast.AST) -> bool:
-        """Checks if an expression is a literal string, literal concatenation, or f-string without variables."""
-        if isinstance(node, ast.Constant) and isinstance(node.value, str):
-            return True
-        if isinstance(node, ast.JoinedStr):
-            return all(self._is_literal_string_expr(v) for v in node.values)
-        if isinstance(node, ast.FormattedValue):
-            return self._is_literal_string_expr(node.value)
-        if isinstance(node, ast.BinOp) and isinstance(node.op, ast.Add):
-            return self._is_literal_string_expr(node.left) and self._is_literal_string_expr(node.right)
-        return False
 
     def _is_compile_time_evaluable(self, node: ast.AST) -> bool:
         """
@@ -323,6 +311,12 @@ class AssignmentsMixin(TranslatorBase):
                         if target.id not in self.type_inference.type_map:
                             self.type_inference.type_map[target.id] = assigned_type
 
+            # Check for LiteralString
+            is_literal_string = False
+            if v_type == "LiteralString":
+                is_literal_string = True
+                if not self._is_literal_string_expr(node.value):
+                    self.output.append(f"{self._indent()}// WARNING: LiteralString variable '{lhs}' receives non-literal value")
 
             # Check for implicit LiteralString (constant strings, concatenation, f-strings without vars)
             # If so, we track it as string and potentially as a constant
@@ -398,14 +392,14 @@ class AssignmentsMixin(TranslatorBase):
                                 self.emitter.add_global(f"{pub}{v_lhs} {v_type}")
                                 lhs = v_lhs
 
-                if self.in_main and isinstance(target, ast.Name) and (lhs in getattr(self, "global_vars", set()) or lhs.isupper() or is_implicit_literal):
+                if self.in_main and isinstance(target, ast.Name) and (lhs in getattr(self, "global_vars", set()) or lhs.isupper() or is_implicit_literal or is_literal_string):
                     v_lhs = self._to_snake_case(lhs) if not lhs.islower() else lhs
                     # For compile-time constants we already returned above - assignment not needed
                     pub = "pub " if self._is_exported(target.id) else ""
-                    if is_implicit_literal and self._is_compile_time_evaluable(node.value) and not lhs.isupper():
+                    if (is_implicit_literal or is_literal_string) and self._is_compile_time_evaluable(node.value) and not lhs.isupper():
                         self.emitter.add_constant(f"{pub}{v_lhs} = {rhs}")
                         return
-                    if is_implicit_literal and not self._is_compile_time_evaluable(node.value) and not lhs.isupper():
+                    if (is_implicit_literal or is_literal_string) and not self._is_compile_time_evaluable(node.value) and not lhs.isupper():
                         if lhs not in getattr(self, "global_vars", set()):
                             self.emitter.add_global(f"{pub}{v_lhs} string")
                         self.emitter.add_init_statement(f"{v_lhs} = {rhs}")
