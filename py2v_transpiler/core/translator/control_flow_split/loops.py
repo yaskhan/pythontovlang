@@ -251,9 +251,13 @@ class LoopsMixin(TranslatorBase):
         is_dict_items = isinstance(node.iter, ast.Call) and isinstance(node.iter.func, ast.Attribute) and node.iter.func.attr == "items"
 
         is_string_iter = False
-        if isinstance(node.iter, ast.Call) and getattr(node.iter.func, 'id', '') == "str":
+        iter_to_check = node.iter
+        if is_enumerate and isinstance(node.iter, ast.Call) and node.iter.args:
+            iter_to_check = node.iter.args[0]
+
+        if isinstance(iter_to_check, ast.Call) and getattr(iter_to_check.func, 'id', '') == "str":
             is_string_iter = True
-        elif hasattr(self, '_guess_type') and self._guess_type(node.iter) == "string":
+        elif hasattr(self, '_guess_type') and self._guess_type(iter_to_check) == "string":
             is_string_iter = True
 
         # 1. Обработка деструктуризации кортежа (кроме случаев с enumerate/dict.items)
@@ -286,9 +290,17 @@ class LoopsMixin(TranslatorBase):
 
         # 3. Генерация основного цикла (с учетом специфики строк в V)
         if is_string_iter:
-            self.output.append(f"{self._indent()}for {target}_u8 in {iter_expr} {{")
-            self._indent_level += 1
-            self.output.append(f"{self._indent()}{target} := {target}_u8.ascii_str()")
+            if is_enumerate and "," in target:
+                parts = [p.strip() for p in target.split(",")]
+                idx_var = parts[0]
+                val_var = parts[1]
+                self.output.append(f"{self._indent()}for {idx_var}, {val_var}_u8 in {iter_expr} {{")
+                self._indent_level += 1
+                self.output.append(f"{self._indent()}{val_var} := {val_var}_u8.ascii_str()")
+            else:
+                self.output.append(f"{self._indent()}for {target}_u8 in {iter_expr} {{")
+                self._indent_level += 1
+                self.output.append(f"{self._indent()}{target} := {target}_u8.ascii_str()")
         else:
             self.output.append(f"{self._indent()}for {target} in {iter_expr} {{")
             self._indent_level += 1
