@@ -46,7 +46,29 @@ class VlangPlugin(Plugin):
                     if isinstance(ctx.default_return_type, Instance):
                         type_info = ctx.default_return_type.type
                         if 'dataclass' in type_info.metadata:
+                            # Use a specific hook to ensure metadata is captured
+                            # Actually, we can just attach it to sig_data and it should work if it's serializable
                             dataclass_metadata = type_info.metadata['dataclass']
+                            # Check for __post_init__
+                            has_post_init = '__post_init__' in type_info.names
+
+                            # Mypy's metadata might contain non-serializable objects (like SymTableNode)
+                            # We need to extract only what we need.
+                            serializable_meta = {
+                                "attributes": [],
+                                "frozen": dataclass_metadata.get("frozen", False),
+                                "has_post_init": has_post_init
+                            }
+                            for attr in dataclass_metadata.get("attributes", []):
+                                serializable_meta["attributes"].append({
+                                    "name": attr.name,
+                                    "is_in_init": attr.is_in_init,
+                                    "is_init_var": attr.is_init_var,
+                                    "is_classvar": attr.is_classvar,
+                                    "has_default": attr.has_default,
+                                    "type": str(attr.type)
+                                })
+                            dataclass_metadata = serializable_meta
                 except Exception:
                     pass
 
@@ -87,6 +109,23 @@ class VlangPlugin(Plugin):
                         has_init = '__init__' in type_info.names
                         if 'dataclass' in type_info.metadata:
                             dataclass_metadata = type_info.metadata['dataclass']
+                            has_post_init = '__post_init__' in type_info.names
+
+                            serializable_meta = {
+                                "attributes": [],
+                                "frozen": dataclass_metadata.get("frozen", False),
+                                "has_post_init": has_post_init
+                            }
+                            for attr in dataclass_metadata.get("attributes", []):
+                                serializable_meta["attributes"].append({
+                                    "name": attr.name,
+                                    "is_in_init": attr.is_in_init,
+                                    "is_init_var": attr.is_init_var,
+                                    "is_classvar": attr.is_classvar,
+                                    "has_default": attr.has_default,
+                                    "type": str(attr.type)
+                                })
+                            dataclass_metadata = serializable_meta
                 except Exception:
                     pass
 
