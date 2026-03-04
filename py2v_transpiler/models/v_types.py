@@ -175,7 +175,14 @@ def _map_ast_type(node: ast.AST, self_name: str = "Self", allow_union: bool = Fa
             if len(non_none) == 1 and len(mapped_args) > 1:
                 return f"?{non_none[0]}"
             if allow_union:
-                return " | ".join(mapped_args)
+                # Remove duplicates while preserving order
+                seen = set()
+                unique_args = []
+                for arg in mapped_args:
+                    if arg not in seen:
+                        unique_args.append(arg)
+                        seen.add(arg)
+                return " | ".join(unique_args)
             return "Any"
 
         elif value_id == 'Callable':
@@ -253,6 +260,12 @@ def _map_ast_type(node: ast.AST, self_name: str = "Self", allow_union: bool = Fa
     return "void"
 
 def _map_basic_type(name: str) -> str:
+    # Strip typing. prefix
+    if name.startswith('typing.'):
+        name = name[7:]
+    if name.startswith('typing_extensions.'):
+        name = name[18:]
+
     mapping = {
         'int': 'int',
         'float': 'f64',
@@ -274,32 +287,23 @@ def _map_basic_type(name: str) -> str:
         'io.StringIO': 'strings.Builder',
         'six.moves.StringIO': 'strings.Builder',
         'NoReturn': 'void',
-        'typing.Any': 'Any',
-        'typing.List': '[]Any',
-        'typing.Dict': 'map[string]Any',
-        'typing.Tuple': '[]Any',
-        'typing.Set': 'map[string]bool',
-        'typing.Optional': '?Any',
-        'typing.Union': 'Any',
-        'typing.Callable': 'fn',
-        'typing.NoReturn': 'void',
-        'typing.Sequence': '[]Any',
-        'typing.Iterable': '[]Any',
-        'typing.Mapping': 'map[string]Any',
+        'List': '[]Any',
+        'Dict': 'map[string]Any',
+        'Tuple': '[]Any',
+        'Set': 'map[string]bool',
+        'Optional': '?Any',
+        'Union': 'Any',
+        'Callable': 'fn',
+        'Sequence': '[]Any',
+        'Iterable': '[]Any',
+        'Mapping': 'map[string]Any',
         'builtins.int': 'int',
         'builtins.float': 'f64',
         'builtins.str': 'string',
         'builtins.bool': 'bool',
-        'LiteralString': 'LiteralString',
-        'typing.LiteralString': 'LiteralString',
-        'typing_extensions.LiteralString': 'LiteralString',
+        'LiteralString': 'string',
         'bytearray': '[]u8',
         'memoryview': '[]u8',
-        'LiteralString': 'string',
-        'typing.LiteralString': 'string',
-        'typing_extensions.LiteralString': 'string',
         'TypeForm': 'Any',
-        'typing.TypeForm': 'Any',
-        'typing_extensions.TypeForm': 'Any',
     }
     return mapping.get(name, name)

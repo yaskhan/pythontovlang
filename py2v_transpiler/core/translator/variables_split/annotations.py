@@ -52,6 +52,19 @@ class AnnotationsMixin(TranslatorBase):
             if not v_type:
                 v_type = getattr(self, "_guess_type", lambda x: "unknown")(node.target)
 
+            # Check for TypeAlias: MyType: TypeAlias = Union[int, str]
+            if type_str in ("TypeAlias", "typing.TypeAlias") and self.in_main and isinstance(node.target, ast.Name):
+                sanitized_lhs = self._sanitize_name(node.target.id, is_type=True)
+                pub = "pub " if self._is_exported(node.target.id) else ""
+                rhs = self.visit(node.value)
+                # If RHS is a type (like Union), map_python_type_to_v should have been used or we use it now
+                if hasattr(ast, 'unparse'):
+                    rhs_source = ast.unparse(node.value)
+                    rhs = map_python_type_to_v(rhs_source, allow_union=True, self_name=self._get_full_self_type())
+
+                self.emitter.add_struct(f"{pub}type {sanitized_lhs} = {rhs}")
+                return
+
             is_literal_string_type = v_type == "LiteralString" or type_str in ("LiteralString", "typing.LiteralString", "typing_extensions.LiteralString")
 
             # Check if this is a LiteralString being assigned a non-literal value
