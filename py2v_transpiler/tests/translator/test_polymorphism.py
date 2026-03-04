@@ -12,7 +12,15 @@ from py2v_transpiler.core.coroutines import CoroutineHandler
 from py2v_transpiler.core.analyzer import TypeInference
 import py2v_transpiler.models.v_types as v_types
 
-class TestTranslator(ClassesMixin, FunctionsMixin, VariablesMixin, ExpressionsMixin, LiteralsMixin, TranslatorBase):
+
+class TestTranslator(
+    ClassesMixin,
+    FunctionsMixin,
+    VariablesMixin,
+    ExpressionsMixin,
+    LiteralsMixin,
+    TranslatorBase,
+):
     def __init__(self, type_inference=None):
         super().__init__(type_inference=type_inference or TypeInference())
         self.emitter = VCodeEmitter()
@@ -21,6 +29,7 @@ class TestTranslator(ClassesMixin, FunctionsMixin, VariablesMixin, ExpressionsMi
         self.coroutine_handler = CoroutineHandler()
         self.in_main = False
         v_types.global_type_map = {}
+
 
 def test_abc_interface():
     code = """
