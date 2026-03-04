@@ -39,14 +39,14 @@ Vector_ZERO: Final = Vector(0, 0, 0)
     v_code = translate(source)
     # Because Vector is not compile time evaluable, it should be in __global and initialized in init()
     assert "__global (" in v_code
-    assert "vector_z_e_r_o Any" in v_code
+    assert "vector_zero Any" in v_code
 
     assert "fn init() {" in v_code
-    assert "vector_z_e_r_o = Vector(0, 0, 0)" in v_code
+    assert "vector_zero = Vector(0, 0, 0)" in v_code
 
     # It should not be in main
     main_body_start = v_code.find("fn main() {")
-    assert "vector_z_e_r_o = Vector(0, 0, 0)" not in v_code[main_body_start:]
+    assert "vector_zero = Vector(0, 0, 0)" not in v_code[main_body_start:]
 
 def test_global_constants_assignment():
     source = """

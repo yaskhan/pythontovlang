@@ -10,8 +10,9 @@ class ClassesMixin(TranslatorBase):
         if not hasattr(self, 'class_stack'):
             self.class_stack = []
 
-        self.class_stack.append(self._sanitize_name(node.name))
-        struct_name = self._sanitize_name("_".join(self.class_stack))
+        sanitized_name = self._sanitize_name(node.name, is_type=True)
+        self.class_stack.append(sanitized_name)
+        struct_name = self._sanitize_name("_".join(self.class_stack), is_type=True)
 
         # Pre-register class definition to allow class instantiation inside its own methods
         has_init = False
@@ -26,14 +27,17 @@ class ClassesMixin(TranslatorBase):
         # Save previous state to restore later (for nesting)
         prev_class = self.current_class
         prev_generics = self.current_class_generics
+        prev_generic_map = getattr(self, 'current_class_generic_map', {})
         prev_bases = self.current_class_bases
         prev_is_unittest = self.current_class_is_unittest
 
         self.current_class = struct_name
         self.current_class_generics = []
+        self.current_class_generic_map = {}
         self.current_class_bases = []
         self.current_class_is_unittest = False
 
+        py_generics = []
         if hasattr(node, 'type_params') and node.type_params:
             for param in node.type_params:
                 # TypeVar, ParamSpec, TypeVarTuple might have 'name' as string or attribute
@@ -41,9 +45,13 @@ class ClassesMixin(TranslatorBase):
                 if hasattr(param, 'name'):
                     name = param.name
                     if isinstance(name, str):
-                        self.current_class_generics.append(name)
+                        py_generics.append(name)
                     elif hasattr(name, 'id'):
-                        self.current_class_generics.append(name.id)
+                        py_generics.append(name.id)
+
+        if py_generics:
+            self.current_class_generic_map.update(self._get_generic_map(py_generics))
+            self.current_class_generics = list(self.current_class_generic_map.values())
 
         # Handle decorators
         decorators = []
@@ -114,12 +122,11 @@ class ClassesMixin(TranslatorBase):
                         if isinstance(stmt, ast.AnnAssign) and isinstance(stmt.target, ast.Name):
                             field_name = self._sanitize_name(stmt.target.id)
                             if field_name not in added_fields:
-                                added_fields.add(field_name)
                                 field_type = "int"
                                 if stmt.annotation:
                                     try:
                                         type_str = ast.unparse(stmt.annotation)
-                                        field_type = map_python_type_to_v(type_str, self_name=struct_name)
+                                        field_type = map_python_type_to_v(type_str, self_name=struct_name, generic_map=self.current_class_generic_map)
                                     except Exception:
                                         if isinstance(stmt.annotation, ast.Name):
                                             field_type = stmt.annotation.id
@@ -303,12 +310,17 @@ class ClassesMixin(TranslatorBase):
 
                 if base_name == "Generic":
                     # Extract type vars: Generic[T, U]
+                    py_gen = []
                     if isinstance(base.slice, ast.Tuple):
                         for elt in base.slice.elts:
                             if isinstance(elt, ast.Name):
-                                self.current_class_generics.append(elt.id)
+                                py_gen.append(elt.id)
                     elif isinstance(base.slice, ast.Name):
-                        self.current_class_generics.append(base.slice.id)
+                        py_gen.append(base.slice.id)
+
+                    if py_gen:
+                        self.current_class_generic_map.update(self._get_generic_map(py_gen))
+                        self.current_class_generics = list(self.current_class_generic_map.values())
                     # Don't add Generic to fields
                     continue
                 else:
@@ -316,14 +328,17 @@ class ClassesMixin(TranslatorBase):
                     # Add to fields as embedded struct if not an interface
                     if base_name not in self.known_interfaces and base_name not in getattr(self.type_inference, 'mixin_to_main', {}):
                         type_str = ast.unparse(base)
-                        v_type = map_python_type_to_v(type_str)
-                        fields.append(f"    {v_type}")
+                        v_type = map_python_type_to_v(type_str, generic_map=self.current_class_generic_map)
+                        # V only allows anonymous embedding of structs/interfaces. Skip if it maps to array/map.
+                        if not (v_type.startswith('[]') or v_type.startswith('map[')):
+                            fields.append(f"    {v_type}")
                     self.current_class_bases.append(base_name)
 
             elif isinstance(base, ast.Name):
                 if base.id not in ("Generic", "Protocol", "NamedTuple", "TypedDict", "object", "ABC"):
                     if base.id not in self.known_interfaces and base.id not in getattr(self.type_inference, 'mixin_to_main', {}):
-                        fields.append(f"    {base.id}")
+                        sanitized_base = self._sanitize_name(base.id, is_type=True)
+                        fields.append(f"    {sanitized_base}")
                     self.current_class_bases.append(base.id)
             elif isinstance(base, ast.Attribute):
                 val = self.visit(base)
@@ -377,7 +392,7 @@ class ClassesMixin(TranslatorBase):
                     if stmt.annotation:
                         try:
                             type_str = ast.unparse(stmt.annotation)
-                            field_type = map_python_type_to_v(type_str, self_name=struct_name)
+                            field_type = map_python_type_to_v(type_str, self_name=struct_name, generic_map=self.current_class_generic_map)
                         except Exception:
                             if isinstance(stmt.annotation, ast.Name):
                                 field_type = stmt.annotation.id
@@ -441,7 +456,7 @@ class ClassesMixin(TranslatorBase):
                 raw_type = attr.get('type', 'Any')
                 norm_typ = raw_type.replace("builtins.", "")
                 try:
-                    field_type = map_python_type_to_v(norm_typ)
+                    field_type = map_python_type_to_v(norm_typ, generic_map=self.current_class_generic_map)
                 except Exception:
                     field_type = "Any"
 
@@ -491,15 +506,16 @@ class ClassesMixin(TranslatorBase):
 
              generics_str = ""
              if self.current_class_generics:
-                sanitized = [g.lstrip('_') for g in self.current_class_generics]
-                self.current_class_generics = sanitized
-                generics_str = f"[{', '.join(sanitized)}]"
+                generics_str = f"[{', '.join(self.current_class_generics)}]"
 
              interface_def += f"interface {struct_name}{generics_str} {{\n"
              # Emit method signatures
              for method in methods:
                  # Manual extraction:
                  m_name = self._sanitize_name(method.name)
+                 if m_name == "__next__": m_name = "next"
+                 elif m_name == "__await__": m_name = "await_"
+                 elif m_name == "__iter__": m_name = "iter"
                  m_args = []
                  for arg in method.args.args:
                      if arg.arg == 'self': continue
@@ -508,7 +524,7 @@ class ClassesMixin(TranslatorBase):
                      if arg.annotation:
                           try:
                                type_str = ast.unparse(arg.annotation)
-                               a_type = map_python_type_to_v(type_str, self_name=struct_name)
+                               a_type = map_python_type_to_v(type_str, self_name=struct_name, generic_map=self.current_class_generic_map)
                           except: pass
                      m_args.append(f"{a_name} {a_type}")
 
@@ -516,7 +532,7 @@ class ClassesMixin(TranslatorBase):
                  if method.returns:
                       try:
                            type_str = ast.unparse(method.returns)
-                           m_ret = map_python_type_to_v(type_str, self_name=struct_name)
+                           m_ret = map_python_type_to_v(type_str, self_name=struct_name, generic_map=self.current_class_generic_map)
                       except: pass
 
                  if m_ret == "void":
@@ -627,10 +643,7 @@ class ClassesMixin(TranslatorBase):
 
             generics_str = ""
             if self.current_class_generics:
-                # Sanitize: _T -> T
-                sanitized = [g.lstrip('_') for g in self.current_class_generics]
-                self.current_class_generics = sanitized
-                generics_str = f"[{', '.join(sanitized)}]"
+                generics_str = f"[{', '.join(self.current_class_generics)}]"
 
             struct_def += f"struct {struct_name}{generics_str} {{\n" + "\n".join(fields) + "\n}"
             self.emitter.add_struct(struct_def)
@@ -649,6 +662,7 @@ class ClassesMixin(TranslatorBase):
         self.class_stack.pop()
         self.current_class = prev_class
         self.current_class_generics = prev_generics
+        self.current_class_generic_map = prev_generic_map
         self.current_class_bases = prev_bases
         self.current_class_is_unittest = prev_is_unittest
 

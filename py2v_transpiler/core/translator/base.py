@@ -144,18 +144,25 @@ class TranslatorBase(ast.NodeVisitor):
     def _to_snake_case(self, name: str) -> str:
         """Converts CamelCase or UPPER_CASE to snake_case."""
         if not name: return name
+
+        # Handle already separated names
+        if '_' in name:
+            return "_".join(self._to_snake_case(p) for p in name.split('_') if p)
+
         if name.isupper():
             return name.lower()
+
         res = []
         for i, char in enumerate(name):
             if char.isupper() and i > 0:
-                if name[i-1] != '_':
+                # Underscore if previous was lowercase
+                if name[i-1].islower():
+                    res.append('_')
+                # Or if next is lowercase (handling HTTPClient -> http_client)
+                elif i + 1 < len(name) and name[i+1].islower():
                     res.append('_')
             res.append(char.lower())
-        final = "".join(res)
-        while '__' in final:
-            final = final.replace('__', '_')
-        return final
+        return "".join(res)
 
     def _get_generic_map(self, generic_names: List[str]) -> Dict[str, str]:
         """

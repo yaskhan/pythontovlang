@@ -13,7 +13,7 @@ class VType(Enum):
     NONE = auto()
     UNKNOWN = auto()
 
-def map_python_type_to_v(py_type: str, self_name: str = "Self", allow_union: bool = False) -> str:
+def map_python_type_to_v(py_type: str, self_name: str = "Self", allow_union: bool = False, generic_map: dict[str, str] = None) -> str:
     """Maps a Python type name to its V equivalent."""
     if not py_type:
         return 'void'
@@ -37,17 +37,22 @@ def map_python_type_to_v(py_type: str, self_name: str = "Self", allow_union: boo
     if py_type == 'builtins.str': return 'string'
     if py_type == 'builtins.bool': return 'bool'
 
+    if generic_map and py_type in generic_map:
+        return generic_map[py_type]
+
     try:
         # Use AST to parse complex types
         node = ast.parse(py_type, mode='eval').body
-        return _map_ast_type(node, self_name, allow_union)
+        return _map_ast_type(node, self_name, allow_union, generic_map)
     except SyntaxError:
         return py_type
 
-def _map_ast_type(node: ast.AST, self_name: str = "Self", allow_union: bool = False) -> str:
+def _map_ast_type(node: ast.AST, self_name: str = "Self", allow_union: bool = False, generic_map: dict[str, str] = None) -> str:
     if isinstance(node, ast.Name):
         if node.id == "Self":
             return self_name
+        if generic_map and node.id in generic_map:
+            return generic_map[node.id]
         return _map_basic_type(node.id)
 
     elif isinstance(node, ast.Constant):
@@ -58,7 +63,7 @@ def _map_ast_type(node: ast.AST, self_name: str = "Self", allow_union: bool = Fa
         if isinstance(node.value, str):
             try:
                 inner_node = ast.parse(node.value, mode='eval').body
-                return _map_ast_type(inner_node, self_name, allow_union)
+                return _map_ast_type(inner_node, self_name, allow_union, generic_map)
             except SyntaxError:
                 return node.value
         return str(node.value)
@@ -80,7 +85,7 @@ def _map_ast_type(node: ast.AST, self_name: str = "Self", allow_union: bool = Fa
             args = [slice_node]
 
         # Helper to map args, handling nested types
-        mapped_args = [_map_ast_type(arg, self_name, allow_union) for arg in args]
+        mapped_args = [_map_ast_type(arg, self_name, allow_union, generic_map) for arg in args]
 
         if value_id in ('List', 'list', 'Sequence', 'MutableSequence', 'Iterable', 'Iterator'):
             if mapped_args:
@@ -137,9 +142,9 @@ def _map_ast_type(node: ast.AST, self_name: str = "Self", allow_union: bool = Fa
 
                 arg_types = []
                 if isinstance(arg_list_node, ast.List):
-                    arg_types = [_map_ast_type(a, self_name, allow_union) for a in arg_list_node.elts]
+                    arg_types = [_map_ast_type(a, self_name, allow_union, generic_map) for a in arg_list_node.elts]
 
-                ret_type = _map_ast_type(ret_node, self_name, allow_union)
+                ret_type = _map_ast_type(ret_node, self_name, allow_union, generic_map)
                 return f"fn ({', '.join(arg_types)}) {ret_type}"
             return "fn"
 
@@ -185,8 +190,8 @@ def _map_ast_type(node: ast.AST, self_name: str = "Self", allow_union: bool = Fa
     elif isinstance(node, ast.BinOp):
         # A | B (Python 3.10+ Union)
         if isinstance(node.op, ast.BitOr):
-            left = _map_ast_type(node.left, self_name, allow_union)
-            right = _map_ast_type(node.right, self_name, allow_union)
+            left = _map_ast_type(node.left, self_name, allow_union, generic_map)
+            right = _map_ast_type(node.right, self_name, allow_union, generic_map)
             if left == 'none':
                 return f"?{right}"
             if right == 'none':

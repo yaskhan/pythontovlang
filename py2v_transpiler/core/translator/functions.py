@@ -46,7 +46,7 @@ class FunctionsMixin(TranslatorBase):
                 if arg.annotation:
                     try:
                         type_str = ast.unparse(arg.annotation)
-                        arg_type = map_python_type_to_v(type_str, self_name=ov_struct_name or "Self")
+                        arg_type = map_python_type_to_v(type_str, self_name=ov_struct_name or "Self", generic_map=getattr(self, 'current_class_generic_map', {}))
                     except Exception:
                         arg_type = self.type_inference.type_map.get(arg_name, "int")
                 else:
@@ -57,7 +57,7 @@ class FunctionsMixin(TranslatorBase):
             if node.returns:
                  try:
                      type_str = ast.unparse(node.returns)
-                     sig["return"] = map_python_type_to_v(type_str, self_name=ov_struct_name or "Self")
+                     sig["return"] = map_python_type_to_v(type_str, self_name=ov_struct_name or "Self", generic_map=getattr(self, 'current_class_generic_map', {}))
                  except:
                      if isinstance(node.returns, ast.Name):
                           sig["return"] = node.returns.id
@@ -191,20 +191,24 @@ class FunctionsMixin(TranslatorBase):
 
         # Handle Python 3.12+ type_params (e.g. def foo[T](x: T):)
         func_generics_str = ""
-        # Only add generics to the function itself if it's not a method of a generic struct
-        # because V methods inherit generics from the struct receiver `(s Struct[T]) method()`.
-        if not is_method and hasattr(node, 'type_params') and node.type_params:
-            func_generics = []
+        # V requires generic methods to explicitly repeat the struct generics
+        # if the receiver is generic. E.g. fn (s Struct[T]) foo[T]()
+        py_func_generics = []
+        if hasattr(node, 'type_params') and node.type_params:
             for param in node.type_params:
-                # PEP 696 type defaults (param.default) are intentionally ignored since V doesn't support them
                 if hasattr(param, 'name'):
                     name = param.name
-                    if isinstance(name, str):
-                        func_generics.append(name)
-                    elif hasattr(name, 'id'):
-                        func_generics.append(name.id)
-            if func_generics:
-                func_generics_str = f"[{', '.join(func_generics)}]"
+                    if isinstance(name, str): py_func_generics.append(name)
+                    elif hasattr(name, 'id'): py_func_generics.append(name.id)
+
+        func_generic_map = self._get_generic_map(py_func_generics)
+        # For methods, we also need to include class generics
+        class_generic_map = getattr(self, 'current_class_generic_map', {})
+        combined_generic_map = {**class_generic_map, **func_generic_map}
+
+        all_v_generics = list(combined_generic_map.values())
+        if all_v_generics:
+            func_generics_str = f"[{', '.join(all_v_generics)}]"
 
         if is_generator:
             # Inject channel argument
@@ -257,7 +261,7 @@ class FunctionsMixin(TranslatorBase):
             if arg.annotation:
                 try:
                     type_str = ast.unparse(arg.annotation)
-                    arg_type = map_python_type_to_v(type_str, self_name=struct_name or "Self")
+                    arg_type = map_python_type_to_v(type_str, self_name=struct_name or "Self", generic_map=combined_generic_map)
                 except Exception:
                     arg_type = self.type_inference.type_map.get(arg_name, "int")
             else:
@@ -285,7 +289,7 @@ class FunctionsMixin(TranslatorBase):
             if node.args.vararg.annotation:
                 try:
                     type_str = ast.unparse(node.args.vararg.annotation)
-                    arg_type = map_python_type_to_v(type_str, self_name=struct_name or "Self")
+                    arg_type = map_python_type_to_v(type_str, self_name=struct_name or "Self", generic_map=combined_generic_map)
                 except Exception:
                     pass
             args_str_list.append(f"{arg_name} ...{arg_type}")
@@ -297,7 +301,7 @@ class FunctionsMixin(TranslatorBase):
             if node.args.kwarg.annotation:
                 try:
                     type_str = ast.unparse(node.args.kwarg.annotation)
-                    arg_type = map_python_type_to_v(type_str, self_name=struct_name or "Self")
+                    arg_type = map_python_type_to_v(type_str, self_name=struct_name or "Self", generic_map=combined_generic_map)
                 except Exception:
                     pass
             args_str_list.append(f"{arg_name} {arg_type}")
@@ -309,7 +313,7 @@ class FunctionsMixin(TranslatorBase):
         if not is_generator and node.returns:
              try:
                  type_str = ast.unparse(node.returns)
-                 ret_type = map_python_type_to_v(type_str, self_name=struct_name or "Self")
+                 ret_type = map_python_type_to_v(type_str, self_name=struct_name or "Self", generic_map=combined_generic_map)
              except:
                  if isinstance(node.returns, ast.Name):
                       ret_type = node.returns.id
@@ -330,6 +334,9 @@ class FunctionsMixin(TranslatorBase):
 
         if not is_unittest_method:
             func_name = self._sanitize_name(node.name)
+            if func_name == "__next__": func_name = "next"
+            elif func_name == "__await__": func_name = "await_"
+            elif func_name == "__iter__": func_name = "__iter__" # Handled below
 
             # Check if this is the implementation of an overloaded function
             if func_name in self.overloaded_signatures and not is_new_method:
@@ -380,9 +387,8 @@ class FunctionsMixin(TranslatorBase):
             receiver_str = "" # Factory is static
             ret_type = struct_name
             if self.current_class_generics:
-                sanitized_gens = [g.lstrip('_') for g in self.current_class_generics]
-                gen_str = f"[{', '.join(sanitized_gens)}]"
-                func_name += gen_str
+                gen_str = f"[{', '.join(self.current_class_generics)}]"
+                # Do NOT add to func_name here, as func_generics_str will add it to the 'fn' decl
                 ret_type += gen_str
 
         noreturn_attr = "[noreturn]\n" if is_noreturn else ""
@@ -409,6 +415,16 @@ class FunctionsMixin(TranslatorBase):
         elif func_name in ("__str__", "__repr__"):
              func_name = "str"
              decl = f"{deprecated_attr}fn {receiver_str}{func_name}() string {{"
+        elif func_name == "__iter__":
+             # V iterators use 'next' method returning '?'
+             # If a class has __iter__, it usually returns an iterator.
+             # In V, a struct IS an iterator if it has 'next() ?T'
+             # If __iter__ returns Self, we can skip it or rename.
+             # For mypy stubs, Generator and Iterable have __iter__.
+             # Let's map __iter__ to 'iter' if it doesn't return Self, or skip?
+             # For now, let's use 'iter'
+             func_name = "iter"
+             decl = f"{noreturn_attr}{deprecated_attr}fn {receiver_str}{func_name}{func_generics_str}({args_str}) {ret_type} {{"
 
         # Adjust return type for SCC if it refers to a top-level symbol
         if ret_type in self.imported_symbols:
@@ -492,18 +508,21 @@ class FunctionsMixin(TranslatorBase):
         """Generates V functions for each @overload signature using the implementation body."""
 
         func_generics_str = ""
-        if not is_method and hasattr(node, 'type_params') and node.type_params:
-            func_generics = []
+        py_func_generics = []
+        if hasattr(node, 'type_params') and node.type_params:
             for param in node.type_params:
-                # PEP 696 type defaults (param.default) are intentionally ignored since V doesn't support them
                 if hasattr(param, 'name'):
                     name = param.name
-                    if isinstance(name, str):
-                        func_generics.append(name)
-                    elif hasattr(name, 'id'):
-                        func_generics.append(name.id)
-            if func_generics:
-                func_generics_str = f"[{', '.join(func_generics)}]"
+                    if isinstance(name, str): py_func_generics.append(name)
+                    elif hasattr(name, 'id'): py_func_generics.append(name.id)
+
+        func_generic_map = self._get_generic_map(py_func_generics)
+        class_generic_map = getattr(self, 'current_class_generic_map', {})
+        combined_generic_map = {**class_generic_map, **func_generic_map}
+
+        all_v_generics = list(combined_generic_map.values())
+        if all_v_generics:
+            func_generics_str = f"[{', '.join(all_v_generics)}]"
 
         # Check for @warnings.deprecated
         is_deprecated = False
