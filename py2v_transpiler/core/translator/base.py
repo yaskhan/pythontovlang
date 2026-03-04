@@ -415,6 +415,7 @@ class TranslatorBase(ast.NodeVisitor):
                 if fid == "bool": return "bool"
                 if fid == "len": return "int"
                 if fid == "input": return "string"
+                if fid in ("bytearray", "memoryview", "bytes"): return "[]u8"
                 if fid in ("isinstance", "hasattr", "getattr", "setattr"): return "bool"
         elif isinstance(node, (ast.List, ast.Tuple)):
             if not node.elts:
