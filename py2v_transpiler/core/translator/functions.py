@@ -44,11 +44,14 @@ class FunctionsMixin(TranslatorBase):
                 if arg.annotation:
                     try:
                         type_str = ast.unparse(arg.annotation)
+                        self._check_experimental_type(type_str, arg.annotation)
                         arg_type = map_python_type_to_v(
                             type_str,
                             self_name=self._get_full_self_type(ov_struct_name),
                             generic_map=self._get_combined_generic_map(),
                         )
+                        if arg_type == "LiteralString":
+                            arg_type = "string"
                     except Exception:
                         arg_type = self.type_inference.type_map.get(arg_name, "int")
                 else:
@@ -59,11 +62,14 @@ class FunctionsMixin(TranslatorBase):
             if node.returns:
                 try:
                     type_str = ast.unparse(node.returns)
+                    self._check_experimental_type(type_str, node.returns)
                     sig["return"] = map_python_type_to_v(
                         type_str,
                         self_name=self._get_full_self_type(ov_struct_name),
                         generic_map=self._get_combined_generic_map(),
                     )
+                    if sig["return"] == "LiteralString":
+                        sig["return"] = "string"
                 except:
                     if isinstance(node.returns, ast.Name):
                         sig["return"] = node.returns.id
@@ -322,11 +328,14 @@ class FunctionsMixin(TranslatorBase):
             if arg.annotation:
                 try:
                     type_str = ast.unparse(arg.annotation)
+                    self._check_experimental_type(type_str, arg.annotation)
                     arg_type = map_python_type_to_v(
                         type_str,
                         self_name=self._get_full_self_type(struct_name),
                         generic_map=combined_generic_map,
                     )
+                    if arg_type == "LiteralString":
+                        arg_type = "string"
                 except Exception:
                     arg_type = self.type_inference.type_map.get(arg_name, "int")
             else:
@@ -404,11 +413,14 @@ class FunctionsMixin(TranslatorBase):
         if not is_generator and node.returns:
             try:
                 type_str = ast.unparse(node.returns)
+                self._check_experimental_type(type_str, node.returns)
                 ret_type = map_python_type_to_v(
                     type_str,
                     self_name=self._get_full_self_type(struct_name),
                     generic_map=combined_generic_map,
                 )
+                if ret_type == "LiteralString":
+                    ret_type = "string"
             except:
                 if isinstance(node.returns, ast.Name):
                     ret_type = node.returns.id
