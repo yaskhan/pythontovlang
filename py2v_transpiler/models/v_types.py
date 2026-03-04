@@ -273,6 +273,8 @@ def _map_basic_type(name: str) -> str:
         'builtins.float': 'f64',
         'builtins.str': 'string',
         'builtins.bool': 'bool',
+        'bytearray': '[]u8',
+        'memoryview': '[]u8',
         'LiteralString': 'string',
         'typing.LiteralString': 'string',
         'typing_extensions.LiteralString': 'string',

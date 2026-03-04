@@ -444,6 +444,12 @@ class AssignmentsMixin(TranslatorBase):
                                     if mut_info:
                                         is_mut = mut_info.get("is_reassigned", False) and not mut_info.get("is_final", False)
 
+                                # Special handling for buffer protocol: always mutable if bytearray
+                                if not is_mut:
+                                    # check if it is a call to bytearray
+                                    if isinstance(node.value, ast.Call) and isinstance(node.value.func, ast.Name) and node.value.func.id == "bytearray":
+                                        is_mut = True
+
                                 mut_prefix = "mut " if is_mut else ""
                                 emit_fn(f"{self._indent()}{mut_prefix}{v_lhs} := {rhs}")
                                 if not self.in_main: self._local_vars_in_scope.add(v_lhs)
