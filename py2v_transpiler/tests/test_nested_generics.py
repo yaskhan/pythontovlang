@@ -1,6 +1,4 @@
 import ast
-import sys
-import pytest
 from py2v_transpiler.core.translator import VNodeVisitor
 
 class MockTypeInference:
@@ -17,7 +15,6 @@ def transpile_code(code: str) -> str:
     visitor.visit(tree)
     return visitor.emitter.emit()
 
-@pytest.mark.skipif(sys.version_info < (3, 12), reason="PEP 695 requires Python 3.12+")
 def test_nested_function_generics():
     code = """
 def outer[T](x: T):
@@ -31,7 +28,6 @@ def outer[T](x: T):
     assert "return x" in v_code
     assert "fn outer[T](x T) {" in v_code
 
-@pytest.mark.skipif(sys.version_info < (3, 12), reason="PEP 695 requires Python 3.12+")
 def test_nested_class_generics():
     code = """
 class Outer[T]:
@@ -45,7 +41,6 @@ class Outer[T]:
     assert "other U" in v_code
     assert "struct Outer[T] {" in v_code
 
-@pytest.mark.skipif(sys.version_info < (3, 12), reason="PEP 695 requires Python 3.12+")
 def test_mixed_nesting():
     code = """
 class Outer[T]:
@@ -59,7 +54,6 @@ class Outer[T]:
     # V methods mangle names: Outer_method
     assert "fn (self Outer[T]) method[T, U](x T, y U) {" in v_code
 
-@pytest.mark.skipif(sys.version_info < (3, 12), reason="PEP 695 requires Python 3.12+")
 def test_generic_shadowing():
     code = """
 def outer[T](x: T):
@@ -76,8 +70,5 @@ def outer[T](x: T):
     assert "fn outer[T](x T) {" in v_code
 
 if __name__ == "__main__":
-    if sys.version_info >= (3, 12):
-        # Simple manual run
-        print(transpile_code("def outer[T](x: T):\n    def inner[U](y: U) -> T:\n        return x"))
-    else:
-        print("Skipping manual run (Python < 3.12)")
+    # Simple manual run
+    print(transpile_code("def outer[T](x: T):\\n    def inner[U](y: U) -> T:\\n        return x"))

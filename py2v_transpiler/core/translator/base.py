@@ -214,7 +214,7 @@ class TranslatorBase(ast.NodeVisitor):
         """
         mapping = {}
         # We need to consider already used characters in outer scopes
-        used_chars = set()
+        used_chars: Set[str] = set()
         for scope in self.generic_scopes:
             used_chars.update(scope.values())
 
