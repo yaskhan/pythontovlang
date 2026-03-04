@@ -131,7 +131,7 @@ class TranslatorBase(ast.NodeVisitor):
     def _is_numeric_type(self, v_type: str) -> bool:
         return v_type in ("int", "f64", "i64", "u32", "u64", "i8", "i16", "u8", "u16")
 
-    def _wrap_bool(self, node: ast.AST, invert: bool = False, parent: Optional[ast.AST] = None, is_right_operand: bool = False) -> str:
+    def _wrap_bool(self, node: ast.expr, invert: bool = False, parent: Optional[ast.AST] = None, is_right_operand: bool = False) -> str:
         v_type = self._guess_type(node)
 
         # Determine base expression string
@@ -153,19 +153,16 @@ class TranslatorBase(ast.NodeVisitor):
 
         if v_type == "bool":
             if invert:
-                dummy = ast.UnaryOp(op=ast.Not(), operand=node)
-                child_str = self._visit_with_parens(dummy, node, is_right_operand=True)
+                # Use _visit_with_parens with a dummy Not op to handle precedence correctly
+                dummy_not = ast.UnaryOp(op=ast.Not(), operand=node)
+                child_str = self._visit_with_parens(dummy_not, node, is_right_operand=True)
                 return f"!{child_str}"
             return expr
 
         if invert:
-             # If it's already a boolean-ish expression, we might need to parenthesize it before !
-             # _visit_with_parens might not handle it if the parent is "Not" (ast.UnaryOp)
-             # but here we are manually inverting.
-
-             # Create a dummy UnaryOp(Not) to check precedence if we want to be very precise.
-             dummy = ast.UnaryOp(op=ast.Not(), operand=node)
-             child_str = self._visit_with_parens(dummy, node, is_right_operand=True)
+             # For other types when inverting, we also want to handles precedence.
+             dummy_not = ast.UnaryOp(op=ast.Not(), operand=node)
+             child_str = self._visit_with_parens(dummy_not, node, is_right_operand=True)
              return f"!{child_str}"
 
         return expr
