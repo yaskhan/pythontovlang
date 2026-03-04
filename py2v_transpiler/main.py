@@ -108,7 +108,7 @@ def transpile_file(source_file: str, config: TranspilerConfig, global_helpers: O
     # 3. Analyze types
     analyzer = TypeInference()
     if config.mypy_enabled:
-        stdout, stderr, exit_code = analyzer.run_mypy(source_file, experimental=config.experimental)
+        stdout, stderr, exit_code = analyzer.run_mypy(source_file)
         if exit_code != 0:
             print(f"Mypy found errors in {source_file}:")
             print(stdout)
@@ -280,60 +280,8 @@ def process_directory(path: str, config: TranspilerConfig, recursive: bool) -> N
             except Exception as e:
                 print(f"Error writing global helpers to {helpers_file}: {e}")
 
-def print_banner():
-    """Print a nice banner and usage information when py2v is run without arguments."""
-    banner = """
-=================================================================
-                    Py2V Transpiler
-              Python to V Language Compiler
-=================================================================
-
-Usage: py2v <path> [options]
-
-Arguments:
-  path                  Path to Python file (.py/.pyi) or directory
-
-Options:
-  -r, --recursive       Recursively process directories
-  --analyze-deps        Analyze dependencies (for directories)
-  --no-mypy             Disable Mypy type analysis
-  --warn-dynamic        Warn when falling back to dynamic Any type
-  --no-helpers          Do not generate a helper V file
-  --helpers-only        Only generate the helper V file
-  --include-all-symbols Include all symbols (not just __all__)
-  --strict-exports      Warn about symbols missing from __all__
-  -h, --help            Show this help message
-
-Examples:
-  py2v script.py                    # Transpile a single file
-  py2v src/ -r                      # Transpile all files in directory
-  py2v mylib/ --no-mypy             # Transpile without Mypy checks
-  py2v project/ --helpers-only      # Generate only helpers file
-
-Quick Start:
-  py2v your_script.py
-=================================================================
-"""
-    print(banner)
-
-
 def main():
-    # If no arguments provided, show banner and exit
-    if len(sys.argv) == 1:
-        print_banner()
-        sys.exit(0)
-
-    parser = argparse.ArgumentParser(
-        description="Python to V Transpiler",
-        formatter_class=argparse.RawDescriptionHelpFormatter,
-        epilog="""
-Examples:
-  py2v script.py                    # Transpile a single file
-  py2v src/ -r                      # Transpile all files in directory
-  py2v mylib/ --no-mypy             # Transpile without Mypy checks
-  py2v project/ --helpers-only      # Generate only helpers file
-        """
-    )
+    parser = argparse.ArgumentParser(description="Python to V Transpiler")
     parser.add_argument("path", help="Path to Python file or directory")
     parser.add_argument("--analyze-deps", action="store_true", help="Analyze dependencies (for directories)")
     parser.add_argument("--recursive", "-r", action="store_true", help="Recursively process directories")
@@ -343,7 +291,6 @@ Examples:
     parser.add_argument("--helpers-only", action="store_true", help="Only generate the helper V file (do not transpile individual scripts)")
     parser.add_argument("--include-all-symbols", action="store_true", help="Include all symbols even if not in __all__")
     parser.add_argument("--strict-exports", action="store_true", help="Warn about public symbols missing from __all__")
-    parser.add_argument("--experimental", action="store_true", help="Enable experimental PEP features")
 
     args = parser.parse_args()
 
@@ -371,8 +318,7 @@ Examples:
         no_helpers=args.no_helpers,
         helpers_only=args.helpers_only,
         include_all_symbols=args.include_all_symbols,
-        strict_export_mode=args.strict_exports,
-        experimental=args.experimental
+        strict_export_mode=args.strict_exports
     )
 
     if config.helpers_only:

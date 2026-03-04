@@ -213,9 +213,7 @@ class TypeInference(ast.NodeVisitor):
         # Type Alias Inference
         alias_inferer = AliasInferer()
         alias_inferer.analyze(tree)
-        for k, v in alias_inferer.alias_to_type.items():
-            if k not in self.type_map or self.type_map[k] == "Any":
-                self.type_map[k] = v
+        self.type_map.update(alias_inferer.alias_to_type)
 
         # Mixin Inference
         mixin_inferer = MixinInferer()
@@ -226,67 +224,6 @@ class TypeInference(ast.NodeVisitor):
         self.is_abc = mixin_inferer.is_abc
 
         return self.type_map
-
-    def _guess_node_type(self, node: ast.AST) -> str:
-        if isinstance(node, ast.Constant):
-            if isinstance(node.value, int):
-                return "int"
-            if isinstance(node.value, float):
-                return "f64"
-            if isinstance(node.value, str):
-                return "string"
-            if isinstance(node.value, bool):
-                return "bool"
-        elif isinstance(node, ast.Name):
-            return self.type_map.get(node.id, "Any")
-        elif isinstance(node, ast.Call) and isinstance(node.func, ast.Name):
-             if node.func.id == "Node": # Special case for test_dict_inference_self_attribute
-                 return "Node"
-             return "Any"
-        elif isinstance(node, ast.List):
-            if not node.elts:
-                return "[]Any"
-            element_types = set()
-            for elt in node.elts:
-                element_types.add(self._guess_node_type(elt))
-            if len(element_types) == 1:
-                return f"[]{list(element_types)[0]}"
-            return "[]Any"
-        elif isinstance(node, ast.Dict):
-            if not node.keys:
-                return "map[string]Any"
-            key_types = set()
-            val_types = set()
-            for k, v in zip(node.keys, node.values):
-                if k:
-                    key_types.add(self._guess_node_type(k))
-                if v:
-                    val_types.add(self._guess_node_type(v))
-
-            k_type = "string"
-            if len(key_types) == 1:
-                k_type = list(key_types)[0]
-            elif len(key_types) > 1:
-                k_type = "Any"
-
-            v_type = "Any"
-            if len(val_types) == 1:
-                v_type = list(val_types)[0]
-
-            return f"map[{k_type}]{v_type}"
-        return "Any"
-
-    def visit_Call(self, node: ast.Call) -> Any:
-        if isinstance(node.func, ast.Attribute) and node.func.attr == "append":
-            if isinstance(node.func.value, ast.Name):
-                var_name = node.func.value.id
-                if len(node.args) == 1:
-                    elt_type = self._guess_node_type(node.args[0])
-                    if elt_type != "Any":
-                        new_type = f"[]{elt_type}"
-                        if var_name not in self.type_map or self.type_map[var_name] == "[]Any":
-                            self.type_map[var_name] = new_type
-        self.generic_visit(node)
 
     def visit_Assign(self, node: ast.Assign) -> Any:
         for target in node.targets:
@@ -314,23 +251,34 @@ class TypeInference(ast.NodeVisitor):
                         elif isinstance(target.slice.value, str):
                             key_type = "string"
 
-                    val_type = self._guess_node_type(node.value)
-                    new_type = f"map[{key_type}]{val_type}"
+                    val_type = "Any"
+                    if isinstance(node.value, ast.Constant):
+                        if isinstance(node.value.value, int):
+                            val_type = "int"
+                        elif isinstance(node.value.value, str):
+                            val_type = "string"
+                    elif isinstance(node.value, ast.Tuple):
+                        if node.value.elts:
+                            if isinstance(node.value.elts[0], ast.Constant):
+                                if isinstance(node.value.elts[0].value, int):
+                                    val_type = "[]int"
+                                elif isinstance(node.value.elts[0].value, str):
+                                    val_type = "[]string"
+                                else:
+                                    val_type = "[]Any"
+                            else:
+                                val_type = "[]Any"
+                        else:
+                            val_type = "[]Any"
+                    elif isinstance(node.value, ast.Call) and isinstance(
+                        node.value.func, ast.Name
+                    ):
+                        val_type = node.value.func.id
 
-                    # Update if current is Any or map[...Any]
-                    current = self.type_map.get(dict_name, "Any")
-                    if current == "Any" or "Any" in current:
-                        self.type_map[dict_name] = new_type
-            elif isinstance(target, ast.Name):
-                if isinstance(node.value, (ast.List, ast.Dict)):
-                    inferred = self._infer_collection_type(node.value)
-                    if target.id not in self.type_map or self.type_map[target.id] == "Any":
-                        self.type_map[target.id] = inferred
+                    new_type = f"map[{key_type}]{val_type}"
+                    self.type_map[dict_name] = new_type
 
         self.generic_visit(node)
-
-    def _infer_collection_type(self, node: ast.AST) -> str:
-        return self._guess_node_type(node)
 
     def visit_AnnAssign(self, node: ast.AnnAssign) -> Any:
         # Check if the target is a simple variable name (ast.Name)
@@ -340,10 +288,7 @@ class TypeInference(ast.NodeVisitor):
                     # Use ast.unparse to get the full type string (e.g. List[int])
                     # This works for Python 3.9+
                     type_str = ast.unparse(node.annotation)
-                    if type_str in ("LiteralString", "typing.LiteralString", "typing_extensions.LiteralString"):
-                         v_type = "LiteralString"
-                    else:
-                         v_type = map_python_type_to_v(type_str)
+                    v_type = map_python_type_to_v(type_str)
                     self.type_map[node.target.id] = v_type
                 except AttributeError:
                     # Fallback for older python without ast.unparse (though we are on 3.12)
@@ -362,26 +307,11 @@ class TypeInference(ast.NodeVisitor):
         self.generic_visit(node)
 
     def visit_FunctionDef(self, node: ast.FunctionDef) -> Any:
-        # Handle return type
-        if node.returns:
-            try:
-                type_str = ast.unparse(node.returns)
-                if type_str in ("LiteralString", "typing.LiteralString", "typing_extensions.LiteralString"):
-                    v_type = "LiteralString"
-                else:
-                    v_type = map_python_type_to_v(type_str)
-                self.type_map[f"{node.name}@return"] = v_type
-            except:
-                pass
-
         for arg in node.args.args:
             if arg.annotation:
                 try:
                     type_str = ast.unparse(arg.annotation)
-                    if type_str in ("LiteralString", "typing.LiteralString", "typing_extensions.LiteralString"):
-                         v_type = "LiteralString"
-                    else:
-                         v_type = map_python_type_to_v(type_str)
+                    v_type = map_python_type_to_v(type_str)
                     self.type_map[arg.arg] = v_type
                 except AttributeError:
                     if isinstance(arg.annotation, ast.Name):
@@ -397,7 +327,7 @@ class TypeInference(ast.NodeVisitor):
 
         self.generic_visit(node)
 
-    def run_mypy(self, path: str, experimental: bool = False) -> Tuple[str, str, int]:
+    def run_mypy(self, path: str) -> Tuple[str, str, int]:
         """Runs mypy on the given file path and returns the output."""
         if not mypy_api_module:
             return ("Mypy not installed.", "", 1)
@@ -431,11 +361,9 @@ class TypeInference(ast.NodeVisitor):
             except ImportError:
                 pass
 
-            args = [path, "--config-file", config_path]
-            if experimental:
-                args.append("--enable-incomplete-feature=TypeForm")
-
-            result, error, exit_code = mypy_api_module.run(args)
+            result, error, exit_code = mypy_api_module.run(
+                [path, "--config-file", config_path]
+            )
 
             collected_types = None
             collected_sigs = None
@@ -465,18 +393,13 @@ class TypeInference(ast.NodeVisitor):
                 for fullname, types in collected_types.items():
                     for location, typ in types.items():
                         v_type = map_python_type_to_v(typ)
-                        # Store by fullname@location and name@location for precise lookup
+                        # Extract the variable or function name from fullname if possible
+                        # For now, we will just store it by location as well, or we can use it during transpilation
+                        # but keeping it in self.type_map via a generic key might be tricky.
+                        # We map it by line:column string for potential later use.
                         self.type_map[f"{fullname}@{location}"] = v_type
-                        name = fullname.split('.')[-1]
-                        self.type_map[f"{name}@{location}"] = v_type
 
-                        # Store base type if location-less entry is missing
-                        if fullname not in self.type_map:
-                            self.type_map[fullname] = v_type
-                        if name not in self.type_map:
-                            self.type_map[name] = v_type
-
-                        # Populate location_map for O(1) lookups by location
+                        # Populate location_map for O(1) lookups by location (handling potential float vs int overloads)
                         if (
                             "builtins.float" in fullname
                             or location not in self.location_map

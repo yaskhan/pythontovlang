@@ -130,34 +130,11 @@ class TranslatorBase(ast.NodeVisitor):
         self.defined_top_level_symbols: Set[str] = set()
         self.warnings: List[str] = []
 
-    def _is_literal_string_expr(self, node: ast.AST) -> bool:
-        """
-        Checks if an expression is a literal string, literal concatenation,
-        or f-string without non-literal variables.
-        """
-        if isinstance(node, ast.Constant) and isinstance(node.value, str):
-            return True
-        if isinstance(node, ast.JoinedStr):
-            return all(self._is_literal_string_expr(v) for v in node.values)
-        if isinstance(node, ast.FormattedValue):
-            return self._is_literal_string_expr(node.value)
-        if isinstance(node, ast.BinOp) and isinstance(node.op, ast.Add):
-            return self._is_literal_string_expr(node.left) and self._is_literal_string_expr(node.right)
-        if isinstance(node, ast.Name):
-            # Check if this name refers to a variable known to be LiteralString
-            if hasattr(self.type_inference, "type_map") and node.id in self.type_inference.type_map:
-                v_type = self.type_inference.type_map[node.id]
-                return v_type == "LiteralString"
-        return False
-
     def _indent(self) -> str:
         return "    " * self._indent_level
 
     def _is_collection_type(self, v_type: str) -> bool:
-        return v_type.startswith("[]") or v_type.startswith("map[") or v_type == "string" or v_type == "LiteralString"
-
-    def _is_string_type(self, v_type: str) -> bool:
-        return v_type == "string" or v_type == "LiteralString"
+        return v_type.startswith("[]") or v_type.startswith("map[") or v_type == "string"
 
     def _is_numeric_type(self, v_type: str) -> bool:
         return v_type in ("int", "f64", "i64", "u32", "u64", "i8", "i16", "u8", "u16")
@@ -409,18 +386,12 @@ class TranslatorBase(ast.NodeVisitor):
         return self.visit(node), [] # Fallback
 
 
-    def _check_experimental_type(self, type_str: str, node: ast.AST) -> None:
-        """Checks if a type is experimental and warns if the flag is not set."""
-        if "TypeForm" in type_str and not (self.config and self.config.experimental):
-             self.warnings.append(f"Experimental feature 'TypeForm' used at line {getattr(node, 'lineno', '?')} without --experimental flag.")
-
     def _guess_type(self, node: ast.AST) -> str:
         if isinstance(node, ast.Constant):
              if isinstance(node.value, bool): return "bool"
              if isinstance(node.value, int): return "int"
              if isinstance(node.value, float): return "f64"
              if isinstance(node.value, str): return "string"
-             if isinstance(node.value, bytes): return "[]u8"
              if isinstance(node.value, complex): return "PyComplex"
              if node.value is None: return "int"
              return "int"
@@ -433,56 +404,23 @@ class TranslatorBase(ast.NodeVisitor):
         elif isinstance(node, ast.Call):
             if isinstance(node.func, ast.Name):
                 fid = node.func.id
-                if fid == "str":
-                    if node.args and self._is_literal_string_expr(node.args[0]):
-                        return "LiteralString"
-                    return "string"
+                if fid == "str": return "string"
                 if fid == "int": return "int"
                 if fid == "float": return "f64"
                 if fid == "bool": return "bool"
                 if fid == "len": return "int"
                 if fid == "input": return "string"
-                if fid in ("bytearray", "memoryview", "bytes"): return "[]u8"
                 if fid in ("isinstance", "hasattr", "getattr", "setattr"): return "bool"
-                if fid in ("bytes", "bytearray", "memoryview"): return "[]u8"
-            elif isinstance(node.func, ast.Attribute) and node.func.attr == "bytes":
-                return "[]u8"
         elif isinstance(node, (ast.List, ast.Tuple)):
-            if not node.elts:
-                return "[]Any"
-            element_types = set()
-            for elt in node.elts:
-                if isinstance(elt, ast.Starred):
-                    element_types.add("Any")
-                else:
-                    element_types.add(self._guess_type(elt))
-            if len(element_types) == 1:
-                return f"[]{list(element_types)[0]}"
-            return "[]Any"
+            if node.elts:
+                return f"[]{self._guess_type(node.elts[0])}"
+            return "[]int"
         elif isinstance(node, ast.Dict):
-            if not node.keys:
-                return "map[string]Any"
-            key_types = set()
-            val_types = set()
-            for k, v in zip(node.keys, node.values):
-                if k is None: # Unpacking **expr
-                    key_types.add("string")
-                    val_types.add("Any")
-                else:
-                    key_types.add(self._guess_type(k))
-                    val_types.add(self._guess_type(v))
-
-            k_type = "string"
-            if len(key_types) == 1:
-                k_type = list(key_types)[0]
-            elif len(key_types) > 1:
-                k_type = "Any"
-
-            v_type = "Any"
-            if len(val_types) == 1:
-                v_type = list(val_types)[0]
-
-            return f"map[{k_type}]{v_type}"
+            if node.keys and node.keys[0]:
+                k_type = self._guess_type(node.keys[0])
+                v_type = self._guess_type(node.values[0])
+                return f"map[{k_type}]{v_type}"
+            return "map[string]int"
         elif isinstance(node, ast.Name):
             # Check for location-based type mapping (from mypy plugin)
             if hasattr(node, 'lineno') and hasattr(node, 'col_offset'):
@@ -523,8 +461,7 @@ class TranslatorBase(ast.NodeVisitor):
             # For Add/Sub/Mult/Mod/Pow, check operands
             if left.startswith("[]"): return left
             if right.startswith("[]"): return right
-            if left == "LiteralString" and right == "LiteralString": return "LiteralString"
-            if self._is_string_type(left) or self._is_string_type(right): return "string"
+            if left == "string" or right == "string": return "string"
             if left == "PyComplex" or right == "PyComplex": return "PyComplex"
             if left == "f64" or right == "f64": return "f64"
             return "int"

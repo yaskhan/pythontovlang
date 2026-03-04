@@ -30,7 +30,6 @@ This document lists all Python language features supported by the transpiler.
 | TypeVar | ✅ | Generics |
 | Required/NotRequired | ✅ | TypedDict fields |
 | Unpack | ✅ | TypedDict unpacking |
-| TypeForm | 🧪 | PEP 747 (mapped to `Any`). See limitations below. |
 
 ### Control Flow
 
@@ -269,12 +268,5 @@ This document lists all Python language features supported by the transpiler.
 ## Legend
 
 - ✅ = Fully supported
-- 🧪 = Experimental (requires `--experimental` flag)
 - ⚠️ = Partially supported (some features may not work)
 - ❌ = Not supported
-
-## Type Reification Limitations (PEP 747)
-
-Python's PEP 747 introduces `TypeForm[T]` to annotate values that represent a type itself. In V, there is no direct equivalent for runtime type reification that matches Python's dynamic nature.
-
-Currently, the transpiler maps `TypeForm[T]` to the V `Any` sum type. This allows the code to compile and run, but loses the static type-checking guarantees that Python's type checkers (like mypy) provide for `TypeForm`. Use this feature with caution and ensure that runtime type checks are performed if necessary.

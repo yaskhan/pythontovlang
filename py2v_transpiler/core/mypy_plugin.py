@@ -1,5 +1,5 @@
 from mypy.plugin import Plugin
-from typing import Any, Dict, Optional
+from typing import Any, Dict
 import json
 from collections import defaultdict
 import sys
@@ -19,7 +19,6 @@ class VlangPlugin(Plugin):
         self.collected_sigs: Dict[str, Dict[str, str]] = defaultdict(dict)
         self.collected_mutability: Dict[str, Dict[str, Any]] = defaultdict(dict)
         self._files_to_process = []
-        self.checker: Any = None
 
     def get_additional_deps(self, file: Any) -> Any:
         self._files_to_process.append(file)
@@ -27,7 +26,6 @@ class VlangPlugin(Plugin):
 
     def get_function_hook(self, fullname: str):
         def hook(ctx):
-            self.checker = ctx.api
             if hasattr(ctx.context, 'line'):
                 key = f"{ctx.context.line}:{ctx.context.column}"
                 self.collected_types[fullname][key] = str(ctx.default_return_type)
@@ -55,9 +53,14 @@ class VlangPlugin(Plugin):
                     if isinstance(ctx.default_return_type, Instance):
                         type_info = ctx.default_return_type.type
                         if 'dataclass' in type_info.metadata:
+                            # Use a specific hook to ensure metadata is captured
+                            # Actually, we can just attach it to sig_data and it should work if it's serializable
                             dataclass_metadata = type_info.metadata['dataclass']
+                            # Check for __post_init__
                             has_post_init = '__post_init__' in type_info.names
 
+                            # Mypy's metadata might contain non-serializable objects (like SymTableNode)
+                            # We need to extract only what we need.
                             serializable_meta = {
                                 "attributes": [],
                                 "frozen": dataclass_metadata.get("frozen", False),
@@ -92,7 +95,6 @@ class VlangPlugin(Plugin):
 
     def get_method_hook(self, fullname: str):
         def hook(ctx):
-            self.checker = ctx.api
             if hasattr(ctx.context, 'line'):
                 key = f"{ctx.context.line}:{ctx.context.column}"
                 self.collected_types[fullname][key] = str(ctx.default_return_type)
@@ -151,25 +153,6 @@ class VlangPlugin(Plugin):
     def report_config_data(self, ctx: Any) -> Any:
         global _global_collected_types, _global_collected_sigs, _global_collected_mutability
 
-        # Collect types from checker's type_map for narrowing
-        from mypy.nodes import NameExpr, MemberExpr, Var
-        if self.checker and hasattr(self.checker, 'type_map'):
-            for expr, typ in self.checker.type_map.items():
-                if isinstance(expr, (NameExpr, MemberExpr)):
-                    if hasattr(expr, 'line'):
-                        key = f"{expr.line}:{expr.column}"
-                        name = ""
-                        if isinstance(expr, NameExpr):
-                            name = expr.fullname or expr.name
-                        elif isinstance(expr, MemberExpr):
-                            # For member expressions, we want to store it by its full name if possible
-                            # but also by its location for the transpiler to find it.
-                            name = expr.name
-                            if expr.fullname:
-                                name = expr.fullname
-
-                        self.collected_types[name][key] = str(typ)
-
         # Collect mutability info from processed files
         from mypy.nodes import Var, FuncDef, Block, AssignmentStmt, NameExpr, MypyFile
 
@@ -192,7 +175,7 @@ class VlangPlugin(Plugin):
                     # Also store by simple name for easier lookup in some cases
                     _global_collected_types[node.name][key] = str(node.type)
 
-            # Manual traversal
+            # Manual traversal to avoid TypeError: interpreted classes cannot inherit from compiled traits
             from mypy.nodes import IfStmt, WhileStmt, ForStmt, TryStmt, ClassDef, MemberExpr
             if isinstance(node, MypyFile):
                 for name, sym in node.names.items():

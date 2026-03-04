@@ -207,9 +207,6 @@ def _map_ast_type(node: ast.AST, self_name: str = "Self", allow_union: bool = Fa
                 return mapped_args[0]
             return 'Any'
 
-        elif value_id == 'TypeForm':
-            return 'Any'
-
         elif value_id in ('Final', 'ClassVar', 'Annotated', 'ReadOnly'):
             # Strip
             if mapped_args:
@@ -260,8 +257,6 @@ def _map_basic_type(name: str) -> str:
         'dict': 'map[string]int',
         'tuple': '[]int',
         'set': 'map[int]bool',
-        'memoryview': '[]u8',
-        'bytearray': '[]u8',
         'IO': 'os.File',
         'TextIO': 'os.File',
         'BinaryIO': 'os.File',
@@ -285,16 +280,8 @@ def _map_basic_type(name: str) -> str:
         'builtins.float': 'f64',
         'builtins.str': 'string',
         'builtins.bool': 'bool',
-        'LiteralString': 'LiteralString',
-        'typing.LiteralString': 'LiteralString',
-        'typing_extensions.LiteralString': 'LiteralString',
-        'bytearray': '[]u8',
-        'memoryview': '[]u8',
         'LiteralString': 'string',
         'typing.LiteralString': 'string',
         'typing_extensions.LiteralString': 'string',
-        'TypeForm': 'Any',
-        'typing.TypeForm': 'Any',
-        'typing_extensions.TypeForm': 'Any',
     }
     return mapping.get(name, name)
