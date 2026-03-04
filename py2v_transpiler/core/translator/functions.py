@@ -142,6 +142,7 @@ class FunctionsMixin(TranslatorBase):
 
     def _generate_function_for_struct(self, node: Any, is_async: bool, is_method: bool, struct_name: str, dec_info: Any, is_generator: bool) -> None:
         self.output = []
+        old_indent = self._indent_level
         self._indent_level = 0
 
         # Handle decorators and check for @warnings.deprecated
@@ -494,6 +495,7 @@ class FunctionsMixin(TranslatorBase):
         self.output.append("}")
 
         self.emitter.add_function("\n".join(self.output))
+        self._indent_level = old_indent
 
         # We cannot just restore self.output to old_output entirely if it's called in a loop,
         # but since we create a new scope for the generated function, we append it to emitter.
@@ -546,6 +548,7 @@ class FunctionsMixin(TranslatorBase):
         for sig in self.overloaded_signatures[node.name]:
             old_output = self.output
             self.output = []
+            old_indent = self._indent_level
             self._indent_level = 0
 
             args_str_list: List[str] = []
@@ -641,6 +644,7 @@ class FunctionsMixin(TranslatorBase):
 
             self.emitter.add_function("\n".join(self.output))
             self.output = old_output
+            self._indent_level = old_indent
 
     def visit_Lambda(self, node: ast.Lambda) -> str:
         # lambda args: expr -> fn (args) { return expr }

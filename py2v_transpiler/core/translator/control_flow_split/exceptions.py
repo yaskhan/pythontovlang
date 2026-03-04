@@ -60,6 +60,11 @@ class ExceptionsMixin(TranslatorBase):
                 self.output.append(f"{self._indent()}    }}")
 
         self.vexc_depth += 1
+        success_var = f"_success_{self.unique_id_counter}"
+        self.unique_id_counter += 1
+        if node.orelse:
+            self.output.append(f"{self._indent()}mut {success_var} := false")
+
         self.output.append(f"{self._indent()}if C.try() {{")
         self._indent_level += 1
 
@@ -67,8 +72,7 @@ class ExceptionsMixin(TranslatorBase):
             self.visit(stmt)
 
         if node.orelse:
-            for stmt in node.orelse:
-                self.visit(stmt)
+            self.output.append(f"{self._indent()}{success_var} = true")
 
         self.output.append(f"{self._indent()}vexc.end_try()")
         self._indent_level -= 1
@@ -95,25 +99,28 @@ class ExceptionsMixin(TranslatorBase):
                  else:
                      has_default = True
 
+                 handler_opened_block = True
                  if has_default:
-                      prefix = "else"
+                      prefix = "else" if not is_first else ""
+                      if prefix:
+                           self.output.append(f"{self._indent()}{prefix} {{")
+                      else:
+                           handler_opened_block = False
                  else:
                       prefix = "if" if is_first else "else if"
-
-                 if has_default:
-                      self.output.append(f"{self._indent()}{prefix} {{")
-                 else:
                       self.output.append(f"{self._indent()}{prefix} {type_str} {{")
 
-                 self._indent_level += 1
+                 if handler_opened_block:
+                      self._indent_level += 1
                  if handler.name:
                       self.output.append(f"{self._indent()}{handler.name} := {exc_var}")
 
                  for stmt in handler.body:
                       self.visit(stmt)
 
-                 self._indent_level -= 1
-                 self.output.append(f"{self._indent()}}}")
+                 if handler_opened_block:
+                      self._indent_level -= 1
+                      self.output.append(f"{self._indent()}}}")
 
                  is_first = False
                  if has_default: break
@@ -129,6 +136,14 @@ class ExceptionsMixin(TranslatorBase):
 
         self._indent_level -= 1
         self.output.append(f"{self._indent()}}}")
+
+        if node.orelse:
+            self.output.append(f"{self._indent()}if {success_var} {{")
+            self._indent_level += 1
+            for stmt in node.orelse:
+                self.visit(stmt)
+            self._indent_level -= 1
+            self.output.append(f"{self._indent()}}}")
 
         if node.finalbody:
             self.finally_stack.pop()
