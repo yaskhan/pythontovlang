@@ -69,6 +69,9 @@ def _map_ast_type(node: ast.AST, self_name: str = "Self", allow_union: bool = Fa
                 return node.value
         return str(node.value)
 
+    elif isinstance(node, ast.Starred):
+        return _map_ast_type(node.value, self_name, allow_union, generic_map)
+
     elif isinstance(node, ast.Subscript):
         # Handle List[T], Dict[K,V], Optional[T], etc.
         value_id = ''
@@ -144,6 +147,9 @@ def _map_ast_type(node: ast.AST, self_name: str = "Self", allow_union: bool = Fa
                 arg_types = []
                 if isinstance(arg_list_node, ast.List):
                     arg_types = [_map_ast_type(a, self_name, allow_union, generic_map) for a in arg_list_node.elts]
+                elif isinstance(arg_list_node, ast.Name):
+                    # ParamSpec: Callable[P, Ret]
+                    pass
 
                 ret_type = _map_ast_type(ret_node, self_name, allow_union, generic_map)
                 return f"fn ({', '.join(arg_types)}) {ret_type}"

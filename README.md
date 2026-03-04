@@ -20,6 +20,8 @@ This transpiler supports a wide range of Python language features and standard l
     - `[name-defined]`: Variable and function declaration scope.
     - `[misc]` (for TypeForm): Experimental feature warnings.
 -   **Control Flow**: `if`, `elif`, `else`, `for`, `while`, `match`/`case` pattern matching.
+-   **Generics (PEP 695/696)**: Support for PEP 695 syntax (e.g. `def foo[T](x: T): ...`), including support for `ParamSpec` (`**P`) and `TypeVarTuple` (`*Ts`) in classes and functions.
+    - *Note on Limitations*: Due to V's current lack of native variadic generics and parameter specification variables, `ParamSpec` and `TypeVarTuple` are often erased to `Any` or simplified generic parameters in the generated V code.
 -   **Functions**: Function definitions, arguments, return values, lambdas, and decorators.
 -   **Object-Oriented Programming**: Classes, inheritance (via struct embedding), method overriding, `__init__`, and operator overloading (`__add__`, etc.).
 -   **Syntactic Sugar**: List comprehensions, f-strings, walrus operator (`:=`), slice notation (`list[1:3]`).
