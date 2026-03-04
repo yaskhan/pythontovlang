@@ -392,6 +392,7 @@ class TranslatorBase(ast.NodeVisitor):
              if isinstance(node.value, int): return "int"
              if isinstance(node.value, float): return "f64"
              if isinstance(node.value, str): return "string"
+             if isinstance(node.value, bytes): return "[]u8"
              if isinstance(node.value, complex): return "PyComplex"
              if node.value is None: return "int"
              return "int"
@@ -411,6 +412,9 @@ class TranslatorBase(ast.NodeVisitor):
                 if fid == "len": return "int"
                 if fid == "input": return "string"
                 if fid in ("isinstance", "hasattr", "getattr", "setattr"): return "bool"
+                if fid in ("bytes", "bytearray", "memoryview"): return "[]u8"
+            elif isinstance(node.func, ast.Attribute) and node.func.attr == "bytes":
+                return "[]u8"
         elif isinstance(node, (ast.List, ast.Tuple)):
             if node.elts:
                 return f"[]{self._guess_type(node.elts[0])}"

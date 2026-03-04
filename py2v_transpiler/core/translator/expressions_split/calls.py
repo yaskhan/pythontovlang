@@ -484,7 +484,30 @@ class CallsMixin(TranslatorBase):
         elif func_name_str == "bytes":
             # Handle bytes(msg, "utf8") or bytes(msg, encoding="utf8")
             if len(args) >= 1:
-                return f"{args[0]}.bytes()"
+                arg_type = self._guess_type(node.args[0])
+                if arg_type == "int":
+                    return f"[]u8{{len: {args[0]}}}"
+                if arg_type == "string":
+                    return f"{args[0]}.bytes()"
+                if arg_type == "[]u8":
+                    return f"{args[0]}.clone()"
+                return f"{args[0]}.clone()"
+            return "[]u8{}"
+        elif func_name_str == "bytearray":
+            if len(args) >= 1:
+                arg_type = self._guess_type(node.args[0])
+                if arg_type == "int":
+                    return f"[]u8{{len: {args[0]}}}"
+                if arg_type == "string":
+                    return f"{args[0]}.bytes()"
+                if arg_type == "[]u8":
+                    return f"{args[0]}.clone()"
+                return f"{args[0]}.clone()"
+            return "[]u8{}"
+        elif func_name_str == "memoryview":
+            if len(args) >= 1:
+                return f"{args[0]}"
+            return "[]u8{}"
 
         # Handle dataclass constructor call
         dataclass_metadata = None

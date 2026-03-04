@@ -250,6 +250,8 @@ def _map_basic_type(name: str) -> str:
         'dict': 'map[string]int',
         'tuple': '[]int',
         'set': 'map[int]bool',
+        'memoryview': '[]u8',
+        'bytearray': '[]u8',
         'IO': 'os.File',
         'TextIO': 'os.File',
         'BinaryIO': 'os.File',
