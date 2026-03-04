@@ -52,7 +52,10 @@ class ClassesMixin(TranslatorBase):
 
         if py_generics:
             self.current_class_generic_map.update(self._get_generic_map(py_generics))
-            self.current_class_generics = list(self.current_class_generic_map.values())
+
+        # Push class generic scope
+        self.generic_scopes.append(self.current_class_generic_map)
+        self.current_class_generics = self._get_all_active_v_generics()
 
         # Handle decorators
         decorators = []
@@ -138,7 +141,7 @@ class ClassesMixin(TranslatorBase):
                                         field_type = map_python_type_to_v(
                                             type_str,
                                             self_name=struct_name,
-                                            generic_map=self.current_class_generic_map,
+                                            generic_map=self._get_combined_generic_map(),
                                         )
                                     except Exception:
                                         if isinstance(stmt.annotation, ast.Name):
@@ -389,7 +392,7 @@ class ClassesMixin(TranslatorBase):
                     ):
                         type_str = ast.unparse(base)
                         v_type = map_python_type_to_v(
-                            type_str, generic_map=self.current_class_generic_map
+                            type_str, generic_map=self._get_combined_generic_map()
                         )
                         # V only allows anonymous embedding of structs/interfaces. Skip if it maps to array/map.
                         if not (v_type.startswith("[]") or v_type.startswith("map[")):
@@ -480,7 +483,7 @@ class ClassesMixin(TranslatorBase):
                             field_type = map_python_type_to_v(
                                 type_str,
                                 self_name=struct_name,
-                                generic_map=self.current_class_generic_map,
+                                generic_map=self._get_combined_generic_map(),
                             )
                         except Exception:
                             if isinstance(stmt.annotation, ast.Name):
@@ -554,7 +557,7 @@ class ClassesMixin(TranslatorBase):
                 norm_typ = raw_type.replace("builtins.", "")
                 try:
                     field_type = map_python_type_to_v(
-                        norm_typ, generic_map=self.current_class_generic_map
+                        norm_typ, generic_map=self._get_combined_generic_map()
                     )
                 except Exception:
                     field_type = "Any"
@@ -642,7 +645,7 @@ class ClassesMixin(TranslatorBase):
                             a_type = map_python_type_to_v(
                                 type_str,
                                 self_name=struct_name,
-                                generic_map=self.current_class_generic_map,
+                                generic_map=self._get_combined_generic_map(),
                             )
                         except:
                             pass
@@ -655,7 +658,7 @@ class ClassesMixin(TranslatorBase):
                         m_ret = map_python_type_to_v(
                             type_str,
                             self_name=struct_name,
-                            generic_map=self.current_class_generic_map,
+                            generic_map=self._get_combined_generic_map(),
                         )
                     except:
                         pass
@@ -814,6 +817,9 @@ class ClassesMixin(TranslatorBase):
             # Visit methods to generate them as functions
             for method in methods:
                 self.visit(method)
+
+        # Pop class generic scope
+        self.generic_scopes.pop()
 
         # Restore previous state
         self.class_stack.pop()
