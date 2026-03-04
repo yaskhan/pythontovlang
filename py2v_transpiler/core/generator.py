@@ -76,7 +76,14 @@ class VCodeEmitter:
             lines.append("")
 
         if self.structs:
-            lines.extend(self.structs)
+            # Deduplicate structs (preserving order roughly)
+            seen_structs = set()
+            unique_structs = []
+            for s in self.structs:
+                if s not in seen_structs:
+                    seen_structs.add(s)
+                    unique_structs.append(s)
+            lines.extend(unique_structs)
             lines.append("")
 
         if self.globals:

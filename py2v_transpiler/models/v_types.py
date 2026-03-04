@@ -118,8 +118,14 @@ def _map_ast_type(node: ast.AST, self_name: str = "Self", allow_union: bool = Fa
             if all(arg == first for arg in mapped_args):
                 return f"[]{first}"
 
-            # Tuple[int, str] -> []Any
-            return "[]Any"
+            # Heterogeneous Tuple -> specialized struct PyTuple_T1_T2
+            sanitized_args = []
+            for arg in mapped_args:
+                sa = arg.replace("[]", "arr_").replace("?", "opt_").replace("map[", "map_").replace("]", "").replace(".", "_").replace(" ", "").replace("|", "_or_")
+                sanitized_args.append(sa)
+
+            struct_name = f"PyTuple_{'_'.join(sanitized_args)}"
+            return struct_name
 
         elif value_id == 'Optional':
             if mapped_args:

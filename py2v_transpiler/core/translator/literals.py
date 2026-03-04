@@ -177,6 +177,15 @@ class LiteralsMixin(TranslatorBase):
         return f"map[int]bool{{{', '.join(elements)}}}"
 
     def visit_Tuple(self, node: ast.Tuple) -> str:
+        # Check for heterogeneous tuple -> struct initialization
+        v_type = self._guess_type(node)
+        if v_type.startswith("PyTuple_"):
+            elements = []
+            for i, elt in enumerate(node.elts):
+                val = self.visit(elt)
+                elements.append(f"f{i}: {val}")
+            return f"{v_type}{{{', '.join(elements)}}}"
+
         # Translate Tuple (a, b) to Array [a, b]
         # Check for starred elements
         has_starred = any(isinstance(elt, ast.Starred) for elt in node.elts)

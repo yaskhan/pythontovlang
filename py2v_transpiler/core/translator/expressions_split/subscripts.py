@@ -69,6 +69,11 @@ class SubscriptsMixin(TranslatorBase):
                 self.used_builtins.add("py_slice")
                 return f"py_slice({value}, {lower}, {upper})"
         else:
+            # Check if we are accessing a tuple struct
+            if val_type.startswith("PyTuple_"):
+                if isinstance(node.slice, ast.Constant) and isinstance(node.slice.value, int):
+                    return f"{value}.f{node.slice.value}"
+
             index = self.visit(node.slice)
             if is_native:
                 return f"{value}[{index}]"

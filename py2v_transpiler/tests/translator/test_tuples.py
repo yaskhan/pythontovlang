@@ -21,12 +21,11 @@ def test_translator_tuple_mixed():
     analyzer = TypeInference()
     translator = VNodeVisitor(analyzer)
 
-    # Mixed type tuples map to arrays in V, which requires sum types or Any.
-    # Our current simplistic translator will just emit [1, 'a'], which might be invalid V without casting.
-    # But for now we just verify the translation logic.
+    # Mixed type tuples map to specialized structs in V for type safety.
     code = "t = (1, 'a')"
     tree = parser.parse(code)
     analyzer.analyze(tree)
     result = translator.visit_Module(tree)
 
-    assert "t := [1, 'a']" in result
+    assert "struct PyTuple_int_string" in result
+    assert "t := PyTuple_int_string{f0: 1, f1: 'a'}" in result

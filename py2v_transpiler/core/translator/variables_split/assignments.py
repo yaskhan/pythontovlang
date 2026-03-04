@@ -43,6 +43,65 @@ class AssignmentsMixin(TranslatorBase):
         if isinstance(target, ast.Name):
             lhs = self._sanitize_name(target.id)
 
+            # Check for functional NamedTuple: User = NamedTuple('User', [('id', int), ('name', str)])
+            is_functional_namedtuple = False
+            if isinstance(node.value, ast.Call) and isinstance(node.value.func, ast.Name) and node.value.func.id == "NamedTuple":
+                is_functional_namedtuple = True
+            elif isinstance(node.value, ast.Call) and isinstance(node.value.func, ast.Attribute) and node.value.func.attr == "NamedTuple":
+                is_functional_namedtuple = True
+
+            if is_functional_namedtuple:
+                # Arg 1 is name, Arg 2 is list of fields
+                if len(node.value.args) >= 2:
+                    fields = []
+                    fields_list = node.value.args[1]
+                    if isinstance(fields_list, (ast.List, ast.Tuple)):
+                        for elt in fields_list.elts:
+                            if isinstance(elt, (ast.Tuple, ast.List)) and len(elt.elts) == 2:
+                                field_name = ""
+                                if isinstance(elt.elts[0], ast.Constant) and isinstance(elt.elts[0].value, str):
+                                    field_name = self._sanitize_name(elt.elts[0].value)
+
+                                field_type = "int"
+                                try:
+                                    type_str = ast.unparse(elt.elts[1])
+                                    field_type = map_python_type_to_v(type_str)
+                                except:
+                                    pass
+
+                                if field_name:
+                                    fields.append(f"    {field_name} {field_type}")
+
+                    if fields:
+                        struct_def = f"struct {lhs} {{\n" + "\n".join(fields) + "\n}"
+                        self.emitter.add_struct(struct_def)
+                        return
+
+            # Check for Literal enum alias: Color = Literal["red", "green"]
+            if isinstance(node.value, ast.Subscript) and isinstance(node.value.value, ast.Name) and node.value.value.id == "Literal":
+                # Extract literals
+                args = []
+                if isinstance(node.value.slice, ast.Tuple):
+                    args = node.value.slice.elts
+                else:
+                    args = [node.value.slice]
+
+                enum_fields = []
+                for i, arg in enumerate(args):
+                    if isinstance(arg, ast.Constant):
+                        if isinstance(arg.value, str):
+                            member_name = self._sanitize_name(arg.value.lower())
+                            if not member_name or not member_name[0].isalpha():
+                                member_name = f"val_{member_name or i}"
+                            enum_fields.append(f"    {member_name}")
+                        elif isinstance(arg.value, int):
+                            enum_fields.append(f"    val_{arg.value} = {arg.value}")
+
+                if enum_fields:
+                    enum_def = f"enum {lhs} {{\n" + "\n".join(enum_fields) + "\n}"
+                    self.emitter.add_struct(enum_def)
+                    return
+
             # Check for NewType: UserId = NewType('UserId', int)
             if isinstance(node.value, ast.Call) and isinstance(node.value.func, ast.Name) and node.value.func.id == "NewType":
                 if len(node.value.args) == 2:

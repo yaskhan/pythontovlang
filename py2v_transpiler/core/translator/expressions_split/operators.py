@@ -88,12 +88,12 @@ class OperatorsMixin(TranslatorBase):
              # For other unknown/primitive types, we use functional casting `type(x)`.
              if left_type == "Any":
                   left = f"({left} as {op_type})"
-             elif left_type != op_type:
+             elif left_type != op_type and left_type != "unknown":
                   left = f"{op_type}({left})"
 
              if right_type == "Any":
                   right = f"({right} as {op_type})"
-             elif right_type != op_type:
+             elif right_type != op_type and right_type != "unknown":
                   right = f"{op_type}({right})"
 
         if left_type == "PyComplex" and right_type != "PyComplex":

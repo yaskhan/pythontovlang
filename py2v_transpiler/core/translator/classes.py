@@ -501,17 +501,27 @@ class ClassesMixin(TranslatorBase):
                             except Exception:
                                 pass
 
-                    if is_dataclass or is_typed_dict:
-                        dataclass_field_order.append(field_name)
-                        if stmt.value:
-                            default_val = self.visit(stmt.value)
-                            fields.append(
-                                f"    {field_name} {field_type} = {default_val}"
-                            )
-                        else:
-                            fields.append(f"    {field_name} {field_type}")
+                if is_dataclass or is_typed_dict or is_named_tuple:
+                    dataclass_field_order.append(field_name)
+                    # For dataclasses with metadata, field_type might not be set in this loop iteration
+                    # if it was skipped for processed later.
+                    # But here we are in the AnnAssign visitor, so it SHOULD be set if it's not a duplicate.
+                    # If it's a dataclass with metadata, we might have skipped 'added_fields.add(field_name)'
+                    # but we didn't skip 'field_type' assignment unless we are in the metadata branch.
+
+                    # Ensure field_type is available.
+                    if 'field_type' not in locals():
+                         field_type = "Any"
+
+                    if stmt.value:
+                        default_val = self.visit(stmt.value)
+                        fields.append(
+                            f"    {field_name} {field_type} = {default_val}"
+                        )
                     else:
                         fields.append(f"    {field_name} {field_type}")
+                else:
+                    fields.append(f"    {field_name} {field_type}")
             elif isinstance(stmt, ast.Assign):
                 # Check for __slots__
                 for target in stmt.targets:
@@ -592,7 +602,7 @@ class ClassesMixin(TranslatorBase):
                 dataclass_field_order.append(field_name)
                 fields.append(f"    {field_name} {field_type}{default_str}")
 
-        if is_dataclass or is_typed_dict:
+        if is_dataclass or is_typed_dict or is_named_tuple:
             if not hasattr(self, "dataclasses"):
                 self.dataclasses = {}
             self.dataclasses[struct_name] = dataclass_field_order

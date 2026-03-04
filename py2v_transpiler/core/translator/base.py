@@ -122,6 +122,7 @@ class TranslatorBase(ast.NodeVisitor):
         self.current_module_name: str = "main"
         self.current_file_name: str = ""
         self.scc_files: Set[str] = set()
+        self.required_tuple_structs: Set[str] = set()
 
     def _indent(self) -> str:
         return "    " * self._indent_level
@@ -384,9 +385,35 @@ class TranslatorBase(ast.NodeVisitor):
                 if fid == "input": return "string"
                 if fid in ("isinstance", "hasattr", "getattr", "setattr"): return "bool"
         elif isinstance(node, (ast.List, ast.Tuple)):
-            if node.elts:
-                return f"[]{self._guess_type(node.elts[0])}"
-            return "[]int"
+            if not node.elts:
+                return "[]int"
+
+            types = [self._guess_type(elt) for elt in node.elts]
+            if all(t == types[0] for t in types):
+                return f"[]{types[0]}"
+
+            # Heterogeneous tuple -> struct
+            if isinstance(node, ast.Tuple):
+                sanitized_args = []
+                for t in types:
+                    sa = t.replace("[]", "arr_").replace("?", "opt_").replace("map[", "map_").replace("]", "").replace(".", "_").replace(" ", "").replace("|", "_or_")
+                    sanitized_args.append(sa)
+
+                struct_name = f"PyTuple_{'_'.join(sanitized_args)}"
+                if not hasattr(self, 'required_tuple_structs'):
+                    self.required_tuple_structs = set()
+                self.required_tuple_structs.add(struct_name)
+
+                # Emit struct if not already done
+                fields = []
+                for i, t in enumerate(types):
+                    fields.append(f"    f{i} {t}")
+
+                struct_def = f"struct {struct_name} {{\n" + "\n".join(fields) + "\n}"
+                self.emitter.add_struct(struct_def)
+                return struct_name
+
+            return "[]Any"
         elif isinstance(node, ast.Dict):
             if node.keys and node.keys[0]:
                 k_type = self._guess_type(node.keys[0])
