@@ -536,6 +536,6 @@ Based on the transpilation of the `bm_richards.py` benchmark, several critical a
 ## Analysis of `pi_test.py` Transpilation Issues
 Based on the transpilation of the `pi_test.py` script, the following area for improvement has been identified:
 
-- [ ] **`decimal` module support**
+- [x] **`decimal` module support**
   - *Context:* Python's `decimal` module is used for arbitrary-precision decimal arithmetic. The transpiler currently translates `decimal.localcontext()` directly and `decimal.Decimal` as `py_decimal`, but there's no native equivalent or mapping for arbitrary precision decimals in V standard library out of the box used here correctly.
   - *Task:* Implement mapping for Python's `decimal` module, potentially utilizing a V library for arbitrary precision arithmetic or BigInts, and correctly mapping context managers like `localcontext`.

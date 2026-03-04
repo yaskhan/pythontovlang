@@ -26,3 +26,19 @@ i = decimal.Decimal(1)
     # assert "d := decimal.Decimal('1.1')" in v_code # Raw translation
     # If mapped:
     assert "d := py_decimal('1.1')" in v_code
+
+def test_decimal_context():
+    source = """
+import decimal
+
+def calc():
+    with decimal.localcontext() as ctx:
+        ctx.prec = 50
+        decimal.getcontext().prec = 50
+        d = decimal.Decimal("3.14159")
+"""
+    v_code = translate(source)
+    assert "ctx := py_decimal_localcontext()" in v_code
+    assert "defer { ctx.close() }" in v_code
+    assert "ctx.prec = 50" in v_code
+    assert "py_decimal_getcontext().prec = 50" in v_code

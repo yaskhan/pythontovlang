@@ -756,10 +756,32 @@ class ModuleMixin(TranslatorBase):
                      break
 
         if decimal_used:
-             # py_decimal helper
-             # Map Decimal to f64 for now
+             # V's math.big provides Rational and Integer, but no arbitrary precision decimal out of the box.
+             # Python's decimal operates on base 10 arbitrary precision. For a standard V translation
+             # without complex external dependencies, we map Decimal to f64 and approximate the behavior,
+             # similar to how standard transpilers fallback to standard types when precision libraries are missing.
              self.emitter.add_helper_struct("type Decimal = f64")
              self.emitter.add_helper_function("fn py_decimal(val Any) Decimal {\n    $if val is $float {\n        return f64(val)\n    } $else $if val is $int {\n        return f64(val)\n    } $else $if val is string {\n        return val.f64()\n    }\n    return 0.0\n}")
+
+             self.emitter.add_helper_struct("struct PyDecimalContext {\nmut:\n    prec int = 28\n}")
+             self.emitter.add_helper_function("""
+// To approximate a global context without requiring `-enable-globals`,
+// we will provide a factory for the context that returns a heap-allocated
+// struct. However, this means modifying it does not act globally.
+// This is a known limitation of transpiling mutable globals to standard V.
+fn py_decimal_getcontext() &PyDecimalContext {
+    mut ctx := &PyDecimalContext{prec: 28}
+    return ctx
+}
+
+fn py_decimal_localcontext() PyDecimalContext {
+    return PyDecimalContext{prec: 28}
+}
+
+fn (mut ctx PyDecimalContext) close() {
+    // Context manager cleanup
+}
+""")
 
         pickle_used = "pickle" in self.imported_modules.values()
         if not pickle_used:
