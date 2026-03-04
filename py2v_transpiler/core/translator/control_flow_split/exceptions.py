@@ -1,4 +1,5 @@
 import ast
+from typing import Any
 from ..base import TranslatorBase
 
 class ExceptionsMixin(TranslatorBase):
@@ -143,4 +144,7 @@ class ExceptionsMixin(TranslatorBase):
     # V does not natively support Python exception groups (PEP 654).
     # Since PEP 758 allows bracketless except*, we alias TryStar to Try
     # so that basic exception handling can still happen rather than crashing.
-    visit_TryStar = visit_Try
+    # Note: ast.TryStar is only available in Python 3.11+.
+    # We use Any to avoid AttributeError on older versions during class definition.
+    def visit_TryStar(self, node: Any) -> None:
+        return self.visit_Try(node)  # type: ignore[arg-type]
