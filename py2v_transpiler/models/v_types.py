@@ -19,6 +19,10 @@ def map_python_type_to_v(py_type: str, self_name: str = "Self", allow_union: boo
     if not py_type:
         return 'void'
 
+    # Handle leading * for TypeVarTuple in annotations
+    if py_type.startswith('*') and not py_type.startswith('**'):
+        py_type = py_type[1:]
+
     # Strip surrounding quotes for forward references
     if (py_type.startswith("'") and py_type.endswith("'")) or \
        (py_type.startswith('"') and py_type.endswith('"')):
@@ -65,6 +69,14 @@ def _map_ast_type(node: ast.AST, self_name: str = "Self", allow_union: bool = Fa
             parts.append(curr.attr)
             curr = curr.value
         if isinstance(curr, ast.Name):
+            if generic_map and curr.id in generic_map:
+                # ParamSpec: P.args / P.kwargs
+                v_gen = generic_map[curr.id]
+                if node.attr == 'args':
+                    return v_gen
+                if node.attr == 'kwargs':
+                    return "map[string]Any"
+
             parts.append(curr.id)
             full_name = ".".join(reversed(parts))
             return _map_basic_type(full_name)

@@ -69,7 +69,7 @@ This document lists all Python language features supported by the transpiler.
 | Bi-directional generators | ✅ | `send()`, `throw()`, `close()` |
 | singledispatch | ✅ | `functools.singledispatch` |
 | Overload decorator | ✅ | `@overload` |
-| Type parameters (PEP 695) | ✅ | Python 3.12+ syntax |
+| Type parameters (PEP 695) | ✅ | Python 3.12+ full support including ParamSpec and TypeVarTuple |
 
 ### Object-Oriented Programming
 
