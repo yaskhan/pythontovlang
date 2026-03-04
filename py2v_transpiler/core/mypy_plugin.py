@@ -169,6 +169,11 @@ class VlangPlugin(Plugin):
                     "is_reassigned": getattr(node, "is_reassigned", False),
                     "is_final": node.is_final
                 }
+                # Also store type if available
+                if hasattr(node, "type") and node.type:
+                    _global_collected_types[node.fullname][key] = str(node.type)
+                    # Also store by simple name for easier lookup in some cases
+                    _global_collected_types[node.name][key] = str(node.type)
 
             # Manual traversal to avoid TypeError: interpreted classes cannot inherit from compiled traits
             from mypy.nodes import IfStmt, WhileStmt, ForStmt, TryStmt, ClassDef, MemberExpr

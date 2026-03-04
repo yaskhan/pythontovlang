@@ -368,7 +368,7 @@ class FunctionsMixin(TranslatorBase):
 
         if node.args.vararg:
             arg_name = self._sanitize_name(node.args.vararg.arg)
-            arg_type = "int"  # Default
+            arg_type = "Any"  # Default
             if node.args.vararg.annotation:
                 try:
                     type_str = ast.unparse(node.args.vararg.annotation)
@@ -379,12 +379,22 @@ class FunctionsMixin(TranslatorBase):
                     )
                 except Exception:
                     pass
+            else:
+                # Try inference
+                arg_node = node.args.vararg
+                loc_key = f"{arg_node.arg}@{arg_node.lineno}:{arg_node.col_offset}"
+                arg_type = self.type_inference.type_map.get(loc_key, self.type_inference.type_map.get(arg_node.arg, "Any"))
+
+            # If it's a V array type []T, strip it for variadic ...T
+            if arg_type.startswith("[]"):
+                arg_type = arg_type[2:]
+
             args_str_list.append(f"{arg_name} ...{arg_type}")
             args_names.append(arg_name)
 
         if node.args.kwarg:
             arg_name = self._sanitize_name(node.args.kwarg.arg)
-            arg_type = "map[string]string"
+            arg_type = "map[string]Any"  # Default
             if node.args.kwarg.annotation:
                 try:
                     type_str = ast.unparse(node.args.kwarg.annotation)
@@ -395,6 +405,16 @@ class FunctionsMixin(TranslatorBase):
                     )
                 except Exception:
                     pass
+            else:
+                # Try inference
+                arg_node = node.args.kwarg
+                loc_key = f"{arg_node.arg}@{arg_node.lineno}:{arg_node.col_offset}"
+                arg_type = self.type_inference.type_map.get(loc_key, self.type_inference.type_map.get(arg_node.arg, "map[string]Any"))
+
+            # Ensure it is a map for **kwargs
+            if not arg_type.startswith("map["):
+                arg_type = f"map[string]{arg_type}"
+
             args_str_list.append(f"{arg_name} {arg_type}")
             args_names.append(arg_name)
 
