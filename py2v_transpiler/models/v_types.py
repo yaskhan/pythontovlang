@@ -37,6 +37,13 @@ def map_python_type_to_v(py_type: str, self_name: str = "Self", allow_union: boo
     if py_type == 'builtins.float': return 'f64'
     if py_type == 'builtins.str': return 'string'
     if py_type == 'builtins.bool': return 'bool'
+    if py_type.startswith('builtins.tuple['):
+        # builtins.tuple[int, ...] -> []int
+        # builtins.tuple[Any, ...] -> []Any
+        # Handled more robustly via AST below if we just strip the prefix
+        py_type = py_type.replace('builtins.', '')
+    if py_type.startswith('builtins.dict['):
+        py_type = py_type.replace('builtins.', '')
 
     if generic_map and py_type in generic_map:
         return generic_map[py_type]
@@ -119,20 +126,20 @@ def _map_ast_type(node: ast.AST, self_name: str = "Self", allow_union: bool = Fa
         # Helper to map args, handling nested types
         mapped_args = [_map_ast_type(arg, self_name, allow_union, generic_map) for arg in args]
 
-        if value_id in ('List', 'list', 'Sequence', 'MutableSequence', 'Iterable', 'Iterator'):
+        if value_id in ('List', 'list', 'Sequence', 'MutableSequence', 'Iterable', 'Iterator', 'tuple'):
             if mapped_args:
                 return f"[]{mapped_args[0]}"
             return "[]int" # fallback
-
-        elif value_id in ('Set', 'set', 'FrozenSet', 'MutableSet', 'AbstractSet'):
-            if mapped_args:
-                return f"map[{mapped_args[0]}]bool"
-            return "map[int]bool" # fallback
 
         elif value_id in ('Dict', 'dict', 'Mapping', 'MutableMapping'):
             if len(mapped_args) >= 2:
                 return f"map[{mapped_args[0]}]{mapped_args[1]}"
             return "map[string]int" # fallback
+
+        elif value_id in ('Set', 'set', 'FrozenSet', 'MutableSet', 'AbstractSet'):
+            if mapped_args:
+                return f"map[{mapped_args[0]}]bool"
+            return "map[int]bool" # fallback
 
         elif value_id in ('IO', 'TextIO'):
             if len(mapped_args) >= 1 and mapped_args[0] == 'string':

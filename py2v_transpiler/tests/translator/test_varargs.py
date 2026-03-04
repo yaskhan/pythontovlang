@@ -17,7 +17,7 @@ def f(*args):
     pass
 """
     v_code = transpile(code)
-    assert "fn f(args ...int)" in v_code
+    assert "fn f(args ...Any)" in v_code
 
 def test_varargs_mixed():
     code = """
@@ -25,7 +25,7 @@ def f(a, *b):
     pass
 """
     v_code = transpile(code)
-    assert "fn f(a int, b ...int)" in v_code
+    assert "fn f(a int, b ...Any)" in v_code
 
 def test_varargs_with_type_annotation():
     code = """
