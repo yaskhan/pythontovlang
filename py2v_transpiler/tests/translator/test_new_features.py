@@ -29,7 +29,8 @@ def test_bitwise_ops():
 def test_if_exp():
     code = "x = 1 if y else 2"
     v_code = _transpile(code)
-    assert "if y { 1 } else { 2 }" in v_code
+    # y is inferred as int by fallback, so it's y != 0
+    assert "if y != 0 { 1 } else { 2 }" in v_code
 
 def test_dataclass():
     code = """

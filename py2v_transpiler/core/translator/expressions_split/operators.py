@@ -218,13 +218,16 @@ class OperatorsMixin(TranslatorBase):
         values = []
         for i, val in enumerate(node.values):
             # The first value is considered left-hand side, the rest right-hand side.
-            values.append(str(self._visit_with_parens(node, val, is_right_operand=(i > 0))))
+            values.append(self._wrap_bool(val, parent=node, is_right_operand=(i > 0)))
         return f" {op_str} ".join(values)
 
     def visit_UnaryOp(self, node: ast.UnaryOp) -> str:
+        if isinstance(node.op, ast.Not):
+             return self._wrap_bool(node.operand, invert=True)
+
         operand = self._visit_with_parens(node, node.operand, is_right_operand=True)
         op_map = {
-            ast.Not: "!", ast.UAdd: "+", ast.USub: "-",
+            ast.UAdd: "+", ast.USub: "-",
             ast.Invert: "~"
         }
         op_str = op_map.get(type(node.op), "?")
