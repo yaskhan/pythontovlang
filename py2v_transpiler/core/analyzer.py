@@ -465,13 +465,18 @@ class TypeInference(ast.NodeVisitor):
                 for fullname, types in collected_types.items():
                     for location, typ in types.items():
                         v_type = map_python_type_to_v(typ)
-                        # Extract the variable or function name from fullname if possible
-                        # For now, we will just store it by location as well, or we can use it during transpilation
-                        # but keeping it in self.type_map via a generic key might be tricky.
-                        # We map it by line:column string for potential later use.
+                        # Store by fullname@location and name@location for precise lookup
                         self.type_map[f"{fullname}@{location}"] = v_type
+                        name = fullname.split('.')[-1]
+                        self.type_map[f"{name}@{location}"] = v_type
 
-                        # Populate location_map for O(1) lookups by location (handling potential float vs int overloads)
+                        # Store base type if location-less entry is missing
+                        if fullname not in self.type_map:
+                            self.type_map[fullname] = v_type
+                        if name not in self.type_map:
+                            self.type_map[name] = v_type
+
+                        # Populate location_map for O(1) lookups by location
                         if (
                             "builtins.float" in fullname
                             or location not in self.location_map

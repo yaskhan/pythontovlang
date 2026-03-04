@@ -689,7 +689,7 @@ class ClassesMixin(TranslatorBase):
             # Register that this class has a custom factory
             if not hasattr(self, "defined_classes"):
                 self.defined_classes = {}
-            self.defined_classes[struct_name] = {"has_init": True, "has_new": True}
+            self.defined_classes[struct_name] = {"has_init": True, "has_new": False}
 
         if is_unittest:
             self.current_class_is_unittest = True

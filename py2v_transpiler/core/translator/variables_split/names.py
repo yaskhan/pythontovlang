@@ -17,7 +17,23 @@ class NamesMixin(TranslatorBase):
         name = self._mangle_name(node.id, self.current_class)
 
         # Avoid prefixing local variables in SCC
+        res = self._sanitize_name(name)
         if name in self._local_vars_in_scope:
-            return self._sanitize_name(name)
+            res = self._sanitize_name(name)
 
-        return self._sanitize_name(name)
+        # Apply narrowing if mypy type differs from base type
+        if isinstance(node.ctx, ast.Load):
+            # Check for location-based narrowing first
+            narrowed_type = None
+            if hasattr(node, 'lineno') and hasattr(node, 'col_offset'):
+                loc_key = f"{node.id}@{node.lineno}:{node.col_offset}"
+                narrowed_type = self.type_inference.type_map.get(loc_key)
+
+            base_type = self.type_inference.type_map.get(node.id)
+
+            if narrowed_type and narrowed_type not in ("int", "Any", "void"):
+                 # If base type is unknown or differs from narrowed, apply cast
+                 if not base_type or (narrowed_type != base_type and not (base_type.startswith("?") and base_type[1:] == narrowed_type)):
+                      res = f"({res} as {narrowed_type})"
+
+        return res
