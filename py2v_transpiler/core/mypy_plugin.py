@@ -8,7 +8,7 @@ import sys
 # This is accessed from py2v_transpiler.core.analyzer
 _global_collected_types: Dict[str, Dict[str, str]] = defaultdict(dict)
 _global_collected_sigs: Dict[str, Dict[str, str]] = defaultdict(dict)
-_global_collected_mutability: Dict[str, Dict[str, Dict[str, bool]]] = defaultdict(dict)
+_global_collected_mutability: Dict[str, Dict[str, Any]] = defaultdict(dict)
 
 class VlangPlugin(Plugin):
     """Mypy plugin for py2v_transpiler to extract type information."""
@@ -17,7 +17,7 @@ class VlangPlugin(Plugin):
         super().__init__(options)
         self.collected_types: Dict[str, Dict[str, str]] = defaultdict(dict)
         self.collected_sigs: Dict[str, Dict[str, str]] = defaultdict(dict)
-        self.collected_mutability: Dict[str, Dict[str, Dict[str, bool]]] = defaultdict(dict)
+        self.collected_mutability: Dict[str, Dict[str, Any]] = defaultdict(dict)
         self._files_to_process = []
 
     def get_additional_deps(self, file: Any) -> Any:
@@ -162,7 +162,7 @@ class VlangPlugin(Plugin):
                 collect_vars(node.body, collected, visited)
                 for h in node.handlers: collect_vars(h.body, collected, visited)
                 collect_vars(node.else_body, collected, visited)
-                collect_vars(node.finally_block, collected, visited)
+                collect_vars(node.finally_body, collected, visited)
             elif isinstance(node, AssignmentStmt):
                 for lvalue in node.lvalues:
                     collect_vars(lvalue, collected, visited)
