@@ -9,6 +9,7 @@ from py2v_transpiler.core.parser import PyASTParser
 from py2v_transpiler.core.analyzer import TypeInference
 from py2v_transpiler.core.translator import VNodeVisitor
 from py2v_transpiler.core.dependencies import DependencyAnalyzer
+from py2v_transpiler.core.mypy_tips import get_mypy_tips
 
 class Transpiler:
     def transpile(self, source_code: str) -> str:
@@ -107,7 +108,15 @@ def transpile_file(source_file: str, config: TranspilerConfig, global_helpers: O
     # 3. Analyze types
     analyzer = TypeInference()
     if config.mypy_enabled:
-        analyzer.run_mypy(source_file)
+        stdout, stderr, exit_code = analyzer.run_mypy(source_file)
+        if exit_code != 0:
+            print(f"Mypy found errors in {source_file}:")
+            print(stdout)
+            if stderr:
+                print(stderr, file=sys.stderr)
+            tips = get_mypy_tips(stdout)
+            if tips:
+                print(tips)
 
     # Run basic AST visitor for type inference regardless of mypy
     analyzer.analyze(tree)

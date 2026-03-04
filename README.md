@@ -8,6 +8,17 @@ This transpiler supports a wide range of Python language features and standard l
 
 ### Core Language Support
 -   **Variables & Types**: Type inference using `mypy` (int, float, bool, str, lists, dicts, tuples, sets).
+-   **Mypy Error Tips**: Translates common mypy error codes into actionable V-specific guidance to help fix type issues for better transpilation. Supported mappings:
+    - `[union-attr]`: Guidance on type checking before attribute access.
+    - `[arg-type]`: Strict argument typing requirements in V.
+    - `[return-value]`: Matching return values to signatures.
+    - `[assignment]`: Static typing and reassignment restrictions.
+    - `[index]`: Integer index and map key type requirements.
+    - `[attr-defined]`: Struct field and method existence.
+    - `[operator]`: Operand type compatibility.
+    - `[call-arg]`: Exact parameter count matching.
+    - `[name-defined]`: Variable and function declaration scope.
+    - `[misc]` (for TypeForm): Experimental feature warnings.
 -   **Control Flow**: `if`, `elif`, `else`, `for`, `while`, `match`/`case` pattern matching.
 -   **Functions**: Function definitions, arguments, return values, lambdas, and decorators.
 -   **Object-Oriented Programming**: Classes, inheritance (via struct embedding), method overriding, `__init__`, and operator overloading (`__add__`, etc.).
