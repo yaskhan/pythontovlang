@@ -334,6 +334,14 @@ class TranslatorBase(ast.NodeVisitor):
                 if hasattr(self.type_inference, "type_map") and attr_name in self.type_inference.type_map:
                     return self.type_inference.type_map[attr_name]
             return "Any"
+        elif isinstance(node, ast.Subscript):
+            if isinstance(node.value, ast.Attribute) and isinstance(node.value.value, ast.Name):
+                if node.value.value.id == "sys" and node.value.attr == "argv":
+                    return "string"
+            elif isinstance(node.value, ast.Name):
+                if node.value.id == "argv": # Common if from sys import argv
+                    return "string"
+            return "Any"
         elif isinstance(node, ast.BinOp):
             left = self._guess_type(node.left)
             right = self._guess_type(node.right)

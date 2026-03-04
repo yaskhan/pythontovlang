@@ -475,7 +475,8 @@ class CallsMixin(TranslatorBase):
                 return f"{args[0]}.str()"
             return "''"
         elif func_name_str == "bytes":
-            if len(args) == 2:
+            # Handle bytes(msg, "utf8") or bytes(msg, encoding="utf8")
+            if len(args) >= 1:
                 return f"{args[0]}.bytes()"
 
         # Handle dataclass constructor call
