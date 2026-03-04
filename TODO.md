@@ -176,6 +176,7 @@
 - [x] Support for 'enum.Flag' and 'enum.auto()'
 - [x] Support for 'functools.partial' translation
 - [x] Support for 'functools.singledispatch'
+- [x] Support for 'PEP 747: TypeForm[T]' (mapped to Any)
 
 ## Infrastructure & Tooling
 - [x] Set up comprehensive test suite (pytest)
