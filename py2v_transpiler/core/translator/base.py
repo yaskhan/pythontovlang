@@ -412,15 +412,41 @@ class TranslatorBase(ast.NodeVisitor):
                 if fid == "input": return "string"
                 if fid in ("isinstance", "hasattr", "getattr", "setattr"): return "bool"
         elif isinstance(node, (ast.List, ast.Tuple)):
-            if node.elts:
-                return f"[]{self._guess_type(node.elts[0])}"
-            return "[]int"
+            if not node.elts:
+                return "[]Any"
+            element_types = set()
+            for elt in node.elts:
+                if isinstance(elt, ast.Starred):
+                    element_types.add("Any")
+                else:
+                    element_types.add(self._guess_type(elt))
+            if len(element_types) == 1:
+                return f"[]{list(element_types)[0]}"
+            return "[]Any"
         elif isinstance(node, ast.Dict):
-            if node.keys and node.keys[0]:
-                k_type = self._guess_type(node.keys[0])
-                v_type = self._guess_type(node.values[0])
-                return f"map[{k_type}]{v_type}"
-            return "map[string]int"
+            if not node.keys:
+                return "map[string]Any"
+            key_types = set()
+            val_types = set()
+            for k, v in zip(node.keys, node.values):
+                if k is None: # Unpacking **expr
+                    key_types.add("string")
+                    val_types.add("Any")
+                else:
+                    key_types.add(self._guess_type(k))
+                    val_types.add(self._guess_type(v))
+
+            k_type = "string"
+            if len(key_types) == 1:
+                k_type = list(key_types)[0]
+            elif len(key_types) > 1:
+                k_type = "Any"
+
+            v_type = "Any"
+            if len(val_types) == 1:
+                v_type = list(val_types)[0]
+
+            return f"map[{k_type}]{v_type}"
         elif isinstance(node, ast.Name):
             # Check for location-based type mapping (from mypy plugin)
             if hasattr(node, 'lineno') and hasattr(node, 'col_offset'):

@@ -91,7 +91,11 @@ class TestTodoFeatures(TranspilerTest):
         # Let's just match output for now: `l := ...` (without mut) if that's what it emits.
         # The failure output showed:
         # Got:
-        # l := [1, 2, 3, 4]
+        # mut l := []int{cap: 4}
+        # l << 1
+        # l << 2
+        # l << 3
+        # l << 4
         # l.delete_many(1, (3) - (1))
         # l.insert_many(1, [5, 6])
         self.assert_transpilation(
@@ -100,7 +104,11 @@ class TestTodoFeatures(TranspilerTest):
             l[1:3] = [5, 6]
             """,
             """
-            l := [1, 2, 3, 4]
+            mut l := []int{cap: 4}
+            l << 1
+            l << 2
+            l << 3
+            l << 4
             l.delete_many(1, (3) - (1))
             l.insert_many(1, [5, 6])
             """
