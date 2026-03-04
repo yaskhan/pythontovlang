@@ -44,6 +44,7 @@ class FunctionsMixin(TranslatorBase):
                 if arg.annotation:
                     try:
                         type_str = ast.unparse(arg.annotation)
+                        self._check_experimental_type(type_str, arg.annotation)
                         arg_type = map_python_type_to_v(
                             type_str,
                             self_name=self._get_full_self_type(ov_struct_name),
@@ -61,6 +62,7 @@ class FunctionsMixin(TranslatorBase):
             if node.returns:
                 try:
                     type_str = ast.unparse(node.returns)
+                    self._check_experimental_type(type_str, node.returns)
                     sig["return"] = map_python_type_to_v(
                         type_str,
                         self_name=self._get_full_self_type(ov_struct_name),
@@ -326,6 +328,7 @@ class FunctionsMixin(TranslatorBase):
             if arg.annotation:
                 try:
                     type_str = ast.unparse(arg.annotation)
+                    self._check_experimental_type(type_str, arg.annotation)
                     arg_type = map_python_type_to_v(
                         type_str,
                         self_name=self._get_full_self_type(struct_name),
@@ -410,6 +413,7 @@ class FunctionsMixin(TranslatorBase):
         if not is_generator and node.returns:
             try:
                 type_str = ast.unparse(node.returns)
+                self._check_experimental_type(type_str, node.returns)
                 ret_type = map_python_type_to_v(
                     type_str,
                     self_name=self._get_full_self_type(struct_name),

@@ -44,6 +44,7 @@ class AnnotationsMixin(TranslatorBase):
             if hasattr(ast, 'unparse'):
                 try:
                     type_str = ast.unparse(node.annotation)
+                    self._check_experimental_type(type_str, node.annotation)
                     v_type = map_python_type_to_v(type_str, self_name=self._get_full_self_type())
                 except Exception:
                     pass
@@ -84,6 +85,8 @@ class AnnotationsMixin(TranslatorBase):
 
             else:
                 if isinstance(node.value, ast.Dict) and not node.value.keys and v_type.startswith("map["):
+                    rhs = f"{v_type}{{}}"
+                elif isinstance(node.value, (ast.List, ast.Tuple)) and not node.value.elts and v_type.startswith("[]"):
                     rhs = f"{v_type}{{}}"
                 else:
                     self.current_assignment_type = v_type
@@ -178,6 +181,7 @@ class AnnotationsMixin(TranslatorBase):
             # V needs initialization. We map type to default value.
             try:
                 type_str = ast.unparse(node.annotation)
+                self._check_experimental_type(type_str, node.annotation)
                 v_type = map_python_type_to_v(type_str, self_name=self._get_full_self_type())
 
                 if self.in_main and isinstance(node.target, ast.Name):
