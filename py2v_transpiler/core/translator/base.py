@@ -98,7 +98,7 @@ class TranslatorBase(ast.NodeVisitor):
         self.current_class_bases: List[str] = []
         self.current_class_is_unittest: bool = False
         self._zip_counter: int = 0
-        self.defined_classes: Dict[str, bool] = {}
+        self.defined_classes: Dict[str, Dict[str, bool]] = {}
         self.used_builtins: Set[str] = set()
         self.used_complex: bool = False
         self.used_list_concat: bool = False
@@ -363,6 +363,17 @@ class TranslatorBase(ast.NodeVisitor):
             return name in self.module_all
 
         return not name.startswith('_')
+
+    def _get_full_self_type(self, struct_name: Optional[str] = None) -> str:
+        """
+        Returns the full V type for 'Self', including generic parameters if the class is generic.
+        Example: Builder -> Builder[T]
+        """
+        name = struct_name or self.current_class or "Self"
+        if self.current_class_generics:
+            gen_str = f"[{', '.join(self.current_class_generics)}]"
+            return f"{name}{gen_str}"
+        return name
 
     def _create_temp(self) -> str:
         self.unique_id_counter += 1

@@ -21,13 +21,16 @@ class ClassesMixin(TranslatorBase):
 
         # Pre-register class definition to allow class instantiation inside its own methods
         has_init = False
+        has_new = False
         for child in node.body:
-            if isinstance(child, ast.FunctionDef) and child.name == "__init__":
-                has_init = True
-                break
+            if isinstance(child, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                if child.name == "__init__":
+                    has_init = True
+                elif child.name == "__new__":
+                    has_new = True
         if not hasattr(self, "defined_classes"):
             self.defined_classes = {}
-        self.defined_classes[struct_name] = has_init
+        self.defined_classes[struct_name] = {"has_init": has_init, "has_new": has_new}
 
         # Save previous state to restore later (for nesting)
         prev_class = self.current_class
@@ -144,7 +147,7 @@ class ClassesMixin(TranslatorBase):
                                         type_str = ast.unparse(stmt.annotation)
                                         field_type = map_python_type_to_v(
                                             type_str,
-                                            self_name=struct_name,
+                                            self_name=self._get_full_self_type(struct_name),
                                             generic_map=self._get_combined_generic_map(),
                                         )
                                     except Exception:
@@ -175,6 +178,7 @@ class ClassesMixin(TranslatorBase):
 
         # If it's a dataclass, try to find perfectly inferred metadata from mypy
         dataclass_metadata = None
+        self.current_class_body = node.body
         if is_dataclass and hasattr(self.type_inference, "call_signatures"):
             # Look for the constructor signature which contains the metadata
             for k, sig_data in self.type_inference.call_signatures.items():
@@ -374,8 +378,16 @@ class ClassesMixin(TranslatorBase):
                         for elt in base.slice.elts:
                             if isinstance(elt, ast.Name):
                                 py_gen.append(elt.id)
+                            elif isinstance(elt, ast.Starred) and isinstance(
+                                elt.value, ast.Name
+                            ):
+                                py_gen.append(elt.value.id)
                     elif isinstance(base.slice, ast.Name):
                         py_gen.append(base.slice.id)
+                    elif isinstance(base.slice, ast.Starred) and isinstance(
+                        base.slice.value, ast.Name
+                    ):
+                        py_gen.append(base.slice.value.id)
 
                     if py_gen:
                         self.current_class_generic_map.update(
@@ -459,8 +471,14 @@ class ClassesMixin(TranslatorBase):
             doc_comment = "\n".join(lines) + "\n"
             body = body[1:]
 
+        has_post_init = False
+        if is_dataclass and dataclass_metadata:
+            has_post_init = dataclass_metadata.get("has_post_init", False)
+
         for stmt in body:
             if isinstance(stmt, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                if stmt.name == "__post_init__":
+                    has_post_init = True
                 methods.append(stmt)
             elif isinstance(stmt, ast.ClassDef):
                 # Nested class: visit it recursively
@@ -486,7 +504,7 @@ class ClassesMixin(TranslatorBase):
                             type_str = ast.unparse(stmt.annotation)
                             field_type = map_python_type_to_v(
                                 type_str,
-                                self_name=struct_name,
+                                self_name=self._get_full_self_type(struct_name),
                                 generic_map=self._get_combined_generic_map(),
                             )
                         except Exception:
@@ -541,6 +559,11 @@ class ClassesMixin(TranslatorBase):
         if is_dataclass and dataclass_metadata:
             # Emit fields purely from mypy's evaluation
             for attr in dataclass_metadata.get("attributes", []):
+                # Filter out ClassVar and InitVar for struct fields
+                # Mypy metadata: 'is_classvar': True/False, 'is_init_var': True/False
+                if attr.get("is_classvar", False) or attr.get("is_init_var", False):
+                    continue
+
                 # mypy filters out ClassVar, but tracks InitVar.
                 # Usually InitVar shouldn't be a struct field unless we keep it for reference.
                 # Let's emit InitVars and regular fields, or just regular fields if `is_in_init`?
@@ -601,6 +624,67 @@ class ClassesMixin(TranslatorBase):
                 self.dataclasses = {}
             self.dataclasses[struct_name] = dataclass_field_order
 
+        # Generate factory function for dataclasses if __post_init__ exists
+        if is_dataclass and has_post_init and dataclass_metadata:
+            init_fields = [attr for attr in dataclass_metadata.get("attributes", []) if attr.get("is_in_init")]
+            factory_args = []
+            struct_init_args = []
+            post_init_args = []
+
+            for attr in init_fields:
+                raw_name = attr["name"]
+                f_name = self._sanitize_name(raw_name)
+                # Map type
+                raw_type = attr.get("type", "Any")
+                norm_typ = raw_type.replace("builtins.", "")
+                try:
+                    f_type = map_python_type_to_v(norm_typ, generic_map=self._get_combined_generic_map())
+                except:
+                    f_type = "Any"
+
+                # Default cleanups
+                if f_type == "int" or norm_typ == "int": f_type = "int"
+                elif f_type == "str" or norm_typ == "str": f_type = "string"
+
+                has_default = attr.get("has_default", False)
+                default_expr = ""
+                if has_default:
+                    # Scan body for default value
+                    for body_stmt in body:
+                        if isinstance(body_stmt, ast.AnnAssign) and isinstance(body_stmt.target, ast.Name) and body_stmt.target.id == raw_name:
+                            if body_stmt.value:
+                                default_expr = f" = {self.visit(body_stmt.value)}"
+                            break
+                        elif isinstance(body_stmt, ast.Assign):
+                            for target in body_stmt.targets:
+                                if isinstance(target, ast.Name) and target.id == raw_name:
+                                    default_expr = f" = {self.visit(body_stmt.value)}"
+                                    break
+
+                arg_str = f"{f_name} {f_type}{default_expr}"
+                factory_args.append(arg_str)
+
+                if not attr.get("is_init_var", False):
+                    struct_init_args.append(f"{f_name}: {f_name}")
+                else:
+                    post_init_args.append(f_name)
+
+            pub = "pub " if self._is_exported(node.name) else ""
+            gen_str = f"[{', '.join(self.current_class_generics)}]" if self.current_class_generics else ""
+
+            factory_code = [
+                f"{pub}fn new_{struct_name}{gen_str}({', '.join(factory_args)}) {struct_name}{gen_str} {{",
+                f"    mut self := {struct_name}{gen_str}{{{', '.join(struct_init_args)}}}",
+                f"    self.post_init({', '.join(post_init_args)})",
+                f"    return self",
+                f"}}"
+            ]
+            self.emitter.add_function("\n".join(factory_code))
+            # Register that this class has a custom factory
+            if not hasattr(self, "defined_classes"):
+                self.defined_classes = {}
+            self.defined_classes[struct_name] = True
+
         if is_unittest:
             self.current_class_is_unittest = True
             # Do NOT emit struct for unittest class, just methods
@@ -633,6 +717,8 @@ class ClassesMixin(TranslatorBase):
                 m_name = self._sanitize_name(method.name)
                 if m_name == "__next__":
                     m_name = "next"
+                elif m_name == "__post_init__":
+                    m_name = "post_init"
                 elif m_name == "__await__":
                     m_name = "await_"
                 elif m_name == "__iter__":
@@ -652,7 +738,7 @@ class ClassesMixin(TranslatorBase):
                             type_str = ast.unparse(arg.annotation)
                             a_type = map_python_type_to_v(
                                 type_str,
-                                self_name=struct_name,
+                                self_name=self._get_full_self_type(struct_name),
                                 generic_map=self._get_combined_generic_map(),
                             )
                             # Simplify Literal in interface methods
@@ -680,7 +766,7 @@ class ClassesMixin(TranslatorBase):
                         type_str = ast.unparse(method.returns)
                         m_ret = map_python_type_to_v(
                             type_str,
-                            self_name=struct_name,
+                            self_name=self._get_full_self_type(struct_name),
                             generic_map=self._get_combined_generic_map(),
                         )
                         # Simplify Literal in interface method return type
@@ -910,7 +996,10 @@ class ClassesMixin(TranslatorBase):
 
         if not hasattr(self, "defined_classes"):
             self.defined_classes = {}
-        self.defined_classes[struct_name] = has_init
+
+        # Don't overwrite if it was already set to True (e.g. by dataclass factory)
+        if not self.defined_classes.get(struct_name):
+            self.defined_classes[struct_name] = has_init
 
         # Ensure we output the nested struct definition at the top level
         # visit_ClassDef processes body elements via iteration.

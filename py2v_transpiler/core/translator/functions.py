@@ -46,7 +46,7 @@ class FunctionsMixin(TranslatorBase):
                         type_str = ast.unparse(arg.annotation)
                         arg_type = map_python_type_to_v(
                             type_str,
-                            self_name=ov_struct_name or "Self",
+                            self_name=self._get_full_self_type(ov_struct_name),
                             generic_map=self._get_combined_generic_map(),
                         )
                     except Exception:
@@ -61,7 +61,7 @@ class FunctionsMixin(TranslatorBase):
                     type_str = ast.unparse(node.returns)
                     sig["return"] = map_python_type_to_v(
                         type_str,
-                        self_name=ov_struct_name or "Self",
+                        self_name=self._get_full_self_type(ov_struct_name),
                         generic_map=self._get_combined_generic_map(),
                     )
                 except:
@@ -289,8 +289,8 @@ class FunctionsMixin(TranslatorBase):
         is_new_method = False
         if node.name == "__new__":
             is_new_method = True
-            # Rename __new__
-            node.name = f"new_{struct_name}_new"
+            # Rename __new__ to factory name
+            node.name = f"new_{struct_name}"
             # Remove 'cls' argument if present
             if args and args[0].arg == "cls":
                 args = args[1:]
@@ -324,7 +324,7 @@ class FunctionsMixin(TranslatorBase):
                     type_str = ast.unparse(arg.annotation)
                     arg_type = map_python_type_to_v(
                         type_str,
-                        self_name=struct_name or "Self",
+                        self_name=self._get_full_self_type(struct_name),
                         generic_map=combined_generic_map,
                     )
                 except Exception:
@@ -355,7 +355,7 @@ class FunctionsMixin(TranslatorBase):
                     prefix = self._get_scc_prefix(scc_file)
                     arg_type = f"{prefix}__{typename}"
 
-            # Simplify Literal types in function signatures to base types
+            # 1. Упрощаем Literal типы до базовых (из ветки feat)
             values = self._parse_literal_type(arg_type)
             if not values:
                 lookup_type = arg_type[1:] if arg_type.startswith("?") else arg_type
@@ -371,7 +371,19 @@ class FunctionsMixin(TranslatorBase):
                 elif isinstance(val, str): arg_type = f"{prefix}string"
                 elif isinstance(val, bool): arg_type = f"{prefix}bool"
 
-            args_str_list.append(f"{arg_name} {arg_type}")
+            # 2. Проверяем мутабельность аргумента (из ветки main)
+            is_mut = False
+            if hasattr(self, 'type_inference') and hasattr(self.type_inference, 'mutability_map'):
+                mut_info = self.type_inference.mutability_map.get(arg_name)
+                # For arguments, we usually check if they are reassigned in the function scope
+                # full name for arguments in mypy is usually module.func.arg
+                if mut_info:
+                    is_mut = mut_info.get("is_reassigned", False)
+
+            mut_prefix = "mut " if is_mut else ""
+            
+            # 3. Собираем итоговую строку с учетом и мутабельности, и обновленного типа
+            args_str_list.append(f"{mut_prefix}{arg_name} {arg_type}")
 
         if node.args.vararg:
             arg_name = self._sanitize_name(node.args.vararg.arg)
@@ -381,7 +393,7 @@ class FunctionsMixin(TranslatorBase):
                     type_str = ast.unparse(node.args.vararg.annotation)
                     arg_type = map_python_type_to_v(
                         type_str,
-                        self_name=struct_name or "Self",
+                        self_name=self._get_full_self_type(struct_name),
                         generic_map=combined_generic_map,
                     )
                 except Exception:
@@ -397,7 +409,7 @@ class FunctionsMixin(TranslatorBase):
                     type_str = ast.unparse(node.args.kwarg.annotation)
                     arg_type = map_python_type_to_v(
                         type_str,
-                        self_name=struct_name or "Self",
+                        self_name=self._get_full_self_type(struct_name),
                         generic_map=combined_generic_map,
                     )
                 except Exception:
@@ -413,7 +425,7 @@ class FunctionsMixin(TranslatorBase):
                 type_str = ast.unparse(node.returns)
                 ret_type = map_python_type_to_v(
                     type_str,
-                    self_name=struct_name or "Self",
+                    self_name=self._get_full_self_type(struct_name),
                     generic_map=combined_generic_map,
                 )
 
@@ -460,6 +472,8 @@ class FunctionsMixin(TranslatorBase):
 
             if func_name == "__next__":
                 func_name = "next"
+            elif func_name == "__post_init__":
+                func_name = "post_init"
             elif func_name == "__await__":
                 func_name = "await_"
             elif func_name == "__iter__":
@@ -511,14 +525,20 @@ class FunctionsMixin(TranslatorBase):
             receiver_str = ""
             func_name = "init_subclass"
         elif func_name == "__init__":
-            is_init = True
-            func_name = f"new_{struct_name}"
-            receiver_str = ""  # Factory is static
-            ret_type = struct_name
-            if self.current_class_generics:
-                gen_str = f"[{', '.join(self.current_class_generics)}]"
-                # Do NOT add to func_name here, as func_generics_str will add it to the 'fn' decl
-                ret_type += gen_str
+            class_info = self.defined_classes.get(struct_name, {})
+            if class_info.get("has_new"):
+                # If __new__ is present, __init__ becomes a regular method named 'init'
+                func_name = "init"
+                # is_method remains True, receiver_str is already set
+            else:
+                is_init = True
+                func_name = f"new_{struct_name}"
+                receiver_str = ""  # Factory is static
+                ret_type = struct_name
+                if self.current_class_generics:
+                    gen_str = f"[{', '.join(self.current_class_generics)}]"
+                    # Do NOT add to func_name here, as func_generics_str will add it to the 'fn' decl
+                    ret_type += gen_str
 
         noreturn_attr = "[noreturn]\n" if is_noreturn else ""
 

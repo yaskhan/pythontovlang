@@ -281,6 +281,13 @@ class CallsMixin(TranslatorBase):
         # Fallback to existing logic
         func_name_str = self.visit(node.func)
 
+        # Handle object.__new__(cls) or super().__new__(cls)
+        if isinstance(node.func, ast.Attribute) and node.func.attr == "__new__":
+            receiver = self.visit(node.func.value)
+            if receiver in ("object", "super()") or (receiver == self.current_class):
+                # __new__ factory implementation: object.__new__(cls) -> Struct{}
+                if self.current_class:
+                    return f"{self.current_class}{{}}"
 
         # If func_name_str was mangled/sanitized by visit_Name, we need the original to check builtins
         # like "map", "filter", "print". Let's check if the un-sanitized version matches anything.
@@ -487,19 +494,101 @@ class CallsMixin(TranslatorBase):
         if dataclass_metadata:
             # Reconstruct the fields based on mypy's exact attributes
             struct_args = []
+            factory_args = []
             init_fields = [attr for attr in dataclass_metadata.get('attributes', []) if attr.get('is_in_init')]
+            has_post_init = dataclass_metadata.get("has_post_init", False)
 
             # Map positional args
             for i, arg_val in enumerate(args):
                 if i < len(init_fields):
-                    struct_args.append(f"{self._sanitize_name(init_fields[i]['name'])}: {arg_val}")
+                    field_name = self._sanitize_name(init_fields[i]['name'])
+                    if not init_fields[i].get('is_init_var', False):
+                        struct_args.append(f"{field_name}: {arg_val}")
+                    factory_args.append(arg_val)
             # Map keyword args
             for keyword in node.keywords:
                 if keyword.arg:
                      kw_val_str = str(self.visit(keyword.value))
-                     # We might want to verify it's a valid init field, but trust python logic for now
-                     struct_args.append(f"{self._sanitize_name(keyword.arg)}: {kw_val_str}")
+                     field_name = self._sanitize_name(keyword.arg)
 
+                     is_init_var = False
+                     for attr in init_fields:
+                         if attr['name'] == keyword.arg:
+                             is_init_var = attr.get('is_init_var', False)
+                             break
+
+                     if not is_init_var:
+                        struct_args.append(f"{field_name}: {kw_val_str}")
+                     factory_args.append(f"{field_name}: {kw_val_str}")
+
+            if has_post_init:
+                # V doesn't support kwargs in functions, so we must map all arguments to positional order
+                final_factory_args = []
+
+                # First, fill with positional args provided in the call
+                for i in range(len(args)):
+                    final_factory_args.append(args[i])
+
+                # Then, fill remaining from keywords if they match attribute names
+                # and are not already filled by positional
+                for i in range(len(args), len(init_fields)):
+                    field_name = init_fields[i]['name']
+                    # Look for this field in keywords
+                    found_kw = False
+                    for keyword in node.keywords:
+                        if keyword.arg == field_name:
+                            final_factory_args.append(str(self.visit(keyword.value)))
+                            found_kw = True
+                            break
+                    if not found_kw:
+                        # Try to find default from body if it's missing in call-site
+                        # but subsequent keywords are provided.
+                        # V requires positional arguments to be filled if we want to provide later ones.
+                        # Check if any LATER field is provided in keywords
+                        later_provided = False
+                        for j in range(i + 1, len(init_fields)):
+                            later_field = init_fields[j]['name']
+                            for kw in node.keywords:
+                                if kw.arg == later_field:
+                                    later_provided = True
+                                    break
+                            if later_provided: break
+
+                        if later_provided:
+                            # We MUST provide a value. Try to find the default value.
+                            # Heuristic: if we can't find it, we might have to use a zero-value
+                            # or emit a placeholder.
+                            found_default = False
+                            for body_stmt in getattr(self, "current_class_body", []):
+                                # ...
+                                pass
+
+                            # Simple fallback: if we don't provide it, and it has a default in V fn,
+                            # it's only okay if it's at the end.
+                            # For the test case Point(1, z=3) where y=5 is missing:
+                            # We need to find y's default.
+                            if init_fields[i].get('has_default'):
+                                # Try to find default from current_class_body
+                                found_default_val = False
+                                for body_stmt in getattr(self, "current_class_body", []):
+                                    if isinstance(body_stmt, ast.AnnAssign) and isinstance(body_stmt.target, ast.Name) and body_stmt.target.id == field_name:
+                                        if body_stmt.value:
+                                            final_factory_args.append(str(self.visit(body_stmt.value)))
+                                            found_default_val = True
+                                        break
+                                    elif isinstance(body_stmt, ast.Assign):
+                                        for target in body_stmt.targets:
+                                            if isinstance(target, ast.Name) and target.id == field_name:
+                                                final_factory_args.append(str(self.visit(body_stmt.value)))
+                                                found_default_val = True
+                                                break
+                                    if found_default_val: break
+
+                                if not found_default_val:
+                                     # Fallback to zero value or placeholder if not found
+                                     pass
+
+                return f"new_{func_name_str}({', '.join(final_factory_args)})"
             return f"{func_name_str}{{{', '.join(struct_args)}}}"
         elif hasattr(self, 'dataclasses') and func_name_str in self.dataclasses:
             field_order = self.dataclasses[func_name_str]
@@ -518,16 +607,27 @@ class CallsMixin(TranslatorBase):
 
         # Handle standard class instantiation
         is_class = False
-        has_init = False
+        has_factory = False
+
+        lookup_name = func_name_str
+        if lookup_name.startswith("py_"):
+            # Check if it was sanitized
+            for orig_id in ("int", "float", "bool", "str", "map", "filter"):
+                if f"py_{orig_id}" == lookup_name:
+                    lookup_name = orig_id
+                    break
+
         if call_sig and "is_class" in call_sig:
             is_class = call_sig["is_class"]
-            has_init = call_sig.get("has_init", False)
-        elif hasattr(self, 'defined_classes') and func_name_str in self.defined_classes:
+            has_factory = call_sig.get("has_init", False) or call_sig.get("has_new", False)
+        elif hasattr(self, 'defined_classes') and lookup_name in self.defined_classes:
             is_class = True
-            has_init = self.defined_classes[func_name_str]
+            class_info = self.defined_classes[lookup_name]
+            has_factory = class_info.get("has_init", False) or class_info.get("has_new", False)
+            func_name_str = lookup_name # Use non-prefixed name for call if it is a class
 
         if is_class:
-            if has_init:
+            if has_factory:
                 return f"new_{func_name_str}({', '.join(args)})"
             else:
                 return f"{func_name_str}{{{', '.join(args)}}}"

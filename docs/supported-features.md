@@ -21,7 +21,7 @@ This document lists all Python language features supported by the transpiler.
 | Literal types | ✅ | `Literal[1, "a"]` |
 | Final variables | ✅ | `Final[T]` |
 | ClassVar | ✅ | Class variables |
-| Self type | ✅ | Python 3.11+ |
+| Self type | ✅ | Python 3.11+, support for generic context (PEP 673 + 695) |
 | Annotated types | ✅ | `Annotated[T, ...]` |
 | TypeGuard | ✅ | Type narrowing |
 | NoReturn | ✅ | Functions that never return |
