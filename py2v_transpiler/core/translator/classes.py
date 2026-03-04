@@ -375,8 +375,16 @@ class ClassesMixin(TranslatorBase):
                         for elt in base.slice.elts:
                             if isinstance(elt, ast.Name):
                                 py_gen.append(elt.id)
+                            elif isinstance(elt, ast.Starred) and isinstance(
+                                elt.value, ast.Name
+                            ):
+                                py_gen.append(elt.value.id)
                     elif isinstance(base.slice, ast.Name):
                         py_gen.append(base.slice.id)
+                    elif isinstance(base.slice, ast.Starred) and isinstance(
+                        base.slice.value, ast.Name
+                    ):
+                        py_gen.append(base.slice.value.id)
 
                     if py_gen:
                         self.current_class_generic_map.update(
