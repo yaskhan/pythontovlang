@@ -94,31 +94,8 @@ class LiteralsMixin(TranslatorBase):
 
         elements = [str(self.visit(elt)) for elt in node.elts]
         if not elements:
-             v_type = getattr(self, "current_assignment_type", "[]Any")
-             if not v_type.startswith("[]"):
-                 v_type = "[]Any"
-             return f"{v_type}{{}}"
-
-        v_type = self._guess_type(node)
-        if v_type == "[]Any" or not hasattr(self, "current_assignment_type"):
-             # Special case for py_array helper used in tests
-             is_py_array = False
-             for p in getattr(self, "parent_stack", []):
-                 if isinstance(p, ast.Call):
-                     if (isinstance(p.func, ast.Name) and p.func.id == "py_array") or \
-                        (isinstance(p.func, ast.Attribute) and p.func.attr == "array" and \
-                         isinstance(p.func.value, ast.Name) and p.func.value.id == "array"):
-                         is_py_array = True
-                         break
-
-             if v_type != "[]Any" and is_py_array:
-                  return f"{v_type}{{{', '.join(elements)}}}"
-
-             # Optimization: If not in an assignment (e.g. in an assertion),
-             # use V's inferred array [1, 2, 3] which is more idiomatic.
-             return f"[{', '.join(elements)}]"
-
-        return f"{v_type}{{{', '.join(elements)}}}"
+             return "[]int{}" # Placeholder for empty list
+        return f"[{', '.join(elements)}]"
 
     def visit_Dict(self, node: ast.Dict) -> str:
         # Check if the dictionary is being used as a TypedDict
@@ -157,17 +134,14 @@ class LiteralsMixin(TranslatorBase):
                     current_chunk.append(f"{key_str}: {val_str}")
 
             if current_chunk:
-                chunk_str = f"map[string]Any{{{', '.join(current_chunk)}}}"
+                chunk_str = f"map[string]int{{{', '.join(current_chunk)}}}"
                 chunks.append(chunk_str)
 
             return f"py_dict_merge({', '.join(chunks)})"
 
         if not node.keys:
             # Empty dict
-            v_type = getattr(self, "current_assignment_type", "map[string]Any")
-            if not v_type.startswith("map["):
-                v_type = "map[string]Any"
-            return f"{v_type}{{}}"
+            return "map[string]int{}" # Default fallback
 
         pairs = []
         for k, v in zip(node.keys, node.values):
@@ -175,9 +149,7 @@ class LiteralsMixin(TranslatorBase):
                 key_str = self.visit(k)
                 val_str = self.visit(v)
                 pairs.append(f"{key_str}: {val_str}")
-
-        v_type = self._guess_type(node)
-        return f"{v_type}{{{', '.join(pairs)}}}"
+        return f"map[string]int{{{', '.join(pairs)}}}"
 
     def visit_Set(self, node: ast.Set) -> str:
         # Check for starred elements

@@ -37,6 +37,9 @@ def map_python_type_to_v(py_type: str, self_name: str = "Self", allow_union: boo
     if py_type == 'builtins.float': return 'f64'
     if py_type == 'builtins.str': return 'string'
     if py_type == 'builtins.bool': return 'bool'
+    if py_type == 'bytes' or py_type == 'builtins.bytes': return '[]u8'
+    if py_type == 'bytearray' or py_type == 'builtins.bytearray': return '[]u8'
+    if py_type == 'memoryview' or py_type == 'builtins.memoryview': return '[]u8'
 
     if generic_map and py_type in generic_map:
         return generic_map[py_type]
@@ -200,9 +203,6 @@ def _map_ast_type(node: ast.AST, self_name: str = "Self", allow_union: bool = Fa
                 return mapped_args[0]
             return 'Any'
 
-        elif value_id == 'TypeForm':
-            return 'Any'
-
         elif value_id in ('Final', 'ClassVar', 'Annotated', 'ReadOnly'):
             # Strip
             if mapped_args:
@@ -245,6 +245,9 @@ def _map_basic_type(name: str) -> str:
         name = name[len("builtins."):]
     mapping = {
         'int': 'int',
+        'bytes': '[]u8',
+        'bytearray': '[]u8',
+        'memoryview': '[]u8',
         'float': 'f64',
         'str': 'string',
         'bool': 'bool',
@@ -255,8 +258,6 @@ def _map_basic_type(name: str) -> str:
         'dict': 'map[string]int',
         'tuple': '[]int',
         'set': 'map[int]bool',
-        'memoryview': '[]u8',
-        'bytearray': '[]u8',
         'IO': 'os.File',
         'TextIO': 'os.File',
         'BinaryIO': 'os.File',
@@ -280,16 +281,8 @@ def _map_basic_type(name: str) -> str:
         'builtins.float': 'f64',
         'builtins.str': 'string',
         'builtins.bool': 'bool',
-        'LiteralString': 'LiteralString',
-        'typing.LiteralString': 'LiteralString',
-        'typing_extensions.LiteralString': 'LiteralString',
-        'bytearray': '[]u8',
-        'memoryview': '[]u8',
         'LiteralString': 'string',
         'typing.LiteralString': 'string',
         'typing_extensions.LiteralString': 'string',
-        'TypeForm': 'Any',
-        'typing.TypeForm': 'Any',
-        'typing_extensions.TypeForm': 'Any',
     }
     return mapping.get(name, name)

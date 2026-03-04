@@ -7,6 +7,18 @@ from py2v_transpiler.models.v_types import map_python_type_to_v
 class AnnotationsMixin(TranslatorBase):
     """Обработка аннотированных присваиваний: visit_AnnAssign"""
 
+    def _is_literal_string_expr(self, node: ast.AST) -> bool:
+        """Checks if an expression is a literal string, literal concatenation, or f-string without variables."""
+        if isinstance(node, ast.Constant) and isinstance(node.value, str):
+            return True
+        if isinstance(node, ast.JoinedStr):
+            return all(self._is_literal_string_expr(v) for v in node.values)
+        if isinstance(node, ast.FormattedValue):
+            return self._is_literal_string_expr(node.value)
+        if isinstance(node, ast.BinOp) and isinstance(node.op, ast.Add):
+            return self._is_literal_string_expr(node.left) and self._is_literal_string_expr(node.right)
+        return False
+
     def _is_compile_time_evaluable(self, node: ast.AST) -> bool:
         """
         Checks if an AST node represents a value that can be evaluated at compile time in V.
@@ -44,7 +56,6 @@ class AnnotationsMixin(TranslatorBase):
             if hasattr(ast, 'unparse'):
                 try:
                     type_str = ast.unparse(node.annotation)
-                    self._check_experimental_type(type_str, node.annotation)
                     v_type = map_python_type_to_v(type_str, self_name=self._get_full_self_type())
                 except Exception:
                     pass
@@ -52,17 +63,12 @@ class AnnotationsMixin(TranslatorBase):
             if not v_type:
                 v_type = getattr(self, "_guess_type", lambda x: "unknown")(node.target)
 
-            is_literal_string_type = v_type == "LiteralString" or type_str in ("LiteralString", "typing.LiteralString", "typing_extensions.LiteralString")
-
-            # Check if this is a LiteralString being assigned a non-literal value
-            if is_literal_string_type:
-                if isinstance(node.value, ast.Call) and isinstance(node.value.func, ast.Name) and node.value.func.id == "input":
-                    self.output.append(f"{self._indent()}// WARNING: LiteralString variable '{target}' receives value from input() (loss of guarantee)")
-                elif not self._is_literal_string_expr(node.value):
-                    self.output.append(f"{self._indent()}// WARNING: LiteralString variable '{target}' receives non-literal value")
+            # Check if this is a LiteralString being assigned an input() call
+            if type_str in ("LiteralString", "typing.LiteralString", "typing_extensions.LiteralString") and isinstance(node.value, ast.Call) and isinstance(node.value.func, ast.Name) and node.value.func.id == "input":
+                 self.output.append(f"{self._indent()}// WARNING: LiteralString variable '{target}' receives value from input() (loss of guarantee)")
 
             if self.in_main and isinstance(node.target, ast.Name):
-                if is_literal_string_type and not self._is_literal_string_expr(node.value) and not self._is_compile_time_evaluable(node.value):
+                if type_str in ("LiteralString", "typing.LiteralString", "typing_extensions.LiteralString") and not self._is_literal_string_expr(node.value) and not self._is_compile_time_evaluable(node.value):
                      self.emitter.add_global(f"{target} string")
 
             if is_simple_list and v_type.startswith("[]") and cap > 0:
@@ -86,8 +92,6 @@ class AnnotationsMixin(TranslatorBase):
             else:
                 if isinstance(node.value, ast.Dict) and not node.value.keys and v_type.startswith("map["):
                     rhs = f"{v_type}{{}}"
-                elif isinstance(node.value, (ast.List, ast.Tuple)) and not node.value.elts and v_type.startswith("[]"):
-                    rhs = f"{v_type}{{}}"
                 else:
                     self.current_assignment_type = v_type
                     rhs = self.visit(node.value)
@@ -106,7 +110,7 @@ class AnnotationsMixin(TranslatorBase):
                             self.emitter.add_global(f"{target} {v_type}")
 
                     elif base_lhs.isupper() or \
-                         (v_type == "Final" or is_literal_string_type or
+                         (v_type == "Final" or type_str in ("LiteralString", "typing.LiteralString", "typing_extensions.LiteralString") or
                           getattr(node, "annotation", None) and
                           (getattr(getattr(node, "annotation", None), "id", "") == "Final" or
                            getattr(getattr(node, "annotation", None), "attr", "") == "Final")):
@@ -115,13 +119,13 @@ class AnnotationsMixin(TranslatorBase):
                             v_target = self._to_snake_case(target)
                             if not v_type or v_type in ("unknown", "Final"):
                                 v_type = "Any"
-                            if is_literal_string_type:
+                            if type_str in ("LiteralString", "typing.LiteralString", "typing_extensions.LiteralString"):
                                 v_type = "string"
-                            if not is_literal_string_type:
+                            if type_str not in ("LiteralString", "typing.LiteralString", "typing_extensions.LiteralString"):
                                 self.emitter.add_global(f"{v_target} {v_type}")
 
                             # Use const block only if it evaluates at compile-time (e.g., literal string)
-                            if self._is_compile_time_evaluable(node.value) or (is_literal_string_type and self._is_literal_string_expr(node.value)):
+                            if self._is_compile_time_evaluable(node.value) or (type_str in ("LiteralString", "typing.LiteralString", "typing_extensions.LiteralString") and self._is_literal_string_expr(node.value)):
                                 self.emitter.add_constant(f"{v_target} = {rhs}")
                                 return
                             else:
@@ -130,9 +134,9 @@ class AnnotationsMixin(TranslatorBase):
 
                 # Обычное присваивание, если не перехвачено выше
                 if self.in_main and isinstance(node.target, ast.Name) and \
-                   (target in getattr(self, "global_vars", set()) or target.isupper() or is_literal_string_type):
+                   (target in getattr(self, "global_vars", set()) or target.isupper() or type_str in ("LiteralString", "typing.LiteralString", "typing_extensions.LiteralString")):
                     v_target = self._to_snake_case(target)
-                    if is_literal_string_type:
+                    if type_str in ("LiteralString", "typing.LiteralString", "typing_extensions.LiteralString"):
                          # Only literal string expressions and compile time evaluables are placed in const
                          if self._is_literal_string_expr(node.value) or self._is_compile_time_evaluable(node.value):
                               self.emitter.add_constant(f"{v_target} = {rhs}")
@@ -181,7 +185,6 @@ class AnnotationsMixin(TranslatorBase):
             # V needs initialization. We map type to default value.
             try:
                 type_str = ast.unparse(node.annotation)
-                self._check_experimental_type(type_str, node.annotation)
                 v_type = map_python_type_to_v(type_str, self_name=self._get_full_self_type())
 
                 if self.in_main and isinstance(node.target, ast.Name):

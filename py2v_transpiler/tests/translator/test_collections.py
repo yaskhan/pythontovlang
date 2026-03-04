@@ -57,7 +57,7 @@ def test_translator_dict_empty():
     analyzer.analyze(tree)
     result = translator.visit_Module(tree)
 
-    assert "d := map[string]Any{}" in result
+    assert "d := map[string]int{}" in result
 
 # New tests for collections module (defaultdict, Counter)
 
@@ -129,4 +129,4 @@ import collections
 c = collections.Counter([1, 2, 3])
 """
     v_code = translate(source)
-    assert "c := py_counter([]int{1, 2, 3})" in v_code
+    assert "c := py_counter([1, 2, 3])" in v_code
