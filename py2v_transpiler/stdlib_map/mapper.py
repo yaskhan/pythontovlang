@@ -234,6 +234,8 @@ class StdLibMapper:
             },
             "decimal": {
                 "Decimal": "py_decimal",
+                "localcontext": "py_decimal_localcontext",
+                "getcontext": "py_decimal_getcontext",
             },
             "pickle": {
                 "dumps": "py_pickle_dumps",
