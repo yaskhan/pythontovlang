@@ -481,8 +481,26 @@ class CallsMixin(TranslatorBase):
             if len(args) == 1:
                 return f"{args[0]}.str()"
             return "''"
-        elif func_name_str == "bytes":
-            # Handle bytes(msg, "utf8") or bytes(msg, encoding="utf8")
+        elif func_name_str in ("bytes", "bytearray"):
+            if len(args) == 0:
+                return "[]u8{}"
+            elif len(args) >= 1:
+                arg_type = self._guess_type(node.args[0])
+                if arg_type == "int":
+                    return f"[]u8{{len: {args[0]}}}"
+                if arg_type == "string":
+                    return f"{args[0]}.bytes()"
+
+                # For bytearray(other_bytes), ensure a copy is made if it's already a byte array
+                if func_name_str == "bytearray" and arg_type == "[]u8":
+                    return f"{args[0]}.clone()"
+
+                return args[0]
+            return "[]u8{}"
+        elif func_name_str in ("bytes.fromhex", "bytearray.fromhex"):
+            self.emitter.add_import("encoding.hex")
+            return f"hex.decode({args[0]}) or {{ []u8{{}} }}"
+        elif func_name_str == "memoryview":
             if len(args) >= 1:
                 arg_type = self._guess_type(node.args[0])
                 if arg_type == "int":
