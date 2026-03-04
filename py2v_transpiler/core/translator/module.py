@@ -1015,6 +1015,17 @@ mut:
     return res
 }""")
 
+        if "py_dict_residual" in self.used_builtins:
+            self.emitter.add_helper_function("""fn py_dict_residual[K, V](m map[K]V, exclude []K) map[K]Any {
+    mut res := map[K]Any{}
+    for k, v in m {
+        if k !in exclude {
+            res[k] = Any(v)
+        }
+    }
+    return res
+}""")
+
         if "py_subscript" in self.used_builtins:
             self.emitter.add_helper_function("""fn py_subscript(obj Any, idx Any) Any {
     // Dynamic subscript fallback

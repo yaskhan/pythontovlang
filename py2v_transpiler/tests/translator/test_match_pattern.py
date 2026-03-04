@@ -115,3 +115,17 @@ match x:
 """
     v_code = translate(source)
     assert "is Point" in v_code
+
+def test_match_mapping_rest():
+    source = """
+x = {'a': 1, 'b': 2}
+match x:
+    case {'a': 1, **rest}:
+        pass
+"""
+    v_code = translate(source)
+    # Expect py_dict_residual call
+    assert "py_dict_residual" in v_code
+    assert "rest :=" in v_code
+    # Expect exclude list
+    assert "[]string{'a'}" in v_code
