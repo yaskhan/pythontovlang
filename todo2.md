@@ -539,3 +539,7 @@ Based on the transpilation of the `pi_test.py` script, the following area for im
 - [x] **`decimal` module support**
   - *Context:* Python's `decimal` module is used for arbitrary-precision decimal arithmetic. The transpiler currently translates `decimal.localcontext()` directly and `decimal.Decimal` as `py_decimal`, but there's no native equivalent or mapping for arbitrary precision decimals in V standard library out of the box used here correctly.
   - *Task:* Implement mapping for Python's `decimal` module, potentially utilizing a V library for arbitrary precision arithmetic or BigInts, and correctly mapping context managers like `localcontext`.
+
+- [ ] **Type Mapping in Comprehensions within String Operations**
+  - *Context:* When transpiling list comprehensions inline within a string `.join()` operation (e.g., `' || '.join([...])`), the transpiler sometimes infers the type of the comprehension's array as `[]int` instead of `[]string`. This occurs even when the comprehension's elements are string templates (e.g., `'${exc_var}.name == \'${t}\''`).
+  - *Task:* Improve type inference and code generation for inline list comprehensions, particularly when they are used within string concatenation or joining, ensuring the resulting V array correctly resolves to `[]string` when containing string elements.
