@@ -14,7 +14,7 @@ class VType(Enum):
     NONE = auto()
     UNKNOWN = auto()
 
-def map_python_type_to_v(py_type: str, self_name: str = "Self", allow_union: bool = False, generic_map: Optional[dict[str, str]] = None) -> str:
+def map_python_type_to_v(py_type: str, self_name: str = "Self", allow_union: bool = True, generic_map: Optional[dict[str, str]] = None) -> str:
     """Maps a Python type name to its V equivalent."""
     if not py_type:
         return 'void'
@@ -52,7 +52,7 @@ def map_python_type_to_v(py_type: str, self_name: str = "Self", allow_union: boo
     except SyntaxError:
         return py_type
 
-def _map_ast_type(node: ast.AST, self_name: str = "Self", allow_union: bool = False, generic_map: Optional[dict[str, str]] = None) -> str:
+def _map_ast_type(node: ast.AST, self_name: str = "Self", allow_union: bool = True, generic_map: Optional[dict[str, str]] = None) -> str:
     if isinstance(node, ast.Name):
         if node.id == "Self":
             return self_name
@@ -79,6 +79,15 @@ def _map_ast_type(node: ast.AST, self_name: str = "Self", allow_union: bool = Fa
 
             parts.append(curr.id)
             full_name = ".".join(reversed(parts))
+
+            # Strip typing. prefix for non-generics to resolve correctly in _map_basic_type
+            if full_name.startswith("typing."):
+                name_no_typing = full_name[7:]
+                # Keep typing. prefix for known generics to hit specialized mappings like typing.List -> []Any
+                if name_no_typing in ('List', 'Dict', 'Optional', 'Union', 'Callable', 'Set', 'Tuple', 'Sequence', 'Iterable'):
+                     return _map_basic_type(full_name)
+                return _map_basic_type(name_no_typing)
+
             return _map_basic_type(full_name)
         return _map_basic_type(node.attr)
 
@@ -114,7 +123,7 @@ def _map_ast_type(node: ast.AST, self_name: str = "Self", allow_union: bool = Fa
                 parts.append(curr_val.id)
                 full_name = ".".join(reversed(parts))
                 if full_name.startswith("typing."):
-                    value_id = node.value.attr
+                    value_id = full_name
                 else:
                     value_id = full_name
             else:
@@ -131,27 +140,27 @@ def _map_ast_type(node: ast.AST, self_name: str = "Self", allow_union: bool = Fa
         # Helper to map args, handling nested types
         mapped_args = [_map_ast_type(arg, self_name, allow_union, generic_map) for arg in args]
 
-        if value_id in ('List', 'list', 'Sequence', 'MutableSequence', 'Iterable', 'Iterator'):
+        if value_id in ('List', 'list', 'Sequence', 'MutableSequence', 'Iterable', 'Iterator', 'typing.List', 'typing.Sequence', 'typing.MutableSequence', 'typing.Iterable', 'typing.Iterator'):
             if mapped_args:
                 return f"[]{mapped_args[0]}"
-            return "[]int" # fallback
+            return "[]Any" if value_id.startswith('typing.') else "[]int"
 
-        elif value_id in ('Set', 'set', 'FrozenSet', 'MutableSet', 'AbstractSet'):
+        elif value_id in ('Set', 'set', 'FrozenSet', 'MutableSet', 'AbstractSet', 'typing.Set', 'typing.FrozenSet', 'typing.MutableSet', 'typing.AbstractSet'):
             if mapped_args:
                 return f"map[{mapped_args[0]}]bool"
-            return "map[int]bool" # fallback
+            return "map[string]bool" if value_id.startswith('typing.') else "map[int]bool"
 
-        elif value_id in ('Dict', 'dict', 'Mapping', 'MutableMapping'):
+        elif value_id in ('Dict', 'dict', 'Mapping', 'MutableMapping', 'typing.Dict', 'typing.Mapping', 'typing.MutableMapping'):
             if len(mapped_args) >= 2:
                 return f"map[{mapped_args[0]}]{mapped_args[1]}"
-            return "map[string]int" # fallback
+            return "map[string]Any" if value_id.startswith('typing.') else "map[string]int"
 
         elif value_id in ('IO', 'TextIO'):
             if len(mapped_args) >= 1 and mapped_args[0] == 'string':
                 return "&strings.Builder"
             return "os.File"
 
-        elif value_id == 'Tuple':
+        elif value_id in ('Tuple', 'typing.Tuple'):
             # Tuple[int, ...] -> []int
             if len(mapped_args) == 2 and mapped_args[1] == '...':
                 return f"[]{mapped_args[0]}"
@@ -164,21 +173,36 @@ def _map_ast_type(node: ast.AST, self_name: str = "Self", allow_union: bool = Fa
             # Tuple[int, str] -> []Any
             return "[]Any"
 
-        elif value_id == 'Optional':
+        elif value_id in ('Optional', 'typing.Optional'):
             if mapped_args:
                 return f"?{mapped_args[0]}"
-            return "?int"
+            return "?Any"
 
-        elif value_id == 'Union':
+        elif value_id in ('Union', 'typing.Union'):
+            # Deduplicate
+            unique_args = []
+            for arg in mapped_args:
+                if arg not in unique_args:
+                    unique_args.append(arg)
+            mapped_args = unique_args
+
+            # If Any is in there, the whole union is effectively Any
+            if "Any" in mapped_args:
+                return "Any"
+
             # Check for None to map to Optional
             non_none = [t for t in mapped_args if t != 'none']
             if len(non_none) == 1 and len(mapped_args) > 1:
                 return f"?{non_none[0]}"
+
             if allow_union:
-                return " | ".join(mapped_args)
+                res = " | ".join(mapped_args)
+                if len(mapped_args) > 5:
+                    return f"Any /* {res} */"
+                return res
             return "Any"
 
-        elif value_id == 'Callable':
+        elif value_id in ('Callable', 'typing.Callable'):
             # Callable[[Arg1, Arg2], Ret]
             if len(args) == 2:
                 arg_list_node = args[0]
@@ -257,6 +281,7 @@ def _map_basic_type(name: str) -> str:
         'int': 'int',
         'float': 'f64',
         'str': 'string',
+        'bytes': '[]u8',
         'bool': 'bool',
         'None': 'none',
         'Any': 'Any',
@@ -290,11 +315,7 @@ def _map_basic_type(name: str) -> str:
         'builtins.float': 'f64',
         'builtins.str': 'string',
         'builtins.bool': 'bool',
-        'LiteralString': 'LiteralString',
-        'typing.LiteralString': 'LiteralString',
-        'typing_extensions.LiteralString': 'LiteralString',
-        'bytearray': '[]u8',
-        'memoryview': '[]u8',
+        'builtins.bytes': '[]u8',
         'LiteralString': 'string',
         'typing.LiteralString': 'string',
         'typing_extensions.LiteralString': 'string',

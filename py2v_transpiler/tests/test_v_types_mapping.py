@@ -17,9 +17,9 @@ def test_typing_optional_mapping():
     assert map_python_type_to_v("typing.Optional") == "?Any"
 
 def test_typing_union_mapping():
-    assert map_python_type_to_v("typing.Union[int, str]") == "Any"
-    # If allow_union=True
-    assert map_python_type_to_v("typing.Union[int, str]", allow_union=True) == "int | string"
+    # Union is now enabled by default
+    assert map_python_type_to_v("typing.Union[int, str]") == "int | string"
+    assert map_python_type_to_v("typing.Union[int, str]", allow_union=False) == "Any"
 
 def test_typing_noreturn_mapping():
     assert map_python_type_to_v("typing.NoReturn") == "void"
