@@ -5,6 +5,20 @@ from ..base import TranslatorBase
 class MatchMixin(TranslatorBase):
     """Обработка match/case (Python 3.10+)"""
     
+    def _unmangle_generic_name(self, name: str) -> str:
+        """Restores generic syntax from mangled identifiers and maps Python types to V types."""
+        from py2v_transpiler.models.v_types import map_python_type_to_v
+        if "__py2v_gen_L__" not in name:
+            return map_python_type_to_v(name)
+
+        # Restore original syntax
+        res = name.replace("__py2v_gen_L__", "[")
+        res = res.replace("__py2v_gen_R__", "]")
+        res = res.replace("__py2v_gen_C__", ", ")
+
+        # Now map it properly using map_python_type_to_v
+        return map_python_type_to_v(res)
+
     def visit_Match(self, node: "ast.Match") -> None:
         subject = self.visit(node.subject)
         self._zip_counter += 1
@@ -200,15 +214,8 @@ class MatchMixin(TranslatorBase):
 
         elif isinstance(pattern, ast.MatchClass):
              cls_name = self.visit(pattern.cls)
-             # Map Python builtin types to V types
-             if cls_name == "int":
-                 cls_name = "int"
-             elif cls_name == "float":
-                 cls_name = "f64"
-             elif cls_name == "str":
-                 cls_name = "string"
-             elif cls_name == "bool":
-                 cls_name = "bool"
+             # Restore generic syntax if mangled and map Python types to V types
+             cls_name = self._unmangle_generic_name(cls_name)
 
              cond = f"({subject_expr} is {cls_name})"
 
@@ -293,16 +300,8 @@ class MatchMixin(TranslatorBase):
                  # Narrowing: if the sub-pattern is a specific class, we can cast the variable
                  if isinstance(pattern.pattern, ast.MatchClass):
                      cls_name = self.visit(pattern.pattern.cls)
-                     if cls_name == "int":
-                         val_expr = f"({subject_expr} as int)"
-                     elif cls_name == "float":
-                         val_expr = f"({subject_expr} as f64)"
-                     elif cls_name == "str":
-                         val_expr = f"({subject_expr} as string)"
-                     elif cls_name == "bool":
-                         val_expr = f"({subject_expr} as bool)"
-                     else:
-                         val_expr = f"({subject_expr} as {cls_name})"
+                     cls_name = self._unmangle_generic_name(cls_name)
+                     val_expr = f"({subject_expr} as {cls_name})"
                  else:
                      # General type narrowing from mypy for the bound name
                      if pattern.name:

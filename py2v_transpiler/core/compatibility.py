@@ -34,8 +34,65 @@ class CompatibilityLayer:
         to support newer or future syntax on older Python versions.
         """
         source = self._preprocess_bracketless_except(source)
+        source = self._preprocess_generic_match(source)
         # Add more future pre-processors here
         return source
+
+    def _preprocess_generic_match(self, source: str) -> str:
+        """
+        Pre-processes Python source code to mangle generic class patterns in match statements
+        to be parsable by the standard ast module.
+        Supports multi-line patterns, nested generics, and qualified names.
+        Example: `case Box[int](value=v):` becomes `case Box__py2v_gen_L__int__py2v_gen_R__(value=v):`.
+        """
+        def mangle_recursive(text: str) -> str:
+            def mangle_callback(match: re.Match) -> str:
+                name, args = match.groups()
+                # Replace remaining separators in this level
+                mangled_args = args.replace(', ', '__py2v_gen_C__').replace(',', '__py2v_gen_C__').replace(' ', '')
+                return f"{name}__py2v_gen_L__{mangled_args}__py2v_gen_R__"
+
+            new_text = text
+            while True:
+                # Matches Word or pkg.Word followed by [Inner] where Inner doesn't contain [ or ]
+                temp = re.sub(r'(\b[\w\.]+)\[([^\[\]]+)\]', mangle_callback, new_text)
+                if temp == new_text:
+                    break
+                new_text = temp
+            return new_text
+
+        result = []
+        lines = source.split('\n')
+        i = 0
+        while i < len(lines):
+            line = lines[i]
+            case_match = re.match(r'^(\s*)case\s+(.*)', line)
+            if case_match:
+                indent = case_match.group(1)
+                content = case_match.group(2)
+
+                # Find the colon ending the case pattern
+                full_case_content = content
+                j = i
+                while ':' not in full_case_content and j + 1 < len(lines):
+                    j += 1
+                    full_case_content += '\n' + lines[j]
+
+                if ':' in full_case_content:
+                    # Split into pattern and rest
+                    pattern_part, rest_part = full_case_content.split(':', 1)
+                    mangled_pattern = mangle_recursive(pattern_part)
+
+                    new_full_case = f"{indent}case {mangled_pattern}:{rest_part}"
+                    new_lines = new_full_case.split('\n')
+                    result.extend(new_lines)
+                    i = j + 1
+                    continue
+
+            result.append(line)
+            i += 1
+
+        return '\n'.join(result)
 
     def _preprocess_bracketless_except(self, source: str) -> str:
         """
