@@ -26,25 +26,6 @@ class AttributesMixin(TranslatorBase):
 
         obj = self.visit(node.value)
 
-        # Apply narrowing if mypy type differs from local type mapping
-        # Only do this if we can safely cast without syntax errors.
-        if isinstance(node.value, ast.Name):
-            base_type = self.type_inference.type_map.get(node.value.id)
-            # Find narrowed type via node location first, fall back to general guess_type
-            narrowed_type = None
-            if hasattr(node.value, 'lineno') and hasattr(node.value, 'col_offset'):
-                loc_key = f"{node.value.id}@{node.value.lineno}:{node.value.col_offset}"
-                narrowed_type = self.type_inference.type_map.get(loc_key)
-            if not narrowed_type:
-                narrowed_type = self._guess_type(node.value)
-
-            # If mypy narrowed the type and it's not "int" (fallback) or generic "Any"
-            if narrowed_type and base_type and narrowed_type != base_type and narrowed_type not in ("int", "Any"):
-                # Avoid casting to same primitive types or optionals
-                if not (base_type.startswith("?") and base_type[1:] == narrowed_type):
-                    # Emit an explicit cast in V: (obj as NarrowedType)
-                    obj = f"({obj} as {narrowed_type})"
-
         # Mangling for self.__private attributes
         # We need to know if we are accessing self inside a class
         attr_name = node.attr

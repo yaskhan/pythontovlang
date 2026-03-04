@@ -85,6 +85,8 @@ class MixinInferer(ast.NodeVisitor):
         self.mixin_to_main: Dict[str, list[str]] = {}
         self.main_to_mixins: Dict[str, list[str]] = {}
         self.mixin_nodes: Dict[str, ast.ClassDef] = {}
+        self.narrowing_stack: list[Dict[str, str]] = [{}]
+        self.narrowing_stack: list[Dict[str, str]] = [{}]
         self.class_hierarchy: Dict[str, list[str]] = {}
         self.is_abc: Dict[str, bool] = {}
 
@@ -205,9 +207,81 @@ class TypeInference(ast.NodeVisitor):
         self.mixin_to_main: Dict[str, list[str]] = {}
         self.main_to_mixins: Dict[str, list[str]] = {}
         self.mixin_nodes: Dict[str, ast.ClassDef] = {}
+        self.narrowing_stack: list[Dict[str, str]] = [{}]
+
+    def _get_narrowings(self, node: ast.AST) -> Dict[str, str]:
+        narrowings = {}
+        if isinstance(node, ast.Call) and isinstance(node.func, ast.Name) and node.func.id == "isinstance":
+            if len(node.args) == 2 and isinstance(node.args[0], ast.Name):
+                var_name = node.args[0].id
+                try:
+                    type_str = ast.unparse(node.args[1])
+                    v_type = map_python_type_to_v(type_str)
+                    narrowings[var_name] = v_type
+                except Exception:
+                    pass
+        elif isinstance(node, ast.Compare):
+            if len(node.ops) == 1 and isinstance(node.ops[0], ast.IsNot):
+                if isinstance(node.left, ast.Name) and isinstance(node.comparators[0], ast.Constant) and node.comparators[0].value is None:
+                    var_name = node.left.id
+                    # Narrow to non-optional version if we know base type
+                    base_type = self.type_map.get(var_name, "Any")
+                    if base_type.startswith("?"):
+                        narrowings[var_name] = base_type[1:]
+                    else:
+                        # Even if we don't know base type, it's not none here.
+                        # We can't easily guess the non-none type without mypy info,
+                        # but we can at least mark it as narrowed if it was inferred as optional.
+                        pass
+        elif isinstance(node, ast.BoolOp) and isinstance(node.op, ast.And):
+            for val in node.values:
+                narrowings.update(self._get_narrowings(val))
+        return narrowings
+
+    def visit_If(self, node: ast.If) -> None:
+        narrowings = self._get_narrowings(node.test)
+        self.visit(node.test)
+
+        # Branch with narrowings
+        self.narrowing_stack.append({**self.narrowing_stack[-1], **narrowings})
+        for stmt in node.body:
+            self.visit(stmt)
+        self.narrowing_stack.pop()
+
+        # Else branch (potentially could narrow to NOT types, but more complex)
+        if node.orelse:
+            for stmt in node.orelse:
+                self.visit(stmt)
+
+    def visit_While(self, node: ast.While) -> None:
+        self.visit(node.test)
+        narrowings = self._get_narrowings(node.test)
+
+        self.narrowing_stack.append({**self.narrowing_stack[-1], **narrowings})
+        for stmt in node.body:
+            self.visit(stmt)
+        self.narrowing_stack.pop()
+
+        if node.orelse:
+            for stmt in node.orelse:
+                self.visit(stmt)
+
+    def visit_Assert(self, node: ast.Assert) -> None:
+        self.visit(node.test)
+        narrowings = self._get_narrowings(node.test)
+        self.narrowing_stack[-1].update(narrowings)
+
+    def visit_Name(self, node: ast.Name) -> None:
+        if isinstance(node.ctx, ast.Load):
+            narrowed = self.narrowing_stack[-1].get(node.id)
+            if narrowed:
+                loc_key = f"{node.id}@{getattr(node, 'lineno', 0)}:{getattr(node, 'col_offset', 0)}"
+                self.type_map[loc_key] = narrowed
+        self.generic_visit(node)
 
     def analyze(self, tree: ast.AST) -> Dict[str, str]:
         """Analyzes the AST to infer variable types."""
+        self.narrowing_stack = [{}]
         self.visit(tree)
         # Type Alias Inference
         alias_inferer = AliasInferer()
