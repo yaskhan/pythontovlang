@@ -69,14 +69,10 @@ def _map_ast_type(node: ast.AST, self_name: str = "Self", allow_union: bool = Fa
                     else:
                         args.append('Any')
 
-                # Check if res is already a V type (like []Any for list)
-                # If so, we might need to map it correctly.
-                # Heuristic: if it's a known collection alias
-                if node.id in ('list', 'dict', 'set', 'tuple', 'List', 'Dict', 'Set', 'Tuple'):
-                    # Handled by Subscript mostly, but for bare list[T=int] -> []int
-                    pass
-
-                return f"{res}[{', '.join(args)}]"
+                # Recursively handle aliases that might map to V collections (like list -> []Any)
+                mapped_res = map_python_type_to_v(res)
+                if mapped_res == "void": mapped_res = res
+                return f"{mapped_res}[{', '.join(args)}]"
         return res
 
     elif isinstance(node, ast.Attribute):
@@ -140,6 +136,7 @@ def _map_ast_type(node: ast.AST, self_name: str = "Self", allow_union: bool = Fa
             args = [slice_node]
 
         # Helper to map args, handling nested types
+        # Note: Do NOT use mapped_args for specific types like Literal or Callable if they need raw nodes.
         mapped_args = [_map_ast_type(arg, self_name, allow_union, generic_map, generic_info) for arg in args]
 
         # Apply defaults for partially specified generics
