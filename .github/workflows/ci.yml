@@ -6,6 +6,10 @@ on:
   pull_request:
     branches: [ "main" ]
 
+permissions:
+  contents: read
+  issues: write
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -17,6 +21,9 @@ jobs:
       uses: actions/setup-python@v3
       with:
         python-version: "3.10"
+
+    - name: Setup V
+      uses: vlang/setup-v@v1.4
 
     - name: Install dependencies
       run: |
@@ -30,3 +37,54 @@ jobs:
     - name: Type check with mypy
       run: |
         mypy py2v_transpiler/core py2v_transpiler/models py2v_transpiler/stdlib_map py2v_transpiler/main.py py2v_transpiler/config.py --check-untyped-defs
+
+    - name: Mypy lib-stubs compatibility (Roadmap)
+      id: run_stubs
+      run: |
+        python py2v_transpiler/tests/scripts/generate_mypy_stubs_tests.py
+
+        # Initialize an empty error log file
+        touch v_check_errors.log
+
+        # We loop over the generated folders to check them and allow failure
+        find py2v_transpiler/tests/output/mypy_stubs -mindepth 1 -type d | while read -r dir; do
+          echo "Checking $dir"
+          # Capture both stdout and stderr. If it fails, append the errors.
+          if ! v -check "$dir" >> v_check_errors.log 2>&1; then
+            echo "Errors found in $dir"
+          fi
+        done
+
+        # Store output in environment variable if it's not empty
+        if [ -s v_check_errors.log ]; then
+          echo "HAS_ERRORS=true" >> $GITHUB_ENV
+        else
+          echo "HAS_ERRORS=false" >> $GITHUB_ENV
+        fi
+
+    - name: Create or Update Issue
+      # Temporarily enabled for all branches/PRs so the user can test the action.
+      # Consider adding '&& github.ref == '\''refs/heads/main'\''' back once testing is verified.
+      if: env.HAS_ERRORS == 'true'
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      run: |
+        ISSUE_TITLE="Mypy lib-stub compatibility issues"
+
+        # Format the body
+        echo "The transpiler encountered the following V syntax errors when generating code for mypy stubs:" > issue_body.md
+        echo '```text' >> issue_body.md
+        # Truncate to avoid giant payloads
+        head -c 60000 v_check_errors.log >> issue_body.md
+        echo '```' >> issue_body.md
+
+        # Check if an open issue with this title already exists
+        ISSUE_NUMBER=$(gh issue list --search "in:title \"$ISSUE_TITLE\" is:open" --json number --jq '.[0].number')
+
+        if [ -z "$ISSUE_NUMBER" ] || [ "$ISSUE_NUMBER" == "null" ]; then
+          # Create new issue
+          gh issue create --title "$ISSUE_TITLE" --body-file issue_body.md --label "bug"
+        else
+          # Update existing issue's body to keep it fresh without spamming comments
+          gh issue edit $ISSUE_NUMBER --body-file issue_body.md
+        fi
