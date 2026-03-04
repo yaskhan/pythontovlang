@@ -34,6 +34,19 @@ class TypeAliasMixin(TranslatorBase):
         if hasattr(ast, 'unparse'):
             val_str = ast.unparse(node.value)
             v_type = map_python_type_to_v(val_str, allow_union=True)
-            self.emitter.add_struct(f"type {name}{type_params} = {v_type}")
+
+            # Handle Literal mapping for PEP 613 TypeAlias
+            values = self._parse_literal_type(v_type)
+            if values:
+                self.literal_enums[name] = values
+                # Simplify to base type
+                val = values[0]
+                if isinstance(val, int): v_type = "int"
+                elif isinstance(val, float): v_type = "f64"
+                elif isinstance(val, str): v_type = "string"
+                elif isinstance(val, bool): v_type = "bool"
+
+            pub = "pub " if self._is_exported(node.name.id) else ""
+            self.emitter.add_struct(f"{pub}type {name}{type_params} = {v_type}")
         else:
             self.output.append(f"{self._indent()}// TypeAlias {name} skipped (no ast.unparse)")

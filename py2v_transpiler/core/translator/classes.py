@@ -655,6 +655,21 @@ class ClassesMixin(TranslatorBase):
                                 self_name=struct_name,
                                 generic_map=self._get_combined_generic_map(),
                             )
+                            # Simplify Literal in interface methods
+                            values = self._parse_literal_type(a_type)
+                            if not values:
+                                lookup_type = a_type[1:] if a_type.startswith("?") else a_type
+                                if lookup_type in self.literal_enums:
+                                    values = self.literal_enums[lookup_type]
+
+                            if values:
+                                val = values[0]
+                                is_opt = a_type.startswith("?")
+                                prefix = "?" if is_opt else ""
+                                if isinstance(val, int): a_type = f"{prefix}int"
+                                elif isinstance(val, float): a_type = f"{prefix}f64"
+                                elif isinstance(val, str): a_type = f"{prefix}string"
+                                elif isinstance(val, bool): a_type = f"{prefix}bool"
                         except:
                             pass
                     m_args.append(f"{a_name} {a_type}")
@@ -668,6 +683,21 @@ class ClassesMixin(TranslatorBase):
                             self_name=struct_name,
                             generic_map=self._get_combined_generic_map(),
                         )
+                        # Simplify Literal in interface method return type
+                        values = self._parse_literal_type(m_ret)
+                        if not values:
+                            lookup_type = m_ret[1:] if m_ret.startswith("?") else m_ret
+                            if lookup_type in self.literal_enums:
+                                values = self.literal_enums[lookup_type]
+
+                        if values:
+                            val = values[0]
+                            is_opt = m_ret.startswith("?")
+                            prefix = "?" if is_opt else ""
+                            if isinstance(val, int): m_ret = f"{prefix}int"
+                            elif isinstance(val, float): m_ret = f"{prefix}f64"
+                            elif isinstance(val, str): m_ret = f"{prefix}string"
+                            elif isinstance(val, bool): m_ret = f"{prefix}bool"
                     except:
                         pass
 

@@ -150,7 +150,26 @@ def _map_ast_type(node: ast.AST, self_name: str = "Self", allow_union: bool = Fa
             return "fn"
 
         elif value_id == 'Literal':
-            # Literal[1] -> int, Literal['a'] -> string
+            # Preserve Literal information for the translator to handle enums/checks
+            # when used as a type alias or explicitly requested.
+            # We return Literal[...] as is if it has multiple values, but for single values
+            # we might want to return the base type for simpler function signatures
+            # unless we can prove it's a type alias.
+
+            # Extract values
+            literal_values = []
+            for arg in args:
+                if isinstance(arg, ast.Constant):
+                    literal_values.append(arg.value)
+
+            if len(literal_values) > 1:
+                # Always preserve multi-value Literals for translator mixins.
+                # Mixins like visit_Assign or visit_AnnAssign will handle converting them to enums/checks.
+                if hasattr(ast, 'unparse'):
+                    return ast.unparse(node)
+                return "string" # Fallback
+
+            # Single value or complex expression
             if args:
                 arg = args[0]
                 if isinstance(arg, ast.Constant):
@@ -158,7 +177,7 @@ def _map_ast_type(node: ast.AST, self_name: str = "Self", allow_union: bool = Fa
                     if isinstance(arg.value, float): return 'f64'
                     if isinstance(arg.value, str): return 'string'
                     if isinstance(arg.value, bool): return 'bool'
-            return 'string' # default?
+            return 'string'
 
         elif value_id == 'Type':
             # Type[C] -> C

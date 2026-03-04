@@ -355,6 +355,22 @@ class FunctionsMixin(TranslatorBase):
                     prefix = self._get_scc_prefix(scc_file)
                     arg_type = f"{prefix}__{typename}"
 
+            # Simplify Literal types in function signatures to base types
+            values = self._parse_literal_type(arg_type)
+            if not values:
+                lookup_type = arg_type[1:] if arg_type.startswith("?") else arg_type
+                if lookup_type in self.literal_enums:
+                    values = self.literal_enums[lookup_type]
+
+            if values:
+                val = values[0]
+                is_opt = arg_type.startswith("?")
+                prefix = "?" if is_opt else ""
+                if isinstance(val, int): arg_type = f"{prefix}int"
+                elif isinstance(val, float): arg_type = f"{prefix}f64"
+                elif isinstance(val, str): arg_type = f"{prefix}string"
+                elif isinstance(val, bool): arg_type = f"{prefix}bool"
+
             args_str_list.append(f"{arg_name} {arg_type}")
 
         if node.args.vararg:
@@ -400,6 +416,22 @@ class FunctionsMixin(TranslatorBase):
                     self_name=struct_name or "Self",
                     generic_map=combined_generic_map,
                 )
+
+                # Simplify Literal in return type
+                values = self._parse_literal_type(ret_type)
+                if not values:
+                    lookup_type = ret_type[1:] if ret_type.startswith("?") else ret_type
+                    if lookup_type in self.literal_enums:
+                        values = self.literal_enums[lookup_type]
+
+                if values:
+                    val = values[0]
+                    is_opt = ret_type.startswith("?")
+                    prefix = "?" if is_opt else ""
+                    if isinstance(val, int): ret_type = f"{prefix}int"
+                    elif isinstance(val, float): ret_type = f"{prefix}f64"
+                    elif isinstance(val, str): ret_type = f"{prefix}string"
+                    elif isinstance(val, bool): ret_type = f"{prefix}bool"
             except:
                 if isinstance(node.returns, ast.Name):
                     ret_type = node.returns.id

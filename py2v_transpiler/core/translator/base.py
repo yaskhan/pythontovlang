@@ -128,6 +128,7 @@ class TranslatorBase(ast.NodeVisitor):
         self.scc_files: Set[str] = set()
         self.module_all: Optional[List[str]] = None
         self.defined_top_level_symbols: Set[str] = set()
+        self.literal_enums: Dict[str, List[Any]] = {} # type_name -> list of literal values
         self.warnings: List[str] = []
 
     def _indent(self) -> str:
@@ -183,6 +184,47 @@ class TranslatorBase(ast.NodeVisitor):
         if not base:
              base = "py_mod"
         return base
+
+    def _parse_literal_type(self, type_str: str) -> Optional[List[Any]]:
+        """
+        Safely extracts values from a Literal type string, handling potential V-type prefixes.
+        Example: "Literal['a', 'b']" -> ['a', 'b']
+        Example: "?Literal[1, 2]" -> [1, 2]
+        """
+        if not type_str or "Literal[" not in type_str:
+            return None
+
+        # Strip V prefixes like ?, [], map[...]
+        clean_type = type_str
+        if clean_type.startswith("?"):
+            clean_type = clean_type[1:]
+
+        # We need to find the start of Literal[
+        idx = clean_type.find("Literal[")
+        if idx == -1:
+            return None
+
+        literal_part = clean_type[idx:]
+        # Find matching closing bracket
+        # Simplified: assume it ends with ] or ] followed by other V type chars
+        # Better: use ast.parse if it looks like a valid python expression
+        try:
+            # We might have something like Literal['a', 'b'] (with potential V junk around it if extraction was messy)
+            # but usually it should be clean here if called correctly.
+            node = ast.parse(literal_part, mode='eval').body
+            if isinstance(node, ast.Subscript):
+                slice_node = node.slice
+                elts = slice_node.elts if isinstance(slice_node, ast.Tuple) else [slice_node]
+                values = []
+                for elt in elts:
+                    if isinstance(elt, ast.Constant):
+                        values.append(elt.value)
+                return values
+        except Exception:
+            # Naive fallback for extraction if ast.parse fails due to V syntax
+            pass
+
+        return None
 
     def _is_top_level_symbol(self, name: str) -> bool:
         """Heuristic to check if a name refers to a top-level symbol (class/func/global)."""

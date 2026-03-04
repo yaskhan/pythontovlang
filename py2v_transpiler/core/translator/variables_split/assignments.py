@@ -123,7 +123,7 @@ class AssignmentsMixin(TranslatorBase):
                                   # For int, it returns int.
                                   # For "unknown", it returns "unknown".
 
-                                  if mapped != "void" and mapped != rhs_source:
+                                  if "Literal[" in mapped or (mapped != "void" and mapped != rhs_source):
                                        is_type_alias = True
                                        type_alias_val = mapped
                                   elif mapped == "int" and rhs_source == "int": # Primitive
@@ -149,6 +149,17 @@ class AssignmentsMixin(TranslatorBase):
                               pass
 
                 if is_type_alias:
+                     # Handle Literal mapping
+                     values = self._parse_literal_type(type_alias_val)
+                     if values:
+                         self.literal_enums[lhs] = values
+                         # Map to base type for V compatibility (avoid breaking call sites with enums)
+                         val = values[0]
+                         if isinstance(val, int): type_alias_val = "int"
+                         elif isinstance(val, float): type_alias_val = "f64"
+                         elif isinstance(val, str): type_alias_val = "string"
+                         elif isinstance(val, bool): type_alias_val = "bool"
+
                      pub = "pub " if self._is_exported(target.id) else ""
                      self.emitter.add_struct(f"{pub}type {lhs} = {type_alias_val}")
                      return

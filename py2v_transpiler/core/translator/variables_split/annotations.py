@@ -90,6 +90,23 @@ class AnnotationsMixin(TranslatorBase):
                 self.output.append(f"{self._indent()}{target} := {rhs}")
 
             else:
+                # Handle Literal bound checks
+                if isinstance(node.value, ast.Constant):
+                    # Check for inline Literal or named type alias mapping to Literal
+                    allowed_values = self._parse_literal_type(v_type)
+                    if not allowed_values:
+                        # Check if v_type is a known Literal enum
+                        # Strip optional ? for lookup
+                        lookup_type = v_type[1:] if v_type.startswith("?") else v_type
+                        if lookup_type in self.literal_enums:
+                            allowed_values = self.literal_enums[lookup_type]
+
+                    if allowed_values and node.value.value not in allowed_values:
+                        # Escape quotes for compile error and avoid unescaped nested quotes in V
+                        val_display = f'\\"{node.value.value}\\"' if isinstance(node.value.value, str) else str(node.value.value)
+                        v_type_display = v_type.replace("'", "\\'")
+                        self.output.append(f"{self._indent()}$compile_error('Invalid literal value {val_display} for {v_type_display}')")
+
                 if isinstance(node.value, ast.Dict) and not node.value.keys and v_type.startswith("map["):
                     rhs = f"{v_type}{{}}"
                 else:
