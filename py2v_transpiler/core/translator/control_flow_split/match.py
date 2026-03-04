@@ -1,5 +1,5 @@
 import ast
-from typing import List, Tuple
+from typing import List, Tuple, Dict
 from ..base import TranslatorBase
 
 class MatchMixin(TranslatorBase):
@@ -242,15 +242,15 @@ class MatchMixin(TranslatorBase):
             parts = []
             all_alternatives_bindings: List[List[str]] = []
             for p in pattern.patterns:
-                c, b = self._compile_pattern(p, subject_expr)
-                parts.append(f"({c})")
-                all_alternatives_bindings.append(b)
+                alt_cond, alt_binds = self._compile_pattern(p, subject_expr)
+                parts.append(f"({alt_cond})")
+                all_alternatives_bindings.append(alt_binds)
 
             # Group bindings by variable name
-            binding_map = {}
+            binding_map: Dict[str, List[Tuple[List[str], str]]] = {}
             for b_list in all_alternatives_bindings:
-                for b in b_list:
-                    name, expr = b.split(" := ", 1)
+                for b_str in b_list:
+                    name, expr = b_str.split(" := ", 1)
                     if name not in binding_map:
                         binding_map[name] = []
                     binding_map[name].append((b_list, expr))
