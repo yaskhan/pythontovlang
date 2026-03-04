@@ -86,7 +86,15 @@ class MixinInferer(ast.NodeVisitor):
         self.main_to_mixins: Dict[str, list[str]] = {}
         self.mixin_nodes: Dict[str, ast.ClassDef] = {}
         self.class_hierarchy: Dict[str, list[str]] = {}
-        self.is_abc: Dict[str, bool] = {}
+        self._is_abc_map: Dict[str, bool] = {}
+
+    @property
+    def is_abc(self) -> Dict[str, bool]:
+        return self._is_abc_map
+
+    @is_abc.setter
+    def is_abc(self, value: Dict[str, bool]):
+        self._is_abc_map = value
 
     def _get_all_ancestors(self, cls_name: str) -> list[str]:
         result = []
@@ -175,7 +183,7 @@ class MixinInferer(ast.NodeVisitor):
                         changed = True
 
         for cls_name in self.class_hierarchy:
-            self.is_abc[cls_name] = cls_name in explicit_abcs
+            self._is_abc_map[cls_name] = cls_name in explicit_abcs
 
         # Pass 2: Method distribution from templates to concrete descendants
         templates = explicit_abcs | mixin_templates
@@ -205,7 +213,16 @@ class TypeInference(ast.NodeVisitor):
         self.mixin_to_main: Dict[str, list[str]] = {}
         self.main_to_mixins: Dict[str, list[str]] = {}
         self.mixin_nodes: Dict[str, ast.ClassDef] = {}
+        self._is_abc_map: Dict[str, bool] = {}
         self.narrowing_stack: list[Dict[str, str]] = [{}]
+
+    @property
+    def is_abc(self) -> Dict[str, bool]:
+        return self._is_abc_map
+
+    @is_abc.setter
+    def is_abc(self, value: Dict[str, bool]):
+        self._is_abc_map = value
 
     def _get_narrowings(self, node: ast.AST) -> Dict[str, str]:
         narrowings = {}
@@ -292,7 +309,7 @@ class TypeInference(ast.NodeVisitor):
         self.mixin_to_main = mixin_inferer.mixin_to_main
         self.main_to_mixins = mixin_inferer.main_to_mixins
         self.mixin_nodes = mixin_inferer.mixin_nodes
-        self.is_abc = mixin_inferer.is_abc
+        self._is_abc_map = mixin_inferer.is_abc
 
         return self.type_map
 
