@@ -222,12 +222,12 @@ def _map_ast_type(node: ast.AST, self_name: str = "Self", allow_union: bool = Tr
         elif value_id == 'Literal':
             # Literal[1] -> int, Literal['a'] -> string
             if args:
-                arg = args[0]
-                if isinstance(arg, ast.Constant):
-                    if isinstance(arg.value, int): return 'int'
-                    if isinstance(arg.value, float): return 'f64'
-                    if isinstance(arg.value, str): return 'string'
-                    if isinstance(arg.value, bool): return 'bool'
+                literal_arg = args[0]
+                if isinstance(literal_arg, ast.Constant):
+                    if isinstance(literal_arg.value, int): return 'int'
+                    if isinstance(literal_arg.value, float): return 'f64'
+                    if isinstance(literal_arg.value, str): return 'string'
+                    if isinstance(literal_arg.value, bool): return 'bool'
             return 'string' # default?
 
         elif value_id == 'Type':
@@ -264,14 +264,14 @@ def _map_ast_type(node: ast.AST, self_name: str = "Self", allow_union: bool = Tr
     elif isinstance(node, ast.BinOp):
         # A | B (Python 3.10+ Union)
         if isinstance(node.op, ast.BitOr):
-            left = _map_ast_type(node.left, self_name, allow_union, generic_map)
-            right = _map_ast_type(node.right, self_name, allow_union, generic_map)
-            if left == 'none':
-                return f"?{right}"
-            if right == 'none':
-                return f"?{left}"
+            left_type = _map_ast_type(node.left, self_name, allow_union, generic_map)
+            right_type = _map_ast_type(node.right, self_name, allow_union, generic_map)
+            if left_type == 'none':
+                return f"?{right_type}"
+            if right_type == 'none':
+                return f"?{left_type}"
             if allow_union:
-                return f"{left} | {right}"
+                return f"{left_type} | {right_type}"
             return "Any"
 
     return "void"
