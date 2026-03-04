@@ -9,7 +9,7 @@ class ClassesMixin(TranslatorBase):
         # Map Python class to V struct
         # Handle nested classes by prefixing with parent class name
         if not hasattr(self, "class_stack"):
-            self.class_stack = []
+            self.class_stack: List[str] = []
 
         sanitized_name = self._sanitize_name(node.name, is_type=True)
 

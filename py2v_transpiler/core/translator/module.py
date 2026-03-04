@@ -95,7 +95,8 @@ class ModuleMixin(TranslatorBase):
                     self.warnings.append(f"Symbol '{name}' listed in __all__ but not defined in module")
 
             # Check for public symbols missing from __all__ if strict mode enabled
-            if getattr(self.config, 'strict_export_mode', False):
+            config = getattr(self, 'config', None)
+            if config and getattr(config, 'strict_export_mode', False):
                 for name in self.defined_top_level_symbols:
                     if name != "__all__" and not name.startswith('_') and name not in self.module_all:
                         self.warnings.append(f"Public symbol '{name}' not listed in __all__")

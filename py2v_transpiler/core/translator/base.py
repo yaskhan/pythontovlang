@@ -86,6 +86,7 @@ class TranslatorBase(ast.NodeVisitor):
         self.coroutine_handler: CoroutineHandler
         self.emitter: VCodeEmitter
         self.mapper: StdLibMapper
+        self.config: Optional[Any] = None
 
         self.output: List[str] = []
         self._indent_level: int = 0
@@ -291,7 +292,8 @@ class TranslatorBase(ast.NodeVisitor):
         if not getattr(self, 'config', None):
             return False
 
-        if self.config.include_all_symbols:
+        config = self.config
+        if config and hasattr(config, 'include_all_symbols') and config.include_all_symbols:
             return not name.startswith('_')
 
         if self.module_all is not None:
