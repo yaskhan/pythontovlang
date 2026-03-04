@@ -1,5 +1,6 @@
 import ast
 from enum import Enum, auto
+from typing import Optional
 
 class VType(Enum):
     INT = auto()
@@ -13,7 +14,7 @@ class VType(Enum):
     NONE = auto()
     UNKNOWN = auto()
 
-def map_python_type_to_v(py_type: str, self_name: str = "Self", allow_union: bool = False, generic_map: dict[str, str] = None) -> str:
+def map_python_type_to_v(py_type: str, self_name: str = "Self", allow_union: bool = False, generic_map: Optional[dict[str, str]] = None) -> str:
     """Maps a Python type name to its V equivalent."""
     if not py_type:
         return 'void'
@@ -47,7 +48,7 @@ def map_python_type_to_v(py_type: str, self_name: str = "Self", allow_union: boo
     except SyntaxError:
         return py_type
 
-def _map_ast_type(node: ast.AST, self_name: str = "Self", allow_union: bool = False, generic_map: dict[str, str] = None) -> str:
+def _map_ast_type(node: ast.AST, self_name: str = "Self", allow_union: bool = False, generic_map: Optional[dict[str, str]] = None) -> str:
     if isinstance(node, ast.Name):
         if node.id == "Self":
             return self_name
