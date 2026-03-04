@@ -532,3 +532,10 @@ Based on the transpilation of the `bm_richards.py` benchmark, several critical a
 - [x] **Explicit Base Class Constructor Calls (`Base.__init__`)**
   - *Context:* Calls like `Task.__init__(self, i, p, w, s, r)` are emitted directly, which doesn't correctly update the embedded V struct unless the explicit embedded struct is initialized or fields are copied.
   - *Task:* Refactor explicit `BaseClass.__init__(self, ...)` calls to properly initialize the embedded struct fields inside the derived V struct.
+
+## Analysis of `pi_test.py` Transpilation Issues
+Based on the transpilation of the `pi_test.py` script, the following area for improvement has been identified:
+
+- [ ] **`decimal` module support**
+  - *Context:* Python's `decimal` module is used for arbitrary-precision decimal arithmetic. The transpiler currently translates `decimal.localcontext()` directly and `decimal.Decimal` as `py_decimal`, but there's no native equivalent or mapping for arbitrary precision decimals in V standard library out of the box used here correctly.
+  - *Task:* Implement mapping for Python's `decimal` module, potentially utilizing a V library for arbitrary precision arithmetic or BigInts, and correctly mapping context managers like `localcontext`.
