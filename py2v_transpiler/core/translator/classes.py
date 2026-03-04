@@ -360,8 +360,10 @@ class ClassesMixin(TranslatorBase):
                 elif isinstance(base.value, ast.Attribute):
                     base_name = base.value.attr
 
-                if base_name == "Generic":
-                    # Extract type vars: Generic[T, U]
+                if base_name in ("Generic", "Protocol", "typing.Protocol"):
+                    if base_name in ("Protocol", "typing.Protocol"):
+                        is_protocol = True
+                    # Extract type vars: Generic[T, U] or Protocol[T]
                     py_gen = []
                     if isinstance(base.slice, ast.Tuple):
                         for elt in base.slice.elts:
@@ -377,10 +379,32 @@ class ClassesMixin(TranslatorBase):
                         self.current_class_generics = list(
                             self.current_class_generic_map.values()
                         )
-                    # Don't add Generic to fields
+                    # Don't add Generic/Protocol to fields
                     continue
                 else:
                     # Regular generic base: Parent[T]
+                    # We only extract type parameters if they haven't been resolved to concrete types
+                    # like Parent[int]. In python AST, TypeVars are usually ast.Name.
+                    # Mypy or other static analysis will be needed to be certain,
+                    # but typically generic bases are inherited as Generic[T, U] etc,
+                    # which is handled above.
+                    # If someone inherits Parent[T], T is a TypeVar.
+                    py_gen = []
+                    if isinstance(base.slice, ast.Tuple):
+                        for elt in base.slice.elts:
+                            if isinstance(elt, ast.Name) and elt.id in self.current_class_generic_map:
+                                py_gen.append(elt.id)
+                    elif isinstance(base.slice, ast.Name) and base.slice.id in self.current_class_generic_map:
+                        py_gen.append(base.slice.id)
+
+                    if py_gen:
+                        self.current_class_generic_map.update(
+                            self._get_generic_map(py_gen)
+                        )
+                        self.current_class_generics = list(
+                            self.current_class_generic_map.values()
+                        )
+
                     # Add to fields as embedded struct if not an interface
                     if (
                         base_name not in self.known_interfaces
@@ -393,7 +417,11 @@ class ClassesMixin(TranslatorBase):
                         )
                         # V only allows anonymous embedding of structs/interfaces. Skip if it maps to array/map.
                         if not (v_type.startswith("[]") or v_type.startswith("map[")):
-                            fields.append(f"    {v_type}")
+                            # Use explicit field name for generic bases to avoid V syntax errors with commas
+                            field_name = self._sanitize_name(base_name.lower())
+                            # Make sure it's distinct and lowercased
+                            if field_name == "type": field_name = "py_type"
+                            fields.append(f"    {field_name} {v_type}")
                     self.current_class_bases.append(base_name)
 
             elif isinstance(base, ast.Name):

@@ -36,7 +36,7 @@ class FunctionsMixin(TranslatorBase):
 
             # Handle self
             is_method = self.current_class is not None
-            if is_method and args and args[0].arg == "self":
+            if is_method and args and args[0].arg in ("self", "cls"):
                 args = args[1:]
 
             for arg in args:
@@ -700,12 +700,18 @@ class FunctionsMixin(TranslatorBase):
                 args = node.args.args
                 if hasattr(node.args, "posonlyargs"):
                     args = node.args.posonlyargs + args
-                if args and args[0].arg == "self":
+                if args and args[0].arg in ("self", "cls"):
                     if self.current_class_generics:
                         gen_str = f"[{', '.join(self.current_class_generics)}]"
-                        receiver_str = f"({args[0].arg} {struct_name}{gen_str}) "
+                        if args[0].arg == "cls":
+                            receiver_str = "" # `cls` gets stripped below or type checking handles it
+                        else:
+                            receiver_str = f"({args[0].arg} {struct_name}{gen_str}) "
                     else:
-                        receiver_str = f"({args[0].arg} {struct_name}) "
+                        if args[0].arg == "cls":
+                            receiver_str = ""
+                        else:
+                            receiver_str = f"({args[0].arg} {struct_name}) "
 
             # Generate mangled name based on argument types
             type_suffix_parts = []
@@ -728,7 +734,14 @@ class FunctionsMixin(TranslatorBase):
             ret_type = sig["return"]
 
             base_func_name = self._sanitize_name(node.name)
-            if self.current_class:
+            if node.name == "__init__":
+                base_func_name = f"new_{struct_name}"
+                receiver_str = ""  # Factory is static
+                ret_type = struct_name
+                if self.current_class_generics:
+                    gen_str = f"[{', '.join(self.current_class_generics)}]"
+                    ret_type += gen_str
+            elif self.current_class:
                 base_func_name = self._sanitize_name(
                     self._mangle_name(base_func_name, self.current_class)
                 )

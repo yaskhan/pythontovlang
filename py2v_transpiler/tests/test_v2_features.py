@@ -30,7 +30,7 @@ class Child(Base[int]):
     assert "type U = int | string" in v_code
     assert "struct Base[T] {" in v_code
     assert "struct Child {" in v_code
-    assert "Base[int]" in v_code
+    assert "base Base[int]" in v_code
     assert "fn new_Base[T](val T) Base[T]" in v_code
     assert "fn (self Child) method(x U) U" in v_code
 

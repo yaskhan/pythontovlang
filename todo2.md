@@ -549,3 +549,18 @@ Based on the transpilation of the `mypy_stubs` tests, the following critical are
 - [ ] **`Protocol[T]` and Generic Subscript Base Class Handling**
   - *Context:* When a class inherits from a parameterized protocol like `class Iterable(Protocol[T_co]):`, the transpiler fails to recognize `Protocol[T_co]` as a protocol because it checks for `ast.Name` (`Protocol`) but not `ast.Subscript`. Consequently, it treats it as a regular generic base, fails to set `is_protocol = True`, and generates a standard V `struct` instead of an `interface`. Furthermore, generic type parameters are only extracted when the base name is exactly `"Generic"`, so classes inheriting from `Protocol[T]` lose their generic parameters, leading to V compiler errors like `generic error: struct 'main.Awaitable' is not a generic struct`.
   - *Task:* Update `ClassesMixin.visit_ClassDef` to check for `"Protocol"` and `"typing.Protocol"` in `ast.Subscript` bases, properly setting `is_protocol = True` and extracting generic type parameters (similar to how `"Generic"` is currently handled). Ensure that these parameterized protocol bases are omitted from the generated struct/interface fields.
+
+## Analysis of `collections/__init__.pyi` Transpilation Issues
+Based on the transpilation of the `collections/__init__.pyi` typeshed stub file, the following areas for improvement have been identified:
+
+- [ ] **Method Overload Handling (`@overload`) and `__init__` Methods**
+  - *Context:* When `__init__` methods are wrapped in `@overload` and a base class is generic, the generated factory functions are incorrectly named with type parameters (e.g. `fn new_UserString_none[U](dict none) UserString[U]`).
+  - *Task:* Refine the generic factory creation inside `@overload` processing in `functions.py` so that the generated overload `__init__` functions don't incorrectly duplicate generic logic.
+
+- [ ] **Type Parameter Propagation on Generic Base Struct Embedding**
+  - *Context:* `dict_keys[K, V]` mapped embedded struct fails to compile due to missing or unsupported type arguments in the embedded field. A V compiler syntax error is encountered (`unexpected token ,, expecting ]`) when anonymous embedding of multi-parameter generic structs is used.
+  - *Task:* Change anonymous generic embedding to explicitly named composition fields (e.g. `dict_keys dict_keys[K, V]`) in `classes.py` to prevent V compiler syntax errors with commas in generic parameters.
+
+- [ ] **Generic Receiver Method Signatures (`fromkeys`)**
+  - *Context:* Generic `@classmethod` stubs like `fromkeys` on generic classes (e.g. `UserDict`) emit invalid V receiver declarations that contain generic parameters (e.g. `fn fromkeys_arr__T_none[T, I](cls int, ...) UserDict[_T, ?Any]`).
+  - *Task:* Filter the `cls` argument from the explicit method arguments list and prevent it from incorrectly associating with class generic parameters on static methods in `functions.py`.
