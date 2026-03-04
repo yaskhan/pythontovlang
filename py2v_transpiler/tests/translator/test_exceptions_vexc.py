@@ -128,3 +128,38 @@ def test_bracketless():
     assert "name == 'TypeError'" in v_code
     assert "name == 'OSError'" in v_code
     assert "name == 'IOError'" in v_code
+
+def test_exceptions_vexc_nested_func_bare_except_else():
+    code = """
+def outer():
+    try:
+        def nested():
+            pass
+        print("try")
+    except:
+        print("except")
+    else:
+        print("else")
+"""
+    parser = PyASTParser()
+    ast_tree = parser.parse(code)
+    analyzer = TypeInference()
+    translator = VNodeVisitor(analyzer)
+    analyzer.analyze(ast_tree)
+    v_code = translator.visit_Module(ast_tree)
+
+    # Check for indentation and structure
+    # The 'if C.try()' and its 'else' should be at same indent level
+    # The nested function should be top-level or correctly placed
+    assert "fn nested()" in v_code
+    assert "mut _success_0 := false" in v_code
+    assert "if C.try() {" in v_code
+    assert "_success_0 = true" in v_code
+    assert "vexc.end_try()" in v_code
+    # Ensure no redundant 'else {' after '_exc_1 := vexc.get_curr_exc()' for bare except
+    assert "} else {\n        _exc_1 := vexc.get_curr_exc()\n        println('except')\n    }" in v_code or \
+           "} else {\n        _exc_1 := vexc.get_curr_exc()\n        println('except')\n    }" in v_code.replace("    ", "    ")
+
+    # Check for correct orelse handling
+    assert "if _success_0 {" in v_code
+    assert "println('else')" in v_code
