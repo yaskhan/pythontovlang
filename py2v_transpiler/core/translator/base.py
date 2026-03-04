@@ -181,6 +181,58 @@ class TranslatorBase(ast.NodeVisitor):
             return f"__{stripped_cls}_{name.lstrip('_')}"
         return name
 
+    def _create_temp(self) -> str:
+        self.unique_id_counter += 1
+        return f"_aug_tmp_{self.unique_id_counter}"
+
+    def _capture_value(self, node: ast.AST) -> tuple[str, list[str]]:
+        """
+        Captures an expression into a temporary variable if it's not simple (Name/Constant).
+        Returns (expr_string, setup_statements).
+        """
+        if isinstance(node, (ast.Name, ast.Constant)):
+            return self.visit(node), []
+
+        tmp = self._create_temp()
+        val_code = self.visit(node)
+        return tmp, [f"{self._indent()}{tmp} := {val_code}"]
+
+    def _capture_target(self, node: ast.AST) -> tuple[str, list[str]]:
+        """
+        Prepares a target for AugAssign by capturing its components.
+        Recurses on L-value bases (Attribute, Subscript) to preserve reference path.
+        Returns (new_target_string, setup_statements).
+        """
+        if isinstance(node, ast.Name):
+            return self.visit(node), []
+
+        elif isinstance(node, ast.Attribute):
+            # Recurse on base if it's an L-value container (Name, Attribute, Subscript)
+            # Otherwise capture value (Call, etc.)
+            if isinstance(node.value, (ast.Name, ast.Attribute, ast.Subscript)):
+                base_expr, base_setup = self._capture_target(node.value)
+            else:
+                base_expr, base_setup = self._capture_value(node.value)
+
+            return f"{base_expr}.{node.attr}", base_setup
+
+        elif isinstance(node, ast.Subscript):
+            # Recurse on base if it's an L-value container
+            if isinstance(node.value, (ast.Name, ast.Attribute, ast.Subscript)):
+                base_expr, base_setup = self._capture_target(node.value)
+            else:
+                base_expr, base_setup = self._capture_value(node.value)
+
+            idx_node = node.slice
+            # Handle Py < 3.9 ast.Index
+            if hasattr(ast, "Index") and isinstance(idx_node, getattr(ast, "Index")):
+                 idx_node = idx_node.value
+
+            idx_expr, idx_setup = self._capture_value(idx_node)
+            return f"{base_expr}[{idx_expr}]", base_setup + idx_setup
+
+        return self.visit(node), [] # Fallback
+
 
     def _guess_type(self, node: ast.AST) -> str:
         if isinstance(node, ast.Constant):

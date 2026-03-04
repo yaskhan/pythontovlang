@@ -143,4 +143,5 @@ class ExceptionsMixin(TranslatorBase):
     # V does not natively support Python exception groups (PEP 654).
     # Since PEP 758 allows bracketless except*, we alias TryStar to Try
     # so that basic exception handling can still happen rather than crashing.
-    visit_TryStar = visit_Try
+    def visit_TryStar(self, node: ast.TryStar) -> None:
+        return self.visit_Try(node)  # type: ignore[arg-type]
