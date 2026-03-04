@@ -366,46 +366,51 @@ class AssignmentsMixin(TranslatorBase):
                     elif base_lhs.isupper():
                         emit_fn = lambda stmt: self.emitter.add_init_statement(stmt.strip())
                         if isinstance(target, ast.Name):
+                            v_lhs = self._to_snake_case(lhs)
                             if self._is_compile_time_evaluable(node.value):
                                 # Compile-time константа (например DEFAULT_WIDTH = 100) → блок const
-                                self.emitter.add_constant(f"{lhs} = {rhs}")
+                                self.emitter.add_constant(f"{v_lhs} = {rhs}")
                                 return
                             else:
                                 # Runtime UPPER_CASE (например Vector_ZERO = new_Vector(...)) → global + init()
                                 if v_type == "unknown" or v_type == "int":
                                     v_type = "Any"
-                                self.emitter.add_global(f"{lhs} {v_type}")
+                                self.emitter.add_global(f"{v_lhs} {v_type}")
+                                lhs = v_lhs
 
                 if self.in_main and isinstance(target, ast.Name) and (lhs in getattr(self, "global_vars", set()) or lhs.isupper() or is_implicit_literal):
+                    v_lhs = self._to_snake_case(lhs) if not lhs.islower() else lhs
                     # Для compile-time констант мы уже сделали return выше — присваивание не нужно
                     if is_implicit_literal and self._is_compile_time_evaluable(node.value) and not lhs.isupper():
-                        self.emitter.add_constant(f"{lhs} = {rhs}")
+                        self.emitter.add_constant(f"{v_lhs} = {rhs}")
                         return
                     if is_implicit_literal and not self._is_compile_time_evaluable(node.value) and not lhs.isupper():
                         if lhs not in getattr(self, "global_vars", set()):
-                            self.emitter.add_global(f"{lhs} string")
-                        self.emitter.add_init_statement(f"{lhs} = {rhs}")
+                            self.emitter.add_global(f"{v_lhs} string")
+                        self.emitter.add_init_statement(f"{v_lhs} = {rhs}")
                         return
                     if not (lhs.isupper() and self._is_compile_time_evaluable(node.value)):
-                        emit_fn(f"{self._indent()}{lhs} = {rhs}")
+                        emit_fn(f"{self._indent()}{v_lhs} = {rhs}")
                 elif rhs == "none":
                     # v_type might be defined above if we were checking is_simple_list, but let's be safe
                     local_v_type = getattr(self, "_guess_type", lambda x: "unknown")(target)
+                    v_lhs = self._to_snake_case(lhs) if (isinstance(target, ast.Name) and not lhs.islower()) else lhs
                     if local_v_type and local_v_type != "unknown":
                         if not local_v_type.startswith("?"):
                             local_v_type = f"?{local_v_type}"
-                        emit_fn(f"{self._indent()}mut {lhs} := {local_v_type}(none)")
+                        emit_fn(f"{self._indent()}mut {v_lhs} := {local_v_type}(none)")
                     else:
-                        emit_fn(f"{self._indent()}mut {lhs} := ?Any(none)")
+                        emit_fn(f"{self._indent()}mut {v_lhs} := ?Any(none)")
                 else:
                     if isinstance(target, ast.Attribute) or isinstance(target, ast.Subscript):
                         emit_fn(f"{self._indent()}{lhs} = {rhs}")
                     else:
+                        v_lhs = self._to_snake_case(lhs) if not lhs.islower() else lhs
                         if emit_fn == self.output.append:
-                            emit_fn(f"{self._indent()}{lhs} := {rhs}")
+                            emit_fn(f"{self._indent()}{v_lhs} := {rhs}")
                         else:
                             # if it's going to init(), it shouldn't be := if it's a global
-                            emit_fn(f"{self._indent()}{lhs} = {rhs}")
+                            emit_fn(f"{self._indent()}{v_lhs} = {rhs}")
 
     def _visit_destructuring(self, target: ast.AST, source_expr: str) -> None:
         """
