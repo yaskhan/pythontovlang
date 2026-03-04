@@ -1,7 +1,6 @@
 import ast
 from typing import Any
 from ..base import TranslatorBase
-from py2v_transpiler.models.v_types import map_python_type_to_v
 
 
 class AnnotationsMixin(TranslatorBase):
@@ -56,7 +55,7 @@ class AnnotationsMixin(TranslatorBase):
             if hasattr(ast, 'unparse'):
                 try:
                     type_str = ast.unparse(node.annotation)
-                    v_type = map_python_type_to_v(type_str, self_name=self._get_full_self_type())
+                    v_type = self._map_python_type_to_v(type_str, self_name=self._get_full_self_type())
                 except Exception:
                     pass
 
@@ -185,7 +184,7 @@ class AnnotationsMixin(TranslatorBase):
             # V needs initialization. We map type to default value.
             try:
                 type_str = ast.unparse(node.annotation)
-                v_type = map_python_type_to_v(type_str, self_name=self._get_full_self_type())
+                v_type = self._map_python_type_to_v(type_str, self_name=self._get_full_self_type())
 
                 if self.in_main and isinstance(node.target, ast.Name):
                     target_name = target
@@ -207,9 +206,27 @@ class AnnotationsMixin(TranslatorBase):
                 elif v_type.startswith("map["): default_val = f"{v_type}{{}}"
                 elif v_type.startswith("?"): default_val = "none"
                 else:
-                    # Fallback for structs? or unknowns
-                    pass
+                    # Fallback for structs or aliases
+                    if v_type != "unknown" and v_type != "void" and v_type != "Any":
+                        default_val = f"{v_type}{{}}"
+                    else:
+                        default_val = "0"
 
-                self.output.append(f"{self._indent()}{target} := {default_val}")
+                # Check for mutability
+                is_mut = False
+                if hasattr(self, 'type_inference') and hasattr(self.type_inference, 'mutability_map'):
+                    loc_key = f"{target}@{node.lineno}:{node.col_offset}"
+                    mut_info = self.type_inference.mutability_map.get(loc_key)
+                    if not mut_info:
+                         mut_info = self.type_inference.mutability_map.get(target)
+                    if mut_info:
+                        is_mut = mut_info.get("is_reassigned", False)
+
+                # Heuristic: complex types are usually mutable in our transpiler model if they are variables
+                if v_type not in ("int", "f64", "bool", "string", "none", "Any", "void", "unknown") and not is_mut:
+                     is_mut = True
+
+                mut_prefix = "mut " if is_mut else ""
+                self.output.append(f"{self._indent()}{mut_prefix}{target} := {default_val}")
             except:
                 self.output.append(f"{self._indent()}// {target} declared (annotation processing failed)")

@@ -44,7 +44,7 @@ class FunctionsMixin(TranslatorBase):
                 if arg.annotation:
                     try:
                         type_str = ast.unparse(arg.annotation)
-                        arg_type = map_python_type_to_v(
+                        arg_type = self._map_python_type_to_v(
                             type_str,
                             self_name=self._get_full_self_type(ov_struct_name),
                             generic_map=self._get_combined_generic_map(),
@@ -59,7 +59,7 @@ class FunctionsMixin(TranslatorBase):
             if node.returns:
                 try:
                     type_str = ast.unparse(node.returns)
-                    sig["return"] = map_python_type_to_v(
+                    sig["return"] = self._map_python_type_to_v(
                         type_str,
                         self_name=self._get_full_self_type(ov_struct_name),
                         generic_map=self._get_combined_generic_map(),
@@ -114,7 +114,7 @@ class FunctionsMixin(TranslatorBase):
                         if decorator.args:
                             try:
                                 type_str = ast.unparse(decorator.args[0])
-                                register_type = map_python_type_to_v(type_str)
+                                register_type = self._map_python_type_to_v(type_str)
                             except:
                                 pass
 
@@ -251,13 +251,27 @@ class FunctionsMixin(TranslatorBase):
         # if the receiver is generic. E.g. fn (s Struct[T]) foo[T]()
         py_func_generics = []
         if hasattr(node, "type_params") and node.type_params:
+            func_defaults = {}
             for param in node.type_params:
+                param_name = ""
                 if hasattr(param, "name"):
-                    name = param.name
-                    if isinstance(name, str):
-                        py_func_generics.append(name)
-                    elif hasattr(name, "id"):
-                        py_func_generics.append(name.id)
+                    name_attr = param.name
+                    if isinstance(name_attr, str):
+                        param_name = name_attr
+                    elif hasattr(name_attr, "id"):
+                        param_name = name_attr.id
+
+                if param_name:
+                    py_func_generics.append(param_name)
+                    # Extract PEP 696 default
+                    default_v_type = self._extract_type_param_default(param)
+                    if default_v_type:
+                        func_defaults[param_name] = default_v_type
+
+            self.generic_info[node.name] = {
+                'params': py_func_generics,
+                'defaults': func_defaults
+            }
 
         func_generic_map = self._get_generic_map(py_func_generics)
         # We don't need to manually merge here anymore, as we'll push it to generic_scopes
@@ -322,7 +336,7 @@ class FunctionsMixin(TranslatorBase):
             if arg.annotation:
                 try:
                     type_str = ast.unparse(arg.annotation)
-                    arg_type = map_python_type_to_v(
+                    arg_type = self._map_python_type_to_v(
                         type_str,
                         self_name=self._get_full_self_type(struct_name),
                         generic_map=combined_generic_map,
@@ -372,7 +386,7 @@ class FunctionsMixin(TranslatorBase):
             if node.args.vararg.annotation:
                 try:
                     type_str = ast.unparse(node.args.vararg.annotation)
-                    arg_type = map_python_type_to_v(
+                    arg_type = self._map_python_type_to_v(
                         type_str,
                         self_name=self._get_full_self_type(struct_name),
                         generic_map=combined_generic_map,
@@ -388,7 +402,7 @@ class FunctionsMixin(TranslatorBase):
             if node.args.kwarg.annotation:
                 try:
                     type_str = ast.unparse(node.args.kwarg.annotation)
-                    arg_type = map_python_type_to_v(
+                    arg_type = self._map_python_type_to_v(
                         type_str,
                         self_name=self._get_full_self_type(struct_name),
                         generic_map=combined_generic_map,
@@ -404,7 +418,7 @@ class FunctionsMixin(TranslatorBase):
         if not is_generator and node.returns:
             try:
                 type_str = ast.unparse(node.returns)
-                ret_type = map_python_type_to_v(
+                ret_type = self._map_python_type_to_v(
                     type_str,
                     self_name=self._get_full_self_type(struct_name),
                     generic_map=combined_generic_map,

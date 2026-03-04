@@ -119,6 +119,7 @@ class TranslatorBase(ast.NodeVisitor):
         self.finally_stack: List[ast.Try] = [] # Stack of active try-finally blocks
         self.loop_stack: List[Dict[str, Any]] = [] # Stack of active loops for break/continue tracking
         self.generic_scopes: List[Dict[str, str]] = [] # Stack of PEP 695 generic mappings
+        self.generic_info: Dict[str, Dict[str, Any]] = {} # symbol_name -> {'params': [names], 'defaults': {name: v_type}}
         self.unique_id_counter: int = 0
         self.vexc_depth: int = 0
         self._local_vars_in_scope: Set[str] = set()
@@ -263,6 +264,32 @@ class TranslatorBase(ast.NodeVisitor):
                     seen.add(v_gen)
         return all_v
 
+    def _extract_type_param_default(self, param: Any) -> Optional[str]:
+        """Extracts PEP 696 type parameter default, handling mangled names from preprocessor."""
+        # Python 3.13+
+        if hasattr(param, 'default') and param.default:
+            try:
+                return self._map_python_type_to_v(ast.unparse(param.default))
+            except:
+                return None
+
+        # Preprocessed (Python < 3.13)
+        # It's in the 'bound' attribute because we mangled T = Default to T: __py2v_def__Default
+        if hasattr(param, 'bound') and param.bound:
+            try:
+                bound_str = ast.unparse(param.bound)
+                if bound_str.startswith("__py2v_def__"):
+                    default_str = bound_str[len("__py2v_def__"):]
+                    return self._map_python_type_to_v(default_str)
+            except:
+                pass
+        return None
+
+    def _map_python_type_to_v(self, py_type: str, self_name: str = "Self", allow_union: bool = False, generic_map: Optional[dict[str, str]] = None) -> str:
+        """Wrapper around map_python_type_to_v that handles generic defaults."""
+        from py2v_transpiler.models.v_types import map_python_type_to_v
+        return map_python_type_to_v(py_type, self_name, allow_union, generic_map, generic_info=getattr(self, 'generic_info', None))
+
     def _sanitize_name(self, name: str, is_type: bool = False) -> str:
         """
         Sanitizes Python identifiers that collide with V lang reserved keywords
@@ -387,6 +414,15 @@ class TranslatorBase(ast.NodeVisitor):
 
 
     def _guess_type(self, node: ast.AST) -> str:
+        if isinstance(node, ast.Name):
+            # Check for PEP 696 defaults first
+            try:
+                v_type = self._map_python_type_to_v(node.id)
+                if v_type != node.id and v_type != "void":
+                    return v_type
+            except:
+                pass
+
         if isinstance(node, ast.Constant):
              if isinstance(node.value, bool): return "bool"
              if isinstance(node.value, int): return "int"
@@ -422,6 +458,14 @@ class TranslatorBase(ast.NodeVisitor):
                 return f"map[{k_type}]{v_type}"
             return "map[string]int"
         elif isinstance(node, ast.Name):
+            # Check for PEP 696 defaults
+            try:
+                v_type_def = self._map_python_type_to_v(node.id)
+                if v_type_def != node.id and v_type_def != "void":
+                    return v_type_def
+            except:
+                pass
+
             # Check for location-based type mapping (from mypy plugin)
             if hasattr(node, 'lineno') and hasattr(node, 'col_offset'):
                 loc_key = f"{node.id}@{node.lineno}:{node.col_offset}"

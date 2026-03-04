@@ -47,15 +47,28 @@ class ClassesMixin(TranslatorBase):
 
         py_generics = []
         if hasattr(node, "type_params") and node.type_params:
+            class_defaults = {}
             for param in node.type_params:
                 # TypeVar, ParamSpec, TypeVarTuple might have 'name' as string or attribute
-                # PEP 696 type defaults (param.default) are intentionally ignored since V doesn't support them
+                param_name = ""
                 if hasattr(param, "name"):
-                    name = param.name
-                    if isinstance(name, str):
-                        py_generics.append(name)
-                    elif hasattr(name, "id"):
-                        py_generics.append(name.id)
+                    name_attr = param.name
+                    if isinstance(name_attr, str):
+                        param_name = name_attr
+                    elif hasattr(name_attr, "id"):
+                        param_name = name_attr.id
+
+                if param_name:
+                    py_generics.append(param_name)
+                    # Extract PEP 696 default
+                    default_v_type = self._extract_type_param_default(param)
+                    if default_v_type:
+                        class_defaults[param_name] = default_v_type
+
+            self.generic_info[struct_name] = {
+                'params': py_generics,
+                'defaults': class_defaults
+            }
 
         if py_generics:
             self.current_class_generic_map.update(self._get_generic_map(py_generics))
@@ -145,7 +158,7 @@ class ClassesMixin(TranslatorBase):
                                 if stmt.annotation:
                                     try:
                                         type_str = ast.unparse(stmt.annotation)
-                                        field_type = map_python_type_to_v(
+                                        field_type = self._map_python_type_to_v(
                                             type_str,
                                             self_name=self._get_full_self_type(struct_name),
                                             generic_map=self._get_combined_generic_map(),
@@ -407,7 +420,7 @@ class ClassesMixin(TranslatorBase):
                         not in getattr(self.type_inference, "mixin_to_main", {})
                     ):
                         type_str = ast.unparse(base)
-                        v_type = map_python_type_to_v(
+                        v_type = self._map_python_type_to_v(
                             type_str, generic_map=self._get_combined_generic_map()
                         )
                         # V only allows anonymous embedding of structs/interfaces. Skip if it maps to array/map.
@@ -502,7 +515,7 @@ class ClassesMixin(TranslatorBase):
                     if stmt.annotation:
                         try:
                             type_str = ast.unparse(stmt.annotation)
-                            field_type = map_python_type_to_v(
+                            field_type = self._map_python_type_to_v(
                                 type_str,
                                 self_name=self._get_full_self_type(struct_name),
                                 generic_map=self._get_combined_generic_map(),
@@ -583,7 +596,7 @@ class ClassesMixin(TranslatorBase):
                 raw_type = attr.get("type", "Any")
                 norm_typ = raw_type.replace("builtins.", "")
                 try:
-                    field_type = map_python_type_to_v(
+                    field_type = self._map_python_type_to_v(
                         norm_typ, generic_map=self._get_combined_generic_map()
                     )
                 except Exception:
@@ -638,7 +651,7 @@ class ClassesMixin(TranslatorBase):
                 raw_type = attr.get("type", "Any")
                 norm_typ = raw_type.replace("builtins.", "")
                 try:
-                    f_type = map_python_type_to_v(norm_typ, generic_map=self._get_combined_generic_map())
+                    f_type = self._map_python_type_to_v(norm_typ, generic_map=self._get_combined_generic_map())
                 except:
                     f_type = "Any"
 
@@ -736,7 +749,7 @@ class ClassesMixin(TranslatorBase):
                     if arg.annotation:
                         try:
                             type_str = ast.unparse(arg.annotation)
-                            a_type = map_python_type_to_v(
+                            a_type = self._map_python_type_to_v(
                                 type_str,
                                 self_name=self._get_full_self_type(struct_name),
                                 generic_map=self._get_combined_generic_map(),
@@ -749,7 +762,7 @@ class ClassesMixin(TranslatorBase):
                 if method.returns:
                     try:
                         type_str = ast.unparse(method.returns)
-                        m_ret = map_python_type_to_v(
+                        m_ret = self._map_python_type_to_v(
                             type_str,
                             self_name=self._get_full_self_type(struct_name),
                             generic_map=self._get_combined_generic_map(),

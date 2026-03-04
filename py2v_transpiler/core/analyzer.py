@@ -288,6 +288,8 @@ class TypeInference(ast.NodeVisitor):
                     # Use ast.unparse to get the full type string (e.g. List[int])
                     # This works for Python 3.9+
                     type_str = ast.unparse(node.annotation)
+                    # We can't easily handle generic defaults here without access to generic_info
+                    # But if we are in PEP 695/696 mode, the transpiler will re-map it later
                     v_type = map_python_type_to_v(type_str)
                     self.type_map[node.target.id] = v_type
                 except AttributeError:

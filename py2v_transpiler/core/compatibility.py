@@ -35,8 +35,50 @@ class CompatibilityLayer:
         """
         source = self._preprocess_bracketless_except(source)
         source = self._preprocess_generic_match(source)
+        source = self._preprocess_type_parameter_defaults(source)
         # Add more future pre-processors here
         return source
+
+    def _preprocess_type_parameter_defaults(self, source: str) -> str:
+        """
+        Pre-processes Python source code to mangle PEP 696 type parameter defaults
+        to be parsable by the standard ast module on Python < 3.13.
+        Example: `class Box[T = int]:` becomes `class Box[T_py2v_def_int]:`.
+        """
+        import sys
+        if sys.version_info >= (3, 13):
+            return source
+
+        # Handle class/def/type [T = Default]
+        # Regex to find Type Parameter lists. They occur after class Name, def Name, or type Name.
+        # But we must avoid matching keyword arguments in calls like print(file=sys.stderr).
+
+        # Heuristic: PEP 695 type parameters are enclosed in [ ] immediately following an identifier
+        # in a class/def/type definition.
+        def replace_defaults(match):
+            indent_or_prefix = match.group(1)
+            keyword = match.group(2)
+            name = match.group(3)
+            type_params_raw = match.group(4)
+
+            # Now replace = with : __py2v_def__ in type_params_raw
+            # We must be careful if there are nested brackets, but PEP 696 defaults
+            # usually don't have them in simple cases.
+
+            tp = type_params_raw
+            while True:
+                # Match T = Default
+                new_tp = re.sub(r'([^\[\],= ]+)\s*=\s*([^\[\],]+)', r'\1: __py2v_def__\2', tp)
+                if new_tp == tp:
+                    break
+                tp = new_tp
+
+            return f"{indent_or_prefix}{keyword} {name}[{tp}]"
+
+        # Regex for class Name[...], def Name[...], type Name[...]
+        new_text = re.sub(r'(^|\n|\s+)(class|def|type)\s+([\w]+)\[([^\]]+)\]', replace_defaults, source)
+
+        return new_text
 
     def _preprocess_generic_match(self, source: str) -> str:
         """

@@ -17,23 +17,36 @@ class TypeAliasMixin(TranslatorBase):
         if node.type_params:
             # Handle generics [T, U]
             params = []
+            alias_defaults = {}
             for param in node.type_params:
-                # PEP 696 type defaults (param.default) are intentionally ignored since V doesn't support them
+                param_name = ""
                 if hasattr(param, 'name'):
                     name_attr = param.name
                     if isinstance(name_attr, str):
-                        params.append(name_attr)
+                        param_name = name_attr
                     elif hasattr(name_attr, 'id'):
-                        params.append(name_attr.id)
+                        param_name = name_attr.id
                 elif isinstance(param, TypeVar):
-                    params.append(param.name)
-                # Basic support for TypeVar only for now
+                    param_name = param.name
+
+                if param_name:
+                    params.append(param_name)
+                    # Extract PEP 696 default
+                    default_v_type = self._extract_type_param_default(param)
+                    if default_v_type:
+                        alias_defaults[param_name] = default_v_type
+
+            self.generic_info[node.name.id] = {
+                'params': params,
+                'defaults': alias_defaults
+            }
+
             if params:
                 type_params = f"[{', '.join(params)}]"
 
         if hasattr(ast, 'unparse'):
             val_str = ast.unparse(node.value)
-            v_type = map_python_type_to_v(val_str, allow_union=True)
+            v_type = self._map_python_type_to_v(val_str, allow_union=True)
             self.emitter.add_struct(f"type {name}{type_params} = {v_type}")
         else:
             self.output.append(f"{self._indent()}// TypeAlias {name} skipped (no ast.unparse)")

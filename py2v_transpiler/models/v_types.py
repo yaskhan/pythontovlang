@@ -14,7 +14,7 @@ class VType(Enum):
     NONE = auto()
     UNKNOWN = auto()
 
-def map_python_type_to_v(py_type: str, self_name: str = "Self", allow_union: bool = False, generic_map: Optional[dict[str, str]] = None) -> str:
+def map_python_type_to_v(py_type: str, self_name: str = "Self", allow_union: bool = False, generic_map: Optional[dict[str, str]] = None, generic_info: Optional[dict[str, dict]] = None) -> str:
     """Maps a Python type name to its V equivalent."""
     if not py_type:
         return 'void'
@@ -44,17 +44,40 @@ def map_python_type_to_v(py_type: str, self_name: str = "Self", allow_union: boo
     try:
         # Use AST to parse complex types
         node = ast.parse(py_type, mode='eval').body
-        return _map_ast_type(node, self_name, allow_union, generic_map)
+        return _map_ast_type(node, self_name, allow_union, generic_map, generic_info)
     except SyntaxError:
         return py_type
 
-def _map_ast_type(node: ast.AST, self_name: str = "Self", allow_union: bool = False, generic_map: Optional[dict[str, str]] = None) -> str:
+def _map_ast_type(node: ast.AST, self_name: str = "Self", allow_union: bool = False, generic_map: Optional[dict[str, str]] = None, generic_info: Optional[dict[str, dict]] = None) -> str:
     if isinstance(node, ast.Name):
         if node.id == "Self":
             return self_name
         if generic_map and node.id in generic_map:
             return generic_map[node.id]
-        return _map_basic_type(node.id)
+
+        res = _map_basic_type(node.id)
+        # Apply defaults if it's a generic type used without brackets
+        if generic_info and node.id in generic_info:
+            info = generic_info[node.id]
+            defaults = info.get('defaults', {})
+            params = info.get('params', [])
+            if params:
+                args = []
+                for p in params:
+                    if p in defaults:
+                        args.append(defaults[p])
+                    else:
+                        args.append('Any')
+
+                # Check if res is already a V type (like []Any for list)
+                # If so, we might need to map it correctly.
+                # Heuristic: if it's a known collection alias
+                if node.id in ('list', 'dict', 'set', 'tuple', 'List', 'Dict', 'Set', 'Tuple'):
+                    # Handled by Subscript mostly, but for bare list[T=int] -> []int
+                    pass
+
+                return f"{res}[{', '.join(args)}]"
+        return res
 
     elif isinstance(node, ast.Attribute):
         # Handle typing.Any etc.
@@ -78,13 +101,13 @@ def _map_ast_type(node: ast.AST, self_name: str = "Self", allow_union: bool = Fa
         if isinstance(node.value, str):
             try:
                 inner_node = ast.parse(node.value, mode='eval').body
-                return _map_ast_type(inner_node, self_name, allow_union, generic_map)
+                return _map_ast_type(inner_node, self_name, allow_union, generic_map, generic_info)
             except SyntaxError:
                 return node.value
         return str(node.value)
 
     elif isinstance(node, ast.Starred):
-        return _map_ast_type(node.value, self_name, allow_union, generic_map)
+        return _map_ast_type(node.value, self_name, allow_union, generic_map, generic_info)
 
     elif isinstance(node, ast.Subscript):
         # Handle List[T], Dict[K,V], Optional[T], etc.
@@ -117,7 +140,20 @@ def _map_ast_type(node: ast.AST, self_name: str = "Self", allow_union: bool = Fa
             args = [slice_node]
 
         # Helper to map args, handling nested types
-        mapped_args = [_map_ast_type(arg, self_name, allow_union, generic_map) for arg in args]
+        mapped_args = [_map_ast_type(arg, self_name, allow_union, generic_map, generic_info) for arg in args]
+
+        # Apply defaults for partially specified generics
+        if generic_info and value_id in generic_info:
+            info = generic_info[value_id]
+            params = info.get('params', [])
+            defaults = info.get('defaults', {})
+            if len(mapped_args) < len(params):
+                for i in range(len(mapped_args), len(params)):
+                    p_name = params[i]
+                    if p_name in defaults:
+                        mapped_args.append(defaults[p_name])
+                    else:
+                        mapped_args.append('Any')
 
         if value_id in ('List', 'list', 'Sequence', 'MutableSequence', 'Iterable', 'Iterator'):
             if mapped_args:
@@ -174,12 +210,12 @@ def _map_ast_type(node: ast.AST, self_name: str = "Self", allow_union: bool = Fa
 
                 arg_types = []
                 if isinstance(arg_list_node, ast.List):
-                    arg_types = [_map_ast_type(a, self_name, allow_union, generic_map) for a in arg_list_node.elts]
+                    arg_types = [_map_ast_type(a, self_name, allow_union, generic_map, generic_info) for a in arg_list_node.elts]
                 elif isinstance(arg_list_node, ast.Name):
                     # ParamSpec: Callable[P, Ret]
                     pass
 
-                ret_type = _map_ast_type(ret_node, self_name, allow_union, generic_map)
+                ret_type = _map_ast_type(ret_node, self_name, allow_union, generic_map, generic_info)
                 return f"fn ({', '.join(arg_types)}) {ret_type}"
             return "fn"
 
@@ -225,8 +261,8 @@ def _map_ast_type(node: ast.AST, self_name: str = "Self", allow_union: bool = Fa
     elif isinstance(node, ast.BinOp):
         # A | B (Python 3.10+ Union)
         if isinstance(node.op, ast.BitOr):
-            left = _map_ast_type(node.left, self_name, allow_union, generic_map)
-            right = _map_ast_type(node.right, self_name, allow_union, generic_map)
+            left = _map_ast_type(node.left, self_name, allow_union, generic_map, generic_info)
+            right = _map_ast_type(node.right, self_name, allow_union, generic_map, generic_info)
             if left == 'none':
                 return f"?{right}"
             if right == 'none':
