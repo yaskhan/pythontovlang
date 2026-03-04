@@ -12,11 +12,11 @@ class BasicExpressionsMixin(TranslatorBase):
         return f"...{val}"
 
     def visit_Assert(self, node: ast.Assert) -> None:
-        test = self.visit(node.test)
+        test = self._wrap_bool(node.test)
         self.output.append(f"{self._indent()}assert {test}")
 
     def visit_IfExp(self, node: ast.IfExp) -> str:
-        test = self.visit(node.test)
+        test = self._wrap_bool(node.test)
         body = self.visit(node.body)
         orelse = self.visit(node.orelse)
         return f"if {test} {{ {body} }} else {{ {orelse} }}"

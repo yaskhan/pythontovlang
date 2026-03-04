@@ -125,6 +125,51 @@ class TranslatorBase(ast.NodeVisitor):
     def _indent(self) -> str:
         return "    " * self._indent_level
 
+    def _is_collection_type(self, v_type: str) -> bool:
+        return v_type.startswith("[]") or v_type.startswith("map[") or v_type == "string"
+
+    def _is_numeric_type(self, v_type: str) -> bool:
+        return v_type in ("int", "f64", "i64", "u32", "u64", "i8", "i16", "u8", "u16")
+
+    def _wrap_bool(self, node: ast.AST, invert: bool = False, parent: Optional[ast.AST] = None, is_right_operand: bool = False) -> str:
+        v_type = self._guess_type(node)
+
+        # Determine base expression string
+        if parent is not None:
+             expr = self._visit_with_parens(parent, node, is_right_operand)
+        else:
+             expr = self.visit(node)
+
+        if self._is_collection_type(v_type):
+            op = "==" if invert else ">"
+            return f"{expr}.len {op} 0"
+
+        if self._is_numeric_type(v_type):
+            op = "==" if invert else "!="
+            return f"{expr} {op} 0"
+
+        if v_type == "none":
+            return "true" if invert else "false"
+
+        if v_type == "bool":
+            if invert:
+                dummy = ast.UnaryOp(op=ast.Not(), operand=node)
+                child_str = self._visit_with_parens(dummy, node, is_right_operand=True)
+                return f"!{child_str}"
+            return expr
+
+        if invert:
+             # If it's already a boolean-ish expression, we might need to parenthesize it before !
+             # _visit_with_parens might not handle it if the parent is "Not" (ast.UnaryOp)
+             # but here we are manually inverting.
+
+             # Create a dummy UnaryOp(Not) to check precedence if we want to be very precise.
+             dummy = ast.UnaryOp(op=ast.Not(), operand=node)
+             child_str = self._visit_with_parens(dummy, node, is_right_operand=True)
+             return f"!{child_str}"
+
+        return expr
+
     def _get_scc_prefix(self, file_path: str) -> str:
         """Generates a consistent prefix for a file within an SCC."""
         # Use relative path without extension, replacing separators with underscores
@@ -303,6 +348,22 @@ class TranslatorBase(ast.NodeVisitor):
              if isinstance(node.value, complex): return "PyComplex"
              if node.value is None: return "int"
              return "int"
+        elif isinstance(node, (ast.UnaryOp)):
+            if isinstance(node.op, ast.Not):
+                return "bool"
+            return self._guess_type(node.operand)
+        elif isinstance(node, (ast.BoolOp, ast.Compare)):
+            return "bool"
+        elif isinstance(node, ast.Call):
+            if isinstance(node.func, ast.Name):
+                fid = node.func.id
+                if fid == "str": return "string"
+                if fid == "int": return "int"
+                if fid == "float": return "f64"
+                if fid == "bool": return "bool"
+                if fid == "len": return "int"
+                if fid == "input": return "string"
+                if fid in ("isinstance", "hasattr", "getattr", "setattr"): return "bool"
         elif isinstance(node, (ast.List, ast.Tuple)):
             if node.elts:
                 return f"[]{self._guess_type(node.elts[0])}"
@@ -349,16 +410,6 @@ class TranslatorBase(ast.NodeVisitor):
             if left == "PyComplex" or right == "PyComplex": return "PyComplex"
             if left == "f64" or right == "f64": return "f64"
             return "int"
-        elif isinstance(node, ast.Call):
-            if isinstance(node.func, ast.Name):
-                fid = node.func.id
-                if fid == "str": return "string"
-                if fid == "int": return "int"
-                if fid == "float": return "f64"
-                if fid == "bool": return "bool"
-                if fid == "len": return "int"
-                if fid == "input": return "string"
-
         return "int"
 
 

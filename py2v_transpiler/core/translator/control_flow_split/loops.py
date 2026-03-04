@@ -18,11 +18,7 @@ class LoopsMixin(TranslatorBase):
         self.loop_stack.append(loop_ctx)
 
         self._walrus_assignments = []
-        test_expr = self.visit(node.test)
-
-        node_type = self._guess_type(node.test)
-        if node_type.startswith("[]") or node_type.startswith("map[") or node_type == "string":
-            test_expr = f"{test_expr}.len > 0"
+        test_expr = self._wrap_bool(node.test)
 
         if self._walrus_assignments:
              # Found walrus! Transform loop.
