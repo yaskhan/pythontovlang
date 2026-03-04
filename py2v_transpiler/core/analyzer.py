@@ -5,7 +5,7 @@ from py2v_transpiler.models.v_types import map_python_type_to_v
 try:
     from mypy import api as mypy_api_module
 except ImportError:
-    mypy_api_module = None # type: ignore
+    mypy_api_module = None  # type: ignore
 
 
 class AliasInferer(ast.NodeVisitor):
@@ -16,9 +16,17 @@ class AliasInferer(ast.NodeVisitor):
         # Pass 1: find alias assignments to collections
         aliases = {}
         for node in ast.walk(tree):
-            if isinstance(node, ast.Assign) and len(node.targets) == 1 and isinstance(node.targets[0], ast.Name):
+            if (
+                isinstance(node, ast.Assign)
+                and len(node.targets) == 1
+                and isinstance(node.targets[0], ast.Name)
+            ):
                 lhs = node.targets[0].id
-                if isinstance(node.value, ast.Name) and node.value.id in ('list', 'set', 'dict'):
+                if isinstance(node.value, ast.Name) and node.value.id in (
+                    "list",
+                    "set",
+                    "dict",
+                ):
                     aliases[lhs] = node.value.id
 
         # Pass 2: find usage of aliases and what gets appended
@@ -27,51 +35,167 @@ class AliasInferer(ast.NodeVisitor):
 
         for node in ast.walk(tree):
             # Find instantiations: a = OrderedCollection()
-            if isinstance(node, ast.Assign) and len(node.targets) == 1 and isinstance(node.targets[0], ast.Name):
-                if isinstance(node.value, ast.Call) and isinstance(node.value.func, ast.Name):
+            if (
+                isinstance(node, ast.Assign)
+                and len(node.targets) == 1
+                and isinstance(node.targets[0], ast.Name)
+            ):
+                if isinstance(node.value, ast.Call) and isinstance(
+                    node.value.func, ast.Name
+                ):
                     if node.value.func.id in aliases:
                         var_to_alias[node.targets[0].id] = node.value.func.id
 
             # Find appends: a.append(Constraint())
-            if isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute) and node.func.attr == 'append':
+            if (
+                isinstance(node, ast.Call)
+                and isinstance(node.func, ast.Attribute)
+                and node.func.attr == "append"
+            ):
                 if isinstance(node.func.value, ast.Name):
                     var_name = node.func.value.id
                     if var_name in var_to_alias and len(node.args) == 1:
-                        if isinstance(node.args[0], ast.Call) and isinstance(node.args[0].func, ast.Name):
-                            alias_usages[var_to_alias[var_name]].add(node.args[0].func.id)
+                        if isinstance(node.args[0], ast.Call) and isinstance(
+                            node.args[0].func, ast.Name
+                        ):
+                            alias_usages[var_to_alias[var_name]].add(
+                                node.args[0].func.id
+                            )
 
         # Resolve types
         for alias, base_type in aliases.items():
             used_types = alias_usages[alias]
             if not used_types:
-                self.alias_to_type[alias] = f"[]Any" if base_type == 'list' else 'Any'
+                self.alias_to_type[alias] = f"[]Any" if base_type == "list" else "Any"
             elif len(used_types) == 1:
                 inner_type = list(used_types)[0]
-                self.alias_to_type[alias] = f"[]{inner_type}" if base_type == 'list' else f"map[int]{inner_type}"
+                self.alias_to_type[alias] = (
+                    f"[]{inner_type}"
+                    if base_type == "list"
+                    else f"map[int]{inner_type}"
+                )
             else:
-                self.alias_to_type[alias] = f"[]Any" if base_type == 'list' else f"map[int]Any"
+                self.alias_to_type[alias] = (
+                    f"[]Any" if base_type == "list" else f"map[int]Any"
+                )
+
 
 class MixinInferer(ast.NodeVisitor):
     def __init__(self):
         self.mixin_to_main: Dict[str, list[str]] = {}
         self.main_to_mixins: Dict[str, list[str]] = {}
         self.mixin_nodes: Dict[str, ast.ClassDef] = {}
+        self.class_hierarchy: Dict[str, list[str]] = {}
+        self.is_abc: Dict[str, bool] = {}
+
+    def _get_all_ancestors(self, cls_name: str) -> list[str]:
+        result = []
+        visited = set()
+        # Use queue to maintain BFS order which roughly respects base order
+        queue = list(self.class_hierarchy.get(cls_name, []))
+        i = 0
+        while i < len(queue):
+            curr = queue[i]
+            i += 1
+            if curr not in visited:
+                visited.add(curr)
+                result.append(curr)
+                queue.extend(self.class_hierarchy.get(curr, []))
+        return result
 
     def analyze(self, tree: ast.AST):
-        # Pass 1: find mixins and their inheritances
+        # Pass 1: Build hierarchy
         for node in ast.walk(tree):
             if isinstance(node, ast.ClassDef):
-                if node.name.endswith("Mixin"):
-                    self.mixin_nodes[node.name] = node
-                else:
-                    for base in node.bases:
-                        if isinstance(base, ast.Name) and base.id.endswith("Mixin"):
-                            if base.id not in self.mixin_to_main:
-                                self.mixin_to_main[base.id] = []
-                            self.mixin_to_main[base.id].append(node.name)
-                            if node.name not in self.main_to_mixins:
-                                self.main_to_mixins[node.name] = []
-                            self.main_to_mixins[node.name].append(base.id)
+                self.mixin_nodes[node.name] = node
+                self.is_abc[node.name] = False
+                bases = []
+                for base in node.bases:
+                    if isinstance(base, ast.Name):
+                        bases.append(base.id)
+                    elif isinstance(base, ast.Attribute):
+                        bases.append(base.attr)
+                self.class_hierarchy[node.name] = bases
+
+        explicit_abcs = set()
+        mixin_templates = set()
+
+        for cls_name, node in self.mixin_nodes.items():
+            has_abstract = False
+            has_concrete = False
+            for stmt in node.body:
+                if isinstance(stmt, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                    is_abstract_stmt = False
+                    for dec in stmt.decorator_list:
+                        if (
+                            isinstance(dec, ast.Name) and dec.id == "abstractmethod"
+                        ) or (
+                            isinstance(dec, ast.Attribute)
+                            and dec.attr == "abstractmethod"
+                        ):
+                            has_abstract = True
+                            is_abstract_stmt = True
+                            break
+                    if not is_abstract_stmt:
+                        has_concrete = True
+
+            # Initial ABC marking
+            if has_abstract or "ABC" in self.class_hierarchy.get(cls_name, []):
+                explicit_abcs.add(cls_name)
+
+            if cls_name.endswith("Mixin"):
+                mixin_templates.add(cls_name)
+
+        # Transitive ABC identification
+        changed = True
+        while changed:
+            changed = False
+            for cls_name in self.class_hierarchy:
+                if cls_name in explicit_abcs:
+                    continue
+                ancestors = self._get_all_ancestors(cls_name)
+                if any(a in explicit_abcs for a in ancestors):
+                    # If it inherits from ABC...
+                    # It's an interface if:
+                    # 1. It's not a leaf (it's an intermediate abstract class)
+                    # 2. OR it has no concrete methods (it's a pure interface/abstract leaf)
+                    is_inherited = any(
+                        cls_name in b_list for b_list in self.class_hierarchy.values()
+                    )
+
+                    node = self.mixin_nodes[cls_name]
+                    has_concrete = any(
+                        isinstance(s, (ast.FunctionDef, ast.AsyncFunctionDef))
+                        for s in node.body
+                    )
+                    # Note: we should check if they are actually empty, but simple check is safer for now
+
+                    if is_inherited or not has_concrete:
+                        explicit_abcs.add(cls_name)
+                        changed = True
+
+        for cls_name in self.class_hierarchy:
+            self.is_abc[cls_name] = cls_name in explicit_abcs
+
+        # Pass 2: Method distribution from templates to concrete descendants
+        templates = explicit_abcs | mixin_templates
+        for cls_name in self.class_hierarchy:
+            if self.is_abc.get(cls_name):
+                continue
+
+            ancestors = self._get_all_ancestors(cls_name)
+            for ancestor in ancestors:
+                if ancestor in templates:
+                    if ancestor not in self.mixin_to_main:
+                        self.mixin_to_main[ancestor] = []
+                    if cls_name not in self.mixin_to_main[ancestor]:
+                        self.mixin_to_main[ancestor].append(cls_name)
+
+                    if cls_name not in self.main_to_mixins:
+                        self.main_to_mixins[cls_name] = []
+                    if ancestor not in self.main_to_mixins[cls_name]:
+                        self.main_to_mixins[cls_name].append(ancestor)
+
 
 class TypeInference(ast.NodeVisitor):
     def __init__(self):
@@ -96,9 +220,9 @@ class TypeInference(ast.NodeVisitor):
         self.mixin_to_main = mixin_inferer.mixin_to_main
         self.main_to_mixins = mixin_inferer.main_to_mixins
         self.mixin_nodes = mixin_inferer.mixin_nodes
+        self.is_abc = mixin_inferer.is_abc
 
         return self.type_map
-
 
     def visit_Assign(self, node: ast.Assign) -> Any:
         for target in node.targets:
@@ -106,33 +230,48 @@ class TypeInference(ast.NodeVisitor):
                 dict_name = None
                 if isinstance(target.value, ast.Name):
                     dict_name = target.value.id
-                elif isinstance(target.value, ast.Attribute) and isinstance(target.value.value, ast.Name):
+                elif isinstance(target.value, ast.Attribute) and isinstance(
+                    target.value.value, ast.Name
+                ):
                     dict_name = f"{target.value.value.id}.{target.value.attr}"
 
                 if dict_name:
-                    key_type = "string" # default key
-                    if hasattr(target.slice, "value") and isinstance(target.slice.value, ast.Constant): # python < 3.9
-                        if isinstance(target.slice.value.value, int): key_type = "int"
-                        elif isinstance(target.slice.value.value, str): key_type = "string"
-                    elif isinstance(target.slice, ast.Constant): # python 3.9+
-                        if isinstance(target.slice.value, int): key_type = "int"
-                        elif isinstance(target.slice.value, str): key_type = "string"
+                    key_type = "string"  # default key
+                    if hasattr(target.slice, "value") and isinstance(
+                        target.slice.value, ast.Constant
+                    ):  # python < 3.9
+                        if isinstance(target.slice.value.value, int):
+                            key_type = "int"
+                        elif isinstance(target.slice.value.value, str):
+                            key_type = "string"
+                    elif isinstance(target.slice, ast.Constant):  # python 3.9+
+                        if isinstance(target.slice.value, int):
+                            key_type = "int"
+                        elif isinstance(target.slice.value, str):
+                            key_type = "string"
 
                     val_type = "Any"
                     if isinstance(node.value, ast.Constant):
-                        if isinstance(node.value.value, int): val_type = "int"
-                        elif isinstance(node.value.value, str): val_type = "string"
+                        if isinstance(node.value.value, int):
+                            val_type = "int"
+                        elif isinstance(node.value.value, str):
+                            val_type = "string"
                     elif isinstance(node.value, ast.Tuple):
                         if node.value.elts:
                             if isinstance(node.value.elts[0], ast.Constant):
-                                if isinstance(node.value.elts[0].value, int): val_type = "[]int"
-                                elif isinstance(node.value.elts[0].value, str): val_type = "[]string"
-                                else: val_type = "[]Any"
+                                if isinstance(node.value.elts[0].value, int):
+                                    val_type = "[]int"
+                                elif isinstance(node.value.elts[0].value, str):
+                                    val_type = "[]string"
+                                else:
+                                    val_type = "[]Any"
                             else:
                                 val_type = "[]Any"
                         else:
                             val_type = "[]Any"
-                    elif isinstance(node.value, ast.Call) and isinstance(node.value.func, ast.Name):
+                    elif isinstance(node.value, ast.Call) and isinstance(
+                        node.value.func, ast.Name
+                    ):
                         val_type = node.value.func.id
 
                     new_type = f"map[{key_type}]{val_type}"
@@ -156,7 +295,9 @@ class TypeInference(ast.NodeVisitor):
                     if isinstance(node.annotation, ast.Name):
                         v_type = map_python_type_to_v(node.annotation.id)
                         self.type_map[node.target.id] = v_type
-                    elif isinstance(node.annotation, ast.Constant) and isinstance(node.annotation.value, str):
+                    elif isinstance(node.annotation, ast.Constant) and isinstance(
+                        node.annotation.value, str
+                    ):
                         v_type = map_python_type_to_v(node.annotation.value)
                         self.type_map[node.target.id] = v_type
                 except Exception:
@@ -175,7 +316,9 @@ class TypeInference(ast.NodeVisitor):
                     if isinstance(arg.annotation, ast.Name):
                         v_type = map_python_type_to_v(arg.annotation.id)
                         self.type_map[arg.arg] = v_type
-                    elif isinstance(arg.annotation, ast.Constant) and isinstance(arg.annotation.value, str):
+                    elif isinstance(arg.annotation, ast.Constant) and isinstance(
+                        arg.annotation.value, str
+                    ):
                         v_type = map_python_type_to_v(arg.annotation.value)
                         self.type_map[arg.arg] = v_type
                 except Exception:
@@ -193,7 +336,7 @@ class TypeInference(ast.NodeVisitor):
         import json
 
         # Create a temporary config file to load the plugin
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.ini', delete=False) as f:
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".ini", delete=False) as f:
             f.write("[mypy]\nplugins = py2v_transpiler.core.mypy_plugin\n")
             config_path = f.name
 
@@ -210,18 +353,22 @@ class TypeInference(ast.NodeVisitor):
             # Ensure the global dict is clean before running mypy
             try:
                 import py2v_transpiler.core.mypy_plugin as m_p
+
                 m_p._global_collected_types.clear()
                 m_p._global_collected_sigs.clear()
             except ImportError:
                 pass
 
-            result, error, exit_code = mypy_api_module.run([path, '--config-file', config_path])
+            result, error, exit_code = mypy_api_module.run(
+                [path, "--config-file", config_path]
+            )
 
             collected_types = None
             collected_sigs = None
             # First try to read from the memory (global state injected by the plugin)
             try:
                 import py2v_transpiler.core.mypy_plugin as m_p
+
                 if m_p._global_collected_types:
                     collected_types = dict(m_p._global_collected_types)
                 if m_p._global_collected_sigs:
@@ -248,8 +395,11 @@ class TypeInference(ast.NodeVisitor):
                         self.type_map[f"{fullname}@{location}"] = v_type
 
                         # Populate location_map for O(1) lookups by location (handling potential float vs int overloads)
-                        if 'builtins.float' in fullname or location not in self.location_map:
-                             self.location_map[location] = v_type
+                        if (
+                            "builtins.float" in fullname
+                            or location not in self.location_map
+                        ):
+                            self.location_map[location] = v_type
 
             if collected_sigs:
                 for fullname, sigs in collected_sigs.items():

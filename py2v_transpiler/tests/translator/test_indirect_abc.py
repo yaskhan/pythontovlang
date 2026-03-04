@@ -9,22 +9,27 @@ from py2v_transpiler.core.generator import VCodeEmitter
 from py2v_transpiler.stdlib_map.mapper import StdLibMapper
 from py2v_transpiler.core.decorators import DecoratorProcessor
 from py2v_transpiler.core.coroutines import CoroutineHandler
+from py2v_transpiler.core.analyzer import TypeInference
 import py2v_transpiler.models.v_types as v_types
 
-class DummyTypeInference:
-    def __init__(self):
-        self.type_map = {}
-        self.call_signatures = {}
 
-class TestTranslator(ClassesMixin, FunctionsMixin, VariablesMixin, ExpressionsMixin, LiteralsMixin, TranslatorBase):
-    def __init__(self):
-        super().__init__(type_inference=DummyTypeInference())
+class TestTranslator(
+    ClassesMixin,
+    FunctionsMixin,
+    VariablesMixin,
+    ExpressionsMixin,
+    LiteralsMixin,
+    TranslatorBase,
+):
+    def __init__(self, type_inference=None):
+        super().__init__(type_inference=type_inference or TypeInference())
         self.emitter = VCodeEmitter()
         self.mapper = StdLibMapper()
         self.decorator_processor = DecoratorProcessor(self.mapper)
         self.coroutine_handler = CoroutineHandler()
         self.in_main = False
         v_types.global_type_map = {}
+
 
 def test_indirect_abc_interface():
     code = """
@@ -46,7 +51,9 @@ class Intermediate(Constraint):
     pass
 """
     tree = ast.parse(code)
-    translator = TestTranslator()
+    analyzer = TypeInference()
+    analyzer.analyze(tree)
+    translator = TestTranslator(type_inference=analyzer)
 
     # Process classes
     for node in tree.body:

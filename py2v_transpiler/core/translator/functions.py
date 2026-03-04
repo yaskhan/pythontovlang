@@ -3,6 +3,7 @@ from typing import Any, List, Optional, Dict
 from py2v_transpiler.models.v_types import map_python_type_to_v
 from .base import TranslatorBase
 
+
 class FunctionsMixin(TranslatorBase):
     def visit_FunctionDef(self, node: ast.FunctionDef) -> None:
         self._visit_function_common(node)
@@ -14,27 +15,24 @@ class FunctionsMixin(TranslatorBase):
         # Check for @overload
         is_overload = False
         for decorator in node.decorator_list:
-            if isinstance(decorator, ast.Name) and decorator.id == 'overload':
+            if isinstance(decorator, ast.Name) and decorator.id == "overload":
                 is_overload = True
                 break
-            if isinstance(decorator, ast.Attribute) and decorator.attr == 'overload':
+            if isinstance(decorator, ast.Attribute) and decorator.attr == "overload":
                 is_overload = True
                 break
 
         if is_overload:
             # Store the signature but do not generate a function yet
-            sig: Dict[str, Any] = {
-                "args": [],
-                "return": "void"
-            }
+            sig: Dict[str, Any] = {"args": [], "return": "void"}
             ov_struct_name = self.current_class if self.current_class else ""
 
             # Extract arguments
             args = node.args.args
-            if hasattr(node.args, 'posonlyargs'):
-                 args = node.args.posonlyargs + args
-            if hasattr(node.args, 'kwonlyargs'):
-                 args = args + node.args.kwonlyargs
+            if hasattr(node.args, "posonlyargs"):
+                args = node.args.posonlyargs + args
+            if hasattr(node.args, "kwonlyargs"):
+                args = args + node.args.kwonlyargs
 
             # Handle self
             is_method = self.current_class is not None
@@ -46,7 +44,11 @@ class FunctionsMixin(TranslatorBase):
                 if arg.annotation:
                     try:
                         type_str = ast.unparse(arg.annotation)
-                        arg_type = map_python_type_to_v(type_str, self_name=ov_struct_name or "Self", generic_map=getattr(self, 'current_class_generic_map', {}))
+                        arg_type = map_python_type_to_v(
+                            type_str,
+                            self_name=ov_struct_name or "Self",
+                            generic_map=getattr(self, "current_class_generic_map", {}),
+                        )
                     except Exception:
                         arg_type = self.type_inference.type_map.get(arg_name, "int")
                 else:
@@ -55,14 +57,20 @@ class FunctionsMixin(TranslatorBase):
 
             # Extract return type
             if node.returns:
-                 try:
-                     type_str = ast.unparse(node.returns)
-                     sig["return"] = map_python_type_to_v(type_str, self_name=ov_struct_name or "Self", generic_map=getattr(self, 'current_class_generic_map', {}))
-                 except:
-                     if isinstance(node.returns, ast.Name):
-                          sig["return"] = node.returns.id
-                     elif isinstance(node.returns, ast.Constant) and isinstance(node.returns.value, str):
-                          sig["return"] = node.returns.value
+                try:
+                    type_str = ast.unparse(node.returns)
+                    sig["return"] = map_python_type_to_v(
+                        type_str,
+                        self_name=ov_struct_name or "Self",
+                        generic_map=getattr(self, "current_class_generic_map", {}),
+                    )
+                except:
+                    if isinstance(node.returns, ast.Name):
+                        sig["return"] = node.returns.id
+                    elif isinstance(node.returns, ast.Constant) and isinstance(
+                        node.returns.value, str
+                    ):
+                        sig["return"] = node.returns.value
 
             if node.name not in self.overloaded_signatures:
                 self.overloaded_signatures[node.name] = []
@@ -72,15 +80,20 @@ class FunctionsMixin(TranslatorBase):
         # Check for @singledispatch
         for decorator in node.decorator_list:
             is_singledispatch = False
-            if isinstance(decorator, ast.Name) and decorator.id == 'singledispatch':
+            if isinstance(decorator, ast.Name) and decorator.id == "singledispatch":
                 is_singledispatch = True
-            elif isinstance(decorator, ast.Attribute) and decorator.attr == 'singledispatch':
+            elif (
+                isinstance(decorator, ast.Attribute)
+                and decorator.attr == "singledispatch"
+            ):
                 is_singledispatch = True
 
             if is_singledispatch:
                 # Store the base implementation with a unique name
                 base_impl_name = f"{node.name}_base"
-                self.renamed_functions[node.name] = base_impl_name # Temp mapping for visit
+                self.renamed_functions[node.name] = (
+                    base_impl_name  # Temp mapping for visit
+                )
 
                 # Initialize registry
                 self.single_dispatch_functions[node.name] = {"default": base_impl_name}
@@ -91,34 +104,51 @@ class FunctionsMixin(TranslatorBase):
 
         # 'node' is guaranteed to be ast.FunctionDef or ast.AsyncFunctionDef here
         for decorator in node.decorator_list:
-            if isinstance(decorator, ast.Call) and isinstance(decorator.func, ast.Attribute):
-                 if decorator.func.attr == "register":
-                      # func.register(Type)
-                      if isinstance(decorator.func.value, ast.Name):
-                          register_dispatcher = decorator.func.value.id
-                          if decorator.args:
-                              try:
-                                   type_str = ast.unparse(decorator.args[0])
-                                   register_type = map_python_type_to_v(type_str)
-                              except:
-                                   pass
+            if isinstance(decorator, ast.Call) and isinstance(
+                decorator.func, ast.Attribute
+            ):
+                if decorator.func.attr == "register":
+                    # func.register(Type)
+                    if isinstance(decorator.func.value, ast.Name):
+                        register_dispatcher = decorator.func.value.id
+                        if decorator.args:
+                            try:
+                                type_str = ast.unparse(decorator.args[0])
+                                register_type = map_python_type_to_v(type_str)
+                            except:
+                                pass
 
         if register_dispatcher and register_type:
-             # This is an implementation of a singledispatch function
-             impl_name = f"{register_dispatcher}_{register_type}"
-             if register_dispatcher in self.single_dispatch_functions:
-                 self.single_dispatch_functions[register_dispatcher][register_type] = impl_name
-             else:
-                 # Dispatcher defined after? Or in another module? (Not supported cross-module yet)
-                 pass
+            # This is an implementation of a singledispatch function
+            impl_name = f"{register_dispatcher}_{register_type}"
+            if register_dispatcher in self.single_dispatch_functions:
+                self.single_dispatch_functions[register_dispatcher][
+                    register_type
+                ] = impl_name
+            else:
+                # Dispatcher defined after? Or in another module? (Not supported cross-module yet)
+                pass
 
-             # Rename this function to impl_name
-             # We modify node.name temporarily
-             original_name = node.name
-             node.name = impl_name
+            # Rename this function to impl_name
+            # We modify node.name temporarily
+            original_name = node.name
+            node.name = impl_name
+
+        is_abstract = False
+        for decorator in node.decorator_list:
+            if (
+                isinstance(decorator, ast.Name) and decorator.id == "abstractmethod"
+            ) or (
+                isinstance(decorator, ast.Attribute)
+                and decorator.attr == "abstractmethod"
+            ):
+                is_abstract = True
+                break
 
         if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
-             is_generator = self.coroutine_handler.is_generator(original_name if 'original_name' in locals() else node.name)
+            is_generator = self.coroutine_handler.is_generator(
+                original_name if "original_name" in locals() else node.name
+            )
 
         # Analyze decorators
         dec_info = self.decorator_processor.analyze(node, self.current_class)
@@ -130,17 +160,39 @@ class FunctionsMixin(TranslatorBase):
         # Check if the class is a mixin and get list of main struct names if needed
         is_mixin = False
         struct_names = [base_struct_name]
-        if is_method and hasattr(self.type_inference, 'mixin_to_main'):
+        if is_method and hasattr(self.type_inference, "mixin_to_main"):
             if base_struct_name in self.type_inference.mixin_to_main:
                 struct_names = self.type_inference.mixin_to_main[base_struct_name]
                 is_mixin = True
 
         old_output = self.output
         for struct_name in struct_names:
-            self._generate_function_for_struct(node, is_async, is_method, struct_name, dec_info, is_generator)
+            self._generate_function_for_struct(
+                node,
+                is_async,
+                is_method,
+                struct_name,
+                dec_info,
+                is_generator,
+                is_abstract,
+            )
         self.output = old_output
 
-    def _generate_function_for_struct(self, node: Any, is_async: bool, is_method: bool, struct_name: str, dec_info: Any, is_generator: bool) -> None:
+    def _generate_function_for_struct(
+        self,
+        node: Any,
+        is_async: bool,
+        is_method: bool,
+        struct_name: str,
+        dec_info: Any,
+        is_generator: bool,
+        is_abstract: bool = False,
+    ) -> None:
+        # If we are distributing an abstract method to a descendant, skip it.
+        # It only needs to be in the interface.
+        if is_abstract and struct_name != self.current_class:
+            return
+
         self.output = []
         old_indent = self._indent_level
         self._indent_level = 0
@@ -148,31 +200,31 @@ class FunctionsMixin(TranslatorBase):
         # Handle decorators and check for @warnings.deprecated
         is_deprecated = False
         deprecated_message: str | None = None
-        
-        for decorator in node.decorator_list:
-             if isinstance(decorator, ast.Call):
-                 # Decorator with args: @dec(arg)
-                 func = self.visit(decorator.func)
-                 dec_args_list = []
-                 for dec_arg in decorator.args:
-                     dec_args_list.append(str(self.visit(dec_arg)))
-                 for kw in decorator.keywords:
-                     val = self.visit(kw.value)
-                     dec_args_list.append(f"{kw.arg}={val}")
-                 dec_str = f"{func}({', '.join(dec_args_list)})"
-                 
-                 # Check for @warnings.deprecated("message")
-                 if func == "warnings.deprecated" and dec_args_list:
-                     is_deprecated = True
-                     # Extract message from first positional argument
-                     msg = dec_args_list[0].strip("'\"")
-                     deprecated_message = msg
-             else:
-                 dec_str = self.visit(decorator)
 
-             # Avoid duplicating if in handled list?
-             # Just emit comments for all decorators as metadata
-             self.output.append(f"// @{dec_str}")
+        for decorator in node.decorator_list:
+            if isinstance(decorator, ast.Call):
+                # Decorator with args: @dec(arg)
+                func = self.visit(decorator.func)
+                dec_args_list = []
+                for dec_arg in decorator.args:
+                    dec_args_list.append(str(self.visit(dec_arg)))
+                for kw in decorator.keywords:
+                    val = self.visit(kw.value)
+                    dec_args_list.append(f"{kw.arg}={val}")
+                dec_str = f"{func}({', '.join(dec_args_list)})"
+
+                # Check for @warnings.deprecated("message")
+                if func == "warnings.deprecated" and dec_args_list:
+                    is_deprecated = True
+                    # Extract message from first positional argument
+                    msg = dec_args_list[0].strip("'\"")
+                    deprecated_message = msg
+            else:
+                dec_str = self.visit(decorator)
+
+            # Avoid duplicating if in handled list?
+            # Just emit comments for all decorators as metadata
+            self.output.append(f"// @{dec_str}")
 
         args_str_list: List[str] = []
         receiver_str: str = ""
@@ -180,31 +232,36 @@ class FunctionsMixin(TranslatorBase):
 
         # Special handling for unittest methods: flatten to function calls
         is_unittest_method = False
-        if hasattr(self, 'current_class_is_unittest') and self.current_class_is_unittest:
+        if (
+            hasattr(self, "current_class_is_unittest")
+            and self.current_class_is_unittest
+        ):
             if node.name.startswith("test_"):
                 is_unittest_method = True
                 func_name = f"{node.name}_{struct_name}"
                 is_method = False
                 receiver_str = ""
             elif node.name in ("setUp", "tearDown"):
-                 self.output.append(f"// {node.name} method in unittest class ignored")
-                 return
+                self.output.append(f"// {node.name} method in unittest class ignored")
+                return
 
         # Handle Python 3.12+ type_params (e.g. def foo[T](x: T):)
         func_generics_str = ""
         # V requires generic methods to explicitly repeat the struct generics
         # if the receiver is generic. E.g. fn (s Struct[T]) foo[T]()
         py_func_generics = []
-        if hasattr(node, 'type_params') and node.type_params:
+        if hasattr(node, "type_params") and node.type_params:
             for param in node.type_params:
-                if hasattr(param, 'name'):
+                if hasattr(param, "name"):
                     name = param.name
-                    if isinstance(name, str): py_func_generics.append(name)
-                    elif hasattr(name, 'id'): py_func_generics.append(name.id)
+                    if isinstance(name, str):
+                        py_func_generics.append(name)
+                    elif hasattr(name, "id"):
+                        py_func_generics.append(name.id)
 
         func_generic_map = self._get_generic_map(py_func_generics)
         # For methods, we also need to include class generics
-        class_generic_map = getattr(self, 'current_class_generic_map', {})
+        class_generic_map = getattr(self, "current_class_generic_map", {})
         combined_generic_map = {**class_generic_map, **func_generic_map}
 
         all_v_generics = list(combined_generic_map.values())
@@ -219,24 +276,24 @@ class FunctionsMixin(TranslatorBase):
             self.coroutine_handler.enter_generator("ch_out", "ch_in")
 
         args = node.args.args
-        if hasattr(node.args, 'posonlyargs'):
-             args = node.args.posonlyargs + args
+        if hasattr(node.args, "posonlyargs"):
+            args = node.args.posonlyargs + args
 
-        if hasattr(node.args, 'kwonlyargs'):
-             args = args + node.args.kwonlyargs
+        if hasattr(node.args, "kwonlyargs"):
+            args = args + node.args.kwonlyargs
 
         # Check for __new__ or other static-like methods that might have 'cls'
         is_new_method = False
         if node.name == "__new__":
-             is_new_method = True
-             # Rename __new__
-             node.name = f"new_{struct_name}_new"
-             # Remove 'cls' argument if present
-             if args and args[0].arg == "cls":
-                 args = args[1:]
-             # Treat as static
-             is_method = False
-             receiver_str = ""
+            is_new_method = True
+            # Rename __new__
+            node.name = f"new_{struct_name}_new"
+            # Remove 'cls' argument if present
+            if args and args[0].arg == "cls":
+                args = args[1:]
+            # Treat as static
+            is_method = False
+            receiver_str = ""
 
         if is_method and args and args[0].arg == "self":
             # Handle 'self' - it becomes the receiver in V
@@ -250,10 +307,10 @@ class FunctionsMixin(TranslatorBase):
                 else:
                     receiver_str = f"({args[0].arg} {struct_name}) "
 
-            args = args[1:] # Remove self from arguments list
+            args = args[1:]  # Remove self from arguments list
         elif is_unittest_method and args and args[0].arg == "self":
-             # Remove self from unittest method args
-             args = args[1:]
+            # Remove self from unittest method args
+            args = args[1:]
 
         for arg in args:
             arg_name = self._sanitize_name(arg.arg)
@@ -262,7 +319,11 @@ class FunctionsMixin(TranslatorBase):
             if arg.annotation:
                 try:
                     type_str = ast.unparse(arg.annotation)
-                    arg_type = map_python_type_to_v(type_str, self_name=struct_name or "Self", generic_map=combined_generic_map)
+                    arg_type = map_python_type_to_v(
+                        type_str,
+                        self_name=struct_name or "Self",
+                        generic_map=combined_generic_map,
+                    )
                 except Exception:
                     arg_type = self.type_inference.type_map.get(arg_name, "int")
             else:
@@ -270,27 +331,40 @@ class FunctionsMixin(TranslatorBase):
 
             # Adjust arg type for SCC
             if arg_type in self.imported_symbols:
-                 arg_type = self.imported_symbols[arg_type]
+                arg_type = self.imported_symbols[arg_type]
             elif "." in arg_type:
-                 # Check if it is module.Type
-                 parts = arg_type.split('.')
-                 module_prefix = ".".join(parts[:-1])
-                 typename = parts[-1]
-                 # Match against SCC files by checking if the module path ends with the file path
-                 scc_file = next((f for f in self.scc_files if module_prefix.endswith(f.replace('.py', '').replace('/', '.').replace('\\', '.'))), None)
-                 if scc_file:
-                      prefix = self._get_scc_prefix(scc_file)
-                      arg_type = f"{prefix}__{typename}"
+                # Check if it is module.Type
+                parts = arg_type.split(".")
+                module_prefix = ".".join(parts[:-1])
+                typename = parts[-1]
+                # Match against SCC files by checking if the module path ends with the file path
+                scc_file = next(
+                    (
+                        f
+                        for f in self.scc_files
+                        if module_prefix.endswith(
+                            f.replace(".py", "").replace("/", ".").replace("\\", ".")
+                        )
+                    ),
+                    None,
+                )
+                if scc_file:
+                    prefix = self._get_scc_prefix(scc_file)
+                    arg_type = f"{prefix}__{typename}"
 
             args_str_list.append(f"{arg_name} {arg_type}")
 
         if node.args.vararg:
             arg_name = self._sanitize_name(node.args.vararg.arg)
-            arg_type = "int" # Default
+            arg_type = "int"  # Default
             if node.args.vararg.annotation:
                 try:
                     type_str = ast.unparse(node.args.vararg.annotation)
-                    arg_type = map_python_type_to_v(type_str, self_name=struct_name or "Self", generic_map=combined_generic_map)
+                    arg_type = map_python_type_to_v(
+                        type_str,
+                        self_name=struct_name or "Self",
+                        generic_map=combined_generic_map,
+                    )
                 except Exception:
                     pass
             args_str_list.append(f"{arg_name} ...{arg_type}")
@@ -302,7 +376,11 @@ class FunctionsMixin(TranslatorBase):
             if node.args.kwarg.annotation:
                 try:
                     type_str = ast.unparse(node.args.kwarg.annotation)
-                    arg_type = map_python_type_to_v(type_str, self_name=struct_name or "Self", generic_map=combined_generic_map)
+                    arg_type = map_python_type_to_v(
+                        type_str,
+                        self_name=struct_name or "Self",
+                        generic_map=combined_generic_map,
+                    )
                 except Exception:
                     pass
             args_str_list.append(f"{arg_name} {arg_type}")
@@ -312,55 +390,66 @@ class FunctionsMixin(TranslatorBase):
 
         ret_type = "void"
         if not is_generator and node.returns:
-             try:
-                 type_str = ast.unparse(node.returns)
-                 ret_type = map_python_type_to_v(type_str, self_name=struct_name or "Self", generic_map=combined_generic_map)
-             except:
-                 if isinstance(node.returns, ast.Name):
-                      ret_type = node.returns.id
-                 elif isinstance(node.returns, ast.Constant) and isinstance(node.returns.value, str):
-                      ret_type = node.returns.value
+            try:
+                type_str = ast.unparse(node.returns)
+                ret_type = map_python_type_to_v(
+                    type_str,
+                    self_name=struct_name or "Self",
+                    generic_map=combined_generic_map,
+                )
+            except:
+                if isinstance(node.returns, ast.Name):
+                    ret_type = node.returns.id
+                elif isinstance(node.returns, ast.Constant) and isinstance(
+                    node.returns.value, str
+                ):
+                    ret_type = node.returns.value
 
         # Check for NoReturn
         is_noreturn = False
         if ret_type == "void":
-             # Check if original annotation was NoReturn
-             try:
-                 if hasattr(ast, 'unparse'):
-                      ret_str = ast.unparse(node.returns)
-                      if "NoReturn" in ret_str:
-                           is_noreturn = True
-             except:
-                 pass
+            # Check if original annotation was NoReturn
+            try:
+                if hasattr(ast, "unparse"):
+                    ret_str = ast.unparse(node.returns)
+                    if "NoReturn" in ret_str:
+                        is_noreturn = True
+            except:
+                pass
 
         if not is_unittest_method:
             func_name = self._sanitize_name(node.name)
-            if func_name == "__next__": func_name = "next"
-            elif func_name == "__await__": func_name = "await_"
-            elif func_name == "__iter__": func_name = "__iter__" # Handled below
+            if func_name == "__next__":
+                func_name = "next"
+            elif func_name == "__await__":
+                func_name = "await_"
+            elif func_name == "__iter__":
+                func_name = "__iter__"  # Handled below
 
             # Check if this is the implementation of an overloaded function
             if func_name in self.overloaded_signatures and not is_new_method:
                 # We need to generate a variant for each overload signature
-                self._generate_overload_variants(node, struct_name, is_method, dec_info, is_generator)
+                self._generate_overload_variants(
+                    node, struct_name, is_method, dec_info, is_generator
+                )
                 return
 
             self.function_names.add(func_name)
 
             # Descriptor protocol renaming
             if func_name == "__get__":
-                 func_name = "get"
+                func_name = "get"
             elif func_name == "__set__":
-                 func_name = "set"
+                func_name = "set"
             elif func_name == "__delete__":
-                 func_name = "delete"
+                func_name = "delete"
             elif func_name == "__len__":
-                 func_name = "len"
+                func_name = "len"
             elif func_name == "__getitem__":
-                 func_name = "idx"
+                func_name = "idx"
 
             if dec_info.is_setter:
-                 func_name = f"set_{func_name}"
+                func_name = f"set_{func_name}"
 
             if self.current_class and not is_new_method:
                 func_name = self._mangle_name(func_name, struct_name)
@@ -379,13 +468,13 @@ class FunctionsMixin(TranslatorBase):
             func_name = dec_info.implementation_name
 
         is_init = False
-        if 'decl' not in locals() and func_name == "__init_subclass__":
+        if "decl" not in locals() and func_name == "__init_subclass__":
             receiver_str = ""
             func_name = "init_subclass"
         elif func_name == "__init__":
             is_init = True
             func_name = f"new_{struct_name}"
-            receiver_str = "" # Factory is static
+            receiver_str = ""  # Factory is static
             ret_type = struct_name
             if self.current_class_generics:
                 gen_str = f"[{', '.join(self.current_class_generics)}]"
@@ -402,44 +491,71 @@ class FunctionsMixin(TranslatorBase):
             else:
                 deprecated_attr = "[deprecated]\n"
 
-        elif is_method and func_name in ("__add__", "__sub__", "__mul__", "__truediv__", "__mod__", "__lt__", "__le__", "__eq__", "__ne__"):
-             # Operator overloading
-             op_map = {
-                 "__add__": "+", "__sub__": "-", "__mul__": "*", "__truediv__": "/",
-                 "__mod__": "%", "__lt__": "<", "__le__": "<=", "__eq__": "==",
-                 "__ne__": "!="
-             }
-             op = op_map.get(func_name)
-             if op:
-                 func_name = op
-                 decl = f"{deprecated_attr}fn {receiver_str}{op} ({args_str}) {ret_type} {{"
+        elif is_method and func_name in (
+            "__add__",
+            "__sub__",
+            "__mul__",
+            "__truediv__",
+            "__mod__",
+            "__lt__",
+            "__le__",
+            "__eq__",
+            "__ne__",
+        ):
+            # Operator overloading
+            op_map = {
+                "__add__": "+",
+                "__sub__": "-",
+                "__mul__": "*",
+                "__truediv__": "/",
+                "__mod__": "%",
+                "__lt__": "<",
+                "__le__": "<=",
+                "__eq__": "==",
+                "__ne__": "!=",
+            }
+            op = op_map.get(func_name)
+            if op:
+                func_name = op
+                decl = (
+                    f"{deprecated_attr}fn {receiver_str}{op} ({args_str}) {ret_type} {{"
+                )
         elif func_name in ("__str__", "__repr__"):
-             func_name = "str"
-             decl = f"{deprecated_attr}fn {receiver_str}{func_name}() string {{"
+            func_name = "str"
+            decl = f"{deprecated_attr}fn {receiver_str}{func_name}() string {{"
         elif func_name == "__iter__":
-             # V iterators use 'next' method returning '?'
-             # If a class has __iter__, it usually returns an iterator.
-             # In V, a struct IS an iterator if it has 'next() ?T'
-             # If __iter__ returns Self, we can skip it or rename.
-             # For mypy stubs, Generator and Iterable have __iter__.
-             # Let's map __iter__ to 'iter' if it doesn't return Self, or skip?
-             # For now, let's use 'iter'
-             func_name = "iter"
-             decl = f"{noreturn_attr}{deprecated_attr}fn {receiver_str}{func_name}{func_generics_str}({args_str}) {ret_type} {{"
+            # V iterators use 'next' method returning '?'
+            # If a class has __iter__, it usually returns an iterator.
+            # In V, a struct IS an iterator if it has 'next() ?T'
+            # If __iter__ returns Self, we can skip it or rename.
+            # For mypy stubs, Generator and Iterable have __iter__.
+            # Let's map __iter__ to 'iter' if it doesn't return Self, or skip?
+            # For now, let's use 'iter'
+            func_name = "iter"
+            decl = f"{noreturn_attr}{deprecated_attr}fn {receiver_str}{func_name}{func_generics_str}({args_str}) {ret_type} {{"
 
         # Adjust return type for SCC if it refers to a top-level symbol
         if ret_type in self.imported_symbols:
-             ret_type = self.imported_symbols[ret_type]
+            ret_type = self.imported_symbols[ret_type]
         elif "." in ret_type:
-             # Check if it is module.Type
-             parts = ret_type.split('.')
-             module_prefix = ".".join(parts[:-1])
-             typename = parts[-1]
-             # Match against SCC files
-             scc_file = next((f for f in self.scc_files if module_prefix.endswith(f.replace('.py', '').replace('/', '.').replace('\\', '.'))), None)
-             if scc_file:
-                  prefix = self._get_scc_prefix(scc_file)
-                  ret_type = f"{prefix}__{typename}"
+            # Check if it is module.Type
+            parts = ret_type.split(".")
+            module_prefix = ".".join(parts[:-1])
+            typename = parts[-1]
+            # Match against SCC files
+            scc_file = next(
+                (
+                    f
+                    for f in self.scc_files
+                    if module_prefix.endswith(
+                        f.replace(".py", "").replace("/", ".").replace("\\", ".")
+                    )
+                ),
+                None,
+            )
+            if scc_file:
+                prefix = self._get_scc_prefix(scc_file)
+                ret_type = f"{prefix}__{typename}"
         # PEP 702: Add [deprecated] attribute for @warnings.deprecated decorator
         deprecated_attr = ""
         if dec_info.deprecated:
@@ -448,19 +564,19 @@ class FunctionsMixin(TranslatorBase):
             else:
                 deprecated_attr = "[deprecated]\n"
 
-        if 'decl' not in locals():
+        if "decl" not in locals():
             decl = f"{noreturn_attr}{deprecated_attr}fn {receiver_str}{func_name}{func_generics_str}({args_str}) {ret_type} {{"
         if ret_type == "void":
-             decl = f"{noreturn_attr}{deprecated_attr}fn {receiver_str}{func_name}{func_generics_str}({args_str}) {{"
+            decl = f"{noreturn_attr}{deprecated_attr}fn {receiver_str}{func_name}{func_generics_str}({args_str}) {{"
 
         self.output.append(f"{decl}")
         self._indent_level += 1
 
         for line in dec_info.injected_start:
-             self.output.append(f"{self._indent()}{line}")
+            self.output.append(f"{self._indent()}{line}")
 
         for line in dec_info.injected_end:
-             self.output.append(f"{self._indent()}{line}")
+            self.output.append(f"{self._indent()}{line}")
 
         prev_in_init = getattr(self, "in_init", False)
         if is_init:
@@ -469,22 +585,31 @@ class FunctionsMixin(TranslatorBase):
 
         # Check for docstring
         body = node.body
-        if body and isinstance(body[0], ast.Expr) and isinstance(body[0].value, ast.Constant) and isinstance(body[0].value.value, str):
-             doc = body[0].value.value.strip()
-             for line in doc.splitlines():
-                 self.output.append(f"{self._indent()}// {line}")
-             body = body[1:]
+        if (
+            body
+            and isinstance(body[0], ast.Expr)
+            and isinstance(body[0].value, ast.Constant)
+            and isinstance(body[0].value.value, str)
+        ):
+            doc = body[0].value.value.strip()
+            for line in doc.splitlines():
+                self.output.append(f"{self._indent()}// {line}")
+            body = body[1:]
 
         # We need to inject `_ = <- ch_in` at the start of generator execution.
         # This corresponds to waiting for the first `next()` call.
         if is_generator:
-             self.output.append(f"{self._indent()}_ := <-{self.coroutine_handler.active_in_channel}")
+            self.output.append(
+                f"{self._indent()}_ := <-{self.coroutine_handler.active_in_channel}"
+            )
 
         for stmt in body:
             self.visit(stmt)
 
         if is_generator:
-            self.output.append(f"{self._indent()}{self.coroutine_handler.active_channel}.close()")
+            self.output.append(
+                f"{self._indent()}{self.coroutine_handler.active_channel}.close()"
+            )
             self.coroutine_handler.exit_generator()
 
         if is_init:
@@ -506,20 +631,29 @@ class FunctionsMixin(TranslatorBase):
         # We need to manage self.output per _generate_function_for_struct call.
         # So we move old_output = self.output inside _generate_function_for_struct
 
-    def _generate_overload_variants(self, node: Any, struct_name: str, is_method: bool, dec_info: Any, is_generator: bool) -> None:
+    def _generate_overload_variants(
+        self,
+        node: Any,
+        struct_name: str,
+        is_method: bool,
+        dec_info: Any,
+        is_generator: bool,
+    ) -> None:
         """Generates V functions for each @overload signature using the implementation body."""
 
         func_generics_str = ""
         py_func_generics = []
-        if hasattr(node, 'type_params') and node.type_params:
+        if hasattr(node, "type_params") and node.type_params:
             for param in node.type_params:
-                if hasattr(param, 'name'):
+                if hasattr(param, "name"):
                     name = param.name
-                    if isinstance(name, str): py_func_generics.append(name)
-                    elif hasattr(name, 'id'): py_func_generics.append(name.id)
+                    if isinstance(name, str):
+                        py_func_generics.append(name)
+                    elif hasattr(name, "id"):
+                        py_func_generics.append(name.id)
 
         func_generic_map = self._get_generic_map(py_func_generics)
-        class_generic_map = getattr(self, 'current_class_generic_map', {})
+        class_generic_map = getattr(self, "current_class_generic_map", {})
         combined_generic_map = {**class_generic_map, **func_generic_map}
 
         all_v_generics = list(combined_generic_map.values())
@@ -530,7 +664,7 @@ class FunctionsMixin(TranslatorBase):
         is_deprecated = False
         deprecated_message: str | None = None
         deprecated_attr = ""
-        
+
         for decorator in node.decorator_list:
             if isinstance(decorator, ast.Call):
                 func = self.visit(decorator.func)
@@ -539,12 +673,12 @@ class FunctionsMixin(TranslatorBase):
                     if decorator.args:
                         msg = self.visit(decorator.args[0])
                         deprecated_message = msg.strip("'\"")
-        
+
         if is_deprecated and deprecated_message:
             deprecated_attr = f"[deprecated: '{deprecated_message}']\n"
         elif is_deprecated:
             deprecated_attr = "[deprecated]\n"
-        
+
         for sig in self.overloaded_signatures[node.name]:
             old_output = self.output
             self.output = []
@@ -564,8 +698,8 @@ class FunctionsMixin(TranslatorBase):
             if is_method and not dec_info.is_static:
                 # Add self
                 args = node.args.args
-                if hasattr(node.args, 'posonlyargs'):
-                     args = node.args.posonlyargs + args
+                if hasattr(node.args, "posonlyargs"):
+                    args = node.args.posonlyargs + args
                 if args and args[0].arg == "self":
                     if self.current_class_generics:
                         gen_str = f"[{', '.join(self.current_class_generics)}]"
@@ -581,7 +715,13 @@ class FunctionsMixin(TranslatorBase):
                 args_str_list.append(f"{arg_name} {arg_type}")
                 args_names.append(arg_name)
                 # Clean up type for name mangling (e.g. ?int -> opt_int, []string -> arr_string)
-                clean_type = arg_type.replace("?", "opt_").replace("[]", "arr_").replace("[", "_").replace("]", "").replace(".", "_")
+                clean_type = (
+                    arg_type.replace("?", "opt_")
+                    .replace("[]", "arr_")
+                    .replace("[", "_")
+                    .replace("]", "")
+                    .replace(".", "_")
+                )
                 type_suffix_parts.append(clean_type)
 
             args_str = ", ".join(args_str_list)
@@ -589,7 +729,9 @@ class FunctionsMixin(TranslatorBase):
 
             base_func_name = self._sanitize_name(node.name)
             if self.current_class:
-                base_func_name = self._sanitize_name(self._mangle_name(base_func_name, self.current_class))
+                base_func_name = self._sanitize_name(
+                    self._mangle_name(base_func_name, self.current_class)
+                )
 
             if type_suffix_parts:
                 func_name = f"{base_func_name}_{'_'.join(type_suffix_parts)}"
@@ -597,9 +739,15 @@ class FunctionsMixin(TranslatorBase):
                 func_name = f"{base_func_name}_noargs"
 
             op_map = {
-                "__add__": "+", "__sub__": "-", "__mul__": "*", "__truediv__": "/",
-                "__mod__": "%", "__lt__": "<", "__le__": "<=", "__eq__": "==",
-                "__ne__": "!="
+                "__add__": "+",
+                "__sub__": "-",
+                "__mul__": "*",
+                "__truediv__": "/",
+                "__mod__": "%",
+                "__lt__": "<",
+                "__le__": "<=",
+                "__eq__": "==",
+                "__ne__": "!=",
             }
             is_operator = False
             op_str = ""
@@ -623,20 +771,29 @@ class FunctionsMixin(TranslatorBase):
             # Note: We are using the implementation body, but its local types might need casts
             # However, the V compiler handles explicit interfaces or generic returns if valid.
             body = node.body
-            if body and isinstance(body[0], ast.Expr) and isinstance(body[0].value, ast.Constant) and isinstance(body[0].value.value, str):
-                 doc = body[0].value.value.strip()
-                 for line in doc.splitlines():
-                     self.output.append(f"{self._indent()}// {line}")
-                 body = body[1:]
+            if (
+                body
+                and isinstance(body[0], ast.Expr)
+                and isinstance(body[0].value, ast.Constant)
+                and isinstance(body[0].value.value, str)
+            ):
+                doc = body[0].value.value.strip()
+                for line in doc.splitlines():
+                    self.output.append(f"{self._indent()}// {line}")
+                body = body[1:]
 
             if is_generator:
-                 self.output.append(f"{self._indent()}_ := <-{self.coroutine_handler.active_in_channel}")
+                self.output.append(
+                    f"{self._indent()}_ := <-{self.coroutine_handler.active_in_channel}"
+                )
 
             for stmt in body:
                 self.visit(stmt)
 
             if is_generator:
-                self.output.append(f"{self._indent()}{self.coroutine_handler.active_channel}.close()")
+                self.output.append(
+                    f"{self._indent()}{self.coroutine_handler.active_channel}.close()"
+                )
                 self.coroutine_handler.exit_generator()
 
             self._indent_level -= 1
@@ -651,7 +808,7 @@ class FunctionsMixin(TranslatorBase):
         args_str_list = []
         for arg in node.args.args:
             arg_name = self._sanitize_name(arg.arg)
-            arg_type = "int" # Default type for now
+            arg_type = "int"  # Default type for now
             args_str_list.append(f"{arg_name} {arg_type}")
 
         args_str = ", ".join(args_str_list)
@@ -661,9 +818,9 @@ class FunctionsMixin(TranslatorBase):
 
     def visit_Yield(self, node: ast.Yield) -> str:
         if self.coroutine_handler.active_channel:
-             val = self.visit(node.value) if node.value else "0"
-             # Use helper to allow expression usage and handle bi-directional flow
-             return f"py_yield({self.coroutine_handler.active_channel}, {self.coroutine_handler.active_in_channel}, {val})"
+            val = self.visit(node.value) if node.value else "0"
+            # Use helper to allow expression usage and handle bi-directional flow
+            return f"py_yield({self.coroutine_handler.active_channel}, {self.coroutine_handler.active_in_channel}, {val})"
         val = ""
         if node.value:
             val = self.visit(node.value)
@@ -671,17 +828,19 @@ class FunctionsMixin(TranslatorBase):
 
     def visit_YieldFrom(self, node: ast.YieldFrom) -> Optional[str]:
         if self.coroutine_handler.active_channel:
-             val = self.visit(node.value)
-             # Basic delegation: iterate and yield.
-             # Note: This does not fully implement bidirectional delegation (send/throw forwarding)
-             # as V for loop over struct assumes simple iteration.
-             # However, using py_yield here enables at least yielding values out.
-             self.output.append(f"{self._indent()}for v in {val} {{")
-             self._indent_level += 1
-             self.output.append(f"{self._indent()}py_yield({self.coroutine_handler.active_channel}, {self.coroutine_handler.active_in_channel}, v)")
-             self._indent_level -= 1
-             self.output.append(f"{self._indent()}}}")
-             return None
+            val = self.visit(node.value)
+            # Basic delegation: iterate and yield.
+            # Note: This does not fully implement bidirectional delegation (send/throw forwarding)
+            # as V for loop over struct assumes simple iteration.
+            # However, using py_yield here enables at least yielding values out.
+            self.output.append(f"{self._indent()}for v in {val} {{")
+            self._indent_level += 1
+            self.output.append(
+                f"{self._indent()}py_yield({self.coroutine_handler.active_channel}, {self.coroutine_handler.active_in_channel}, v)"
+            )
+            self._indent_level -= 1
+            self.output.append(f"{self._indent()}}}")
+            return None
 
         val = self.visit(node.value)
         return f"/* yield from {val} */"
@@ -700,10 +859,12 @@ class FunctionsMixin(TranslatorBase):
 
     def visit_Return(self, node: ast.Return) -> None:
         if self.coroutine_handler.active_channel:
-             self.output.append(f"{self._indent()}{self.coroutine_handler.active_channel}.close()")
+            self.output.append(
+                f"{self._indent()}{self.coroutine_handler.active_channel}.close()"
+            )
 
         for _ in range(self.vexc_depth):
-             self.output.append(f"{self._indent()}vexc.end_try()")
+            self.output.append(f"{self._indent()}vexc.end_try()")
 
         if getattr(self, "in_init", False) and not node.value:
             self.output.append(f"{self._indent()}return self")
