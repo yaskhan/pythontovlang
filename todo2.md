@@ -539,3 +539,10 @@ Based on the transpilation of the `pi_test.py` script, the following area for im
 - [x] **`decimal` module support**
   - *Context:* Python's `decimal` module is used for arbitrary-precision decimal arithmetic. The transpiler currently translates `decimal.localcontext()` directly and `decimal.Decimal` as `py_decimal`, but there's no native equivalent or mapping for arbitrary precision decimals in V standard library out of the box used here correctly.
   - *Task:* Implement mapping for Python's `decimal` module, potentially utilizing a V library for arbitrary precision arithmetic or BigInts, and correctly mapping context managers like `localcontext`.
+
+## Analysis of `mypy_stubs` Transpilation Issues
+Based on the transpilation of the `mypy_stubs` tests, the following critical area for improvement has been identified:
+
+- [ ] **`Protocol[T]` and Generic Subscript Base Class Handling**
+  - *Context:* When a class inherits from a parameterized protocol like `class Iterable(Protocol[T_co]):`, the transpiler fails to recognize `Protocol[T_co]` as a protocol because it checks for `ast.Name` (`Protocol`) but not `ast.Subscript`. Consequently, it treats it as a regular generic base, fails to set `is_protocol = True`, and generates a standard V `struct` instead of an `interface`. Furthermore, generic type parameters are only extracted when the base name is exactly `"Generic"`, so classes inheriting from `Protocol[T]` lose their generic parameters, leading to V compiler errors like `generic error: struct 'main.Awaitable' is not a generic struct`.
+  - *Task:* Update `ClassesMixin.visit_ClassDef` to check for `"Protocol"` and `"typing.Protocol"` in `ast.Subscript` bases, properly setting `is_protocol = True` and extracting generic type parameters (similar to how `"Generic"` is currently handled). Ensure that these parameterized protocol bases are omitted from the generated struct/interface fields.
