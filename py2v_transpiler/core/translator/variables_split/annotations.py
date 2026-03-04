@@ -152,6 +152,7 @@ class AnnotationsMixin(TranslatorBase):
                         emit_fn(f"{self._indent()}mut {target} := {v_type}(none)")
                     else:
                         emit_fn(f"{self._indent()}mut {target} := ?Any(none)")
+                    if not self.in_main: self._local_vars_in_scope.add(target)
                 else:
                     # We ignore the annotation for now and rely on type inference and V's auto-typing
                     # But we could potentially use it to hint types for empty lists/maps
@@ -160,7 +161,23 @@ class AnnotationsMixin(TranslatorBase):
                     else:
                         v_target = self._to_snake_case(target) if not target.islower() else target
                         if emit_fn == self.output.append:
-                            emit_fn(f"{self._indent()}{v_target} := {rhs}")
+                            if not self.in_main and v_target in self._local_vars_in_scope:
+                                emit_fn(f"{self._indent()}{v_target} = {rhs}")
+                            else:
+                                is_mut = False
+                                if hasattr(self, 'type_inference') and hasattr(self.type_inference, 'mutability_map'):
+                                    # Try precise lookup by location first
+                                    loc_key = f"{v_target}@{node.lineno}:{node.col_offset}"
+                                    mut_info = self.type_inference.mutability_map.get(loc_key)
+                                    if not mut_info:
+                                        mut_info = self.type_inference.mutability_map.get(v_target)
+
+                                    if mut_info:
+                                        is_mut = mut_info.get("is_reassigned", False) and not mut_info.get("is_final", False)
+
+                                mut_prefix = "mut " if is_mut else ""
+                                emit_fn(f"{self._indent()}{mut_prefix}{v_target} := {rhs}")
+                                if not self.in_main: self._local_vars_in_scope.add(v_target)
                         else:
                             emit_fn(f"{self._indent()}{v_target} = {rhs}")
         else:
