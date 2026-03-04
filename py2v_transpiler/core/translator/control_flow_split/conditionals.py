@@ -3,31 +3,48 @@ from ..base import TranslatorBase
 
 class ConditionalsMixin(TranslatorBase):
     """Обработка условных операторов: if, elif, else"""
-    
-    def visit_If(self, node: ast.If) -> None:
-        # Check for if __name__ == "__main__":
+
+    def _is_name_main(self, node: ast.If) -> bool:
+        """Checks for if __name__ == "__main__":"""
         if isinstance(node.test, ast.Compare):
             if (isinstance(node.test.left, ast.Name) and node.test.left.id == "__name__" and
                 len(node.test.comparators) == 1 and isinstance(node.test.comparators[0], ast.Constant) and
                 node.test.comparators[0].value == "__main__"):
+                return True
+        return False
+
+    def _has_walrus(self, node: ast.AST) -> bool:
+        """Checks if an expression contains a walrus operator."""
+        for child in ast.walk(node):
+            if isinstance(child, ast.NamedExpr):
+                return True
+        return False
+
+    def visit_If(self, node: ast.If) -> None:
+        self._visit_if(node, is_elif=False)
+
+    def _visit_if(self, node: ast.If, is_elif: bool = False) -> None:
+        if not is_elif:
+            # Check for if __name__ == "__main__":
+            if self._is_name_main(node):
                 self.output.append(f"{self._indent()}// if __name__ == '__main__':")
                 for stmt in node.body:
                     self.visit(stmt)
                 return
 
-        if_vars = self._collect_assigned_vars(node.body)
-        else_vars = self._collect_assigned_vars(node.orelse) if node.orelse else set()
+            if_vars = self._collect_assigned_vars(node.body)
+            else_vars = self._collect_assigned_vars(node.orelse) if node.orelse else set()
 
-        # Pre-declare conditionally initialized variables
-        for var in (if_vars | else_vars):
-            if not self.in_main and var not in self._local_vars_in_scope:
-                v_type = self._guess_type(ast.Name(id=var, ctx=ast.Store()))
-                if v_type == "unknown":
-                    v_type = "Any"
-                if not v_type.startswith("?"):
-                    v_type = f"?{v_type}"
-                self.output.append(f"{self._indent()}mut {var} := {v_type}(none)")
-                self._local_vars_in_scope.add(var)
+            # Pre-declare conditionally initialized variables
+            for var in (if_vars | else_vars):
+                if not self.in_main and var not in self._local_vars_in_scope:
+                    v_type = self._guess_type(ast.Name(id=var, ctx=ast.Store()))
+                    if v_type == "unknown":
+                        v_type = "Any"
+                    if not v_type.startswith("?"):
+                        v_type = f"?{v_type}"
+                    self.output.append(f"{self._indent()}mut {var} := {v_type}(none)")
+                    self._local_vars_in_scope.add(var)
 
         # Check for TypeGuard / TypeIs narrowing
         narrow_if = None
@@ -129,7 +146,12 @@ class ConditionalsMixin(TranslatorBase):
                  self.output.append(f"{self._indent()}{assign}")
              self._walrus_assignments = []
 
-        self.output.append(f"{self._indent()}if {test_expr} {{")
+        if is_elif:
+            last_line = self.output.pop()
+            self.output.append(f"{last_line}if {test_expr} {{")
+        else:
+            self.output.append(f"{self._indent()}if {test_expr} {{")
+
         self._indent_level += 1
 
         if narrow_if:
@@ -140,15 +162,12 @@ class ConditionalsMixin(TranslatorBase):
         self._indent_level -= 1
 
         if node.orelse:
-            if len(node.orelse) == 1 and isinstance(node.orelse[0], ast.If):
-                # elif case
-                self.output.append(f"{self._indent()}}} else {{")
-                self._indent_level += 1
-                if narrow_else:
-                    self.output.append(f"{self._indent()}{narrow_else}")
-                self.visit(node.orelse[0])
-                self._indent_level -= 1
-                self.output.append(f"{self._indent()}}}")
+            if (len(node.orelse) == 1 and isinstance(node.orelse[0], ast.If) and
+                not narrow_else and not self._is_name_main(node.orelse[0]) and
+                not self._has_walrus(node.orelse[0].test)):
+                # Optimized elif case: else if
+                self.output.append(f"{self._indent()}}} else ")
+                self._visit_if(node.orelse[0], is_elif=True)
             else:
                 self.output.append(f"{self._indent()}}} else {{")
                 self._indent_level += 1
