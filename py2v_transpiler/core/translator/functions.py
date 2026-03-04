@@ -355,7 +355,16 @@ class FunctionsMixin(TranslatorBase):
                     prefix = self._get_scc_prefix(scc_file)
                     arg_type = f"{prefix}__{typename}"
 
-            args_str_list.append(f"{arg_name} {arg_type}")
+            is_mut = False
+            if hasattr(self, 'type_inference') and hasattr(self.type_inference, 'mutability_map'):
+                mut_info = self.type_inference.mutability_map.get(arg_name)
+                # For arguments, we usually check if they are reassigned in the function scope
+                # full name for arguments in mypy is usually module.func.arg
+                if mut_info:
+                    is_mut = mut_info.get("is_reassigned", False)
+
+            mut_prefix = "mut " if is_mut else ""
+            args_str_list.append(f"{mut_prefix}{arg_name} {arg_type}")
 
         if node.args.vararg:
             arg_name = self._sanitize_name(node.args.vararg.arg)

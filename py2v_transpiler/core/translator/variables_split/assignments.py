@@ -422,13 +422,31 @@ class AssignmentsMixin(TranslatorBase):
                         emit_fn(f"{self._indent()}mut {v_lhs} := {local_v_type}(none)")
                     else:
                         emit_fn(f"{self._indent()}mut {v_lhs} := ?Any(none)")
+                    if not self.in_main: self._local_vars_in_scope.add(v_lhs)
                 else:
+                    v_lhs = self._to_snake_case(lhs) if (isinstance(target, ast.Name) and not lhs.islower()) else lhs
                     if isinstance(target, ast.Attribute) or isinstance(target, ast.Subscript):
                         emit_fn(f"{self._indent()}{lhs} = {rhs}")
                     else:
                         v_lhs = self._to_snake_case(lhs) if not lhs.islower() else lhs
                         if emit_fn == self.output.append:
-                            emit_fn(f"{self._indent()}{v_lhs} := {rhs}")
+                            if not self.in_main and v_lhs in self._local_vars_in_scope:
+                                emit_fn(f"{self._indent()}{v_lhs} = {rhs}")
+                            else:
+                                is_mut = False
+                                if hasattr(self, 'type_inference') and hasattr(self.type_inference, 'mutability_map'):
+                                    # Try precise lookup by location first
+                                    loc_key = f"{v_lhs}@{node.lineno}:{node.col_offset}"
+                                    mut_info = self.type_inference.mutability_map.get(loc_key)
+                                    if not mut_info:
+                                        mut_info = self.type_inference.mutability_map.get(v_lhs)
+
+                                    if mut_info:
+                                        is_mut = mut_info.get("is_reassigned", False) and not mut_info.get("is_final", False)
+
+                                mut_prefix = "mut " if is_mut else ""
+                                emit_fn(f"{self._indent()}{mut_prefix}{v_lhs} := {rhs}")
+                                if not self.in_main: self._local_vars_in_scope.add(v_lhs)
                         else:
                             # if it's going to init(), it shouldn't be := if it's a global
                             emit_fn(f"{self._indent()}{v_lhs} = {rhs}")
@@ -488,7 +506,18 @@ class AssignmentsMixin(TranslatorBase):
             if not self.in_main and lhs in self._local_vars_in_scope:
                 self.output.append(f"{self._indent()}{lhs} = {source_expr}")
             else:
-                self.output.append(f"{self._indent()}{lhs} := {source_expr}")
+                is_mut = False
+                if hasattr(self, 'type_inference') and hasattr(self.type_inference, 'mutability_map'):
+                    loc_key = f"{lhs}@{target.lineno}:{target.col_offset}"
+                    mut_info = self.type_inference.mutability_map.get(loc_key)
+                    if not mut_info:
+                        mut_info = self.type_inference.mutability_map.get(lhs)
+
+                    if mut_info:
+                        is_mut = mut_info.get("is_reassigned", False) and not mut_info.get("is_final", False)
+
+                mut_prefix = "mut " if is_mut else ""
+                self.output.append(f"{self._indent()}{mut_prefix}{lhs} := {source_expr}")
                 if not self.in_main:
                     self._local_vars_in_scope.add(lhs)
 

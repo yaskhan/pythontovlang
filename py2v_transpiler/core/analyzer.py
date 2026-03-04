@@ -200,6 +200,7 @@ class MixinInferer(ast.NodeVisitor):
 class TypeInference(ast.NodeVisitor):
     def __init__(self):
         self.type_map: Dict[str, str] = {}
+        self.mutability_map: Dict[str, Dict[str, bool]] = {}
         self.location_map: Dict[str, str] = {}
         self.call_signatures: Dict[str, Dict[str, Any]] = {}
         self.mixin_to_main: Dict[str, list[str]] = {}
@@ -356,6 +357,7 @@ class TypeInference(ast.NodeVisitor):
 
                 m_p._global_collected_types.clear()
                 m_p._global_collected_sigs.clear()
+                m_p._global_collected_mutability.clear()
             except ImportError:
                 pass
 
@@ -365,6 +367,7 @@ class TypeInference(ast.NodeVisitor):
 
             collected_types = None
             collected_sigs = None
+            collected_mut = None
             # First try to read from the memory (global state injected by the plugin)
             try:
                 import py2v_transpiler.core.mypy_plugin as m_p
@@ -373,6 +376,8 @@ class TypeInference(ast.NodeVisitor):
                     collected_types = dict(m_p._global_collected_types)
                 if m_p._global_collected_sigs:
                     collected_sigs = dict(m_p._global_collected_sigs)
+                if m_p._global_collected_mutability:
+                    collected_mut = dict(m_p._global_collected_mutability)
             except ImportError:
                 pass
 
@@ -411,6 +416,14 @@ class TypeInference(ast.NodeVisitor):
                             self.call_signatures[location] = sig_data
                         except Exception:
                             pass
+
+            if collected_mut:
+                for fullname, muts in collected_mut.items():
+                    for location, mut_data in muts.items():
+                        # Store by fullname@location and name@location for precise lookup
+                        self.mutability_map[f"{fullname}@{location}"] = mut_data
+                        name = fullname.split('.')[-1]
+                        self.mutability_map[f"{name}@{location}"] = mut_data
 
             if os.path.exists("types_for_vlang.json"):
                 try:
