@@ -54,7 +54,7 @@ class AssignmentsMixin(TranslatorBase):
                     try:
                         if hasattr(ast, 'unparse'):
                              base_str = ast.unparse(node.value.args[1])
-                             mapped_base = map_python_type_to_v(base_str, allow_union=True)
+                             mapped_base = map_python_type_to_v(base_str, allow_union=True, self_name=self._get_full_self_type())
                              pub = "pub " if self._is_exported(target.id) else ""
                              self.emitter.add_struct(f"{pub}type {lhs} = {mapped_base}")
                              return
@@ -68,9 +68,9 @@ class AssignmentsMixin(TranslatorBase):
                 constraints = []
                 for arg in node.value.args[1:]:
                     if isinstance(arg, ast.Name):
-                        constraints.append(map_python_type_to_v(arg.id))
+                        constraints.append(map_python_type_to_v(arg.id, self_name=self._get_full_self_type()))
                     elif isinstance(arg, ast.Constant) and isinstance(arg.value, str):
-                        constraints.append(map_python_type_to_v(arg.value))
+                        constraints.append(map_python_type_to_v(arg.value, self_name=self._get_full_self_type()))
 
                 # Check keyword bound
                 for kw in node.value.keywords:
@@ -79,7 +79,7 @@ class AssignmentsMixin(TranslatorBase):
                         # We can use ast.unparse and map
                          try:
                              bound_str = ast.unparse(kw.value)
-                             mapped = map_python_type_to_v(bound_str)
+                             mapped = map_python_type_to_v(bound_str, self_name=self._get_full_self_type())
                              # If mapped is "int | string", we use it
                              constraints.append(mapped)
                          except:
@@ -116,7 +116,7 @@ class AssignmentsMixin(TranslatorBase):
                               # Unparse RHS to string
                               if hasattr(ast, 'unparse'):
                                   rhs_source = ast.unparse(node.value)
-                                  mapped = map_python_type_to_v(rhs_source, allow_union=True)
+                                  mapped = map_python_type_to_v(rhs_source, allow_union=True, self_name=self._get_full_self_type())
                                   # Check if mapped value looks like a type and not void/same-as-input-expression
                                   # map_python_type_to_v returns input if it fails to map usually, unless it parses successfully via _map_ast_type
                                   # For List[int], it returns []int. List[int] != []int.

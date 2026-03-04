@@ -322,6 +322,17 @@ class TranslatorBase(ast.NodeVisitor):
 
         return not name.startswith('_')
 
+    def _get_full_self_type(self, struct_name: Optional[str] = None) -> str:
+        """
+        Returns the full V type for 'Self', including generic parameters if the class is generic.
+        Example: Builder -> Builder[T]
+        """
+        name = struct_name or self.current_class or "Self"
+        if self.current_class_generics:
+            gen_str = f"[{', '.join(self.current_class_generics)}]"
+            return f"{name}{gen_str}"
+        return name
+
     def _create_temp(self) -> str:
         self.unique_id_counter += 1
         return f"_aug_tmp_{self.unique_id_counter}"

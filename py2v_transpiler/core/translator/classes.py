@@ -147,7 +147,7 @@ class ClassesMixin(TranslatorBase):
                                         type_str = ast.unparse(stmt.annotation)
                                         field_type = map_python_type_to_v(
                                             type_str,
-                                            self_name=struct_name,
+                                            self_name=self._get_full_self_type(struct_name),
                                             generic_map=self._get_combined_generic_map(),
                                         )
                                     except Exception:
@@ -504,7 +504,7 @@ class ClassesMixin(TranslatorBase):
                             type_str = ast.unparse(stmt.annotation)
                             field_type = map_python_type_to_v(
                                 type_str,
-                                self_name=struct_name,
+                                self_name=self._get_full_self_type(struct_name),
                                 generic_map=self._get_combined_generic_map(),
                             )
                         except Exception:
@@ -738,7 +738,7 @@ class ClassesMixin(TranslatorBase):
                             type_str = ast.unparse(arg.annotation)
                             a_type = map_python_type_to_v(
                                 type_str,
-                                self_name=struct_name,
+                                self_name=self._get_full_self_type(struct_name),
                                 generic_map=self._get_combined_generic_map(),
                             )
                         except:
@@ -751,7 +751,7 @@ class ClassesMixin(TranslatorBase):
                         type_str = ast.unparse(method.returns)
                         m_ret = map_python_type_to_v(
                             type_str,
-                            self_name=struct_name,
+                            self_name=self._get_full_self_type(struct_name),
                             generic_map=self._get_combined_generic_map(),
                         )
                     except:
