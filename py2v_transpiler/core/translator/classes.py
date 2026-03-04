@@ -21,13 +21,16 @@ class ClassesMixin(TranslatorBase):
 
         # Pre-register class definition to allow class instantiation inside its own methods
         has_init = False
+        has_new = False
         for child in node.body:
-            if isinstance(child, ast.FunctionDef) and child.name == "__init__":
-                has_init = True
-                break
+            if isinstance(child, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                if child.name == "__init__":
+                    has_init = True
+                elif child.name == "__new__":
+                    has_new = True
         if not hasattr(self, "defined_classes"):
             self.defined_classes = {}
-        self.defined_classes[struct_name] = has_init
+        self.defined_classes[struct_name] = {"has_init": has_init, "has_new": has_new}
 
         # Save previous state to restore later (for nesting)
         prev_class = self.current_class

@@ -289,8 +289,8 @@ class FunctionsMixin(TranslatorBase):
         is_new_method = False
         if node.name == "__new__":
             is_new_method = True
-            # Rename __new__
-            node.name = f"new_{struct_name}_new"
+            # Rename __new__ to factory name
+            node.name = f"new_{struct_name}"
             # Remove 'cls' argument if present
             if args and args[0].arg == "cls":
                 args = args[1:]
@@ -481,14 +481,20 @@ class FunctionsMixin(TranslatorBase):
             receiver_str = ""
             func_name = "init_subclass"
         elif func_name == "__init__":
-            is_init = True
-            func_name = f"new_{struct_name}"
-            receiver_str = ""  # Factory is static
-            ret_type = struct_name
-            if self.current_class_generics:
-                gen_str = f"[{', '.join(self.current_class_generics)}]"
-                # Do NOT add to func_name here, as func_generics_str will add it to the 'fn' decl
-                ret_type += gen_str
+            class_info = self.defined_classes.get(struct_name, {})
+            if class_info.get("has_new"):
+                # If __new__ is present, __init__ becomes a regular method named 'init'
+                func_name = "init"
+                # is_method remains True, receiver_str is already set
+            else:
+                is_init = True
+                func_name = f"new_{struct_name}"
+                receiver_str = ""  # Factory is static
+                ret_type = struct_name
+                if self.current_class_generics:
+                    gen_str = f"[{', '.join(self.current_class_generics)}]"
+                    # Do NOT add to func_name here, as func_generics_str will add it to the 'fn' decl
+                    ret_type += gen_str
 
         noreturn_attr = "[noreturn]\n" if is_noreturn else ""
 
