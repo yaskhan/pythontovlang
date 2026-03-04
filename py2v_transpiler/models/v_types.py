@@ -56,6 +56,20 @@ def _map_ast_type(node: ast.AST, self_name: str = "Self", allow_union: bool = Fa
             return generic_map[node.id]
         return _map_basic_type(node.id)
 
+    elif isinstance(node, ast.Attribute):
+        # Handle typing.Any etc.
+        full_name = ""
+        curr: ast.AST = node
+        parts = []
+        while isinstance(curr, ast.Attribute):
+            parts.append(curr.attr)
+            curr = curr.value
+        if isinstance(curr, ast.Name):
+            parts.append(curr.id)
+            full_name = ".".join(reversed(parts))
+            return _map_basic_type(full_name)
+        return _map_basic_type(node.attr)
+
     elif isinstance(node, ast.Constant):
         if node.value is None:
             return 'none'
@@ -78,7 +92,21 @@ def _map_ast_type(node: ast.AST, self_name: str = "Self", allow_union: bool = Fa
         if isinstance(node.value, ast.Name):
             value_id = node.value.id
         elif isinstance(node.value, ast.Attribute):
-            value_id = node.value.attr
+            # Also handle typing.List etc.
+            curr_val: ast.AST = node.value
+            parts = []
+            while isinstance(curr_val, ast.Attribute):
+                parts.append(curr_val.attr)
+                curr_val = curr_val.value
+            if isinstance(curr_val, ast.Name):
+                parts.append(curr_val.id)
+                full_name = ".".join(reversed(parts))
+                if full_name.startswith("typing."):
+                    value_id = node.value.attr
+                else:
+                    value_id = full_name
+            else:
+                value_id = node.value.attr
 
         slice_node = node.slice
 
@@ -229,6 +257,18 @@ def _map_basic_type(name: str) -> str:
         'io.StringIO': 'strings.Builder',
         'six.moves.StringIO': 'strings.Builder',
         'NoReturn': 'void',
+        'typing.Any': 'Any',
+        'typing.List': '[]Any',
+        'typing.Dict': 'map[string]Any',
+        'typing.Tuple': '[]Any',
+        'typing.Set': 'map[string]bool',
+        'typing.Optional': '?Any',
+        'typing.Union': 'Any',
+        'typing.Callable': 'fn',
+        'typing.NoReturn': 'void',
+        'typing.Sequence': '[]Any',
+        'typing.Iterable': '[]Any',
+        'typing.Mapping': 'map[string]Any',
         'builtins.int': 'int',
         'builtins.float': 'f64',
         'builtins.str': 'string',
