@@ -10,12 +10,14 @@ class MatchMixin(TranslatorBase):
         self._zip_counter += 1
         match_id = self._zip_counter
         subject_var = f"_match_subject_{match_id}"
+        found_var = f"_match_found_{match_id}"
 
-        self.output.append(f"{self._indent()}// Match statement converted to if-else chain")
+        self.output.append(f"{self._indent()}// Match statement converted to separate if blocks")
         self.output.append(f"{self._indent()}{subject_var} := {subject}")
         # Create an 'any' alias for type checking
         subject_any = f"_match_subject_any_{match_id}"
         self.output.append(f"{self._indent()}{subject_any} := Any({subject_var})")
+        self.output.append(f"{self._indent()}mut {found_var} := false")
 
         # Flatten MatchOr patterns to simplify code generation
         expanded_cases = []
@@ -28,33 +30,37 @@ class MatchMixin(TranslatorBase):
             else:
                 expanded_cases.append(case)
 
-        is_first = True
         for case in expanded_cases:
             cond, bindings = self._compile_pattern(case.pattern, subject_any)
 
-            if case.guard:
-                guard_expr = self.visit(case.guard)
-                cond = f"({cond}) && ({guard_expr})"
-
-            prefix = "if" if is_first else "else if"
             if cond == "true":
-                # Wildcard or fallback
-                prefix = "else"
-                self.output.append(f"{self._indent()}{prefix} {{")
+                self.output.append(f"{self._indent()}if !{found_var} {{")
             else:
-                self.output.append(f"{self._indent()}{prefix} {cond} {{")
+                self.output.append(f"{self._indent()}if !{found_var} && ({cond}) {{")
 
             self._indent_level += 1
             for binding in bindings:
                 self.output.append(f"{self._indent()}{binding}")
-            for stmt in case.body:
-                self.visit(stmt)
+
+            if case.guard:
+                guard_expr = self.visit(case.guard)
+                self.output.append(f"{self._indent()}if ({guard_expr}) {{")
+                self._indent_level += 1
+                for stmt in case.body:
+                    self.visit(stmt)
+                self.output.append(f"{self._indent()}{found_var} = true")
+                self._indent_level -= 1
+                self.output.append(f"{self._indent()}}}")
+            else:
+                for stmt in case.body:
+                    self.visit(stmt)
+                self.output.append(f"{self._indent()}{found_var} = true")
+
             self._indent_level -= 1
             self.output.append(f"{self._indent()}}}")
 
-            if cond == "true":
-                break # Stop processing further cases as this one matches everything
-            is_first = False
+            if cond == "true" and not case.guard:
+                break # Optimization: literal wildcard with no guard always matches
 
     def _compile_pattern(self, pattern: ast.AST, subject_expr: str) -> Tuple[str, List[str]]:
         bindings: List[str] = []
@@ -297,14 +303,26 @@ class MatchMixin(TranslatorBase):
                          val_expr = f"({subject_expr} as bool)"
                      else:
                          val_expr = f"({subject_expr} as {cls_name})"
+                 else:
+                     # General type narrowing from mypy for the bound name
+                     if pattern.name:
+                        temp_node = ast.Name(id=pattern.name, ctx=ast.Store(), lineno=getattr(pattern, 'lineno', 0), col_offset=getattr(pattern, 'col_offset', 0))
+                        narrowed_type = self._guess_type(temp_node)
+                        if narrowed_type not in ("Any", "void"):
+                             val_expr = f"({subject_expr} as {narrowed_type})"
 
              if pattern.name:
                  bindings.append(f"{pattern.name} := {val_expr}")
              return cond, bindings
 
         elif isinstance(pattern, ast.MatchStar):
+             val_expr = subject_expr
              if pattern.name:
-                 bindings.append(f"{pattern.name} := {subject_expr}")
+                 temp_node = ast.Name(id=pattern.name, ctx=ast.Store(), lineno=getattr(pattern, 'lineno', 0), col_offset=getattr(pattern, 'col_offset', 0))
+                 narrowed_type = self._guess_type(temp_node)
+                 if narrowed_type not in ("Any", "void"):
+                      val_expr = f"({subject_expr} as {narrowed_type})"
+                 bindings.append(f"{pattern.name} := {val_expr}")
              return "true", bindings
 
         return "false", bindings
