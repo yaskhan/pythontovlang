@@ -193,8 +193,16 @@ class MatchMixin(TranslatorBase):
                  bindings.extend(sub_binds)
 
              if rest:
-                 # Capture rest? Complex. Ignore for now.
-                 pass
+                 self.used_builtins.add("py_dict_residual")
+                 exclude_list = "[]string{" + ", ".join(self.visit(k) for k in keys) + "}"
+
+                 branches = []
+                 for t in map_types:
+                     branches.append(f"{subject_expr} is {t} {{ Any(py_dict_residual(({subject_expr} as {t}), {exclude_list})) }}")
+                 else_part = " else { Any(map[string]Any{}) }"
+                 extract_expr = f"if {' else if '.join(branches)}{else_part}"
+
+                 bindings.append(f"{rest} := {extract_expr}")
 
              return cond, bindings
 
