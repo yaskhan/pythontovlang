@@ -108,7 +108,7 @@ def transpile_file(source_file: str, config: TranspilerConfig, global_helpers: O
     # 3. Analyze types
     analyzer = TypeInference()
     if config.mypy_enabled:
-        stdout, stderr, exit_code = analyzer.run_mypy(source_file)
+        stdout, stderr, exit_code = analyzer.run_mypy(source_file, experimental=config.experimental)
         if exit_code != 0:
             print(f"Mypy found errors in {source_file}:")
             print(stdout)
@@ -343,6 +343,7 @@ Examples:
     parser.add_argument("--helpers-only", action="store_true", help="Only generate the helper V file (do not transpile individual scripts)")
     parser.add_argument("--include-all-symbols", action="store_true", help="Include all symbols even if not in __all__")
     parser.add_argument("--strict-exports", action="store_true", help="Warn about public symbols missing from __all__")
+    parser.add_argument("--experimental", action="store_true", help="Enable experimental PEP features")
 
     args = parser.parse_args()
 
@@ -370,7 +371,8 @@ Examples:
         no_helpers=args.no_helpers,
         helpers_only=args.helpers_only,
         include_all_symbols=args.include_all_symbols,
-        strict_export_mode=args.strict_exports
+        strict_export_mode=args.strict_exports,
+        experimental=args.experimental
     )
 
     if config.helpers_only:

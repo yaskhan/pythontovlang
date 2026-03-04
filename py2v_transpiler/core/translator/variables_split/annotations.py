@@ -56,6 +56,7 @@ class AnnotationsMixin(TranslatorBase):
             if hasattr(ast, 'unparse'):
                 try:
                     type_str = ast.unparse(node.annotation)
+                    self._check_experimental_type(type_str, node.annotation)
                     v_type = map_python_type_to_v(type_str, self_name=self._get_full_self_type())
                 except Exception:
                     pass
@@ -185,6 +186,7 @@ class AnnotationsMixin(TranslatorBase):
             # V needs initialization. We map type to default value.
             try:
                 type_str = ast.unparse(node.annotation)
+                self._check_experimental_type(type_str, node.annotation)
                 v_type = map_python_type_to_v(type_str, self_name=self._get_full_self_type())
 
                 if self.in_main and isinstance(node.target, ast.Name):
