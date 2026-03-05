@@ -107,18 +107,18 @@ class PydanticFieldProcessor:
              prefix = field_access
 
         if info.gt:
-            code.append(f"{indent}if {prefix} <= {info.gt} {{ return error('Validation Error: {info.name} must be greater than {info.gt}') }}")
+            code.append(f'{indent}if {prefix} <= {info.gt} {{ return error("Validation Error: {info.name} must be greater than {info.gt}") }}')
         if info.lt:
-            code.append(f"{indent}if {prefix} >= {info.lt} {{ return error('Validation Error: {info.name} must be less than {info.lt}') }}")
+            code.append(f'{indent}if {prefix} >= {info.lt} {{ return error("Validation Error: {info.name} must be less than {info.lt}") }}')
         if info.ge:
-            code.append(f"{indent}if {prefix} < {info.ge} {{ return error('Validation Error: {info.name} must be greater than or equal to {info.ge}') }}")
+            code.append(f'{indent}if {prefix} < {info.ge} {{ return error("Validation Error: {info.name} must be greater than or equal to {info.ge}") }}')
         if info.le:
-            code.append(f"{indent}if {prefix} > {info.le} {{ return error('Validation Error: {info.name} must be less than or equal to {info.le}') }}")
+            code.append(f'{indent}if {prefix} > {info.le} {{ return error("Validation Error: {info.name} must be less than or equal to {info.le}") }}')
 
         if info.max_length:
-             code.append(f"{indent}if {prefix}.len > {info.max_length} {{ return error('Validation Error: {info.name} length must be <= {info.max_length}') }}")
+             code.append(f'{indent}if {prefix}.len > {info.max_length} {{ return error("Validation Error: {info.name} length must be <= {info.max_length}") }}')
         if info.min_length:
-             code.append(f"{indent}if {prefix}.len < {info.min_length} {{ return error('Validation Error: {info.name} length must be >= {info.min_length}') }}")
+             code.append(f'{indent}if {prefix}.len < {info.min_length} {{ return error("Validation Error: {info.name} length must be >= {info.min_length}") }}')
 
         if info.is_optional:
             code.append("    }")

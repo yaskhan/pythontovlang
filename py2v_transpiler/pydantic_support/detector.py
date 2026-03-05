@@ -31,3 +31,8 @@ class PydanticDetector:
         if isinstance(node, ast.Attribute) and node.attr in ("validator", "field_validator", "model_validator"):
              return True
         return False
+
+    @staticmethod
+    def is_config_class(node: ast.AST) -> bool:
+        """Checks if a class definition is a nested Config class."""
+        return isinstance(node, ast.ClassDef) and node.name == "Config"

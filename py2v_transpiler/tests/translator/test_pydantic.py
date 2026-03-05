@@ -37,8 +37,8 @@ class User(BaseModel):
 
         # Check validation method
         self.assertIn("fn (mut m User) validate() ! {", v_code)
-        self.assertIn("if m.name.len > 50 { return error('Validation Error: name length must be <= 50')", v_code)
-        self.assertIn("if m.age <= 0 { return error('Validation Error: age must be greater than 0')", v_code)
+        self.assertIn('if m.name.len > 50 { return error("Validation Error: name length must be <= 50")', v_code)
+        self.assertIn('if m.age <= 0 { return error("Validation Error: age must be greater than 0")', v_code)
 
     def test_optional_field(self):
         code = """
@@ -52,3 +52,55 @@ class Item(BaseModel):
         self.assertIn("price ?f64", v_code)
         self.assertIn("if m.price != none {", v_code)
         self.assertIn("if m.price? <= 0.0 {", v_code)
+
+    def test_pydantic_config_str_transformations(self):
+        code = """
+from pydantic import BaseModel
+
+class User(BaseModel):
+    name: str
+    email: str
+
+    class Config:
+        str_strip_whitespace = True
+        str_to_lower = True
+"""
+        v_code = self.translate(code)
+        self.assertIn("// Config: str_strip_whitespace=true, str_to_lower=true", v_code)
+        self.assertIn("m.name = m.name.trim()", v_code)
+        self.assertIn("m.name = m.name.to_lower()", v_code)
+        self.assertIn("m.email = m.email.trim()", v_code)
+        self.assertIn("m.email = m.email.to_lower()", v_code)
+
+    def test_pydantic_config_mutation_and_extra(self):
+        code = """
+from pydantic import BaseModel
+
+class User(BaseModel):
+    name: str
+
+    class Config:
+        allow_mutation = False
+        extra = 'forbid'
+"""
+        v_code = self.translate(code)
+        self.assertIn("// Config: extra=forbid, allow_mutation=false", v_code)
+        # Should not have 'mut' in struct definition for private/local
+        self.assertIn("struct User {", v_code)
+        self.assertNotIn("mut:", v_code)
+        self.assertIn("name string", v_code)
+
+    def test_pydantic_config_anystr_length(self):
+        code = """
+from pydantic import BaseModel
+
+class User(BaseModel):
+    name: str
+
+    class Config:
+        min_anystr_length = 3
+        max_anystr_length = 20
+"""
+        v_code = self.translate(code)
+        self.assertIn('if m.name.len < 3 { return error("Validation Error: name length must be >= 3") }', v_code)
+        self.assertIn('if m.name.len > 20 { return error("Validation Error: name length must be <= 20") }', v_code)
