@@ -129,6 +129,7 @@ class TranslatorBase(ast.NodeVisitor):
         self.module_all: Optional[List[str]] = None
         self.defined_top_level_symbols: Set[str] = set()
         self.warnings: List[str] = []
+        self.type_vars: Set[str] = set()
 
     def _is_literal_string_expr(self, node: ast.AST) -> bool:
         """

@@ -79,7 +79,17 @@ def _map_ast_type(node: ast.AST, self_name: str = "Self", allow_union: bool = Fa
 
             parts.append(curr.id)
             full_name = ".".join(reversed(parts))
-            return _map_basic_type(full_name)
+
+            # More aggressive stripping for attributes
+            basic = _map_basic_type(full_name)
+            if basic == full_name:
+                if full_name.startswith('typing.'):
+                    return _map_basic_type(full_name[7:])
+                if full_name.startswith('typing_extensions.'):
+                    return _map_basic_type(full_name[18:])
+                if full_name.startswith('builtins.'):
+                    return _map_basic_type(full_name[9:])
+            return basic
         return _map_basic_type(node.attr)
 
     elif isinstance(node, ast.Constant):
@@ -113,7 +123,7 @@ def _map_ast_type(node: ast.AST, self_name: str = "Self", allow_union: bool = Fa
             if isinstance(curr_val, ast.Name):
                 parts.append(curr_val.id)
                 full_name = ".".join(reversed(parts))
-                if full_name.startswith("typing."):
+                if full_name.startswith("typing.") or full_name.startswith("typing_extensions."):
                     value_id = node.value.attr
                 else:
                     value_id = full_name
@@ -175,18 +185,17 @@ def _map_ast_type(node: ast.AST, self_name: str = "Self", allow_union: bool = Fa
             if len(non_none) == 1 and len(mapped_args) > 1:
                 return f"?{non_none[0]}"
             if allow_union:
-                # Remove duplicates while preserving order
-                seen = set()
-                unique_args = []
-                for arg in mapped_args:
-                    if arg not in seen:
-                        unique_args.append(arg)
-                        seen.add(arg)
-                return " | ".join(unique_args)
+                # Deduplicate while preserving order
+                unique_types = []
+                for t in mapped_args:
+                    if t not in unique_types:
+                        unique_types.append(t)
+                return " | ".join(unique_types)
             return "Any"
 
         elif value_id == 'Callable':
             # Callable[[Arg1, Arg2], Ret]
+            # V function types: fn (Arg1, Arg2) Ret
             if len(args) == 2:
                 arg_list_node = args[0]
                 ret_node = args[1]
@@ -194,12 +203,26 @@ def _map_ast_type(node: ast.AST, self_name: str = "Self", allow_union: bool = Fa
                 arg_types = []
                 if isinstance(arg_list_node, ast.List):
                     arg_types = [_map_ast_type(a, self_name, allow_union, generic_map) for a in arg_list_node.elts]
+                elif isinstance(arg_list_node, ast.Name) and generic_map and arg_list_node.id in generic_map:
+                    # ParamSpec: Callable[P, Ret]
+                    # We usually map P to empty args if it represents the whole signature
+                    # and we don't have concrete args.
+                    # But the test expects `fn ()`.
+                    arg_types = []
+                elif isinstance(arg_list_node, ast.Constant) and arg_list_node.value is Ellipsis:
+                    arg_types = ["..."]
                 elif isinstance(arg_list_node, ast.Name):
                     # ParamSpec: Callable[P, Ret]
-                    pass
+                    arg_types = [_map_ast_type(arg_list_node, self_name, allow_union, generic_map)]
 
                 ret_type = _map_ast_type(ret_node, self_name, allow_union, generic_map)
+                if ret_type == "none": ret_type = "void"
+
                 return f"fn ({', '.join(arg_types)}) {ret_type}"
+
+            if len(args) == 1 and isinstance(args[0], ast.Constant) and args[0].value is Ellipsis:
+                return "fn (...)"
+
             return "fn"
 
         elif value_id == 'Literal':

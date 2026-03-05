@@ -51,6 +51,7 @@ class AssignmentsMixin(TranslatorBase):
 
             # Check for TypeVar: T = TypeVar("T", int, str)
             if isinstance(node.value, ast.Call) and isinstance(node.value.func, ast.Name) and node.value.func.id == "TypeVar":
+                self.type_vars.add(target.id)
                 # Check args for constraints
                 # args[0] is name
                 constraints = []
@@ -93,7 +94,7 @@ class AssignmentsMixin(TranslatorBase):
 
                 # Check if LHS is capitalized or starts with underscore + capitalized (heuristic for type alias)
                 clean_lhs = target.id.lstrip('_')
-                if clean_lhs and clean_lhs[0].isupper():
+                if clean_lhs and (clean_lhs[0].isupper() or (lhs.startswith('_') and len(lhs) > 1 and any(c.isupper() for c in lhs))):
                      # Check if it was inferred by TypeInference (e.g. OrderedCollection = list)
                      if hasattr(self, 'type_inference') and lhs in self.type_inference.type_map and isinstance(node.value, ast.Name):
                           is_type_alias = True
@@ -139,8 +140,29 @@ class AssignmentsMixin(TranslatorBase):
 
                 if is_type_alias:
                      pub = "pub " if self._is_exported(target.id) else ""
+
+                     # Extract potential generic parameters from type_alias_val
+                     # If it contains _T (and we tracked _T as TypeVar), we might need [T]
+                     # However, V type aliases for generics MUST have [T] explicitly.
+                     # Since this is a simple assignment alias, we look for tracked type_vars
+                     found_vars = []
+                     for tv in self.type_vars:
+                         if f"{tv}" in type_alias_val:
+                             v_gen = self._get_generic_map([tv]).get(tv, "T")
+                             if v_gen not in found_vars:
+                                 found_vars.append(v_gen)
+
+                     gen_str = f"[{', '.join(found_vars)}]" if found_vars else ""
+
+                     # If it's a generic alias, we need to replace the Python TypeVar name with V generic name in the RHS too
+                     if found_vars:
+                         # This is a bit naive, but let's try
+                         for tv in sorted(list(self.type_vars), key=len, reverse=True):
+                              v_gen = self._get_generic_map([tv]).get(tv, "T")
+                              type_alias_val = type_alias_val.replace(tv, v_gen)
+
                      sanitized_lhs = self._sanitize_name(target.id, is_type=True)
-                     self.emitter.add_struct(f"{pub}type {sanitized_lhs} = {type_alias_val}")
+                     self.emitter.add_struct(f"{pub}type {sanitized_lhs}{gen_str} = {type_alias_val}")
                      return
 
         elif isinstance(target, ast.Attribute):
