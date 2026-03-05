@@ -185,12 +185,12 @@ def _map_ast_type(node: ast.AST, self_name: str = "Self", allow_union: bool = Fa
             if len(non_none) == 1 and len(mapped_args) > 1:
                 return f"?{non_none[0]}"
             if allow_union:
-                # Deduplicate
-                unique_types = []
-                for t in mapped_args:
-                    if t not in unique_types:
-                        unique_types.append(t)
-                return " | ".join(unique_types)
+                # Deduplicate while preserving order
+                unique_args = []
+                for arg in mapped_args:
+                    if arg not in unique_args:
+                        unique_args.append(arg)
+                return " | ".join(unique_args)
             return "Any"
 
         elif value_id == 'Callable':
@@ -228,12 +228,12 @@ def _map_ast_type(node: ast.AST, self_name: str = "Self", allow_union: bool = Fa
         elif value_id == 'Literal':
             # Literal[1] -> int, Literal['a'] -> string
             if args:
-                arg = args[0]
-                if isinstance(arg, ast.Constant):
-                    if isinstance(arg.value, int): return 'int'
-                    if isinstance(arg.value, float): return 'f64'
-                    if isinstance(arg.value, str): return 'string'
-                    if isinstance(arg.value, bool): return 'bool'
+                lit_arg = args[0]
+                if isinstance(lit_arg, ast.Constant):
+                    if isinstance(lit_arg.value, int): return 'int'
+                    if isinstance(lit_arg.value, float): return 'f64'
+                    if isinstance(lit_arg.value, str): return 'string'
+                    if isinstance(lit_arg.value, bool): return 'bool'
             return 'string' # default?
 
         elif value_id == 'Type':
@@ -283,6 +283,12 @@ def _map_ast_type(node: ast.AST, self_name: str = "Self", allow_union: bool = Fa
     return "void"
 
 def _map_basic_type(name: str) -> str:
+    # Strip typing. prefix
+    if name.startswith('typing.'):
+        name = name[7:]
+    if name.startswith('typing_extensions.'):
+        name = name[18:]
+
     mapping = {
         'int': 'int',
         'float': 'f64',
@@ -304,6 +310,16 @@ def _map_basic_type(name: str) -> str:
         'io.StringIO': 'strings.Builder',
         'six.moves.StringIO': 'strings.Builder',
         'NoReturn': 'void',
+        'List': '[]Any',
+        'Dict': 'map[string]Any',
+        'Tuple': '[]Any',
+        'Set': 'map[string]bool',
+        'Optional': '?Any',
+        'Union': 'Any',
+        'Callable': 'fn',
+        'Sequence': '[]Any',
+        'Iterable': '[]Any',
+        'Mapping': 'map[string]Any',
         'typing.Any': 'Any',
         'typing.List': '[]Any',
         'typing.Dict': 'map[string]Any',
@@ -322,16 +338,9 @@ def _map_basic_type(name: str) -> str:
         'builtins.float': 'f64',
         'builtins.str': 'string',
         'builtins.bool': 'bool',
-        'LiteralString': 'LiteralString',
-        'typing.LiteralString': 'LiteralString',
-        'typing_extensions.LiteralString': 'LiteralString',
+        'LiteralString': 'string',
         'bytearray': '[]u8',
         'memoryview': '[]u8',
-        'LiteralString': 'string',
-        'typing.LiteralString': 'string',
-        'typing_extensions.LiteralString': 'string',
         'TypeForm': 'Any',
-        'typing.TypeForm': 'Any',
-        'typing_extensions.TypeForm': 'Any',
     }
     return mapping.get(name, name)
