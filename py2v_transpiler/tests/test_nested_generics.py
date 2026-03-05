@@ -27,7 +27,7 @@ def outer[T](x: T):
 """
     v_code = transpile_code(code)
     # T -> T, U -> U (assuming first available)
-    assert "fn inner[T, U](y U) T {" in v_code
+    assert "mut inner := fn [x] (y U) T {" in v_code
     assert "return x" in v_code
     assert "fn outer[T](x T) {" in v_code
 
@@ -55,7 +55,7 @@ class Outer[T]:
         return inner
 """
     v_code = transpile_code(code)
-    assert "fn inner[T, U, V](z V) T {" in v_code
+    assert "mut inner := fn [x] (z V) T {" in v_code
     # V methods mangle names: Outer_method
     assert "fn (self Outer[T]) method[T, U](x T, y U) {" in v_code
 
@@ -72,7 +72,7 @@ def outer[T](x: T):
     # But wait, our _get_generic_map checks used_chars.
     # outer[T] -> T
     # inner[T] -> U (or something else because T is used)
-    assert "fn inner[T, U](y U) U {" in v_code
+    assert "mut inner := fn (y U) U {" in v_code
     assert "fn outer[T](x T) {" in v_code
 
 if __name__ == "__main__":

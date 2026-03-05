@@ -140,6 +140,7 @@ class ClassesMixin(TranslatorBase):
         # If this is a main struct, collect fields from its mixins first
         if is_main_struct:
             mixin_nodes = getattr(self.type_inference, "mixin_nodes", {})
+            # main_to_mixins is now recursive thanks to the analyzer change
             for mixin_name in self.type_inference.main_to_mixins[struct_name]:
                 if mixin_name in mixin_nodes:
                     mixin_node = mixin_nodes[mixin_name]
@@ -149,6 +150,7 @@ class ClassesMixin(TranslatorBase):
                         ):
                             field_name = self._sanitize_name(stmt.target.id)
                             if field_name not in added_fields:
+                                added_fields.add(field_name)
                                 field_type = "int"
                                 if stmt.annotation:
                                     try:
@@ -774,11 +776,11 @@ class ClassesMixin(TranslatorBase):
             has_str_mixin = any(m.name == "__str__" for m in methods)
             for method in methods:
                 if method.name == "__repr__":
-                    method.original_name = "__repr__"
+                    setattr(method, "original_name", "__repr__")
                     if has_str_mixin:
-                        method.name = "repr"
+                        setattr(method, "name", "repr")
                     else:
-                        method.name = "str"
+                        setattr(method, "name", "str")
             for method in methods:
                 self.visit(method)
         else:
@@ -935,11 +937,11 @@ class ClassesMixin(TranslatorBase):
             has_str = any(m.name == "__str__" for m in methods)
             for method in methods:
                 if method.name == "__repr__":
-                    method.original_name = "__repr__"
+                    setattr(method, "original_name", "__repr__")
                     if has_str:
-                        method.name = "repr"
+                        setattr(method, "name", "repr")
                     else:
-                        method.name = "str"
+                        setattr(method, "name", "str")
 
             # Visit methods to generate them as functions
             for method in methods:
