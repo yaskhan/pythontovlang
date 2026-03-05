@@ -208,15 +208,20 @@ class MixinInferer(ast.NodeVisitor):
             ancestors = self._get_all_ancestors(cls_name)
             for ancestor in ancestors:
                 if ancestor in templates:
-                    if ancestor not in self.mixin_to_main:
-                        self.mixin_to_main[ancestor] = []
-                    if cls_name not in self.mixin_to_main[ancestor]:
-                        self.mixin_to_main[ancestor].append(cls_name)
+                    # If an ancestor is a template (ABC or Mixin), it and all of its ancestors
+                    # should be distributed to the concrete class, because the
+                    # template itself will not be embedded as a struct field.
+                    mixin_chain = [ancestor] + self._get_all_ancestors(ancestor)
+                    for m in mixin_chain:
+                        if m not in self.mixin_to_main:
+                            self.mixin_to_main[m] = []
+                        if cls_name not in self.mixin_to_main[m]:
+                            self.mixin_to_main[m].append(cls_name)
 
-                    if cls_name not in self.main_to_mixins:
-                        self.main_to_mixins[cls_name] = []
-                    if ancestor not in self.main_to_mixins[cls_name]:
-                        self.main_to_mixins[cls_name].append(ancestor)
+                        if cls_name not in self.main_to_mixins:
+                            self.main_to_mixins[cls_name] = []
+                        if m not in self.main_to_mixins[cls_name]:
+                            self.main_to_mixins[cls_name].append(m)
 
 
 class TypeInference(ast.NodeVisitor):
