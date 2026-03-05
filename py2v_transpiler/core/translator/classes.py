@@ -773,12 +773,14 @@ class ClassesMixin(TranslatorBase):
                 # Add doc comment to emitter's globals or functions?
                 pass
 
-            has_str = any(m.name == "__str__" for m in methods)
-            if has_str:
-                for method in methods:
-                    if method.name == "__repr__":
+            has_str_mixin = any(m.name == "__str__" for m in methods)
+            for method in methods:
+                if method.name == "__repr__":
+                    setattr(method, "original_name", "__repr__")
+                    if has_str_mixin:
                         setattr(method, "name", "repr")
-
+                    else:
+                        setattr(method, "name", "str")
             for method in methods:
                 self.visit(method)
         else:
@@ -933,10 +935,13 @@ class ClassesMixin(TranslatorBase):
             self.emitter.add_struct("".join(struct_parts))
 
             has_str = any(m.name == "__str__" for m in methods)
-            if has_str:
-                for method in methods:
-                    if method.name == "__repr__":
+            for method in methods:
+                if method.name == "__repr__":
+                    setattr(method, "original_name", "__repr__")
+                    if has_str:
                         setattr(method, "name", "repr")
+                    else:
+                        setattr(method, "name", "str")
 
             # Visit methods to generate them as functions
             for method in methods:
