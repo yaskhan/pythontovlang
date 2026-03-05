@@ -52,6 +52,18 @@ class AnnotationsMixin(TranslatorBase):
             if not v_type:
                 v_type = getattr(self, "_guess_type", lambda x: "unknown")(node.target)
 
+            # Check if this is a type alias (PEP 613)
+            if self.in_main and isinstance(node.target, ast.Name):
+                is_pep613 = False
+                if type_str.startswith("TypeAlias") or type_str.startswith("typing.TypeAlias") or type_str.startswith("typing_extensions.TypeAlias"):
+                    is_pep613 = True
+
+                if is_pep613:
+                    rhs_v_type = map_python_type_to_v(ast.unparse(node.value), allow_union=True, self_name=self._get_full_self_type())
+                    pub = "pub " if self._is_exported(node.target.id) else ""
+                    self.emitter.add_struct(f"{pub}type {target} = {rhs_v_type}")
+                    return
+
             is_literal_string_type = v_type == "LiteralString" or type_str in ("LiteralString", "typing.LiteralString", "typing_extensions.LiteralString")
 
             # Check if this is a LiteralString being assigned a non-literal value
