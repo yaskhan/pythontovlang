@@ -105,7 +105,6 @@ class TranslatorBase(ast.NodeVisitor):
         self.used_dict_merge: bool = False
         self.used_string_format: bool = False
         self.dataclasses: Dict[str, List[str]] = {}
-        self._generated_sum_types: Dict[str, str] = {}
         self.global_vars: Set[str] = set()
         self.renamed_functions: Dict[str, str] = {"main": "py_main"}
         self.name_remap: Dict[str, str] = {}
@@ -122,7 +121,7 @@ class TranslatorBase(ast.NodeVisitor):
         self.generic_scopes: List[Dict[str, str]] = [] # Stack of PEP 695 generic mappings
         self.unique_id_counter: int = 0
         self.vexc_depth: int = 0
-        self._scope_stack: List[Set[str]] = []
+        self._local_vars_in_scope: Set[str] = set()
         self.fstring_quote_stack: List[str] = []
         self.current_module_name: str = "main"
         self.current_file_name: str = ""
@@ -210,25 +209,12 @@ class TranslatorBase(ast.NodeVisitor):
              base = "py_mod"
         return base
 
-    @property
-    def _local_vars_in_scope(self) -> Set[str]:
-        """Returns all local variables in the current function scope."""
-        if not self._scope_stack:
-            return set()
-        return self._scope_stack[-1]
-
     def _is_top_level_symbol(self, name: str) -> bool:
         """Heuristic to check if a name refers to a top-level symbol (class/func/global)."""
         # In a real transpiler, this would check a pre-populated symbol table.
         # Here we check if it's NOT a method (which would have self.current_class set)
         # and NOT a known local variable.
-        if self.current_class:
-            return False
-        # Check if it's in ANY local scope in the stack
-        for scope in self._scope_stack:
-            if name in scope:
-                return False
-        return True
+        return not self.current_class and name not in self._local_vars_in_scope
 
     def _to_snake_case(self, name: str) -> str:
         """Converts CamelCase or UPPER_CASE to snake_case."""
@@ -252,10 +238,6 @@ class TranslatorBase(ast.NodeVisitor):
                     res.append('_')
             res.append(char.lower())
         return "".join(res)
-
-    def _get_factory_name(self, struct_name: str) -> str:
-        """Returns a snake_case factory name for a given struct name."""
-        return f"new_{self._to_snake_case(struct_name)}"
 
     def _get_generic_map(self, generic_names: List[str]) -> Dict[str, str]:
         """
@@ -376,70 +358,18 @@ class TranslatorBase(ast.NodeVisitor):
             return f"{name}{gen_str}"
         return name
 
-    def _register_sum_type(self, v_union_type: str) -> str:
-        """
-        Normalizes a V union type, generates a named sum type if not already exists,
-        and returns its name (including generic args if applicable).
-        """
-        parts = [p.strip() for p in v_union_type.split('|')]
-        if len(parts) <= 1:
-            return v_union_type
-
-        parts.sort()
-        normalized = " | ".join(parts)
-
-        if normalized in self._generated_sum_types:
-            return self._generated_sum_types[normalized]
-
-        # Generate a name: SumType_Part1Part2
-        def clean(s: str) -> str:
-            # Map V types to CamelCase-friendly strings
-            m = {
-                'int': 'Int', 'string': 'String', 'bool': 'Bool', 'f64': 'F64',
-                'i64': 'I64', 'u32': 'U32', 'u64': 'U64', 'i8': 'I8', 'i16': 'I16',
-                'u8': 'U8', 'u16': 'U16', 'Any': 'Any', 'void': 'Void', 'none': 'None'
-            }
-            res = m.get(s, s).replace('[]', 'Array').replace('map', 'Map')
-            return "".join(c for c in res if c.isalnum() or c == '_')
-
-        type_name = "SumType_" + "".join(clean(p) for p in parts)
-
-        # Avoid collisions
-        base_name = type_name
-        counter = 1
-        while any(v == type_name for v in self._generated_sum_types.values()):
-            type_name = f"{base_name}_{counter}"
-            counter += 1
-
-        # Identify active generics used in the union
-        active_v_generics = self._get_all_active_v_generics()
-        used_generics = [g for g in active_v_generics if g in parts or any(f"[{g}]" in p for p in parts) or any(f"{g} " in p for p in parts)]
-
-        gen_decl = f"[{', '.join(used_generics)}]" if used_generics else ""
-        gen_args = f"[{', '.join(used_generics)}]" if used_generics else ""
-
-        pub = "pub " if self.config and getattr(self.config, 'include_all_symbols', False) else ""
-        self.emitter.add_struct(f"{pub}type {type_name}{gen_decl} = {normalized}")
-
-        result = f"{type_name}{gen_args}"
-        self._generated_sum_types[normalized] = result
-        return result
-
-    def _map_type(self, type_str: str, struct_name: Optional[str] = None, allow_union: bool = True, register_sum_types: bool = True) -> str:
+    def _map_type(self, type_str: str, struct_name: Optional[str] = None, allow_union: bool = True) -> str:
         """
         Centralized type mapping that performs map_python_type_to_v
         followed by imported_symbols and SCC-based re-mapping.
         """
         from py2v_transpiler.models.v_types import map_python_type_to_v
 
-        registrar = self._register_sum_type if register_sum_types else None
-
         v_type = map_python_type_to_v(
             type_str,
             self_name=self._get_full_self_type(struct_name),
             generic_map=self._get_combined_generic_map(),
-            allow_union=allow_union,
-            sum_type_registrar=registrar
+            allow_union=allow_union
         )
 
         # Centralize LiteralString to string mapping

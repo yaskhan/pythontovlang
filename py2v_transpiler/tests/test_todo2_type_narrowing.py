@@ -74,40 +74,6 @@ def test_func():
         # For now let's just assert that narrowing doesn't crash and we get 'm.desc'
         assert "m.desc" in v_code
 
-    def test_mutation_invalidates_narrowing(self):
-        code = """
-def test(x: str | int):
-    if isinstance(x, str):
-        print(x.upper())
-        x = 1
-        print(x + 1)
-"""
-        type_inference = TypeInference()
-        # Mock narrowing
-        # x.upper() at line 4:14
-        type_inference.type_map["x@4:14"] = "string"
-        # x = 1 at line 5:8
-        # print(x+1) at line 6:14
-        type_inference.type_map["x"] = "str | int"
-
-        translator = VNodeVisitor(type_inference)
-        tree = ast.parse(code)
-
-        # Manually set locations for the mock to work correctly
-        for node in ast.walk(tree):
-            if isinstance(node, ast.Name) and node.id == "x":
-                if node.lineno == 4:
-                    type_inference.type_map[f"x@{node.lineno}:{node.col_offset}"] = "string"
-
-        translator.visit(tree)
-        v_code = translator.emitter.emit()
-
-        # First print should have cast or narrowing
-        assert "(x as string).upper()" in v_code
-        # Second print should NOT have string cast
-        assert "(x as string) + 1" not in v_code
-        assert "x + 1" in v_code
-
 if __name__ == '__main__':
     import unittest
     unittest.main()

@@ -31,7 +31,7 @@ class Point:
     assert "y int" in result
 
     # Check factory function for __init__
-    assert "fn new_point(x int, y int) Point {" in result
+    assert "fn new_Point(x int, y int) Point {" in result
     assert "self.x = x" in result
 
     # Check method

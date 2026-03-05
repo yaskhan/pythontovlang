@@ -17,9 +17,8 @@ class TestUnionTypes(unittest.TestCase):
     def test_union_arg(self):
         source = "def f(x: int | str): pass"
         result = self.transpile(source)
-        # Should be 'x SumType_IntString'
-        self.assertIn("type SumType_IntString = int | string", result)
-        self.assertIn("x SumType_IntString", result)
+        # Should be 'x int | string'
+        self.assertIn("x int | string", result)
 
     def test_optional_union_arg(self):
         source = "def f(x: int | None): pass"
