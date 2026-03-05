@@ -145,13 +145,7 @@ class ClassesMixin(TranslatorBase):
                                 if stmt.annotation:
                                     try:
                                         type_str = ast.unparse(stmt.annotation)
-                                        field_type = map_python_type_to_v(
-                                            type_str,
-                                            self_name=self._get_full_self_type(struct_name),
-                                            generic_map=self._get_combined_generic_map(),
-                                        )
-                                        if field_type == "LiteralString":
-                                            field_type = "string"
+                                        field_type = self._map_type(type_str, struct_name)
                                     except Exception:
                                         if isinstance(stmt.annotation, ast.Name):
                                             field_type = stmt.annotation.id
@@ -409,9 +403,7 @@ class ClassesMixin(TranslatorBase):
                         not in getattr(self.type_inference, "mixin_to_main", {})
                     ):
                         type_str = ast.unparse(base)
-                        v_type = map_python_type_to_v(
-                            type_str, generic_map=self._get_combined_generic_map()
-                        )
+                        v_type = self._map_type(type_str)
                         # V only allows anonymous embedding of structs/interfaces. Skip if it maps to array/map.
                         if not (v_type.startswith("[]") or v_type.startswith("map[")):
                             fields.append(f"    {v_type}")
@@ -504,13 +496,7 @@ class ClassesMixin(TranslatorBase):
                     if stmt.annotation:
                         try:
                             type_str = ast.unparse(stmt.annotation)
-                            field_type = map_python_type_to_v(
-                                type_str,
-                                self_name=self._get_full_self_type(struct_name),
-                                generic_map=self._get_combined_generic_map(),
-                            )
-                            if field_type == "LiteralString":
-                                field_type = "string"
+                            field_type = self._map_type(type_str, struct_name)
                         except Exception:
                             if isinstance(stmt.annotation, ast.Name):
                                 field_type = stmt.annotation.id
@@ -587,9 +573,7 @@ class ClassesMixin(TranslatorBase):
                 raw_type = attr.get("type", "Any")
                 norm_typ = raw_type.replace("builtins.", "")
                 try:
-                    field_type = map_python_type_to_v(
-                        norm_typ, generic_map=self._get_combined_generic_map()
-                    )
+                    field_type = self._map_type(norm_typ, struct_name)
                 except Exception:
                     field_type = "Any"
 
@@ -642,9 +626,7 @@ class ClassesMixin(TranslatorBase):
                 raw_type = attr.get("type", "Any")
                 norm_typ = raw_type.replace("builtins.", "")
                 try:
-                    f_type = map_python_type_to_v(norm_typ, generic_map=self._get_combined_generic_map())
-                    if f_type == "LiteralString":
-                        f_type = "string"
+                    f_type = self._map_type(norm_typ, struct_name)
                 except:
                     f_type = "Any"
 
@@ -742,13 +724,7 @@ class ClassesMixin(TranslatorBase):
                     if arg.annotation:
                         try:
                             type_str = ast.unparse(arg.annotation)
-                            a_type = map_python_type_to_v(
-                                type_str,
-                                self_name=self._get_full_self_type(struct_name),
-                                generic_map=self._get_combined_generic_map(),
-                            )
-                            if a_type == "LiteralString":
-                                a_type = "string"
+                            a_type = self._map_type(type_str, struct_name)
                         except:
                             pass
                     m_args.append(f"{a_name} {a_type}")
@@ -757,13 +733,7 @@ class ClassesMixin(TranslatorBase):
                 if method.returns:
                     try:
                         type_str = ast.unparse(method.returns)
-                        m_ret = map_python_type_to_v(
-                            type_str,
-                            self_name=self._get_full_self_type(struct_name),
-                            generic_map=self._get_combined_generic_map(),
-                        )
-                        if m_ret == "LiteralString":
-                            m_ret = "string"
+                        m_ret = self._map_type(type_str, struct_name)
                     except:
                         pass
 

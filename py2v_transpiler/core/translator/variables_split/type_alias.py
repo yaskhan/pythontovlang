@@ -29,11 +29,7 @@ class TypeAliasMixin(TranslatorBase):
 
         if hasattr(ast, 'unparse'):
             val_str = ast.unparse(node.value)
-            v_type = map_python_type_to_v(
-                val_str,
-                allow_union=True,
-                generic_map=self._get_combined_generic_map()
-            )
+            v_type = self._map_type(val_str, allow_union=True)
 
             pub = "pub " if self._is_exported(node.name.id) else ""
             self.emitter.add_struct(f"{pub}type {name}{type_params_str} = {v_type}")

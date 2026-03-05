@@ -490,6 +490,8 @@ class CallsMixin(TranslatorBase):
                     return f"[]u8{{len: {args[0]}}}"
                 if arg_type == "string":
                     return f"{args[0]}.bytes()"
+
+                # Ensure a copy is made for buffer-like or list-like arguments
                 return f"{args[0]}.clone()"
             return "[]u8{}"
         elif func_name_str in ("bytes.fromhex", "bytearray.fromhex"):
@@ -884,12 +886,7 @@ class CallsMixin(TranslatorBase):
              # visit_Call is expression visitor, but we are emitting statements.
              # self.output appends to current block.
              # This works if visit_Call is called at statement level (Expr).
-             # If called inside expression (e.g. x = gen()), emitting statements before x = ... works in V?
-             # V allows `x := { stmts; val }` block expressions but syntax is specific (unsafe block or similar).
-             # Standard V does not support arbitrary statement blocks in expressions.
-             # However, our TranslatorBase usually visits statements.
-             # If we are inside `visit_Assign`, `visit(value)` is called.
-             # If we emit statements here, they appear BEFORE the assignment statement in `self.output`.
+             # If called inside expression (e.g. x = gen()), emitting statements here, they appear BEFORE the assignment statement in `self.output`.
              # So:
              # ch := ...
              # gen := ...

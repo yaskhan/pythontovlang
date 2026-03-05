@@ -45,7 +45,7 @@ class AnnotationsMixin(TranslatorBase):
                 try:
                     type_str = ast.unparse(node.annotation)
                     self._check_experimental_type(type_str, node.annotation)
-                    v_type = map_python_type_to_v(type_str, self_name=self._get_full_self_type())
+                    v_type = self._map_type(type_str)
                 except Exception:
                     pass
 
@@ -59,12 +59,12 @@ class AnnotationsMixin(TranslatorBase):
                     is_pep613 = True
 
                 if is_pep613:
-                    rhs_v_type = map_python_type_to_v(ast.unparse(node.value), allow_union=True, self_name=self._get_full_self_type())
+                    rhs_v_type = self._map_type(ast.unparse(node.value), allow_union=True)
                     pub = "pub " if self._is_exported(node.target.id) else ""
                     self.emitter.add_struct(f"{pub}type {target} = {rhs_v_type}")
                     return
 
-            is_literal_string_type = v_type == "LiteralString" or type_str in ("LiteralString", "typing.LiteralString", "typing_extensions.LiteralString")
+            is_literal_string_type = type_str in ("LiteralString", "typing.LiteralString", "typing_extensions.LiteralString")
 
             # Check if this is a LiteralString being assigned a non-literal value
             if is_literal_string_type:
@@ -125,7 +125,7 @@ class AnnotationsMixin(TranslatorBase):
                         emit_fn = lambda stmt: self.emitter.add_init_statement(stmt.strip())
                         if isinstance(node.target, ast.Name):
                             v_target = self._to_snake_case(target)
-                            if not v_type or v_type in ("unknown", "Final"):
+                            if not v_type or v_type in ("unknown", "Final", "Any"):
                                 v_type = "Any"
                             if is_literal_string_type:
                                 v_type = "string"
@@ -194,7 +194,7 @@ class AnnotationsMixin(TranslatorBase):
             try:
                 type_str = ast.unparse(node.annotation)
                 self._check_experimental_type(type_str, node.annotation)
-                v_type = map_python_type_to_v(type_str, self_name=self._get_full_self_type())
+                v_type = self._map_type(type_str)
 
                 if self.in_main and isinstance(node.target, ast.Name):
                     target_name = target
