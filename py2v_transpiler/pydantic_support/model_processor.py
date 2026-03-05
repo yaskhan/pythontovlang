@@ -47,7 +47,7 @@ class PydanticModelProcessor:
         configs = []
 
         # We need to collect fields and methods
-        methods = []
+        methods: List[ast.FunctionDef] = []
         for item in node.body:
             if isinstance(item, ast.AnnAssign):
                 info = self.field_processor.extract(item)

@@ -1,10 +1,10 @@
 import ast
-from typing import Any
+from typing import Any, List, Dict
 
 class PydanticValidatorProcessor:
     def __init__(self, visitor: Any):
         self.visitor = visitor
-        self.validators = {} # class_name -> list of validator info
+        self.validators: Dict[str, List[Dict[str, Any]]] = {} # class_name -> list of validator info
 
     def process(self, node: ast.FunctionDef) -> str:
         """Processes Pydantic validator methods, converting them to standard methods with special names or registering them."""
@@ -50,8 +50,8 @@ class PydanticValidatorProcessor:
         # For simplicity, we just visit it.
         return self.visitor.visit(node)
 
-    def generate_validation_calls(self, class_name: str) -> list[str]:
-        calls = []
+    def generate_validation_calls(self, class_name: str) -> List[str]:
+        calls: List[str] = []
         if class_name not in self.validators:
             return calls
 
