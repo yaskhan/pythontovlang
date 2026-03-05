@@ -19,6 +19,7 @@ def my_gen():
     helpers = translator.emitter.emit_helpers()
 
     assert "pub struct PyGeneratorInput" in helpers
+    assert "pub mut:" in helpers
     assert "pub struct PyGenerator[T]" in helpers
     assert "pub fn (mut g PyGenerator[T]) next() ?T" in helpers
     assert "pub fn py_yield[T]" in helpers

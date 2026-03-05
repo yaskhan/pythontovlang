@@ -104,6 +104,7 @@ class TranslatorBase(ast.NodeVisitor):
         self.used_list_concat: bool = False
         self.used_dict_merge: bool = False
         self.used_string_format: bool = False
+        self.used_generators: bool = False
         self.dataclasses: Dict[str, List[str]] = {}
         self._generated_sum_types: Dict[str, str] = {}
         self.global_vars: Set[str] = set()

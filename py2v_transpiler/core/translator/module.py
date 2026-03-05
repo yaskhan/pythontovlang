@@ -947,8 +947,7 @@ fn (mut ctx PyDecimalContext) close() {
 }""")
 
             self.emitter.add_helper_struct("""pub struct PyGenerator[T] {
-mut:
-    pub:
+pub mut:
     out chan T
     in_ chan PyGeneratorInput
     open bool = true

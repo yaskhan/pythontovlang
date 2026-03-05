@@ -822,7 +822,7 @@ class FunctionsMixin(TranslatorBase):
     def visit_Yield(self, node: ast.Yield) -> str:
         self.used_generators = True
         if self.coroutine_handler.active_channel:
-            val = self.visit(node.value) if node.value else "0"
+            val = self.visit(node.value) if node.value else "none"
             # Use helper to allow expression usage and handle bi-directional flow
             return f"py_yield({self.coroutine_handler.active_channel}, {self.coroutine_handler.active_in_channel}, {val})"
         val = ""
