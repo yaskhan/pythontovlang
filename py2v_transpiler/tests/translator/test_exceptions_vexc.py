@@ -150,8 +150,8 @@ def outer():
 
     # Check for indentation and structure
     # The 'if C.try()' and its 'else' should be at same indent level
-    # The nested function should be top-level or correctly placed
-    assert "fn nested()" in v_code
+    # The nested function should be an anonymous function
+    assert "mut nested := fn () {" in v_code
     assert "mut _success_0 := false" in v_code
     assert "if C.try() {" in v_code
     assert "_success_0 = true" in v_code

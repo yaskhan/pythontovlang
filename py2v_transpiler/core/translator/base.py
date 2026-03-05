@@ -123,7 +123,7 @@ class TranslatorBase(ast.NodeVisitor):
         self.generic_scopes: List[Dict[str, str]] = [] # Stack of PEP 695 generic mappings
         self.unique_id_counter: int = 0
         self.vexc_depth: int = 0
-        self._local_vars_in_scope: Set[str] = set()
+        self._scope_stack: List[Set[str]] = []
         self.fstring_quote_stack: List[str] = []
         self.current_module_name: str = "main"
         self.current_file_name: str = ""
@@ -211,12 +211,25 @@ class TranslatorBase(ast.NodeVisitor):
              base = "py_mod"
         return base
 
+    @property
+    def _local_vars_in_scope(self) -> Set[str]:
+        """Returns all local variables in the current function scope."""
+        if not self._scope_stack:
+            return set()
+        return self._scope_stack[-1]
+
     def _is_top_level_symbol(self, name: str) -> bool:
         """Heuristic to check if a name refers to a top-level symbol (class/func/global)."""
         # In a real transpiler, this would check a pre-populated symbol table.
         # Here we check if it's NOT a method (which would have self.current_class set)
         # and NOT a known local variable.
-        return not self.current_class and name not in self._local_vars_in_scope
+        if self.current_class:
+            return False
+        # Check if it's in ANY local scope in the stack
+        for scope in self._scope_stack:
+            if name in scope:
+                return False
+        return True
 
     def _to_snake_case(self, name: str) -> str:
         """Converts CamelCase or UPPER_CASE to snake_case."""
