@@ -56,6 +56,7 @@ class VNodeVisitor(
         self.used_list_concat = False
         self.used_dict_merge = False
         self.used_string_format = False
+        self.used_generators = False
         self.renamed_functions = {"main": "py_main"} # Map to rename functions (e.g. main -> py_main)
         self.name_remap = {} # Temporary variable renaming (e.g. x -> it in generators)
         self._walrus_assignments: List[str] = [] # Buffer for walrus operator assignments

@@ -936,51 +936,54 @@ fn (mut ctx PyDecimalContext) close() {
              self.emitter.add_helper_function("fn py_ascii(val Any) string {\n    // Simplified ascii(): replace non-ascii with \\u escape\n    s := '${val}'\n    mut res := ''\n    for c in s {\n        if c < 128 {\n            res += c.ascii_str()\n        } else {\n            res += '\\\\u${int(c):04x}'\n        }\n    }\n    return res\n}")
 
         # PyGenerator support
-        # We need a generic struct to wrap channels for send/throw/close.
-        # We use a wrapper struct for input to support throw (signaling exceptions).
-        self.emitter.add_helper_struct("""struct PyGeneratorInput {
+        if self.used_generators:
+            # We need a generic struct to wrap channels for send/throw/close.
+            # We use a wrapper struct for input to support throw (signaling exceptions).
+            self.emitter.add_helper_struct("""pub struct PyGeneratorInput {
+    pub:
     val Any
     is_exc bool
     exc_msg string
 }""")
 
-        self.emitter.add_helper_struct("""struct PyGenerator[T] {
+            self.emitter.add_helper_struct("""pub struct PyGenerator[T] {
 mut:
+    pub:
     out chan T
     in_ chan PyGeneratorInput
     open bool = true
 }""")
-        self.emitter.add_helper_function("""fn (mut g PyGenerator[T]) next() ?T {
+            self.emitter.add_helper_function("""pub fn (mut g PyGenerator[T]) next() ?T {
     if !g.open { return none }
     g.in_ <- PyGeneratorInput{val: 0} // Send dummy value
     res := <-g.out
     if res == none { g.open = false }
     return res
 }""")
-        self.emitter.add_helper_function("""fn (mut g PyGenerator[T]) send(val Any) ?T {
+            self.emitter.add_helper_function("""pub fn (mut g PyGenerator[T]) send(val Any) ?T {
     if !g.open { panic('StopIteration') }
     g.in_ <- PyGeneratorInput{val: val}
     res := <-g.out
     if res == none { g.open = false }
     return res
 }""")
-        self.emitter.add_helper_function("""fn (mut g PyGenerator[T]) throw(msg string) ?T {
+            self.emitter.add_helper_function("""pub fn (mut g PyGenerator[T]) throw(msg string) ?T {
     if !g.open { panic('StopIteration') }
     g.in_ <- PyGeneratorInput{is_exc: true, exc_msg: msg}
     res := <-g.out
     if res == none { g.open = false }
     return res
 }""")
-        self.emitter.add_helper_function("""fn (mut g PyGenerator[T]) close() {
+            self.emitter.add_helper_function("""pub fn (mut g PyGenerator[T]) close() {
     g.open = false
     g.in_.close()
     // g.out will be closed by the generator function loop when it detects in_ closed or panic
 }""")
-        # Helper for yield expression: yield val
-        # py_yield(ch_out, ch_in, val)
-        # Returns the value sent back via send(), or none if next() was called.
-        # Panics if throw() was called.
-        self.emitter.add_helper_function("""fn py_yield[T](ch_out chan T, ch_in chan PyGeneratorInput, val T) Any {
+            # Helper for yield expression: yield val
+            # py_yield(ch_out, ch_in, val)
+            # Returns the value sent back via send(), or none if next() was called.
+            # Panics if throw() was called.
+            self.emitter.add_helper_function("""pub fn py_yield[T](ch_out chan T, ch_in chan PyGeneratorInput, val T) Any {
     ch_out <- val
     inp := <-ch_in
     if inp.is_exc {

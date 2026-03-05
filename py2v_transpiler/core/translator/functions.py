@@ -266,6 +266,7 @@ class FunctionsMixin(TranslatorBase):
             func_generics_str = f"[{', '.join(all_v_generics)}]"
 
         if is_generator:
+            self.used_generators = True
             # Inject channel argument
             yield_type = self.coroutine_handler.get_yield_type(node)
             args_str_list.append(f"ch_out chan ?{yield_type}")
@@ -677,6 +678,7 @@ class FunctionsMixin(TranslatorBase):
             args_names: List[str] = []
 
             if is_generator:
+                self.used_generators = True
                 yield_type = self.coroutine_handler.get_yield_type(node)
                 args_str_list.append(f"ch_out chan ?{yield_type}")
                 args_str_list.append(f"ch_in chan PyGeneratorInput")
@@ -818,6 +820,7 @@ class FunctionsMixin(TranslatorBase):
         return f"fn ({args_str}) int {{ return {body} }}"
 
     def visit_Yield(self, node: ast.Yield) -> str:
+        self.used_generators = True
         if self.coroutine_handler.active_channel:
             val = self.visit(node.value) if node.value else "0"
             # Use helper to allow expression usage and handle bi-directional flow
@@ -828,6 +831,7 @@ class FunctionsMixin(TranslatorBase):
         return f"/* yield {val} */"
 
     def visit_YieldFrom(self, node: ast.YieldFrom) -> Optional[str]:
+        self.used_generators = True
         if self.coroutine_handler.active_channel:
             val = self.visit(node.value)
             # Basic delegation: iterate and yield.
