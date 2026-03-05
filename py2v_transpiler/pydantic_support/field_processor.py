@@ -15,6 +15,17 @@ class PydanticFieldInfo:
     max_length: Optional[str] = None
     min_length: Optional[str] = None
     is_optional: bool = False
+    pattern: Optional[str] = None
+    multiple_of: Optional[str] = None
+    min_items: Optional[str] = None
+    max_items: Optional[str] = None
+    unique_items: bool = False
+    const: Optional[str] = None
+    description: Optional[str] = None
+    title: Optional[str] = None
+    examples: Optional[str] = None
+    repr: bool = True
+    exclude: bool = False
 
 class PydanticFieldProcessor:
     def __init__(self, visitor: Any):
@@ -74,12 +85,45 @@ class PydanticFieldProcessor:
                 info.max_length = val
             elif keyword.arg == "min_length":
                 info.min_length = val
+            elif keyword.arg in ("pattern", "regex"):
+                info.pattern = val
+            elif keyword.arg == "multiple_of":
+                info.multiple_of = val
+            elif keyword.arg == "min_items":
+                info.min_items = val
+            elif keyword.arg == "max_items":
+                info.max_items = val
+            elif keyword.arg == "unique_items":
+                info.unique_items = val == "true"
+            elif keyword.arg == "const":
+                info.const = val
+            elif keyword.arg == "description":
+                if val.startswith("'") or val.startswith('"'):
+                    val = val[1:-1]
+                info.description = val
+            elif keyword.arg == "title":
+                if val.startswith("'") or val.startswith('"'):
+                    val = val[1:-1]
+                info.title = val
+            elif keyword.arg == "examples":
+                info.examples = val
+            elif keyword.arg == "repr":
+                info.repr = val == "true"
+            elif keyword.arg == "exclude":
+                info.exclude = val == "true"
 
     def generate_struct_tags(self, info: PydanticFieldInfo) -> str:
         """Generates Vlang struct tags like [json: 'alias']."""
         tags = []
-        if info.alias:
+        if info.exclude:
+            tags.append("json: '-'")
+        elif info.alias:
             tags.append(f"json: '{info.alias}'")
+
+        if info.description:
+            tags.append(f"description: '{info.description}'")
+        if info.title:
+            tags.append(f"title: '{info.title}'")
 
         if tags:
              return f"[{'; '.join(tags)}]"
@@ -119,6 +163,38 @@ class PydanticFieldProcessor:
              code.append(f"{indent}if {prefix}.len > {info.max_length} {{ return error('Validation Error: {info.name} length must be <= {info.max_length}') }}")
         if info.min_length:
              code.append(f"{indent}if {prefix}.len < {info.min_length} {{ return error('Validation Error: {info.name} length must be >= {info.min_length}') }}")
+
+        if info.pattern:
+            code.append(f"{indent}if !regex.match({prefix}, {info.pattern}) {{ return error('Validation Error: {info.name} must match pattern') }}")
+
+        if info.multiple_of:
+            code.append(f"{indent}if {prefix} % {info.multiple_of} != 0 {{ return error('Validation Error: {info.name} must be multiple of {info.multiple_of}') }}")
+
+        if info.min_items:
+            code.append(f"{indent}if {prefix}.len < {info.min_items} {{ return error('Validation Error: {info.name} length must be >= {info.min_items}') }}")
+        if info.max_items:
+            code.append(f"{indent}if {prefix}.len > {info.max_items} {{ return error('Validation Error: {info.name} length must be <= {info.max_items}') }}")
+
+        if info.unique_items:
+            item_type = info.type_str
+            if item_type.startswith("[]"):
+                item_type = item_type[2:]
+            elif item_type.startswith("map[") and "]bool" in item_type:
+                # set[T] is map[T]bool
+                item_type = item_type[4:item_type.find("]bool")]
+
+            code.append(f"{indent}seen_{info.name} := map[{item_type}]bool{{}}")
+            code.append(f"{indent}for item in {prefix} {{")
+            code.append(f"{indent}    if item in seen_{info.name} {{ return error('Validation Error: {info.name} items must be unique') }}")
+            code.append(f"{indent}    seen_{info.name}[item] = true")
+            code.append(f"{indent}}}")
+
+        if info.const:
+            const_display = info.const
+            if (const_display.startswith("'") and const_display.endswith("'")) or \
+               (const_display.startswith('"') and const_display.endswith('"')):
+                const_display = const_display[1:-1]
+            code.append(f"{indent}if {prefix} != {info.const} {{ return error('Validation Error: {info.name} must be {const_display}') }}")
 
         if info.is_optional:
             code.append("    }")
