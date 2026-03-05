@@ -53,7 +53,7 @@ class PydanticFieldProcessor:
         info = PydanticFieldInfo(name=name, type_str=type_str, is_optional=is_optional)
 
         # Priority 1: Field() in Annotated
-        if field_node:
+        if field_node and isinstance(field_node, ast.Call):
             self._parse_field_kwargs(field_node, info)
 
         # Priority 2: Field() as the assigned value

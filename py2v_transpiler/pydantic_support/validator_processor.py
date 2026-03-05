@@ -13,7 +13,7 @@ class PydanticValidatorProcessor:
     def __init__(self, visitor: Any):
         self.visitor = visitor
 
-    def extract_info(self, node: ast.FunctionDef) -> Optional[PydanticValidatorInfo]:
+    def extract_info(self, node: ast.FunctionDef | ast.AsyncFunctionDef) -> Optional[PydanticValidatorInfo]:
         """Extracts validator info from a function definition."""
         is_field_validator = False
         is_model_validator = False
@@ -63,7 +63,7 @@ class PydanticValidatorProcessor:
 
         return None
 
-    def process(self, node: ast.FunctionDef) -> str:
+    def process(self, node: ast.FunctionDef | ast.AsyncFunctionDef) -> str:
         """Processes Pydantic validator methods, converting them to standard methods with special names or registering them."""
         # The actual function body is visited by the normal visitor.
         # This method is currently called from ClassesMixin if it's a Pydantic model.

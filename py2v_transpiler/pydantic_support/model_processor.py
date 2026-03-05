@@ -113,8 +113,8 @@ class PydanticModelProcessor:
                     code.append(f"    m.{field} = {struct_name}_{v.name}(m.{field})")
 
         # 3. Built-in field constraints
-        for field in fields:
-            vcode = self.field_processor.generate_validation_code(field, "m")
+        for field_info in fields:
+            vcode = self.field_processor.generate_validation_code(field_info, "m")
             if vcode:
                 has_validation = True
                 code.extend(vcode)
