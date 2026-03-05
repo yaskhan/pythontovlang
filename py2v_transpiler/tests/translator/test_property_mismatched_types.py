@@ -30,7 +30,7 @@ class Config:
         "return self._value",
         "}",
         # Union type is now preserved in setter
-        "fn (self Config) set_value(new_value string | int) {",
+        "fn (self Config) set_value(new_value SumType_IntString) {",
         "if new_value is str {",
     ]
 
@@ -136,7 +136,7 @@ class Result:
     print()
 
     # Getter with union type should use union
-    assert "fn (self Result) value() int | string {" in code
+    assert "fn (self Result) value() SumType_IntString {" in code
     # Setter accepts int
     assert "fn (self Result) set_value(new_value int) {" in code
 
@@ -197,4 +197,4 @@ class Measurement:
     # Getter returns f64
     assert "fn (self Measurement) value() f64 {" in code
     # Setter accepts union type
-    assert "fn (self Measurement) set_value(new_value int | f64) {" in code
+    assert "fn (self Measurement) set_value(new_value SumType_F64Int) {" in code

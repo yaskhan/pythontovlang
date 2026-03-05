@@ -667,9 +667,10 @@ class ClassesMixin(TranslatorBase):
 
             pub = "pub " if self._is_exported(node.name) else ""
             gen_str = f"[{', '.join(self.current_class_generics)}]" if self.current_class_generics else ""
+            factory_name = self._get_factory_name(struct_name)
 
             factory_code = [
-                f"{pub}fn new_{struct_name}{gen_str}({', '.join(factory_args)}) {struct_name}{gen_str} {{",
+                f"{pub}fn {factory_name}{gen_str}({', '.join(factory_args)}) {struct_name}{gen_str} {{",
                 f"    mut self := {struct_name}{gen_str}{{{', '.join(struct_init_args)}}}",
                 f"    self.post_init({', '.join(post_init_args)})",
                 f"    return self",
@@ -781,14 +782,38 @@ class ClassesMixin(TranslatorBase):
             for method in methods:
                 self.visit(method)
         else:
-            has_str = any(m.name == "__str__" for m in methods)
-            for method in methods:
-                if method.name == "__repr__":
-                    method.original_name = "__repr__"
-                    if has_str:
-                        method.name = "repr"
-                    else:
-                        method.name = "str"
+            # NEW: Collect fields from __init__ that haven't been added yet
+            for stmt in node.body:
+                if isinstance(stmt, (ast.FunctionDef, ast.AsyncFunctionDef)) and stmt.name == "__init__":
+                    if stmt.args.args:
+                        init_self_name = stmt.args.args[0].arg
+                        for sub_node in ast.walk(stmt):
+                            if isinstance(sub_node, ast.Assign):
+                                for target in sub_node.targets:
+                                    for t in ast.walk(target):
+                                        if isinstance(t, ast.Attribute) and isinstance(t.value, ast.Name) and t.value.id == init_self_name:
+                                            field_name = self._sanitize_name(t.attr)
+                                            if field_name not in added_fields:
+                                                added_fields.add(field_name)
+                                                # Try to guess type from value
+                                                f_type = "Any"
+                                                if len(sub_node.targets) == 1 and isinstance(sub_node.targets[0], ast.Attribute):
+                                                    f_type = self._guess_type(sub_node.value)
+                                                fields.append(f"    {field_name} {f_type}")
+                            elif isinstance(sub_node, ast.AnnAssign):
+                                if isinstance(sub_node.target, ast.Attribute) and isinstance(sub_node.target.value, ast.Name) and sub_node.target.value.id == init_self_name:
+                                    field_name = self._sanitize_name(sub_node.target.attr)
+                                    if field_name not in added_fields:
+                                        added_fields.add(field_name)
+                                        f_type = "Any"
+                                        if sub_node.annotation:
+                                            try:
+                                                t_str = ast.unparse(sub_node.annotation)
+                                                f_type = self._map_type(t_str, struct_name)
+                                            except:
+                                                pass
+                                        fields.append(f"    {field_name} {f_type}")
+
             struct_parts = []
             if doc_comment:
                 struct_parts.append(doc_comment)
