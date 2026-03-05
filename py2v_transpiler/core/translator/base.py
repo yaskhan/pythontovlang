@@ -1,6 +1,6 @@
 import ast
 import os
-from typing import Any, List, Optional, Dict, Set
+from typing import Any, List, Optional, Dict, Set, Tuple
 from py2v_transpiler.core.compatibility import CompatibilityLayer
 from py2v_transpiler.core.generator import VCodeEmitter
 from py2v_transpiler.stdlib_map.mapper import StdLibMapper
@@ -115,6 +115,7 @@ class TranslatorBase(ast.NodeVisitor):
         self.single_dispatch_functions: Dict[str, Dict[str, str]] = {} # dispatcher_name -> {type_name -> impl_func_name}
         self.known_interfaces: Set[str] = set()
         self.class_hierarchy: Dict[str, List[str]] = {} # class_name -> list of direct base names
+        self.property_setters: Set[Tuple[str, str]] = set() # (class_name, property_name)
         self.function_names: Set[str] = set()
         self.overloaded_signatures: Dict[str, List[Dict[str, Any]]] = {} # func_name -> list of overload signatures
         self.finally_stack: List[ast.Try] = [] # Stack of active try-finally blocks
@@ -582,6 +583,8 @@ class TranslatorBase(ast.NodeVisitor):
         elif isinstance(node, ast.Call):
             if isinstance(node.func, ast.Name):
                 fid = node.func.id
+                if fid in self.defined_classes:
+                    return fid
                 if fid == "str":
                     if node.args and self._is_literal_string_expr(node.args[0]):
                         return "LiteralString"
@@ -652,6 +655,7 @@ class TranslatorBase(ast.NodeVisitor):
                 attr_name = f"{node.value.id}.{node.attr}"
                 if hasattr(self.type_inference, "type_map") and attr_name in self.type_inference.type_map:
                     return self.type_inference.type_map[attr_name]
+
             return "Any"
         elif isinstance(node, ast.Subscript):
             if isinstance(node.value, ast.Attribute) and isinstance(node.value.value, ast.Name):

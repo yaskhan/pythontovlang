@@ -347,13 +347,14 @@ class FunctionsMixin(TranslatorBase):
             # UNLESS it is static or classmethod
             if not dec_info.is_static and not dec_info.is_classmethod:
                 if args[0].arg == "self":
-                    # fn (s Struct) method()
+                    # fn (mut s Struct) method()
+                    mut_receiver = "mut " if getattr(dec_info, 'is_setter', False) else ""
                     if self.current_class_generics:
-                        # fn (s Struct[T]) method()
+                        # fn (mut s Struct[T]) method()
                         gen_str = f"[{', '.join(self.current_class_generics)}]"
-                        receiver_str = f"({args[0].arg} {struct_name}{gen_str}) "
+                        receiver_str = f"({mut_receiver}{args[0].arg} {struct_name}{gen_str}) "
                     else:
-                        receiver_str = f"({args[0].arg} {struct_name}) "
+                        receiver_str = f"({mut_receiver}{args[0].arg} {struct_name}) "
 
             args = args[1:]  # Remove self/cls from arguments list
         elif is_unittest_method and args and args[0].arg == "self":
@@ -489,6 +490,8 @@ class FunctionsMixin(TranslatorBase):
 
             if dec_info.is_setter:
                 func_name = f"set_{func_name}"
+                if struct_name:
+                    self.property_setters.add((struct_name, node.name))
 
             if self.current_class and not is_new_method:
                 func_name = self._mangle_name(func_name, struct_name)
