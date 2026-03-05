@@ -629,7 +629,7 @@ class FunctionsMixin(TranslatorBase):
             self.output.append(f"{self._indent()}mut self := {ret_type}{{}}")
 
         # Track current function return type for visit_Return
-        prev_ret_type = getattr(self, "current_function_return_type", None)
+        prev_ret_type: Optional[str] = getattr(self, "current_function_return_type", None)
         self.current_function_return_type = ret_type
 
         try:
@@ -828,7 +828,7 @@ class FunctionsMixin(TranslatorBase):
             self._indent_level += 1
 
             # Track current function return type for visit_Return
-            prev_ret_type = getattr(self, "current_function_return_type", None)
+            prev_ret_type: Optional[str] = getattr(self, "current_function_return_type", None)
             self.current_function_return_type = ret_type
 
             try:
