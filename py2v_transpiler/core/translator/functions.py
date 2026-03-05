@@ -268,7 +268,7 @@ class FunctionsMixin(TranslatorBase):
         if is_generator:
             # Inject channel argument
             yield_type = self.coroutine_handler.get_yield_type(node)
-            args_str_list.append(f"ch_out chan ?{yield_type}")
+            args_str_list.append(f"ch_out chan {yield_type}")
             args_str_list.append(f"ch_in chan PyGeneratorInput")
             self.coroutine_handler.enter_generator("ch_out", "ch_in")
 
@@ -678,7 +678,7 @@ class FunctionsMixin(TranslatorBase):
 
             if is_generator:
                 yield_type = self.coroutine_handler.get_yield_type(node)
-                args_str_list.append(f"ch_out chan ?{yield_type}")
+                args_str_list.append(f"ch_out chan {yield_type}")
                 args_str_list.append(f"ch_in chan PyGeneratorInput")
                 self.coroutine_handler.enter_generator("ch_out", "ch_in")
 

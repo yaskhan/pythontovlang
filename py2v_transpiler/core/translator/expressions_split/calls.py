@@ -898,7 +898,7 @@ class CallsMixin(TranslatorBase):
              # x := gen
              # This order is CORRECT for V.
 
-             self.output.append(f"{self._indent()}{ch_out_name} := chan ?{yield_type}{{cap: 0}}")
+             self.output.append(f"{self._indent()}{ch_out_name} := chan {yield_type}{{cap: 0}}")
              self.output.append(f"{self._indent()}{ch_in_name} := chan PyGeneratorInput{{cap: 0}}")
              self.output.append(f"{self._indent()}{gen_var_name} := PyGenerator[{yield_type}]{{out: {ch_out_name}, in_: {ch_in_name}}}")
 
