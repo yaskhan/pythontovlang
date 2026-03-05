@@ -228,6 +228,7 @@ This document lists all Python language features supported by the transpiler.
 | `typing` | ✅ | Most typing constructs |
 | `dataclasses` | ✅ | Field definitions |
 | `enum` | ✅ | Enum, Flag, auto() |
+| `pydantic` | ✅ | `BaseModel`, `Field` validation and alias support |
 | `pathlib` | ⚠️ | Basic Path operations |
 | `io` | ⚠️ | `StringIO`, basic I/O |
 | `logging` | ⚠️ | Basic logging |

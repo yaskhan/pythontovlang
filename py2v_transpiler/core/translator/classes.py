@@ -4,8 +4,16 @@ from py2v_transpiler.models.v_types import map_python_type_to_v
 from .base import TranslatorBase
 
 
+from py2v_transpiler.pydantic_support.detector import PydanticDetector
+from py2v_transpiler.pydantic_support.model_processor import PydanticModelProcessor
+
 class ClassesMixin(TranslatorBase):
     def visit_ClassDef(self, node: ast.ClassDef) -> None:
+        if PydanticDetector.is_pydantic_model(node):
+            processor = PydanticModelProcessor(self)
+            processor.process_model(node)
+            return
+
         # Map Python class to V struct
         # Handle nested classes by prefixing with parent class name
         if not hasattr(self, "class_stack"):
