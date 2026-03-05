@@ -152,14 +152,14 @@ def outer():
     # The 'if C.try()' and its 'else' should be at same indent level
     # The nested function should be an anonymous function
     assert "mut nested := fn () {" in v_code
-    assert "mut _success_0 := false" in v_code
+    assert "mut success_0 := false" in v_code
     assert "if C.try() {" in v_code
-    assert "_success_0 = true" in v_code
+    assert "success_0 = true" in v_code
     assert "vexc.end_try()" in v_code
-    # Ensure no redundant 'else {' after '_exc_1 := vexc.get_curr_exc()' for bare except
-    assert "} else {\n        _exc_1 := vexc.get_curr_exc()\n        println('except')\n    }" in v_code or \
-           "} else {\n        _exc_1 := vexc.get_curr_exc()\n        println('except')\n    }" in v_code.replace("    ", "    ")
+    # Ensure no redundant 'else {' after 'exc_1 := vexc.get_curr_exc()' for bare except
+    assert "} else {\n        exc_1 := vexc.get_curr_exc()\n        println('except')\n    }" in v_code or \
+           "} else {\n        exc_1 := vexc.get_curr_exc()\n        println('except')\n    }" in v_code.replace("    ", "    ")
 
     # Check for correct orelse handling
-    assert "if _success_0 {" in v_code
+    assert "if success_0 {" in v_code
     assert "println('else')" in v_code

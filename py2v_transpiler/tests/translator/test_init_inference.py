@@ -36,7 +36,7 @@ class Data:
     result = translator.visit_Module(tree)
 
     assert "struct Data {" in result
-    assert "value int | string" in result
+    assert "value SumType_IntString" in result
 
 def test_init_inference_multiple():
     parser = PyASTParser()

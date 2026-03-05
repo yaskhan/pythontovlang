@@ -20,10 +20,10 @@ class Person:
 """
     expected_fragments = [
         "fn (self Person) name() string {",
-        "return self._name",
+        "return self.py_name",
         "}",
         "fn (self Person) set_name(value string) {",
-            "self._name = value"
+            "self.py_name = value"
     ]
 
     visitor = VNodeVisitor(TypeInference())
