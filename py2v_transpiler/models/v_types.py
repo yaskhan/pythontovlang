@@ -365,12 +365,5 @@ def _map_basic_type(name: str) -> str:
         'typing.Final': 'Any',
         'ClassVar': 'Any',
         'typing.ClassVar': 'Any',
-        'LiteralString': 'string',
-        'typing.LiteralString': 'string',
-        'typing_extensions.LiteralString': 'string',
-        'LiteralString': 'string',
-        'bytearray': '[]u8',
-        'memoryview': '[]u8',
-        'TypeForm': 'Any',
     }
     return mapping.get(name, name)

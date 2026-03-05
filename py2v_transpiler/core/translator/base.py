@@ -358,7 +358,7 @@ class TranslatorBase(ast.NodeVisitor):
             return f"{name}{gen_str}"
         return name
 
-    def _map_type(self, type_str: str, struct_name: Optional[str] = None, allow_union: bool = False) -> str:
+    def _map_type(self, type_str: str, struct_name: Optional[str] = None, allow_union: bool = True) -> str:
         """
         Centralized type mapping that performs map_python_type_to_v
         followed by imported_symbols and SCC-based re-mapping.
