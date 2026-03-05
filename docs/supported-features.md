@@ -10,6 +10,7 @@ This document lists all Python language features supported by the transpiler.
 |---------|--------|-------|
 | Basic types (int, float, bool, str) | ✅ | Direct mapping |
 | Type inference (mypy) | ✅ | Using static analysis |
+| `.pyi` stub files | ✅ | Mypy plugin uses type stubs for accurate static typing |
 | Lists | ✅ | `list[T]` → `[]T` |
 | Dictionaries | ✅ | `dict[K, V]` → `map[K]V` |
 | Tuples | ✅ | Fixed-size tuples → arrays |
