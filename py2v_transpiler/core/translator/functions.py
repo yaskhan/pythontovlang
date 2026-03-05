@@ -373,9 +373,11 @@ class FunctionsMixin(TranslatorBase):
                     self._check_experimental_type(type_str, arg.annotation)
                     arg_type = self._map_type(type_str, struct_name)
                 except Exception:
-                    arg_type = self._map_type(self.type_inference.type_map.get(arg_name, "int"), struct_name)
+                    default_type = "Any" if node.name == "__exit__" else "int"
+                    arg_type = self._map_type(self.type_inference.type_map.get(arg_name, default_type), struct_name)
             else:
-                arg_type = self._map_type(self.type_inference.type_map.get(arg_name, "int"), struct_name)
+                default_type = "Any" if node.name == "__exit__" else "int"
+                arg_type = self._map_type(self.type_inference.type_map.get(arg_name, default_type), struct_name)
 
             # In stubs, skip parameters that map to void (NoReturn)
             if (is_stub_function or self.current_file_name.endswith('.pyi')) and arg_type == "void":
@@ -433,6 +435,12 @@ class FunctionsMixin(TranslatorBase):
                     node.returns.value, str
                 ):
                     ret_type = node.returns.value
+        elif not is_generator and not node.returns and node.name == "__enter__":
+            # Infer return type for __enter__ (enter) if missing
+            for body_stmt in node.body:
+                if isinstance(body_stmt, ast.Return) and isinstance(body_stmt.value, ast.Name) and body_stmt.value.id == "self":
+                    ret_type = self._get_full_self_type(struct_name)
+                    break
 
         # Check for NoReturn
         is_noreturn = False
@@ -458,6 +466,10 @@ class FunctionsMixin(TranslatorBase):
 
             if func_name == "__next__":
                 func_name = "next"
+            elif func_name in ("__enter__", "__aenter__"):
+                func_name = "enter"
+            elif func_name in ("__exit__", "__aexit__"):
+                func_name = "exit"
             elif func_name == "__post_init__":
                 func_name = "post_init"
             elif func_name == "__await__":
