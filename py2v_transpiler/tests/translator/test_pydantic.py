@@ -52,3 +52,40 @@ class Item(BaseModel):
         self.assertIn("price ?f64", v_code)
         self.assertIn("if m.price != none {", v_code)
         self.assertIn("if m.price? <= 0.0 {", v_code)
+
+    def test_extended_field_constraints(self):
+        code = """
+from pydantic import BaseModel, Field
+from typing import List
+
+class Product(BaseModel):
+    sku: str = Field(pattern=r'^[A-Z]{3}-\d{4}$', title='Stock Keeping Unit', description='A unique SKU')
+    price: float = Field(multiple_of=0.01)
+    tags: List[str] = Field(min_items=1, max_items=10, unique_items=True)
+    category: str = Field(const='electronics', exclude=True)
+"""
+        v_code = self.translate(code)
+
+        # Check struct and tags
+        self.assertIn("sku string [description: 'A unique SKU'; title: 'Stock Keeping Unit']", v_code)
+        self.assertIn("price f64", v_code)
+        self.assertIn("tags []string", v_code)
+        self.assertIn("category string [json: '-']", v_code)
+
+        # Check imports
+        self.assertIn("import regex", v_code)
+
+        # Check validation logic
+        self.assertIn("if !regex.match(m.sku, r'^[A-Z]{3}-\\d{4}$') { return error('Validation Error: sku must match pattern') }", v_code)
+        self.assertIn("if m.price % 0.01 != 0 { return error('Validation Error: price must be multiple of 0.01') }", v_code)
+        self.assertIn("if m.tags.len < 1 { return error('Validation Error: tags length must be >= 1') }", v_code)
+        self.assertIn("if m.tags.len > 10 { return error('Validation Error: tags length must be <= 10') }", v_code)
+
+        # Check uniqueness loop
+        self.assertIn("seen_tags := map[string]bool{}", v_code)
+        self.assertIn("for item in m.tags {", v_code)
+        self.assertIn("if item in seen_tags { return error('Validation Error: tags items must be unique') }", v_code)
+        self.assertIn("seen_tags[item] = true", v_code)
+
+        # Check const
+        self.assertIn("if m.category != 'electronics' { return error('Validation Error: category must be electronics') }", v_code)

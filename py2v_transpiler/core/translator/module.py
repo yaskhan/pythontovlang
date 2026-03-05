@@ -1149,7 +1149,7 @@ mut:
     mut res := map[K]Any{}
     for k, v in m {
         if k !in exclude {
-            res[k] = Any(v)
+            res[k] = (v as Any)
         }
     }
     return res

@@ -30,15 +30,39 @@ class ClassesMixin(TranslatorBase):
         # Pre-register class definition to allow class instantiation inside its own methods
         has_init = False
         has_new = False
+        static_methods = set()
+        class_methods = set()
         for child in node.body:
             if isinstance(child, (ast.FunctionDef, ast.AsyncFunctionDef)):
                 if child.name == "__init__":
                     has_init = True
                 elif child.name == "__new__":
                     has_new = True
+
+                # Check for @staticmethod or @classmethod
+                for decorator in child.decorator_list:
+                    dec_name = ""
+                    if isinstance(decorator, ast.Name):
+                        dec_name = decorator.id
+                    elif isinstance(decorator, ast.Call):
+                        if isinstance(decorator.func, ast.Name):
+                            dec_name = decorator.func.id
+                    elif isinstance(decorator, ast.Attribute):
+                        dec_name = decorator.attr
+
+                    if dec_name == "staticmethod":
+                        static_methods.add(child.name)
+                    elif dec_name == "classmethod":
+                        class_methods.add(child.name)
+
         if not hasattr(self, "defined_classes"):
             self.defined_classes = {}
-        self.defined_classes[struct_name] = {"has_init": has_init, "has_new": has_new}
+        self.defined_classes[struct_name] = {
+            "has_init": has_init,
+            "has_new": has_new,
+            "static_methods": static_methods,
+            "class_methods": class_methods
+        }
 
         # Save previous state to restore later (for nesting)
         prev_class = self.current_class
@@ -140,6 +164,7 @@ class ClassesMixin(TranslatorBase):
         # If this is a main struct, collect fields from its mixins first
         if is_main_struct:
             mixin_nodes = getattr(self.type_inference, "mixin_nodes", {})
+            # main_to_mixins is now recursive thanks to the analyzer change
             for mixin_name in self.type_inference.main_to_mixins[struct_name]:
                 if mixin_name in mixin_nodes:
                     mixin_node = mixin_nodes[mixin_name]
@@ -149,6 +174,7 @@ class ClassesMixin(TranslatorBase):
                         ):
                             field_name = self._sanitize_name(stmt.target.id)
                             if field_name not in added_fields:
+                                added_fields.add(field_name)
                                 field_type = "int"
                                 if stmt.annotation:
                                     try:
@@ -667,9 +693,10 @@ class ClassesMixin(TranslatorBase):
 
             pub = "pub " if self._is_exported(node.name) else ""
             gen_str = f"[{', '.join(self.current_class_generics)}]" if self.current_class_generics else ""
+            factory_name = self._get_factory_name(struct_name)
 
             factory_code = [
-                f"{pub}fn new_{struct_name}{gen_str}({', '.join(factory_args)}) {struct_name}{gen_str} {{",
+                f"{pub}fn {factory_name}{gen_str}({', '.join(factory_args)}) {struct_name}{gen_str} {{",
                 f"    mut self := {struct_name}{gen_str}{{{', '.join(struct_init_args)}}}",
                 f"    self.post_init({', '.join(post_init_args)})",
                 f"    return self",
@@ -770,15 +797,49 @@ class ClassesMixin(TranslatorBase):
                 # Add doc comment to emitter's globals or functions?
                 pass
 
-            has_str = any(m.name == "__str__" for m in methods)
-            if has_str:
-                for method in methods:
-                    if method.name == "__repr__":
-                        method.name = "repr"
-
+            has_str_mixin = any(m.name == "__str__" for m in methods)
+            for method in methods:
+                if method.name == "__repr__":
+                    setattr(method, "original_name", "__repr__")
+                    if has_str_mixin:
+                        setattr(method, "name", "repr")
+                    else:
+                        setattr(method, "name", "str")
             for method in methods:
                 self.visit(method)
         else:
+            # NEW: Collect fields from __init__ that haven't been added yet
+            for stmt in node.body:
+                if isinstance(stmt, (ast.FunctionDef, ast.AsyncFunctionDef)) and stmt.name == "__init__":
+                    if stmt.args.args:
+                        init_self_name = stmt.args.args[0].arg
+                        for sub_node in ast.walk(stmt):
+                            if isinstance(sub_node, ast.Assign):
+                                for target in sub_node.targets:
+                                    for t in ast.walk(target):
+                                        if isinstance(t, ast.Attribute) and isinstance(t.value, ast.Name) and t.value.id == init_self_name:
+                                            field_name = self._sanitize_name(t.attr)
+                                            if field_name not in added_fields:
+                                                added_fields.add(field_name)
+                                                # Try to guess type from value
+                                                f_type = "Any"
+                                                if len(sub_node.targets) == 1 and isinstance(sub_node.targets[0], ast.Attribute):
+                                                    f_type = self._guess_type(sub_node.value)
+                                                fields.append(f"    {field_name} {f_type}")
+                            elif isinstance(sub_node, ast.AnnAssign):
+                                if isinstance(sub_node.target, ast.Attribute) and isinstance(sub_node.target.value, ast.Name) and sub_node.target.value.id == init_self_name:
+                                    field_name = self._sanitize_name(sub_node.target.attr)
+                                    if field_name not in added_fields:
+                                        added_fields.add(field_name)
+                                        f_type = "Any"
+                                        if sub_node.annotation:
+                                            try:
+                                                t_str = ast.unparse(sub_node.annotation)
+                                                f_type = self._map_type(t_str, struct_name)
+                                            except:
+                                                pass
+                                        fields.append(f"    {field_name} {f_type}")
+
             struct_parts = []
             if doc_comment:
                 struct_parts.append(doc_comment)
@@ -898,10 +959,13 @@ class ClassesMixin(TranslatorBase):
             self.emitter.add_struct("".join(struct_parts))
 
             has_str = any(m.name == "__str__" for m in methods)
-            if has_str:
-                for method in methods:
-                    if method.name == "__repr__":
-                        method.name = "repr"
+            for method in methods:
+                if method.name == "__repr__":
+                    setattr(method, "original_name", "__repr__")
+                    if has_str:
+                        setattr(method, "name", "repr")
+                    else:
+                        setattr(method, "name", "str")
 
             # Visit methods to generate them as functions
             for method in methods:
@@ -958,7 +1022,15 @@ class ClassesMixin(TranslatorBase):
         # Don't overwrite if it was already set (e.g. by dataclass factory)
         current_info = self.defined_classes.get(struct_name)
         if not current_info or not (current_info.get("has_init") or current_info.get("has_new")):
-            self.defined_classes[struct_name] = {"has_init": has_init, "has_new": False}
+            if current_info:
+                current_info["has_init"] = has_init
+            else:
+                self.defined_classes[struct_name] = {
+                    "has_init": has_init,
+                    "has_new": False,
+                    "static_methods": static_methods,
+                    "class_methods": class_methods
+                }
 
         # Ensure we output the nested struct definition at the top level
         # visit_ClassDef processes body elements via iteration.
