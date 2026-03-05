@@ -306,6 +306,32 @@ class TranslatorBase(ast.NodeVisitor):
                     seen.add(v_gen)
         return all_v
 
+    def _find_defining_class_for_static_method(self, class_name: str, method_name: str) -> Optional[str]:
+        """Finds the class in the hierarchy where the static/class method is defined."""
+        visited = set()
+        stack = [class_name]
+        while stack:
+            curr = stack.pop()
+            if curr in visited:
+                continue
+            visited.add(curr)
+
+            # Check defined classes in translator first
+            info = getattr(self, "defined_classes", {}).get(curr, {})
+            if method_name in info.get("static_methods", set()) or method_name in info.get("class_methods", set()):
+                return curr
+
+            # Check analyzer if available
+            if hasattr(self, "type_inference"):
+                if method_name in self.type_inference.static_methods.get(curr, set()):
+                    return curr
+                if method_name in self.type_inference.class_methods.get(curr, set()):
+                    return curr
+
+            if curr in self.class_hierarchy:
+                stack.extend(self.class_hierarchy[curr])
+        return None
+
     def _sanitize_name(self, name: str, is_type: bool = False) -> str:
         """
         Sanitizes Python identifiers that collide with V lang reserved keywords

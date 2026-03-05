@@ -87,6 +87,8 @@ class MixinInferer(ast.NodeVisitor):
         self.mixin_nodes: Dict[str, ast.ClassDef] = {}
         self.class_hierarchy: Dict[str, list[str]] = {}
         self.is_abc: Dict[str, bool] = {}
+        self.static_methods: Dict[str, set[str]] = {}
+        self.class_methods: Dict[str, set[str]] = {}
 
     def _get_all_ancestors(self, cls_name: str) -> list[str]:
         result = []
@@ -104,11 +106,31 @@ class MixinInferer(ast.NodeVisitor):
         return result
 
     def analyze(self, tree: ast.AST):
-        # Pass 1: Build hierarchy
+        # Pass 1: Build hierarchy and collect static/class methods
         for node in ast.walk(tree):
             if isinstance(node, ast.ClassDef):
                 self.mixin_nodes[node.name] = node
                 self.is_abc[node.name] = False
+                self.static_methods[node.name] = set()
+                self.class_methods[node.name] = set()
+
+                for child in node.body:
+                    if isinstance(child, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                        for decorator in child.decorator_list:
+                            dec_name = ""
+                            if isinstance(decorator, ast.Name):
+                                dec_name = decorator.id
+                            elif isinstance(decorator, ast.Call):
+                                if isinstance(decorator.func, ast.Name):
+                                    dec_name = decorator.func.id
+                            elif isinstance(decorator, ast.Attribute):
+                                dec_name = decorator.attr
+
+                            if dec_name == "staticmethod":
+                                self.static_methods[node.name].add(child.name)
+                            elif dec_name == "classmethod":
+                                self.class_methods[node.name].add(child.name)
+
                 bases = []
                 for base in node.bases:
                     if isinstance(base, ast.Name):
@@ -206,6 +228,8 @@ class TypeInference(ast.NodeVisitor):
         self.mixin_to_main: Dict[str, list[str]] = {}
         self.main_to_mixins: Dict[str, list[str]] = {}
         self.mixin_nodes: Dict[str, ast.ClassDef] = {}
+        self.static_methods: Dict[str, set[str]] = {}
+        self.class_methods: Dict[str, set[str]] = {}
 
     def analyze(self, tree: ast.AST) -> Dict[str, str]:
         """Analyzes the AST to infer variable types."""
@@ -224,6 +248,8 @@ class TypeInference(ast.NodeVisitor):
         self.main_to_mixins = mixin_inferer.main_to_mixins
         self.mixin_nodes = mixin_inferer.mixin_nodes
         self.is_abc = mixin_inferer.is_abc
+        self.static_methods = mixin_inferer.static_methods
+        self.class_methods = mixin_inferer.class_methods
 
         return self.type_map
 
