@@ -575,7 +575,7 @@ class FunctionsMixin(TranslatorBase):
             func_name = "str"
             decl = f"{deprecated_attr}fn {receiver_str}{func_name}() string {{"
         elif func_name == "__str__":
-            decl = f"{noreturn_attr}{deprecated_attr}{pub}fn {receiver_str}str() string {{"
+            decl = f"{noreturn_attr}{deprecated_attr}pub fn {receiver_str}str() string {{"
         elif func_name == "__iter__":
             # V iterators use 'next' method returning '?'
             # If a class has __iter__, it usually returns an iterator.
@@ -595,15 +595,15 @@ class FunctionsMixin(TranslatorBase):
             else:
                 deprecated_attr = "[deprecated]\n"
 
-        pub = ""
+        pub_attr = ""
         if not is_nested:
             if (not is_method and self._is_exported(node.name)) or (is_method and getattr(self, 'config', None) and not func_name.startswith('_') and not is_init):
-                 pub = "pub "
+                 pub_attr = "pub "
 
             # Factory function: pub if class is exported
             if is_init:
                  if self._is_exported(struct_name):
-                      pub = "pub "
+                      pub_attr = "pub "
 
         if "decl" not in locals():
             if is_nested:
@@ -625,9 +625,9 @@ class FunctionsMixin(TranslatorBase):
                 elif getattr(node, "original_name", "") == "__repr__":
                     decl = f"{self._indent()}fn {receiver_str}repr() string {{"
             else:
-                decl = f"{noreturn_attr}{deprecated_attr}{pub}fn {receiver_str}{func_name}{func_generics_str}({args_str}) {ret_type} {{"
+                decl = f"{noreturn_attr}{deprecated_attr}{pub_attr}fn {receiver_str}{func_name}{func_generics_str}({args_str}) {ret_type} {{"
                 if ret_type == "void":
-                    decl = f"{noreturn_attr}{deprecated_attr}{pub}fn {receiver_str}{func_name}{func_generics_str}({args_str}) {{"
+                    decl = f"{noreturn_attr}{deprecated_attr}{pub_attr}fn {receiver_str}{func_name}{func_generics_str}({args_str}) {{"
 
         self.output.append(f"{decl}")
         self._indent_level += 1
