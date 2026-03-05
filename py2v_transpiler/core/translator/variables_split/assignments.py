@@ -105,7 +105,7 @@ class AssignmentsMixin(TranslatorBase):
                               # Unparse RHS to string
                               if hasattr(ast, 'unparse'):
                                   rhs_source = ast.unparse(node.value)
-                                  mapped = map_python_type_to_v(rhs_source, allow_union=True, self_name=self._get_full_self_type())
+                                  mapped = self._map_type(rhs_source, allow_union=True, register_sum_types=False)
                                   # Check if mapped value looks like a type and not void/same-as-input-expression
                                   # map_python_type_to_v returns input if it fails to map usually, unless it parses successfully via _map_ast_type
                                   # For List[int], it returns []int. List[int] != []int.

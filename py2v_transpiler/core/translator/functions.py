@@ -11,6 +11,38 @@ class FunctionsMixin(TranslatorBase):
     def visit_AsyncFunctionDef(self, node: ast.AsyncFunctionDef) -> None:
         self._visit_function_common(node, is_async=True)
 
+    def _find_captured_vars(self, node: ast.AST) -> List[str]:
+        captured = set()
+        inner_defs = set()
+
+        # If node is a function, its arguments are inner defs
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.Lambda)):
+            args = node.args.args
+            if hasattr(node.args, 'posonlyargs'):
+                args = node.args.posonlyargs + args
+            if hasattr(node.args, 'kwonlyargs'):
+                args = args + node.args.kwonlyargs
+            for arg in args:
+                inner_defs.add(arg.arg)
+            if node.args.vararg:
+                inner_defs.add(node.args.vararg.arg)
+            if node.args.kwarg:
+                inner_defs.add(node.args.kwarg.arg)
+
+        for subnode in ast.walk(node):
+            if isinstance(subnode, ast.Name):
+                if isinstance(subnode.ctx, ast.Store):
+                    inner_defs.add(subnode.id)
+                elif isinstance(subnode.ctx, ast.Load):
+                    name = subnode.id
+                    if name not in inner_defs:
+                        # Check outer scopes
+                        for scope in self._scope_stack:
+                            if name in scope:
+                                captured.add(self._sanitize_name(name))
+                                break
+        return sorted(list(captured))
+
     def _visit_function_common(self, node: Any, is_async: bool = False) -> None:
         # Check for @overload
         is_overload = False
@@ -141,7 +173,7 @@ class FunctionsMixin(TranslatorBase):
 
         if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
             is_generator = self.coroutine_handler.is_generator(
-                original_name if "original_name" in locals() else node.name
+                getattr(node, 'original_name', node.name)
             )
 
         # Analyze decorators
@@ -159,18 +191,32 @@ class FunctionsMixin(TranslatorBase):
                 struct_names = self.type_inference.mixin_to_main[base_struct_name]
                 is_mixin = True
 
-        old_output = self.output
-        for struct_name in struct_names:
+        is_nested = len(self._scope_stack) > 0
+
+        if is_nested:
+            # Nested functions are always single implementation
             self._generate_function_for_struct(
                 node,
                 is_async,
                 is_method,
-                struct_name,
+                "",
                 dec_info,
                 is_generator,
                 is_abstract,
             )
-        self.output = old_output
+        else:
+            old_output = self.output
+            for struct_name in struct_names:
+                self._generate_function_for_struct(
+                    node,
+                    is_async,
+                    is_method,
+                    struct_name,
+                    dec_info,
+                    is_generator,
+                    is_abstract,
+                )
+            self.output = old_output
 
     def _generate_function_for_struct(
         self,
@@ -187,9 +233,13 @@ class FunctionsMixin(TranslatorBase):
         if is_abstract and struct_name != self.current_class:
             return
 
+        is_nested = len(self._scope_stack) > 0
+
+        old_output = self.output
         self.output = []
         old_indent = self._indent_level
-        self._indent_level = 0
+        if not is_nested:
+            self._indent_level = 0
 
         # Handle decorators and check for @warnings.deprecated
         is_deprecated = False
@@ -268,7 +318,7 @@ class FunctionsMixin(TranslatorBase):
         if is_generator:
             # Inject channel argument
             yield_type = self.coroutine_handler.get_yield_type(node)
-            args_str_list.append(f"ch_out chan ?{yield_type}")
+            args_str_list.append(f"ch_out chan {yield_type}")
             args_str_list.append(f"ch_in chan PyGeneratorInput")
             self.coroutine_handler.enter_generator("ch_out", "ch_in")
 
@@ -284,7 +334,7 @@ class FunctionsMixin(TranslatorBase):
         if node.name == "__new__":
             is_new_method = True
             # Rename __new__ to factory name
-            node.name = f"new_{struct_name}"
+            node.name = self._get_factory_name(struct_name)
             # Remove 'cls' argument if present
             if args and args[0].arg == "cls":
                 args = args[1:]
@@ -441,6 +491,12 @@ class FunctionsMixin(TranslatorBase):
             if func_name in self.renamed_functions:
                 func_name = self.renamed_functions[func_name]
 
+        if node.name == "__str__" or getattr(node, "original_name", "") == "__str__":
+            func_name = "str"
+        elif node.name == "__repr__" or getattr(node, "original_name", "") == "__repr__":
+            if func_name != "str":
+                func_name = "repr"
+
         # Handle cache wrapper generation
         if dec_info.cache_wrapper_needed and dec_info.implementation_name:
             wrapper_code = self.decorator_processor.generate_cache_wrapper(
@@ -463,7 +519,7 @@ class FunctionsMixin(TranslatorBase):
                 # is_method remains True, receiver_str is already set
             else:
                 is_init = True
-                func_name = f"new_{struct_name}"
+                func_name = self._get_factory_name(struct_name)
                 receiver_str = ""  # Factory is static
                 ret_type = struct_name
                 if self.current_class_generics:
@@ -513,6 +569,8 @@ class FunctionsMixin(TranslatorBase):
         elif func_name in ("__str__", "__repr__"):
             func_name = "str"
             decl = f"{deprecated_attr}fn {receiver_str}{func_name}() string {{"
+        elif func_name == "__str__":
+            decl = f"{noreturn_attr}{deprecated_attr}{pub}fn {receiver_str}str() string {{"
         elif func_name == "__iter__":
             # V iterators use 'next' method returning '?'
             # If a class has __iter__, it usually returns an iterator.
@@ -533,18 +591,38 @@ class FunctionsMixin(TranslatorBase):
                 deprecated_attr = "[deprecated]\n"
 
         pub = ""
-        if (not is_method and self._is_exported(node.name)) or (is_method and getattr(self, 'config', None) and not func_name.startswith('_') and not is_init):
-             pub = "pub "
+        if not is_nested:
+            if (not is_method and self._is_exported(node.name)) or (is_method and getattr(self, 'config', None) and not func_name.startswith('_') and not is_init):
+                 pub = "pub "
 
-        # Factory function: pub if class is exported
-        if is_init:
-             if self._is_exported(struct_name):
-                  pub = "pub "
+            # Factory function: pub if class is exported
+            if is_init:
+                 if self._is_exported(struct_name):
+                      pub = "pub "
 
         if "decl" not in locals():
-            decl = f"{noreturn_attr}{deprecated_attr}{pub}fn {receiver_str}{func_name}{func_generics_str}({args_str}) {ret_type} {{"
-        if ret_type == "void":
-            decl = f"{noreturn_attr}{deprecated_attr}{pub}fn {receiver_str}{func_name}{func_generics_str}({args_str}) {{"
+            if is_nested:
+                captures = self._find_captured_vars(node)
+                capture_str = f"[{', '.join(captures)}] " if captures else ""
+                # Use := if it is the first time we see this name in THIS local scope
+                decl_op = ":="
+                if func_name in self._scope_stack[-1]:
+                    decl_op = "="
+
+                # If it's a method but nested, something is weird, but let's handle it
+                if ret_type == "void":
+                    decl = f"{self._indent()}mut {func_name} {decl_op} fn {capture_str}({args_str}) {{"
+                else:
+                    decl = f"{self._indent()}mut {func_name} {decl_op} fn {capture_str}({args_str}) {ret_type} {{"
+
+                if getattr(node, "original_name", "") == "__str__":
+                    decl = f"{self._indent()}fn {receiver_str}str() string {{"
+                elif getattr(node, "original_name", "") == "__repr__":
+                    decl = f"{self._indent()}fn {receiver_str}repr() string {{"
+            else:
+                decl = f"{noreturn_attr}{deprecated_attr}{pub}fn {receiver_str}{func_name}{func_generics_str}({args_str}) {ret_type} {{"
+                if ret_type == "void":
+                    decl = f"{noreturn_attr}{deprecated_attr}{pub}fn {receiver_str}{func_name}{func_generics_str}({args_str}) {{"
 
         self.output.append(f"{decl}")
         self._indent_level += 1
@@ -563,6 +641,20 @@ class FunctionsMixin(TranslatorBase):
         # Track current function return type for visit_Return
         prev_ret_type: Optional[str] = getattr(self, "current_function_return_type", None)
         self.current_function_return_type = ret_type
+
+        if is_nested:
+            self._scope_stack[-1].add(func_name)
+
+        # Initialize scope with arguments and receiver
+        current_scope = set(args_names)
+        # Re-check for self if it was removed from args
+        orig_args = node.args.args
+        if hasattr(node.args, "posonlyargs"):
+            orig_args = node.args.posonlyargs + orig_args
+        if is_method and orig_args and orig_args[0].arg == "self" and not dec_info.is_static:
+            current_scope.add(orig_args[0].arg)
+
+        self._scope_stack.append(current_scope)
 
         try:
             # Check for docstring
@@ -589,6 +681,7 @@ class FunctionsMixin(TranslatorBase):
                 self.visit(stmt)
         finally:
             self.current_function_return_type = prev_ret_type
+            self._scope_stack.pop()
 
         # Pop function generic scope
         self.generic_scopes.pop()
@@ -604,9 +697,15 @@ class FunctionsMixin(TranslatorBase):
             self.in_init = prev_in_init
 
         self._indent_level -= 1
-        self.output.append("}")
+        self.output.append(f"{self._indent()}}}")
 
-        self.emitter.add_function("\n".join(self.output))
+        func_code = "\n".join(self.output)
+        if is_nested:
+            old_output.append(func_code)
+        else:
+            self.emitter.add_function(func_code)
+
+        self.output = old_output
         self._indent_level = old_indent
 
         # We cannot just restore self.output to old_output entirely if it's called in a loop,
@@ -678,7 +777,7 @@ class FunctionsMixin(TranslatorBase):
 
             if is_generator:
                 yield_type = self.coroutine_handler.get_yield_type(node)
-                args_str_list.append(f"ch_out chan ?{yield_type}")
+                args_str_list.append(f"ch_out chan {yield_type}")
                 args_str_list.append(f"ch_in chan PyGeneratorInput")
                 self.coroutine_handler.enter_generator("ch_out", "ch_in")
 
@@ -805,7 +904,7 @@ class FunctionsMixin(TranslatorBase):
             self._indent_level = old_indent
 
     def visit_Lambda(self, node: ast.Lambda) -> str:
-        # lambda args: expr -> fn (args) { return expr }
+        # lambda args: expr -> fn [captures] (args) { return expr }
         args_str_list = []
         for arg in node.args.args:
             arg_name = self._sanitize_name(arg.arg)
@@ -813,9 +912,14 @@ class FunctionsMixin(TranslatorBase):
             args_str_list.append(f"{arg_name} {arg_type}")
 
         args_str = ", ".join(args_str_list)
-        body = self.visit(node.body)
 
-        return f"fn ({args_str}) int {{ return {body} }}"
+        captures = self._find_captured_vars(node)
+        capture_str = f"[{', '.join(captures)}] " if captures else ""
+
+        body = self.visit(node.body)
+        body_type = self._guess_type(node.body)
+
+        return f"fn {capture_str}({args_str}) {body_type} {{ return {body} }}"
 
     def visit_Yield(self, node: ast.Yield) -> str:
         if self.coroutine_handler.active_channel:
