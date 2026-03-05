@@ -2,16 +2,49 @@ import ast
 from typing import Any, List
 
 from .field_processor import PydanticFieldProcessor, PydanticFieldInfo
+from .validator_processor import PydanticValidatorProcessor
 
 class PydanticModelProcessor:
     def __init__(self, visitor: Any):
         self.visitor = visitor
         self.field_processor = PydanticFieldProcessor(visitor)
+        self.validator_processor = PydanticValidatorProcessor(visitor)
 
     def process_model(self, node: ast.ClassDef) -> str:
         """Generates a Vlang struct from a Pydantic BaseModel."""
         struct_name = self.visitor._sanitize_name(node.name)
+
+        # Set current class context for validator processor
+        prev_class = self.visitor.current_class
+        self.visitor.current_class = struct_name
+
+        # Handle generics
+        py_generics = []
+        if hasattr(node, "type_params") and node.type_params:
+            for param in node.type_params:
+                if hasattr(param, "name"):
+                    name = param.name
+                    if isinstance(name, str): py_generics.append(name)
+                    elif hasattr(name, "id"): py_generics.append(name.id)
+
+        # Also check Generic[T] in bases
+        for base in node.bases:
+            if isinstance(base, ast.Subscript) and isinstance(base.value, ast.Name) and base.value.id == "Generic":
+                if isinstance(base.slice, ast.Tuple):
+                    for elt in base.slice.elts:
+                        if isinstance(elt, ast.Name): py_generics.append(elt.id)
+                elif isinstance(base.slice, ast.Name):
+                    py_generics.append(base.slice.id)
+
+        if py_generics:
+            if not hasattr(self.visitor, "current_class_generic_map"):
+                self.visitor.current_class_generic_map = {}
+            self.visitor.current_class_generic_map.update(self.visitor._get_generic_map(py_generics))
+            self.visitor.generic_scopes.append(self.visitor.current_class_generic_map)
+            self.visitor.current_class_generics = self.visitor._get_all_active_v_generics()
+
         fields: List[PydanticFieldInfo] = []
+        configs = []
 
         # We need to collect fields and methods
         methods = []
@@ -19,18 +52,37 @@ class PydanticModelProcessor:
             if isinstance(item, ast.AnnAssign):
                 info = self.field_processor.extract(item)
                 fields.append(info)
+            elif isinstance(item, ast.Assign):
+                # Check for model_config = ConfigDict(...)
+                for target in item.targets:
+                    if isinstance(target, ast.Name) and target.id == "model_config":
+                        if isinstance(item.value, ast.Call):
+                            for kw in item.value.keywords:
+                                configs.append(f"// Pydantic Config: {kw.arg} = {self.visitor.visit(kw.value)}")
+            elif isinstance(item, ast.ClassDef) and item.name == "Config":
+                # Legacy Config class
+                for stmt in item.body:
+                    if isinstance(stmt, ast.Assign):
+                        for target in stmt.targets:
+                            if isinstance(target, ast.Name):
+                                configs.append(f"// Pydantic Config: {target.id} = {self.visitor.visit(stmt.value)}")
             elif isinstance(item, ast.FunctionDef):
                 # Will handle validators in validator_processor
                 methods.append(item)
+                self.validator_processor.process(item)
 
         # Generate Struct
         export = "pub " if self.visitor._is_exported(struct_name) else ""
+        generics_str = f"[{', '.join(self.visitor.current_class_generics)}]" if self.visitor.current_class_generics else ""
 
         struct_def = [
             f"// Pydantic Model: {struct_name}",
-            "@[params]",
-            f"{export}struct {struct_name} {{"
         ]
+        struct_def.extend(configs)
+        struct_def.extend([
+            "@[params]",
+            f"{export}struct {struct_name}{generics_str} {{"
+        ])
 
         if export:
              struct_def.append("pub mut:")
@@ -63,10 +115,14 @@ class PydanticModelProcessor:
 
         # We also need to visit methods, if any. We let the normal visitor handle methods,
         # but we pretend we are in this class.
-        self.visitor.current_class = struct_name
         for method in methods:
             self.visitor.visit(method)
-        self.visitor.current_class = None
+
+        if py_generics:
+            self.visitor.generic_scopes.pop()
+            self.visitor.current_class_generics = [] # Simplified
+
+        self.visitor.current_class = prev_class
 
         return "" # The emitter handles the actual output
 
@@ -82,6 +138,11 @@ class PydanticModelProcessor:
             if vcode:
                 has_validation = True
                 code.extend(vcode)
+
+        validator_calls = self.validator_processor.generate_validation_calls(struct_name)
+        if validator_calls:
+            has_validation = True
+            code.extend(validator_calls)
 
         if not has_validation:
             return ""

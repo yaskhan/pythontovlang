@@ -14,6 +14,9 @@ class PydanticFieldInfo:
     le: Optional[str] = None
     max_length: Optional[str] = None
     min_length: Optional[str] = None
+    multiple_of: Optional[str] = None
+    pattern: Optional[str] = None
+    default_factory: Optional[str] = None
     is_optional: bool = False
 
 class PydanticFieldProcessor:
@@ -38,6 +41,8 @@ class PydanticFieldProcessor:
             if PydanticDetector.is_pydantic_field(node.value):
                 # It's a Field(...)
                 self._parse_field_kwargs(node.value, info)
+                if info.default_factory:
+                    info.default_val = info.default_factory
             else:
                 # It's a standard default value like `x: int = 5`
                 info.default_val = self.visitor.visit(node.value)
@@ -74,6 +79,12 @@ class PydanticFieldProcessor:
                 info.max_length = val
             elif keyword.arg == "min_length":
                 info.min_length = val
+            elif keyword.arg == "multiple_of":
+                info.multiple_of = val
+            elif keyword.arg in ("pattern", "regex"):
+                info.pattern = val
+            elif keyword.arg == "default_factory":
+                info.default_factory = f"{val}()"
 
     def generate_struct_tags(self, info: PydanticFieldInfo) -> str:
         """Generates Vlang struct tags like [json: 'alias']."""
@@ -119,6 +130,12 @@ class PydanticFieldProcessor:
              code.append(f"{indent}if {prefix}.len > {info.max_length} {{ return error('Validation Error: {info.name} length must be <= {info.max_length}') }}")
         if info.min_length:
              code.append(f"{indent}if {prefix}.len < {info.min_length} {{ return error('Validation Error: {info.name} length must be >= {info.min_length}') }}")
+
+        if info.multiple_of:
+            code.append(f"{indent}if {prefix} % {info.multiple_of} != 0 {{ return error('Validation Error: {info.name} must be a multiple of {info.multiple_of}') }}")
+
+        if info.pattern:
+            code.append(f"{indent}if !{prefix}.match_full({info.pattern}) {{ return error('Validation Error: {info.name} must match regex {info.pattern.strip(chr(39).strip(chr(34)))}') }}")
 
         if info.is_optional:
             code.append("    }")

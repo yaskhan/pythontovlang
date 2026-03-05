@@ -15,9 +15,9 @@ class PydanticDetector:
     def is_pydantic_field(node: ast.expr) -> bool:
         """Checks if an expression is a call to pydantic.Field()."""
         if isinstance(node, ast.Call):
-            if isinstance(node.func, ast.Name) and node.func.id == "Field":
+            if isinstance(node.func, ast.Name) and node.func.id in ("Field", "PrivateAttr"):
                 return True
-            if isinstance(node.func, ast.Attribute) and node.func.attr == "Field" and getattr(node.func.value, "id", "") == "pydantic":
+            if isinstance(node.func, ast.Attribute) and node.func.attr in ("Field", "PrivateAttr") and getattr(node.func.value, "id", "") == "pydantic":
                 return True
         return False
 
