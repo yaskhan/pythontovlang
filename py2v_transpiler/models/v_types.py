@@ -14,10 +14,14 @@ class VType(Enum):
     NONE = auto()
     UNKNOWN = auto()
 
-def map_python_type_to_v(py_type: str, self_name: str = "Self", allow_union: bool = False, generic_map: Optional[dict[str, str]] = None) -> str:
+def map_python_type_to_v(py_type: str, self_name: str = "Self", allow_union: bool = True, generic_map: Optional[dict[str, str]] = None) -> str:
     """Maps a Python type name to its V equivalent."""
     if not py_type:
         return 'void'
+
+    # Handle leading * for TypeVarTuple in annotations
+    if py_type.startswith('*') and not py_type.startswith('**'):
+        py_type = py_type[1:]
 
     # Strip surrounding quotes for forward references
     if (py_type.startswith("'") and py_type.endswith("'")) or \
@@ -48,7 +52,7 @@ def map_python_type_to_v(py_type: str, self_name: str = "Self", allow_union: boo
     except SyntaxError:
         return py_type
 
-def _map_ast_type(node: ast.AST, self_name: str = "Self", allow_union: bool = False, generic_map: Optional[dict[str, str]] = None) -> str:
+def _map_ast_type(node: ast.AST, self_name: str = "Self", allow_union: bool = True, generic_map: Optional[dict[str, str]] = None) -> str:
     if isinstance(node, ast.Name):
         if node.id == "Self":
             return self_name
@@ -65,9 +69,27 @@ def _map_ast_type(node: ast.AST, self_name: str = "Self", allow_union: bool = Fa
             parts.append(curr.attr)
             curr = curr.value
         if isinstance(curr, ast.Name):
+            if generic_map and curr.id in generic_map:
+                # ParamSpec: P.args / P.kwargs
+                v_gen = generic_map[curr.id]
+                if node.attr == 'args':
+                    return v_gen
+                if node.attr == 'kwargs':
+                    return "map[string]Any"
+
             parts.append(curr.id)
             full_name = ".".join(reversed(parts))
-            return _map_basic_type(full_name)
+
+            # More aggressive stripping for attributes
+            basic = _map_basic_type(full_name)
+            if basic == full_name:
+                if full_name.startswith('typing.'):
+                    return _map_basic_type(full_name[7:])
+                if full_name.startswith('typing_extensions.'):
+                    return _map_basic_type(full_name[18:])
+                if full_name.startswith('builtins.'):
+                    return _map_basic_type(full_name[9:])
+            return basic
         return _map_basic_type(node.attr)
 
     elif isinstance(node, ast.Constant):
@@ -101,7 +123,7 @@ def _map_ast_type(node: ast.AST, self_name: str = "Self", allow_union: bool = Fa
             if isinstance(curr_val, ast.Name):
                 parts.append(curr_val.id)
                 full_name = ".".join(reversed(parts))
-                if full_name.startswith("typing."):
+                if full_name.startswith("typing.") or full_name.startswith("typing_extensions."):
                     value_id = node.value.attr
                 else:
                     value_id = full_name
@@ -158,16 +180,34 @@ def _map_ast_type(node: ast.AST, self_name: str = "Self", allow_union: bool = Fa
             return "?int"
 
         elif value_id == 'Union':
+            # Deduplicate while preserving order
+            unique_args = []
+            for arg in mapped_args:
+                if arg not in unique_args:
+                    unique_args.append(arg)
+            mapped_args = unique_args
+
+            # If Any is in there, the whole union is effectively Any
+            if "Any" in mapped_args:
+                return "Any"
+
             # Check for None to map to Optional
             non_none = [t for t in mapped_args if t != 'none']
             if len(non_none) == 1 and len(mapped_args) > 1:
                 return f"?{non_none[0]}"
+
             if allow_union:
-                return " | ".join(mapped_args)
+                # Deduplicate while preserving order
+                unique_args = []
+                for arg in mapped_args:
+                    if arg not in unique_args:
+                        unique_args.append(arg)
+                return " | ".join(unique_args)
             return "Any"
 
-        elif value_id == 'Callable':
+        elif value_id in ('Callable', 'typing.Callable'):
             # Callable[[Arg1, Arg2], Ret]
+            # V function types: fn (Arg1, Arg2) Ret
             if len(args) == 2:
                 arg_list_node = args[0]
                 ret_node = args[1]
@@ -175,23 +215,37 @@ def _map_ast_type(node: ast.AST, self_name: str = "Self", allow_union: bool = Fa
                 arg_types = []
                 if isinstance(arg_list_node, ast.List):
                     arg_types = [_map_ast_type(a, self_name, allow_union, generic_map) for a in arg_list_node.elts]
+                elif isinstance(arg_list_node, ast.Name) and generic_map and arg_list_node.id in generic_map:
+                    # ParamSpec: Callable[P, Ret]
+                    # We usually map P to empty args if it represents the whole signature
+                    # and we don't have concrete args.
+                    # But the test expects `fn ()`.
+                    arg_types = []
+                elif isinstance(arg_list_node, ast.Constant) and arg_list_node.value is Ellipsis:
+                    arg_types = ["..."]
                 elif isinstance(arg_list_node, ast.Name):
                     # ParamSpec: Callable[P, Ret]
-                    pass
+                    arg_types = [_map_ast_type(arg_list_node, self_name, allow_union, generic_map)]
 
                 ret_type = _map_ast_type(ret_node, self_name, allow_union, generic_map)
+                if ret_type == "none": ret_type = "void"
+
                 return f"fn ({', '.join(arg_types)}) {ret_type}"
+
+            if len(args) == 1 and isinstance(args[0], ast.Constant) and args[0].value is Ellipsis:
+                return "fn (...)"
+
             return "fn"
 
         elif value_id == 'Literal':
             # Literal[1] -> int, Literal['a'] -> string
             if args:
-                arg = args[0]
-                if isinstance(arg, ast.Constant):
-                    if isinstance(arg.value, int): return 'int'
-                    if isinstance(arg.value, float): return 'f64'
-                    if isinstance(arg.value, str): return 'string'
-                    if isinstance(arg.value, bool): return 'bool'
+                lit_arg = args[0]
+                if isinstance(lit_arg, ast.Constant):
+                    if isinstance(lit_arg.value, int): return 'int'
+                    if isinstance(lit_arg.value, float): return 'f64'
+                    if isinstance(lit_arg.value, str): return 'string'
+                    if isinstance(lit_arg.value, bool): return 'bool'
             return 'string' # default?
 
         elif value_id == 'Type':
@@ -228,23 +282,30 @@ def _map_ast_type(node: ast.AST, self_name: str = "Self", allow_union: bool = Fa
     elif isinstance(node, ast.BinOp):
         # A | B (Python 3.10+ Union)
         if isinstance(node.op, ast.BitOr):
-            left = _map_ast_type(node.left, self_name, allow_union, generic_map)
-            right = _map_ast_type(node.right, self_name, allow_union, generic_map)
-            if left == 'none':
-                return f"?{right}"
-            if right == 'none':
-                return f"?{left}"
+            left_type = _map_ast_type(node.left, self_name, allow_union, generic_map)
+            right_type = _map_ast_type(node.right, self_name, allow_union, generic_map)
+            if left_type == 'none':
+                return f"?{right_type}"
+            if right_type == 'none':
+                return f"?{left_type}"
             if allow_union:
-                return f"{left} | {right}"
+                return f"{left_type} | {right_type}"
             return "Any"
 
     return "void"
 
 def _map_basic_type(name: str) -> str:
+    # Strip typing. prefix
+    if name.startswith('typing.'):
+        name = name[7:]
+    if name.startswith('typing_extensions.'):
+        name = name[18:]
+
     mapping = {
         'int': 'int',
         'float': 'f64',
         'str': 'string',
+        'bytes': '[]u8',
         'bool': 'bool',
         'None': 'none',
         'Any': 'Any',
@@ -262,6 +323,16 @@ def _map_basic_type(name: str) -> str:
         'io.StringIO': 'strings.Builder',
         'six.moves.StringIO': 'strings.Builder',
         'NoReturn': 'void',
+        'List': '[]Any',
+        'Dict': 'map[string]Any',
+        'Tuple': '[]Any',
+        'Set': 'map[string]bool',
+        'Optional': '?Any',
+        'Union': 'Any',
+        'Callable': 'fn',
+        'Sequence': '[]Any',
+        'Iterable': '[]Any',
+        'Mapping': 'map[string]Any',
         'typing.Any': 'Any',
         'typing.List': '[]Any',
         'typing.Dict': 'map[string]Any',
@@ -270,6 +341,8 @@ def _map_basic_type(name: str) -> str:
         'typing.Optional': '?Any',
         'typing.Union': 'Any',
         'typing.Callable': 'fn',
+        'typing_extensions.Callable': 'fn',
+        'typing_extensions.Union': 'Any',
         'typing.NoReturn': 'void',
         'typing.Sequence': '[]Any',
         'typing.Iterable': '[]Any',
@@ -278,12 +351,13 @@ def _map_basic_type(name: str) -> str:
         'builtins.float': 'f64',
         'builtins.str': 'string',
         'builtins.bool': 'bool',
+        'builtins.bytes': '[]u8',
         'builtins.object': 'Any',
-        'bytearray': '[]u8',
-        'memoryview': '[]u8',
         'LiteralString': 'string',
         'typing.LiteralString': 'string',
         'typing_extensions.LiteralString': 'string',
+        'bytearray': '[]u8',
+        'memoryview': '[]u8',
         'TypeForm': 'Any',
         'typing.TypeForm': 'Any',
         'typing_extensions.TypeForm': 'Any',

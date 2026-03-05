@@ -63,23 +63,25 @@ if __name__ == "__main__":
 ```v
 import math
 
-fn fibonacci(n int) []int {
-    // Generate Fibonacci sequence
+pub fn fibonacci(n int) []int {
+    // Generate Fibonacci sequence.
     if n <= 0 {
-        return []
+        return []Any{}
     } else if n == 1 {
         return [0]
     }
-    
-    mut seq := []int{len: 2, init: [0, 1]}
-    for i in 2 .. n {
-        seq << seq[seq.len - 1] + seq[seq.len - 2]
+    mut seq := []int{cap: 2}
+    seq << 0
+    seq << 1
+    for i in 2..n {
+        seq.append(seq[-1] + seq[-2])
     }
     return seq
 }
 
 fn main() {
-    println(fibonacci(10))
+    // if __name__ == '__main__':
+    println('${fibonacci(10)}')
 }
 ```
 
