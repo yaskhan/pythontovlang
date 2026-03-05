@@ -386,10 +386,10 @@ class FunctionsMixin(TranslatorBase):
             is_mut = False
             if hasattr(self, 'type_inference') and hasattr(self.type_inference, 'mutability_map'):
                 mut_info = self.type_inference.mutability_map.get(arg_name)
-                # For arguments, we usually check if they are reassigned in the function scope
+                # For arguments, we usually check if they are reassigned or mutated in the function scope
                 # full name for arguments in mypy is usually module.func.arg
                 if mut_info:
-                    is_mut = mut_info.get("is_reassigned", False)
+                    is_mut = mut_info.get("is_reassigned", False) or mut_info.get("is_mutated", False)
 
             mut_prefix = "mut " if is_mut else ""
             args_str_list.append(f"{mut_prefix}{arg_name} {arg_type}")

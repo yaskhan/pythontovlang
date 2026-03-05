@@ -227,7 +227,7 @@ class MixinInferer(ast.NodeVisitor):
 class TypeInference(ast.NodeVisitor):
     def __init__(self):
         self.type_map: Dict[str, str] = {}
-        self.mutability_map: Dict[str, Dict[str, bool]] = {}
+        self.mutability_map: Dict[str, Dict[str, Any]] = {}
         self.location_map: Dict[str, str] = {}
         self.call_signatures: Dict[str, Dict[str, Any]] = {}
         self.mixin_to_main: Dict[str, list[str]] = {}
@@ -257,6 +257,32 @@ class TypeInference(ast.NodeVisitor):
         self.class_methods = mixin_inferer.class_methods
 
         return self.type_map
+
+    def _mark_mutated(self, node: ast.AST):
+        if isinstance(node, ast.Name):
+            name = node.id
+            if name not in self.mutability_map:
+                self.mutability_map[name] = {"is_reassigned": False, "is_final": False, "is_mutated": False}
+            self.mutability_map[name]["is_mutated"] = True
+        elif isinstance(node, ast.Attribute) and isinstance(node.value, ast.Name):
+            name = f"{node.value.id}.{node.attr}"
+            if name not in self.mutability_map:
+                self.mutability_map[name] = {"is_reassigned": False, "is_final": False, "is_mutated": False}
+            self.mutability_map[name]["is_mutated"] = True
+
+    def _mark_reassigned(self, node: ast.AST):
+        if isinstance(node, ast.Name):
+            name = node.id
+            if name in self.mutability_map:
+                self.mutability_map[name]["is_reassigned"] = True
+            else:
+                self.mutability_map[name] = {"is_reassigned": False, "is_final": False, "is_mutated": False}
+                # If we see it first time here, it might be the initial assignment.
+                # But NodeVisitor walks the tree.
+                # Usually mypy tracks this better.
+        elif isinstance(node, (ast.Tuple, ast.List)):
+            for elt in node.elts:
+                self._mark_reassigned(elt)
 
     def _guess_node_type(self, node: ast.AST) -> str:
         if isinstance(node, ast.Constant):
@@ -308,20 +334,35 @@ class TypeInference(ast.NodeVisitor):
         return "Any"
 
     def visit_Call(self, node: ast.Call) -> Any:
-        if isinstance(node.func, ast.Attribute) and node.func.attr == "append":
-            if isinstance(node.func.value, ast.Name):
-                var_name = node.func.value.id
-                if len(node.args) == 1:
-                    elt_type = self._guess_node_type(node.args[0])
-                    if elt_type != "Any":
-                        new_type = f"[]{elt_type}"
-                        if var_name not in self.type_map or self.type_map[var_name] == "[]Any":
-                            self.type_map[var_name] = new_type
+        if isinstance(node.func, ast.Attribute):
+            mutating_methods = {
+                "append", "extend", "insert", "pop", "remove", "clear",
+                "update", "setdefault", "delete", "add", "discard"
+            }
+            if node.func.attr in mutating_methods:
+                self._mark_mutated(node.func.value)
+
+            if node.func.attr == "append":
+                if isinstance(node.func.value, ast.Name):
+                    var_name = node.func.value.id
+                    if len(node.args) == 1:
+                        elt_type = self._guess_node_type(node.args[0])
+                        if elt_type != "Any":
+                            new_type = f"[]{elt_type}"
+                            if var_name not in self.type_map or self.type_map[var_name] == "[]Any":
+                                self.type_map[var_name] = new_type
         self.generic_visit(node)
 
     def visit_Assign(self, node: ast.Assign) -> Any:
         for target in node.targets:
+            if isinstance(target, ast.Name):
+                if target.id in self.mutability_map:
+                    self.mutability_map[target.id]["is_reassigned"] = True
+                else:
+                    self.mutability_map[target.id] = {"is_reassigned": False, "is_final": False, "is_mutated": False}
+
             if isinstance(target, ast.Subscript):
+                self._mark_mutated(target.value)
                 dict_name = None
                 if isinstance(target.value, ast.Name):
                     dict_name = target.value.id
@@ -358,6 +399,19 @@ class TypeInference(ast.NodeVisitor):
                     if target.id not in self.type_map or self.type_map[target.id] == "Any":
                         self.type_map[target.id] = inferred
 
+        self.generic_visit(node)
+
+    def visit_AugAssign(self, node: ast.AugAssign) -> Any:
+        if isinstance(node.target, (ast.Name, ast.Attribute)):
+            self._mark_reassigned(node.target)
+        elif isinstance(node.target, ast.Subscript):
+            self._mark_mutated(node.target.value)
+        self.generic_visit(node)
+
+    def visit_Delete(self, node: ast.Delete) -> Any:
+        for target in node.targets:
+            if isinstance(target, ast.Subscript):
+                self._mark_mutated(target.value)
         self.generic_visit(node)
 
     def _infer_collection_type(self, node: ast.AST) -> str:

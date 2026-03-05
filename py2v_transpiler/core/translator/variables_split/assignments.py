@@ -458,7 +458,7 @@ class AssignmentsMixin(TranslatorBase):
                                         mut_info = self.type_inference.mutability_map.get(v_lhs)
 
                                     if mut_info:
-                                        is_mut = mut_info.get("is_reassigned", False) and not mut_info.get("is_final", False)
+                                        is_mut = (mut_info.get("is_reassigned", False) or mut_info.get("is_mutated", False)) and not mut_info.get("is_final", False)
 
                                 # Special handling for buffer protocol: always mutable if bytearray
                                 if not is_mut:
@@ -536,7 +536,7 @@ class AssignmentsMixin(TranslatorBase):
                         mut_info = self.type_inference.mutability_map.get(lhs)
 
                     if mut_info:
-                        is_mut = mut_info.get("is_reassigned", False) and not mut_info.get("is_final", False)
+                        is_mut = (mut_info.get("is_reassigned", False) or mut_info.get("is_mutated", False)) and not mut_info.get("is_final", False)
 
                 mut_prefix = "mut " if is_mut else ""
                 self.output.append(f"{self._indent()}{mut_prefix}{lhs} := {source_expr}")

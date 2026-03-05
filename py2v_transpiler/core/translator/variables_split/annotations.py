@@ -189,7 +189,7 @@ class AnnotationsMixin(TranslatorBase):
                                         mut_info = self.type_inference.mutability_map.get(v_target)
 
                                     if mut_info:
-                                        is_mut = mut_info.get("is_reassigned", False) and not mut_info.get("is_final", False)
+                                        is_mut = (mut_info.get("is_reassigned", False) or mut_info.get("is_mutated", False)) and not mut_info.get("is_final", False)
 
                                 mut_prefix = "mut " if is_mut else ""
                                 emit_fn(f"{self._indent()}{mut_prefix}{v_target} := {rhs}")
