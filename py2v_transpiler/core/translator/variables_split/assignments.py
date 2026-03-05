@@ -396,34 +396,33 @@ class AssignmentsMixin(TranslatorBase):
                         if isinstance(target, ast.Name):
                             if v_type == "unknown":
                                 v_type = "Any"
-                            pub = "pub " if self._is_exported(target.id) else ""
-                            self.emitter.add_global(f"{pub}{lhs} {v_type}")
+                            self.emitter.add_global(f"{lhs} {v_type}")
                     elif base_lhs.isupper():
                         emit_fn = lambda stmt: self.emitter.add_init_statement(stmt.strip())
                         if isinstance(target, ast.Name):
                             v_lhs = self._to_snake_case(lhs)
-                            pub = "pub " if self._is_exported(target.id) else ""
                             if self._is_compile_time_evaluable(node.value):
                                 # Compile-time constant (e.g. DEFAULT_WIDTH = 100) -> const block
+                                pub = "pub " if self._is_exported(target.id) else ""
                                 self.emitter.add_constant(f"{pub}{v_lhs} = {rhs}")
                                 return
                             else:
                                 # Runtime UPPER_CASE (e.g. Vector_ZERO = new_Vector(...)) -> global + init()
                                 if v_type == "unknown" or v_type == "int":
                                     v_type = "Any"
-                                self.emitter.add_global(f"{pub}{v_lhs} {v_type}")
+                                self.emitter.add_global(f"{v_lhs} {v_type}")
                                 lhs = v_lhs
 
                 if self.in_main and isinstance(target, ast.Name) and (lhs in getattr(self, "global_vars", set()) or lhs.isupper() or is_implicit_literal or is_literal_string):
                     v_lhs = self._to_snake_case(lhs) if not lhs.islower() else lhs
                     # For compile-time constants we already returned above - assignment not needed
-                    pub = "pub " if self._is_exported(target.id) else ""
                     if (is_implicit_literal or is_literal_string) and self._is_compile_time_evaluable(node.value) and not lhs.isupper():
+                        pub = "pub " if self._is_exported(target.id) else ""
                         self.emitter.add_constant(f"{pub}{v_lhs} = {rhs}")
                         return
                     if (is_implicit_literal or is_literal_string) and not self._is_compile_time_evaluable(node.value) and not lhs.isupper():
                         if lhs not in getattr(self, "global_vars", set()):
-                            self.emitter.add_global(f"{pub}{v_lhs} string")
+                            self.emitter.add_global(f"{v_lhs} string")
                         self.emitter.add_init_statement(f"{v_lhs} = {rhs}")
                         return
                     if not (lhs.isupper() and self._is_compile_time_evaluable(node.value)):
