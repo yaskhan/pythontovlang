@@ -197,10 +197,12 @@ def _map_ast_type(node: ast.AST, self_name: str = "Self", allow_union: bool = Tr
                 return f"?{non_none[0]}"
 
             if allow_union:
-                res = " | ".join(mapped_args)
-                if len(mapped_args) > 5:
-                    return f"Any /* {res} */"
-                return res
+                # Deduplicate while preserving order
+                unique_args = []
+                for arg in mapped_args:
+                    if arg not in unique_args:
+                        unique_args.append(arg)
+                return " | ".join(unique_args)
             return "Any"
 
         elif value_id in ('Callable', 'typing.Callable'):
@@ -238,12 +240,12 @@ def _map_ast_type(node: ast.AST, self_name: str = "Self", allow_union: bool = Tr
         elif value_id == 'Literal':
             # Literal[1] -> int, Literal['a'] -> string
             if args:
-                literal_arg = args[0]
-                if isinstance(literal_arg, ast.Constant):
-                    if isinstance(literal_arg.value, int): return 'int'
-                    if isinstance(literal_arg.value, float): return 'f64'
-                    if isinstance(literal_arg.value, str): return 'string'
-                    if isinstance(literal_arg.value, bool): return 'bool'
+                lit_arg = args[0]
+                if isinstance(lit_arg, ast.Constant):
+                    if isinstance(lit_arg.value, int): return 'int'
+                    if isinstance(lit_arg.value, float): return 'f64'
+                    if isinstance(lit_arg.value, str): return 'string'
+                    if isinstance(lit_arg.value, bool): return 'bool'
             return 'string' # default?
 
         elif value_id == 'Type':
@@ -353,6 +355,9 @@ def _map_basic_type(name: str) -> str:
         'LiteralString': 'string',
         'typing.LiteralString': 'string',
         'typing_extensions.LiteralString': 'string',
+        'LiteralString': 'string',
+        'bytearray': '[]u8',
+        'memoryview': '[]u8',
         'TypeForm': 'Any',
     }
     return mapping.get(name, name)
