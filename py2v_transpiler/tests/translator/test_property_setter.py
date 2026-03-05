@@ -22,7 +22,7 @@ class Person:
         "fn (self Person) name() string {",
         "return self._name",
         "}",
-        "fn (self Person) set_name(value string) {",
+        "fn (mut self Person) set_name(value string) {",
             "self._name = value"
     ]
 
