@@ -56,7 +56,7 @@ class TypeInference:
 ```
 
 **Type Inference Process**:
-1. Run mypy on source code
+1. Run mypy on source code (automatically resolving and extracting types from available `.pyi` stub files)
 2. Parse mypy output
 3. Annotate AST nodes with types
 4. Handle special cases (aliases, generics)
