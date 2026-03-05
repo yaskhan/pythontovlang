@@ -1,8 +1,9 @@
 import ast
-from typing import Any, List
+from typing import Any, List, Dict, Optional
 
 from .field_processor import PydanticFieldProcessor, PydanticFieldInfo
-from .validator_processor import PydanticValidatorProcessor
+from .validator_processor import PydanticValidatorProcessor, PydanticValidatorInfo
+from .detector import PydanticDetector
 
 class PydanticModelProcessor:
     def __init__(self, visitor: Any):
@@ -44,32 +45,42 @@ class PydanticModelProcessor:
             self.visitor.current_class_generics = self.visitor._get_all_active_v_generics()
 
         fields: List[PydanticFieldInfo] = []
-        configs = []
+        methods: List[ast.FunctionDef | ast.AsyncFunctionDef] = []
+        validators: List[PydanticValidatorInfo] = []
+        configs: Dict[str, str] = {}
 
-        # We need to collect fields and methods
-        methods: List[ast.FunctionDef] = []
         for item in node.body:
             if isinstance(item, ast.AnnAssign):
                 info = self.field_processor.extract(item)
                 fields.append(info)
+            elif isinstance(item, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                v_info = self.validator_processor.extract_info(item)
+                if v_info:
+                    validators.append(v_info)
+                methods.append(item)
+                self.validator_processor.process(item)
             elif isinstance(item, ast.Assign):
                 # Check for model_config = ConfigDict(...)
                 for target in item.targets:
                     if isinstance(target, ast.Name) and target.id == "model_config":
-                        if isinstance(item.value, ast.Call):
-                            for kw in item.value.keywords:
-                                configs.append(f"// Pydantic Config: {kw.arg} = {self.visitor.visit(kw.value)}")
+                        if PydanticDetector.is_config_dict(item.value):
+                            if isinstance(item.value, ast.Call):
+                                for kw in item.value.keywords:
+                                    if kw.arg:
+                                        configs[kw.arg] = self.visitor.visit(kw.value)
             elif isinstance(item, ast.ClassDef) and item.name == "Config":
                 # Legacy Config class
                 for stmt in item.body:
                     if isinstance(stmt, ast.Assign):
                         for target in stmt.targets:
                             if isinstance(target, ast.Name):
-                                configs.append(f"// Pydantic Config: {target.id} = {self.visitor.visit(stmt.value)}")
-            elif isinstance(item, ast.FunctionDef):
-                # Will handle validators in validator_processor
-                methods.append(item)
-                self.validator_processor.process(item)
+                                configs[target.id] = self.visitor.visit(stmt.value)
+
+        # Check if we need to add imports
+        for field in fields:
+            if field.pattern:
+                # self.visitor.emitter.add_import("regex") # origin/main did this
+                pass
 
         # Generate Struct
         export = "pub " if self.visitor._is_exported(struct_name) else ""
@@ -78,11 +89,17 @@ class PydanticModelProcessor:
         struct_def = [
             f"// Pydantic Model: {struct_name}",
         ]
-        struct_def.extend(configs)
-        struct_def.extend([
-            "@[params]",
-            f"{export}struct {struct_name}{generics_str} {{"
-        ])
+
+        if configs:
+            config_comment = ", ".join([f"{k}={v}" for k, v in configs.items()])
+            struct_def.append(f"// Config: {config_comment}")
+            # Also keep HEAD's individual config comments if desired,
+            # but I'll stick to a combined one or individual ones as comments.
+            for k, v in configs.items():
+                struct_def.append(f"// Pydantic Config: {k} = {v}")
+
+        struct_def.append("@[params]")
+        struct_def.append(f"{export}struct {struct_name}{generics_str} {{")
 
         if export:
              struct_def.append("pub mut:")
@@ -109,7 +126,7 @@ class PydanticModelProcessor:
         self.visitor.emitter.add_struct("\n".join(struct_def))
 
         # Generate Validation Method
-        validation_code = self._generate_validate_method(struct_name, fields, export)
+        validation_code = self._generate_validate_method(struct_name, fields, validators, export)
         if validation_code:
             self.visitor.emitter.add_function(validation_code)
 
@@ -126,23 +143,46 @@ class PydanticModelProcessor:
 
         return "" # The emitter handles the actual output
 
-    def _generate_validate_method(self, struct_name: str, fields: List[PydanticFieldInfo], export: str) -> str:
+    def _generate_validate_method(self, struct_name: str, fields: List[PydanticFieldInfo], validators: List[PydanticValidatorInfo], export: str) -> str:
         """Generates a .validate() method for the struct."""
         code = [
             f"{export}fn (mut m {struct_name}) validate() ! {{",
         ]
 
         has_validation = False
-        for field in fields:
-            vcode = self.field_processor.generate_validation_code(field, "m")
+
+        # 1. Model validators (mode='before')
+        for v in validators:
+            if v.is_model_validator and v.mode == 'before':
+                has_validation = True
+                code.append(f"    m.{v.name}() !")
+
+        # 2. Field validators (mode='before')
+        for v in validators:
+            if not v.is_model_validator and v.mode == 'before':
+                has_validation = True
+                for field in v.fields:
+                    code.append(f"    m.{field} = {struct_name}_{v.name}(m.{field}) !")
+
+        # 3. Built-in field constraints
+        for field_info in fields:
+            vcode = self.field_processor.generate_validation_code(field_info, "m")
             if vcode:
                 has_validation = True
                 code.extend(vcode)
 
-        validator_calls = self.validator_processor.generate_validation_calls(struct_name)
-        if validator_calls:
-            has_validation = True
-            code.extend(validator_calls)
+        # 4. Field validators (mode='after' or default)
+        for v in validators:
+            if not v.is_model_validator and (v.mode in ('after', 'default') or not v.mode):
+                has_validation = True
+                for field in v.fields:
+                    code.append(f"    m.{field} = {struct_name}_{v.name}(m.{field}) !")
+
+        # 5. Model validators (mode='after' or default)
+        for v in validators:
+            if v.is_model_validator and (v.mode in ('after', 'default') or not v.mode):
+                has_validation = True
+                code.append(f"    m.{v.name}() !")
 
         if not has_validation:
             return ""

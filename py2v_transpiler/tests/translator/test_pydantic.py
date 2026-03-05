@@ -81,9 +81,6 @@ class MyModel(BaseModel):
 """
     v_code = transpiler(code)
     assert "public_field string" in v_code
-    # V doesn't support leading underscores for field names usually,
-    # but the transpiler currently preserves them (as per AGENTS.md known issues).
-    # PrivateAttr should ideally be handled by NOT putting it in [params] or making it non-pub.
     assert "_private_field string = 'secret'" in v_code
 
 def test_model_with_methods(transpiler):
@@ -148,3 +145,37 @@ except ValidationError as e:
 """
     v_code = transpiler(code)
     assert "if C.try() {" in v_code
+
+def test_extended_field_constraints(transpiler):
+    code = """
+from pydantic import BaseModel, Field
+from typing import List
+
+class Product(BaseModel):
+    sku: str = Field(pattern=r'^[A-Z]{3}-\d{4}$', title='Stock Keeping Unit', description='A unique SKU')
+    price: float = Field(multiple_of=0.01)
+    tags: List[str] = Field(min_items=1, max_items=10, unique_items=True)
+    category: str = Field(const='electronics', exclude=True)
+"""
+    v_code = transpiler(code)
+
+    # Check struct and tags
+    assert "sku string [description: 'A unique SKU'; title: 'Stock Keeping Unit']" in v_code
+    assert "price f64" in v_code
+    assert "tags []string" in v_code
+    assert "category string [json: '-']" in v_code
+
+    # Check validation logic
+    assert "if !m.sku.match_full(r'^[A-Z]{3}-\\d{4}$') { return error('Validation Error: sku must match regex r'^[A-Z]{3}-\\d{4}$') }" in v_code
+    assert "if m.price % 0.01 != 0 { return error('Validation Error: price must be a multiple of 0.01') }" in v_code
+    assert "if m.tags.len < 1 { return error('Validation Error: tags length must be >= 1') }" in v_code
+    assert "if m.tags.len > 10 { return error('Validation Error: tags length must be <= 10') }" in v_code
+
+    # Check uniqueness loop
+    assert "seen_tags := map[string]bool{}" in v_code
+    assert "for item in m.tags {" in v_code
+    assert "if item in seen_tags { return error('Validation Error: tags items must be unique') }" in v_code
+    assert "seen_tags[item] = true" in v_code
+
+    # Check const
+    assert "if m.category != 'electronics' { return error('Validation Error: category must be electronics') }" in v_code
