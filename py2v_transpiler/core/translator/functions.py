@@ -569,15 +569,15 @@ class FunctionsMixin(TranslatorBase):
                     ret_type += gen_str
 
         # Visibility handling
-        pub = ""
+        pub_prefix = ""
         if not is_nested:
             if (not is_method and self._is_exported(node.name)) or (is_method and getattr(self, 'config', None) and not func_name.startswith('_') and not is_init):
-                 pub = "pub "
+                 pub_prefix = "pub "
 
             # Factory function: pub if class is exported
             if is_init:
                  if self._is_exported(struct_name):
-                      pub = "pub "
+                      pub_prefix = "pub "
 
         noreturn_attr = "[noreturn]\n" if is_noreturn else ""
 
@@ -622,7 +622,7 @@ class FunctionsMixin(TranslatorBase):
             func_name = "str"
             decl = f"{deprecated_attr}fn {receiver_str}{func_name}() string {{"
         elif func_name == "__str__":
-            decl = f"{noreturn_attr}{deprecated_attr}pub fn {receiver_str}str() string {{"
+            decl = f"{noreturn_attr}{deprecated_attr}{pub_prefix}fn {receiver_str}str() string {{"
         elif func_name == "__iter__":
             # V iterators use 'next' method returning '?'
             # If a class has __iter__, it usually returns an iterator.
@@ -642,19 +642,6 @@ class FunctionsMixin(TranslatorBase):
             else:
                 deprecated_attr = "[deprecated]\n"
 
-<<<<<<< Updated upstream
-        pub_prefix = ""
-        if not is_nested:
-            if (not is_method and self._is_exported(node.name)) or (is_method and getattr(self, 'config', None) and not func_name.startswith('_') and not is_init):
-                 pub_prefix = "pub "
-
-            # Factory function: pub if class is exported
-            if is_init:
-                 if self._is_exported(struct_name):
-                      pub_prefix = "pub "
-
-=======
->>>>>>> Stashed changes
         if "decl" not in locals():
             if is_nested:
                 captures = self._find_captured_vars(node)
