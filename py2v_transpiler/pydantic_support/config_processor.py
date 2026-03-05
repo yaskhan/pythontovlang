@@ -33,6 +33,14 @@ class PydanticConfigProcessor:
 
         return info
 
+    def extract_from_config_dict(self, node: ast.Call) -> PydanticConfigInfo:
+        """Extracts configuration options from a Pydantic ConfigDict call."""
+        info = PydanticConfigInfo()
+        for kw in node.keywords:
+            if kw.arg:
+                self._process_option(kw.arg, kw.value, info)
+        return info
+
     def _process_option(self, name: str, value_node: ast.AST, info: PydanticConfigInfo):
         try:
             # We use ast.literal_eval for simple values if possible

@@ -40,6 +40,7 @@ class PydanticModelProcessor:
                     if isinstance(target, ast.Name) and target.id == "model_config":
                         if PydanticDetector.is_config_dict(item.value):
                             if isinstance(item.value, ast.Call):
+                                config = self.config_processor.extract_from_config_dict(item.value)
                                 for kw in item.value.keywords:
                                     if kw.arg:
                                         configs[kw.arg] = self.visitor.visit(kw.value)
@@ -57,7 +58,7 @@ class PydanticModelProcessor:
             f"// Pydantic Model: {struct_name}",
         ]
 
-        if configs:
+        if configs and not config: # Only show ConfigDict if not already processed into config object
             config_comment = ", ".join([f"{k}={v}" for k, v in configs.items()])
             struct_def.append(f"// ConfigDict: {config_comment}")
 
@@ -126,6 +127,27 @@ class PydanticModelProcessor:
         ]
 
         has_validation = False
+
+        # Apply Config transformations
+        if config:
+            for field_info in fields:
+                if field_info.type_str == "string":
+                    if config.str_strip_whitespace:
+                        code.append(f"    m.{field_info.name} = m.{field_info.name}.trim()")
+                        has_validation = True
+                    if config.str_to_lower:
+                        code.append(f"    m.{field_info.name} = m.{field_info.name}.to_lower()")
+                        has_validation = True
+                    if config.str_to_upper:
+                        code.append(f"    m.{field_info.name} = m.{field_info.name}.to_upper()")
+                        has_validation = True
+
+                    if config.min_anystr_length is not None:
+                        code.append(f'    if m.{field_info.name}.len < {config.min_anystr_length} {{ return error("Validation Error: {field_info.name} length must be >= {config.min_anystr_length}") }}')
+                        has_validation = True
+                    if config.max_anystr_length is not None:
+                        code.append(f'    if m.{field_info.name}.len > {config.max_anystr_length} {{ return error("Validation Error: {field_info.name} length must be <= {config.max_anystr_length}") }}')
+                        has_validation = True
 
         # 1. Model validators (mode='before')
         for v in validators:

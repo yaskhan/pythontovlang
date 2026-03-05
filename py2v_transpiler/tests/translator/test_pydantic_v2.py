@@ -46,8 +46,8 @@ class User(BaseModel):
 
         # Check Annotated + Field
         self.assertIn("name string", v_code)
-        self.assertIn("if m.name.len > 50 { return error('Validation Error: name length must be <= 50')", v_code)
-        self.assertIn("if m.name.len < 2 { return error('Validation Error: name length must be >= 2')", v_code)
+        self.assertIn('if m.name.len > 50 { return error("Validation Error: name length must be <= 50")', v_code)
+        self.assertIn('if m.name.len < 2 { return error("Validation Error: name length must be >= 2")', v_code)
 
         # Check field_validator integration
         self.assertIn("m.email = User_validate_email(m.email)", v_code)

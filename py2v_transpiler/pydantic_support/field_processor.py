@@ -221,38 +221,6 @@ class PydanticFieldProcessor:
                 const_display = const_display[1:-1]
             code.append(f"{indent}if {prefix} != {info.const} {{ return error('Validation Error: {info.name} must be {const_display}') }}")
 
-        if info.pattern:
-            code.append(f"{indent}if !regex.match({prefix}, {info.pattern}) {{ return error('Validation Error: {info.name} must match pattern') }}")
-
-        if info.multiple_of:
-            code.append(f"{indent}if {prefix} % {info.multiple_of} != 0 {{ return error('Validation Error: {info.name} must be multiple of {info.multiple_of}') }}")
-
-        if info.min_items:
-            code.append(f"{indent}if {prefix}.len < {info.min_items} {{ return error('Validation Error: {info.name} length must be >= {info.min_items}') }}")
-        if info.max_items:
-            code.append(f"{indent}if {prefix}.len > {info.max_items} {{ return error('Validation Error: {info.name} length must be <= {info.max_items}') }}")
-
-        if info.unique_items:
-            item_type = info.type_str
-            if item_type.startswith("[]"):
-                item_type = item_type[2:]
-            elif item_type.startswith("map[") and "]bool" in item_type:
-                # set[T] is map[T]bool
-                item_type = item_type[4:item_type.find("]bool")]
-
-            code.append(f"{indent}seen_{info.name} := map[{item_type}]bool{{}}")
-            code.append(f"{indent}for item in {prefix} {{")
-            code.append(f"{indent}    if item in seen_{info.name} {{ return error('Validation Error: {info.name} items must be unique') }}")
-            code.append(f"{indent}    seen_{info.name}[item] = true")
-            code.append(f"{indent}}}")
-
-        if info.const:
-            const_display = info.const
-            if (const_display.startswith("'") and const_display.endswith("'")) or \
-               (const_display.startswith('"') and const_display.endswith('"')):
-                const_display = const_display[1:-1]
-            code.append(f"{indent}if {prefix} != {info.const} {{ return error('Validation Error: {info.name} must be {const_display}') }}")
-
         if info.is_optional:
             code.append("    }")
 
