@@ -26,6 +26,14 @@ class AnnotationsMixin(TranslatorBase):
         return False
 
     def visit_AnnAssign(self, node: ast.AnnAssign) -> None:
+        from py2v_transpiler.pydantic_support.detector import PydanticDetector
+        if node.value and PydanticDetector.is_pydantic_field(node.value):
+            # For class-level Pydantic fields outside of PydanticModelProcessor
+            # we just skip generating assignments here, since PydanticModelProcessor
+            # extracts and processes them directly from the class body.
+            if getattr(self, "current_class", None):
+                return
+
         target = self.visit(node.target)
         if node.value:
             # Pre-allocated Capacity for Typed Collections
