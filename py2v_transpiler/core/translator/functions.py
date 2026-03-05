@@ -12,6 +12,7 @@ class FunctionsMixin(TranslatorBase):
         self._visit_function_common(node, is_async=True)
 
     def _visit_function_common(self, node: Any, is_async: bool = False) -> None:
+        orig_name: str = node.name
         # Check for @overload
         is_overload = False
         for decorator in node.decorator_list:
@@ -125,7 +126,7 @@ class FunctionsMixin(TranslatorBase):
 
             # Rename this function to impl_name
             # We modify node.name temporarily
-            original_name = node.name
+            orig_name = node.name
             node.name = impl_name
 
         is_abstract = False
@@ -140,9 +141,7 @@ class FunctionsMixin(TranslatorBase):
                 break
 
         if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
-            is_generator = self.coroutine_handler.is_generator(
-                original_name if "original_name" in locals() else node.name
-            )
+            is_generator = self.coroutine_handler.is_generator(orig_name)
 
         # Analyze decorators
         dec_info = self.decorator_processor.analyze(node, self.current_class)
@@ -508,12 +507,8 @@ class FunctionsMixin(TranslatorBase):
             op = op_map.get(func_name)
             if op:
                 func_name = op
-                decl = (
-                    f"{deprecated_attr}fn {receiver_str}{op} ({args_str}) {ret_type} {{"
-                )
         elif func_name in ("__str__", "__repr__"):
             func_name = "str"
-            decl = f"{deprecated_attr}fn {receiver_str}{func_name}() string {{"
         elif func_name == "__iter__":
             # V iterators use 'next' method returning '?'
             # If a class has __iter__, it usually returns an iterator.
@@ -523,7 +518,6 @@ class FunctionsMixin(TranslatorBase):
             # Let's map __iter__ to 'iter' if it doesn't return Self, or skip?
             # For now, let's use 'iter'
             func_name = "iter"
-            decl = f"{noreturn_attr}{deprecated_attr}fn {receiver_str}{func_name}{func_generics_str}({args_str}) {ret_type} {{"
 
         # PEP 702: Add [deprecated] attribute for @warnings.deprecated decorator
         deprecated_attr = ""
@@ -533,7 +527,7 @@ class FunctionsMixin(TranslatorBase):
             else:
                 deprecated_attr = "[deprecated]\n"
 
-        pub = ""
+        pub: str = ""
         if (not is_method and self._is_exported(node.name)) or (is_method and getattr(self, 'config', None) and not func_name.startswith('_') and not is_init):
              pub = "pub "
 
@@ -542,10 +536,26 @@ class FunctionsMixin(TranslatorBase):
              if self._is_exported(struct_name):
                   pub = "pub "
 
-        if "decl" not in locals():
-            decl = f"{noreturn_attr}{deprecated_attr}{pub}fn {receiver_str}{func_name}{func_generics_str}({args_str}) {ret_type} {{"
-        if ret_type == "void":
-            decl = f"{noreturn_attr}{deprecated_attr}{pub}fn {receiver_str}{func_name}{func_generics_str}({args_str}) {{"
+        decl: str = ""
+        if func_name == "init_subclass" or func_name == "init" or func_name == self._get_factory_name(struct_name) or (is_method and func_name in ("+", "-", "*", "/", "%", "<", "<=", "==", "!=", "str")):
+             pass # Handled below
+        else:
+             decl = f"{noreturn_attr}{deprecated_attr}{pub}fn {receiver_str}{func_name}{func_generics_str}({args_str}) {ret_type} {{"
+             if ret_type == "void":
+                 decl = f"{noreturn_attr}{deprecated_attr}{pub}fn {receiver_str}{func_name}{func_generics_str}({args_str}) {{"
+
+        # Special operator/magic method handling (repeating logic to avoid 'decl' used-before-def)
+        if is_method and func_name in ("+", "-", "*", "/", "%", "<", "<=", "==", "!="):
+             decl = f"{deprecated_attr}fn {receiver_str}{func_name} ({args_str}) {ret_type} {{"
+        elif func_name == "str":
+             decl = f"{deprecated_attr}fn {receiver_str}str() string {{"
+        elif func_name == "iter":
+             decl = f"{noreturn_attr}{deprecated_attr}fn {receiver_str}{func_name}{func_generics_str}({args_str}) {ret_type} {{"
+
+        if not decl:
+             decl = f"{noreturn_attr}{deprecated_attr}{pub}fn {receiver_str}{func_name}{func_generics_str}({args_str}) {ret_type} {{"
+             if ret_type == "void":
+                 decl = f"{noreturn_attr}{deprecated_attr}{pub}fn {receiver_str}{func_name}{func_generics_str}({args_str}) {{"
 
         self.output.append(f"{decl}")
         self._indent_level += 1
