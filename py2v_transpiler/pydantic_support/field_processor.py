@@ -37,23 +37,48 @@ class PydanticFieldProcessor:
 
         # Determine basic type
         from py2v_transpiler.models.v_types import _map_ast_type
-        # We need to map AST node to string first, then use _map_type
-        ast_type_str = _map_ast_type(node.annotation)
+        from .detector import PydanticDetector
+
+        annotation = node.annotation
+        field_node = None
+
+        # Handle Annotated[T, Field(...)]
+        if isinstance(annotation, ast.Subscript):
+            if isinstance(annotation.value, ast.Name) and annotation.value.id == "Annotated":
+                # Annotated[Type, Metadata1, Metadata2]
+                if isinstance(annotation.slice, ast.Tuple):
+                    # Python < 3.9 might have a different slice structure but ast.unparse/ast.parse mode='eval' handles it
+                    # In 3.9+ it's ast.Tuple
+                    elts = annotation.slice.elts
+                    if elts:
+                        annotation = elts[0] # The actual type
+                        for metadata in elts[1:]:
+                            if PydanticDetector.is_pydantic_field(metadata):
+                                field_node = metadata
+                                break
+
+        ast_type_str = _map_ast_type(annotation)
         type_str = self.visitor._map_type(ast_type_str)
         is_optional = type_str.startswith("?")
 
         info = PydanticFieldInfo(name=name, type_str=type_str, is_optional=is_optional)
 
+        # Priority 1: Field() in Annotated
+        if field_node and isinstance(field_node, ast.Call):
+            self._parse_field_kwargs(field_node, info)
+
+        # Priority 2: Field() as the assigned value
         if node.value and isinstance(node.value, ast.Call):
-            from .detector import PydanticDetector
             if PydanticDetector.is_pydantic_field(node.value):
                 # It's a Field(...)
                 self._parse_field_kwargs(node.value, info)
             else:
                 # It's a standard default value like `x: int = 5`
-                info.default_val = self.visitor.visit(node.value)
+                if not info.default_val:
+                    info.default_val = self.visitor.visit(node.value)
         elif node.value:
-            info.default_val = self.visitor.visit(node.value)
+            if not info.default_val:
+                info.default_val = self.visitor.visit(node.value)
 
         return info
 
