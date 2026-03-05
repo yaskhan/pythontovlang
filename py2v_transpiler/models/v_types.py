@@ -1,6 +1,6 @@
 import ast
 from enum import Enum, auto
-from typing import Optional
+from typing import Optional, Callable
 
 class VType(Enum):
     INT = auto()
@@ -14,7 +14,7 @@ class VType(Enum):
     NONE = auto()
     UNKNOWN = auto()
 
-def map_python_type_to_v(py_type: str, self_name: str = "Self", allow_union: bool = True, generic_map: Optional[dict[str, str]] = None) -> str:
+def map_python_type_to_v(py_type: str, self_name: str = "Self", allow_union: bool = True, generic_map: Optional[dict[str, str]] = None, sum_type_registrar: Optional[Callable[[str], str]] = None) -> str:
     """Maps a Python type name to its V equivalent."""
     if not py_type:
         return 'void'
@@ -48,11 +48,11 @@ def map_python_type_to_v(py_type: str, self_name: str = "Self", allow_union: boo
     try:
         # Use AST to parse complex types
         node = ast.parse(py_type, mode='eval').body
-        return _map_ast_type(node, self_name, allow_union, generic_map)
+        return _map_ast_type(node, self_name, allow_union, generic_map, sum_type_registrar)
     except SyntaxError:
         return py_type
 
-def _map_ast_type(node: ast.AST, self_name: str = "Self", allow_union: bool = True, generic_map: Optional[dict[str, str]] = None) -> str:
+def _map_ast_type(node: ast.AST, self_name: str = "Self", allow_union: bool = True, generic_map: Optional[dict[str, str]] = None, sum_type_registrar: Optional[Callable[[str], str]] = None) -> str:
     if isinstance(node, ast.Name):
         if node.id == "Self":
             return self_name
@@ -100,13 +100,13 @@ def _map_ast_type(node: ast.AST, self_name: str = "Self", allow_union: bool = Tr
         if isinstance(node.value, str):
             try:
                 inner_node = ast.parse(node.value, mode='eval').body
-                return _map_ast_type(inner_node, self_name, allow_union, generic_map)
+                return _map_ast_type(inner_node, self_name, allow_union, generic_map, sum_type_registrar)
             except SyntaxError:
                 return node.value
         return str(node.value)
 
     elif isinstance(node, ast.Starred):
-        return _map_ast_type(node.value, self_name, allow_union, generic_map)
+        return _map_ast_type(node.value, self_name, allow_union, generic_map, sum_type_registrar)
 
     elif isinstance(node, ast.Subscript):
         # Handle List[T], Dict[K,V], Optional[T], etc.
@@ -139,7 +139,7 @@ def _map_ast_type(node: ast.AST, self_name: str = "Self", allow_union: bool = Tr
             args = [slice_node]
 
         # Helper to map args, handling nested types
-        mapped_args = [_map_ast_type(arg, self_name, allow_union, generic_map) for arg in args]
+        mapped_args = [_map_ast_type(arg, self_name, allow_union, generic_map, sum_type_registrar) for arg in args]
 
         if value_id in ('List', 'list', 'Sequence', 'MutableSequence', 'Iterable', 'Iterator'):
             if mapped_args:
@@ -202,7 +202,13 @@ def _map_ast_type(node: ast.AST, self_name: str = "Self", allow_union: bool = Tr
                 for arg in mapped_args:
                     if arg not in unique_args:
                         unique_args.append(arg)
-                return " | ".join(unique_args)
+
+                union_str = " | ".join(unique_args)
+                if sum_type_registrar:
+                    if len(non_none) < len(mapped_args): # had none
+                        return f"?{sum_type_registrar(' | '.join(non_none))}"
+                    return sum_type_registrar(union_str)
+                return union_str
             return "Any"
 
         elif value_id in ('Callable', 'typing.Callable'):
@@ -214,7 +220,7 @@ def _map_ast_type(node: ast.AST, self_name: str = "Self", allow_union: bool = Tr
 
                 arg_types = []
                 if isinstance(arg_list_node, ast.List):
-                    arg_types = [_map_ast_type(a, self_name, allow_union, generic_map) for a in arg_list_node.elts]
+                    arg_types = [_map_ast_type(a, self_name, allow_union, generic_map, sum_type_registrar) for a in arg_list_node.elts]
                 elif isinstance(arg_list_node, ast.Name) and generic_map and arg_list_node.id in generic_map:
                     # ParamSpec: Callable[P, Ret]
                     # We usually map P to empty args if it represents the whole signature
@@ -225,9 +231,9 @@ def _map_ast_type(node: ast.AST, self_name: str = "Self", allow_union: bool = Tr
                     arg_types = ["..."]
                 elif isinstance(arg_list_node, ast.Name):
                     # ParamSpec: Callable[P, Ret]
-                    arg_types = [_map_ast_type(arg_list_node, self_name, allow_union, generic_map)]
+                    arg_types = [_map_ast_type(arg_list_node, self_name, allow_union, generic_map, sum_type_registrar)]
 
-                ret_type = _map_ast_type(ret_node, self_name, allow_union, generic_map)
+                ret_type = _map_ast_type(ret_node, self_name, allow_union, generic_map, sum_type_registrar)
                 if ret_type == "none": ret_type = "void"
 
                 return f"fn ({', '.join(arg_types)}) {ret_type}"
@@ -282,14 +288,19 @@ def _map_ast_type(node: ast.AST, self_name: str = "Self", allow_union: bool = Tr
     elif isinstance(node, ast.BinOp):
         # A | B (Python 3.10+ Union)
         if isinstance(node.op, ast.BitOr):
-            left_type = _map_ast_type(node.left, self_name, allow_union, generic_map)
-            right_type = _map_ast_type(node.right, self_name, allow_union, generic_map)
+            left_type = _map_ast_type(node.left, self_name, allow_union, generic_map, sum_type_registrar)
+            right_type = _map_ast_type(node.right, self_name, allow_union, generic_map, sum_type_registrar)
+
             if left_type == 'none':
                 return f"?{right_type}"
             if right_type == 'none':
                 return f"?{left_type}"
+
             if allow_union:
-                return f"{left_type} | {right_type}"
+                union_str = f"{left_type} | {right_type}"
+                if sum_type_registrar:
+                    return sum_type_registrar(union_str)
+                return union_str
             return "Any"
 
     return "void"
