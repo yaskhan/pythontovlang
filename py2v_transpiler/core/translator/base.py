@@ -239,6 +239,10 @@ class TranslatorBase(ast.NodeVisitor):
             res.append(char.lower())
         return "".join(res)
 
+    def _get_factory_name(self, struct_name: str) -> str:
+        """Returns a snake_case factory name for a given struct name."""
+        return f"new_{self._to_snake_case(struct_name)}"
+
     def _get_generic_map(self, generic_names: List[str]) -> Dict[str, str]:
         """
         Generates a mapping from Python generic names to unique single-character V generic names.

@@ -284,7 +284,7 @@ class FunctionsMixin(TranslatorBase):
         if node.name == "__new__":
             is_new_method = True
             # Rename __new__ to factory name
-            node.name = f"new_{struct_name}"
+            node.name = self._get_factory_name(struct_name)
             # Remove 'cls' argument if present
             if args and args[0].arg == "cls":
                 args = args[1:]
@@ -463,7 +463,7 @@ class FunctionsMixin(TranslatorBase):
                 # is_method remains True, receiver_str is already set
             else:
                 is_init = True
-                func_name = f"new_{struct_name}"
+                func_name = self._get_factory_name(struct_name)
                 receiver_str = ""  # Factory is static
                 ret_type = struct_name
                 if self.current_class_generics:
