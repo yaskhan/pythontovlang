@@ -443,9 +443,9 @@ class AssignmentsMixin(TranslatorBase):
                     if local_v_type and local_v_type != "unknown":
                         if not local_v_type.startswith("?"):
                             local_v_type = f"?{local_v_type}"
-                        emit_fn(f"{self._indent()}mut {v_lhs} := {local_v_type}(none)")
+                        emit_fn(f"{self._indent()}mut {v_lhs} := (none as {local_v_type})")
                     else:
-                        emit_fn(f"{self._indent()}mut {v_lhs} := ?Any(none)")
+                        emit_fn(f"{self._indent()}mut {v_lhs} := (none as ?Any)")
                     if not self.in_main: self._local_vars_in_scope.add(v_lhs)
                 else:
                     v_lhs = self._to_snake_case(lhs) if (isinstance(target, ast.Name) and not lhs.islower()) else lhs
