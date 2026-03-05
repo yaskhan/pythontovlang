@@ -628,28 +628,35 @@ class FunctionsMixin(TranslatorBase):
             self.in_init = True
             self.output.append(f"{self._indent()}mut self := {ret_type}{{}}")
 
-        # Check for docstring
-        body = node.body
-        if (
-            body
-            and isinstance(body[0], ast.Expr)
-            and isinstance(body[0].value, ast.Constant)
-            and isinstance(body[0].value.value, str)
-        ):
-            doc = body[0].value.value.strip()
-            for line in doc.splitlines():
-                self.output.append(f"{self._indent()}// {line}")
-            body = body[1:]
+        # Track current function return type for visit_Return
+        prev_ret_type: Optional[str] = getattr(self, "current_function_return_type", None)
+        self.current_function_return_type = ret_type
 
-        # We need to inject `_ = <- ch_in` at the start of generator execution.
-        # This corresponds to waiting for the first `next()` call.
-        if is_generator:
-            self.output.append(
-                f"{self._indent()}_ := <-{self.coroutine_handler.active_in_channel}"
-            )
+        try:
+            # Check for docstring
+            body = node.body
+            if (
+                body
+                and isinstance(body[0], ast.Expr)
+                and isinstance(body[0].value, ast.Constant)
+                and isinstance(body[0].value.value, str)
+            ):
+                doc = body[0].value.value.strip()
+                for line in doc.splitlines():
+                    self.output.append(f"{self._indent()}// {line}")
+                body = body[1:]
 
-        for stmt in body:
-            self.visit(stmt)
+            # We need to inject `_ = <- ch_in` at the start of generator execution.
+            # This corresponds to waiting for the first `next()` call.
+            if is_generator:
+                self.output.append(
+                    f"{self._indent()}_ := <-{self.coroutine_handler.active_in_channel}"
+                )
+
+            for stmt in body:
+                self.visit(stmt)
+        finally:
+            self.current_function_return_type = prev_ret_type
 
         # Pop function generic scope
         self.generic_scopes.pop()
@@ -820,27 +827,34 @@ class FunctionsMixin(TranslatorBase):
             self.output.append(decl)
             self._indent_level += 1
 
-            # Note: We are using the implementation body, but its local types might need casts
-            # However, the V compiler handles explicit interfaces or generic returns if valid.
-            body = node.body
-            if (
-                body
-                and isinstance(body[0], ast.Expr)
-                and isinstance(body[0].value, ast.Constant)
-                and isinstance(body[0].value.value, str)
-            ):
-                doc = body[0].value.value.strip()
-                for line in doc.splitlines():
-                    self.output.append(f"{self._indent()}// {line}")
-                body = body[1:]
+            # Track current function return type for visit_Return
+            prev_ret_type: Optional[str] = getattr(self, "current_function_return_type", None)
+            self.current_function_return_type = ret_type
 
-            if is_generator:
-                self.output.append(
-                    f"{self._indent()}_ := <-{self.coroutine_handler.active_in_channel}"
-                )
+            try:
+                # Note: We are using the implementation body, but its local types might need casts
+                # However, the V compiler handles explicit interfaces or generic returns if valid.
+                body = node.body
+                if (
+                    body
+                    and isinstance(body[0], ast.Expr)
+                    and isinstance(body[0].value, ast.Constant)
+                    and isinstance(body[0].value.value, str)
+                ):
+                    doc = body[0].value.value.strip()
+                    for line in doc.splitlines():
+                        self.output.append(f"{self._indent()}// {line}")
+                    body = body[1:]
 
-            for stmt in body:
-                self.visit(stmt)
+                if is_generator:
+                    self.output.append(
+                        f"{self._indent()}_ := <-{self.coroutine_handler.active_in_channel}"
+                    )
+
+                for stmt in body:
+                    self.visit(stmt)
+            finally:
+                self.current_function_return_type = prev_ret_type
 
             # Pop function generic scope
             self.generic_scopes.pop()
@@ -924,7 +938,19 @@ class FunctionsMixin(TranslatorBase):
         if getattr(self, "in_init", False) and not node.value:
             self.output.append(f"{self._indent()}return self")
         elif node.value:
-            val = self.visit(node.value)
+            # Pass return type as contextual assignment type to help literal translation
+            prev_assign_type = getattr(self, "current_assignment_type", None)
+            if hasattr(self, "current_function_return_type"):
+                self.current_assignment_type = self.current_function_return_type
+
+            try:
+                val = self.visit(node.value)
+            finally:
+                if prev_assign_type is not None:
+                    self.current_assignment_type = prev_assign_type
+                elif hasattr(self, "current_assignment_type"):
+                    del self.current_assignment_type
+
             self.output.append(f"{self._indent()}return {val}")
         else:
             self.output.append(f"{self._indent()}return")
