@@ -50,7 +50,7 @@ match x:
         pass
 """
     v_code = translate(source)
-    assert "b := (_match_subject_any_1 as Box[f64])" in v_code
+    assert "b := (py_match_subject_any_1 as Box[f64])" in v_code
     # Wait, float maps to f64 in MatchClass, but let's check _unmangle_generic_name doesn't interfere.
     # In my verify_generics it showed Box[int] which is correct because int maps to int.
     # float should map to f64.
