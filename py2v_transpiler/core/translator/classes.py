@@ -140,6 +140,7 @@ class ClassesMixin(TranslatorBase):
         # If this is a main struct, collect fields from its mixins first
         if is_main_struct:
             mixin_nodes = getattr(self.type_inference, "mixin_nodes", {})
+            # main_to_mixins is now recursive thanks to the analyzer change
             for mixin_name in self.type_inference.main_to_mixins[struct_name]:
                 if mixin_name in mixin_nodes:
                     mixin_node = mixin_nodes[mixin_name]
@@ -149,6 +150,7 @@ class ClassesMixin(TranslatorBase):
                         ):
                             field_name = self._sanitize_name(stmt.target.id)
                             if field_name not in added_fields:
+                                added_fields.add(field_name)
                                 field_type = "int"
                                 if stmt.annotation:
                                     try:
