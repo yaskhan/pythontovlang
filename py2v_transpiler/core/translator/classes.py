@@ -776,11 +776,11 @@ class ClassesMixin(TranslatorBase):
             has_str_mixin = any(m.name == "__str__" for m in methods)
             for method in methods:
                 if method.name == "__repr__":
-                    setattr(method, "original_name", "__repr__")
+                    method.original_name = "__repr__"
                     if has_str_mixin:
-                        setattr(method, "name", "repr")
+                        method.name = "repr"
                     else:
-                        setattr(method, "name", "str")
+                        method.name = "str"
             for method in methods:
                 self.visit(method)
         else:
@@ -937,11 +937,11 @@ class ClassesMixin(TranslatorBase):
             has_str = any(m.name == "__str__" for m in methods)
             for method in methods:
                 if method.name == "__repr__":
-                    setattr(method, "original_name", "__repr__")
+                    method.original_name = "__repr__"
                     if has_str:
-                        setattr(method, "name", "repr")
+                        method.name = "repr"
                     else:
-                        setattr(method, "name", "str")
+                        method.name = "str"
 
             # Visit methods to generate them as functions
             for method in methods:
