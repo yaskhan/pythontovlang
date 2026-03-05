@@ -80,9 +80,13 @@ class VCodeEmitter:
             lines.append("")
 
         if self.globals:
-            lines.append("__global (")
-            lines.extend(["    " + g for g in self.globals])
-            lines.append(")\n")
+            lines.insert(1, "// To compile with globals, use: v -enable-globals .")
+            for g in self.globals:
+                sanitized_g = g
+                if g.startswith("pub "):
+                    sanitized_g = g[4:]
+                lines.append(f"__global {sanitized_g}")
+            lines.append("")
 
         if self.constants:
             lines.append("const (")

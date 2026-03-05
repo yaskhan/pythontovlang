@@ -23,6 +23,12 @@ class PydanticModelProcessor:
                 # Will handle validators in validator_processor
                 methods.append(item)
 
+        # Check if we need to add imports
+        for field in fields:
+            if field.pattern:
+                self.visitor.emitter.add_import("regex")
+                break
+
         # Generate Struct
         export = "pub " if self.visitor._is_exported(struct_name) else ""
 
