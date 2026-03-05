@@ -14,7 +14,7 @@ from py2v_transpiler.core.mypy_tips import get_mypy_tips
 class Transpiler:
     def transpile(self, source_code: str) -> str:
         parser = PyASTParser()
-        tree = parser.parse(source_code)
+        tree, stub_lines = parser.parse(source_code, return_stub_lines=True)
 
         if not isinstance(tree, ast.Module):
             raise ValueError("Expected a valid Python module")
@@ -24,6 +24,8 @@ class Transpiler:
         analyzer.analyze(tree)
 
         translator = VNodeVisitor(analyzer)
+        for line in stub_lines:
+            translator.warnings.append(f"Stub expression /* ... */ at line {line} skipped")
         return translator.visit_Module(tree)
 
 from py2v_transpiler.core.generator import VCodeEmitter
@@ -97,7 +99,7 @@ def transpile_file(source_file: str, config: TranspilerConfig, global_helpers: O
     # 2. Parse AST
     parser = PyASTParser()
     try:
-        tree = parser.parse(source_code)
+        tree, stub_lines = parser.parse(source_code, return_stub_lines=True)
         if not isinstance(tree, ast.Module):
             print(f"Error: {source_file} must be a valid Python module.")
             return False
@@ -132,6 +134,10 @@ def transpile_file(source_file: str, config: TranspilerConfig, global_helpers: O
 
     # 4. Translate
     translator = VNodeVisitor(analyzer, config=config)
+
+    for line in stub_lines:
+        translator.warnings.append(f"Stub expression /* ... */ at line {line} skipped")
+
     translator.current_module_name = current_module
     # Use the same relative path key as SCC for consistent prefixing
     # Actually, we need the path relative to project root

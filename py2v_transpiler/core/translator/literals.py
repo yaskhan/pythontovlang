@@ -51,6 +51,14 @@ class LiteralsMixin(TranslatorBase):
 
             return to_standard_str(val)
         elif val is Ellipsis:
+             if hasattr(self, 'current_assignment_type'):
+                  # If we have a known type (e.g. from AnnAssign or _guess_type), use a typed placeholder
+                  t = self.current_assignment_type
+                  if t == "Any" or t == "unknown":
+                      return "Any(none) // stub"
+                  if t.startswith("?"):
+                      return f"{t}(none) // stub"
+                  return f"?{t}(none) // stub"
              return "/* ... */"
         elif isinstance(val, bool):
             return str(val).lower()

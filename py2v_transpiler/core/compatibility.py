@@ -28,14 +28,31 @@ class CompatibilityLayer:
         """Checks if a name is a Python soft keyword."""
         return name in self.PYTHON_SOFT_KEYWORDS
 
-    def preprocess_source(self, source: str) -> str:
+    def preprocess_source(self, source: str) -> tuple[str, list[int]]:
         """
         Applies a series of pre-processing transformations to the Python source
         to support newer or future syntax on older Python versions.
+        Returns a tuple of (processed_source, stub_lines).
         """
+        source, stub_lines = self._preprocess_mypy_stubs(source)
         source = self._preprocess_bracketless_except(source)
         # Add more future pre-processors here
-        return source
+        return source, stub_lines
+
+    def _preprocess_mypy_stubs(self, source: str) -> tuple[str, list[int]]:
+        """
+        Replaces mypy stub syntax /* ... */ with ... to allow AST parsing.
+        """
+        lines = source.splitlines(keepends=True)
+        stub_lines = []
+        new_lines = []
+        for i, line in enumerate(lines):
+            if "/* ... */" in line:
+                stub_lines.append(i + 1)
+                new_lines.append(line.replace("/* ... */", "..."))
+            else:
+                new_lines.append(line)
+        return "".join(new_lines), stub_lines
 
     def _preprocess_bracketless_except(self, source: str) -> str:
         """
