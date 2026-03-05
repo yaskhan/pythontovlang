@@ -516,11 +516,13 @@ class FunctionsMixin(TranslatorBase):
             func_name = dec_info.implementation_name
 
         is_init = False
+        is_pydantic = False
         if "decl" not in locals() and func_name == "__init_subclass__":
             receiver_str = ""
             func_name = "init_subclass"
         elif func_name == "__init__":
             class_info = self.defined_classes.get(struct_name, {})
+            is_pydantic = class_info.get("is_pydantic", False)
             if class_info.get("has_new"):
                 # If __new__ is present, __init__ becomes a regular method named 'init'
                 func_name = "init"
@@ -534,6 +536,8 @@ class FunctionsMixin(TranslatorBase):
                     gen_str = f"[{', '.join(self.current_class_generics)}]"
                     # Do NOT add to func_name here, as func_generics_str will add it to the 'fn' decl
                     ret_type += gen_str
+                if is_pydantic:
+                    ret_type = "!" + ret_type
 
         noreturn_attr = "[noreturn]\n" if is_noreturn else ""
 
@@ -644,7 +648,10 @@ class FunctionsMixin(TranslatorBase):
         prev_in_init = getattr(self, "in_init", False)
         if is_init:
             self.in_init = True
-            self.output.append(f"{self._indent()}mut self := {ret_type}{{}}")
+            struct_init_type = struct_name
+            if self.current_class_generics:
+                struct_init_type += f"[{', '.join(self.current_class_generics)}]"
+            self.output.append(f"{self._indent()}mut self := {struct_init_type}{{}}")
 
         # Track current function return type for visit_Return
         prev_ret_type: Optional[str] = getattr(self, "current_function_return_type", None)
@@ -710,6 +717,8 @@ class FunctionsMixin(TranslatorBase):
             self.coroutine_handler.exit_generator()
 
         if is_init:
+            if is_pydantic:
+                self.output.append(f"{self._indent()}self.validate() or {{ return err }}")
             self.output.append(f"{self._indent()}return self")
             self.in_init = prev_in_init
 
