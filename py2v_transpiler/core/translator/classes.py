@@ -777,7 +777,7 @@ class ClassesMixin(TranslatorBase):
             if has_str:
                 for method in methods:
                     if method.name == "__repr__":
-                        method.name = "repr"
+                        setattr(method, "name", "repr")
 
             for method in methods:
                 self.visit(method)
@@ -936,7 +936,7 @@ class ClassesMixin(TranslatorBase):
             if has_str:
                 for method in methods:
                     if method.name == "__repr__":
-                        method.name = "repr"
+                        setattr(method, "name", "repr")
 
             # Visit methods to generate them as functions
             for method in methods:
