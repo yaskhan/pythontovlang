@@ -21,7 +21,7 @@ class TestDictUnpacking(unittest.TestCase):
         result = self.transpile(source)
         self.assertIn("py_dict_merge", result)
         # Check structure
-        # V map literals: map[string]int{'a': 1}
+        # V map literals: {'a': 1}
         self.assertIn("'a': 1", result)
         self.assertIn("extra", result)
         self.assertIn("'b': 2", result)
