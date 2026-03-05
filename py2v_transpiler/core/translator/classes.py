@@ -667,9 +667,10 @@ class ClassesMixin(TranslatorBase):
 
             pub = "pub " if self._is_exported(node.name) else ""
             gen_str = f"[{', '.join(self.current_class_generics)}]" if self.current_class_generics else ""
+            factory_name = self._get_factory_name(struct_name)
 
             factory_code = [
-                f"{pub}fn new_{struct_name}{gen_str}({', '.join(factory_args)}) {struct_name}{gen_str} {{",
+                f"{pub}fn {factory_name}{gen_str}({', '.join(factory_args)}) {struct_name}{gen_str} {{",
                 f"    mut self := {struct_name}{gen_str}{{{', '.join(struct_init_args)}}}",
                 f"    self.post_init({', '.join(post_init_args)})",
                 f"    return self",
