@@ -17,8 +17,8 @@ def test_destructuring_head_star():
 a, *b = l
 """
     v_code = transpile(code)
-    assert "_destruct_" in v_code
-    assert re.search(r":= _destruct_\d+", v_code) # temp assignment
+    assert "destruct_" in v_code
+    assert re.search(r":= destruct_\d+", v_code) # temp assignment
     assert re.search(r"\[0\]", v_code)
     assert re.search(r"\[1\.\.\]", v_code)
 
@@ -37,7 +37,7 @@ a, *b, c = l
     v_code = transpile(code)
     assert "[0]" in v_code
     assert "len-1]" in v_code
-    assert re.search(r"1\.\._destruct_", v_code)
+    assert re.search(r"1\.\.destruct_", v_code)
 
 def test_simple_unpacking_optimized():
     code = """
@@ -46,14 +46,14 @@ a, b = 1, 2
     v_code = transpile(code)
     # Expect optimization: a, b := 1, 2
     assert "a, b := 1, 2" in v_code
-    assert "_destruct_" not in v_code
+    assert "destruct_" not in v_code
 
 def test_simple_unpacking_variable():
     code = """
 a, b = l
 """
     v_code = transpile(code)
-    assert "_destruct_" in v_code
-    # Expect a := _destruct_X[0]
-    assert re.search(r"a := _destruct_\d+\[0\]", v_code)
-    assert re.search(r"b := _destruct_\d+\[1\]", v_code)
+    assert "destruct_" in v_code
+    # Expect a := destruct_X[0]
+    assert re.search(r"a := destruct_\d+\[0\]", v_code)
+    assert re.search(r"b := destruct_\d+\[1\]", v_code)

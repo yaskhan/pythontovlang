@@ -23,13 +23,13 @@ class MatchMixin(TranslatorBase):
         subject = self.visit(node.subject)
         self._zip_counter += 1
         match_id = self._zip_counter
-        subject_var = f"_match_subject_{match_id}"
-        found_var = f"_match_found_{match_id}"
+        subject_var = f"match_subject_{match_id}"
+        found_var = f"match_found_{match_id}"
 
         self.output.append(f"{self._indent()}// Match statement converted to separate if blocks")
         self.output.append(f"{self._indent()}{subject_var} := {subject}")
         # Create an 'any' alias for type checking
-        subject_any = f"_match_subject_any_{match_id}"
+        subject_any = f"match_subject_any_{match_id}"
         self.output.append(f"{self._indent()}{subject_any} := Any({subject_var})")
         self.output.append(f"{self._indent()}mut {found_var} := false")
 
@@ -238,7 +238,7 @@ class MatchMixin(TranslatorBase):
                  else:
                      # Fallback to positional index if unknown
                      # Python usually requires __match_args__ but we can try to be helpful
-                     attr = f"_{i}"
+                     attr = f"arg_{i}"
 
                  cast_expr = f"({subject_expr} as {cls_name})"
                  val_expr = f"Any({cast_expr}.{attr})"
@@ -247,12 +247,13 @@ class MatchMixin(TranslatorBase):
                  bindings.extend(sub_bindings)
 
              for attr, sub_pat in zip(pattern.kwd_attrs, pattern.kwd_patterns):
+                 sanitized_attr = self._sanitize_name(attr)
                  cast_expr = f"({subject_expr} as {cls_name})"
                  # Need to wrap in Any() for recursive generic check?
                  # _compile_pattern expects subject_expr to be Any if it does type checks.
                  # If we pass `${cast_expr}.attr`, it is typed.
                  # So we wrap it: `Any(...)`.
-                 val_expr = f"Any({cast_expr}.{attr})"
+                 val_expr = f"Any({cast_expr}.{sanitized_attr})"
                  sub_cond, sub_bindings = self._compile_pattern(sub_pat, val_expr)
                  cond += f" && ({sub_cond})"
                  bindings.extend(sub_bindings)

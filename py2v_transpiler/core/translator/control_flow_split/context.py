@@ -14,7 +14,7 @@ class ContextMixin(TranslatorBase):
                 self.output.append(f"{self._indent()}{var} := {context_expr}")
                 self.output.append(f"{self._indent()}defer {{ {var}.close() }}")
             else:
-                tmp_var = f"_ctx_mgr_{self._zip_counter}"
+                tmp_var = f"ctx_mgr_{self._zip_counter}"
                 self._zip_counter += 1
                 self.output.append(f"{self._indent()}{tmp_var} := {context_expr}")
                 self.output.append(f"{self._indent()}defer {{ {tmp_var}.close() }}")
@@ -82,7 +82,7 @@ class ContextMixin(TranslatorBase):
             else:
                 # If no variable is assigned, we still need to close it.
                 # But we don't have a variable name. We should create a temp one.
-                tmp_var = f"_ctx_mgr_{self._zip_counter}"
+                tmp_var = f"ctx_mgr_{self._zip_counter}"
                 self._zip_counter += 1
                 self.output.append(f"{self._indent()}{tmp_var} := {context_expr}")
                 self.output.append(f"{self._indent()}defer {{ {tmp_var}.close() }}")

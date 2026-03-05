@@ -167,10 +167,11 @@ class AssignmentsMixin(TranslatorBase):
             # obj.attr = value
             # Check for function attribute assignment
             obj_name = self.visit(target.value)
+            sanitized_attr = self._sanitize_name(target.attr)
             if obj_name in self.function_names:
-                 lhs = f"{obj_name}__{target.attr}"
+                 lhs = f"{obj_name}__{sanitized_attr}"
             else:
-                 lhs = f"{obj_name}.{target.attr}"
+                 lhs = f"{obj_name}.{sanitized_attr}"
         elif isinstance(target, ast.Subscript):
             # dict["key"] = value (TypedDict)
             obj_type = getattr(self, "_guess_type", lambda x: "unknown")(target.value)
@@ -273,7 +274,7 @@ class AssignmentsMixin(TranslatorBase):
         if len(node.targets) > 1:
             # chained assignment: a = b = c = 1
             rhs = self.visit(node.value)
-            tmp = f"_assign_tmp_{self.unique_id_counter}"
+            tmp = f"assign_tmp_{self.unique_id_counter}"
             self.unique_id_counter += 1
             self.output.append(f"{self._indent()}{tmp} := {rhs}")
 
@@ -482,7 +483,7 @@ class AssignmentsMixin(TranslatorBase):
         if isinstance(target, (ast.Tuple, ast.List)):
              # Assign source to a temporary variable to avoid repeated evaluation
              # and allow slicing
-             tmp_var = f"_destruct_{self._zip_counter}"
+             tmp_var = f"destruct_{self._zip_counter}"
              self._zip_counter += 1
              self.output.append(f"{self._indent()}{tmp_var} := {source_expr}")
 

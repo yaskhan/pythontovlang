@@ -8,7 +8,7 @@ class ComprehensionsMixin(TranslatorBase):
         if target_var is None:
             is_inline = True
             self.unique_id_counter += 1
-            target_var = f"_comp_{self.unique_id_counter}"
+            target_var = f"comp_{self.unique_id_counter}"
 
         gen = node.generators[0] # Handle first generator
 
@@ -84,11 +84,11 @@ class ComprehensionsMixin(TranslatorBase):
                  it1 = self.visit(zip_args[0])
                  it2 = self.visit(zip_args[1])
 
-                 var_it1 = f"_zip_it1_{zip_id}"
-                 var_it2 = f"_zip_it2_{zip_id}"
-                 var_i = f"_i_{zip_id}"
-                 var_v1 = f"_v1_{zip_id}"
-                 var_v2 = f"_v2_{zip_id}"
+                 var_it1 = f"zip_it1_{zip_id}"
+                 var_it2 = f"zip_it2_{zip_id}"
+                 var_i = f"i_{zip_id}"
+                 var_v1 = f"v1_{zip_id}"
+                 var_v2 = f"v2_{zip_id}"
 
                  self.output.append(f"{self._indent()}{var_it1} := {it1}")
                  self.output.append(f"{self._indent()}{var_it2} := {it2}")
@@ -233,7 +233,7 @@ class ComprehensionsMixin(TranslatorBase):
         if target_var is None:
             is_inline = True
             self.unique_id_counter += 1
-            target_var = f"_comp_{self.unique_id_counter}"
+            target_var = f"comp_{self.unique_id_counter}"
 
         gen = node.generators[0] # Handle first generator
         self._infer_generator_types(gen)
@@ -268,11 +268,11 @@ class ComprehensionsMixin(TranslatorBase):
                  it1 = self.visit(zip_args[0])
                  it2 = self.visit(zip_args[1])
 
-                 var_it1 = f"_zip_it1_{zip_id}"
-                 var_it2 = f"_zip_it2_{zip_id}"
-                 var_i = f"_i_{zip_id}"
-                 var_v1 = f"_v1_{zip_id}"
-                 var_v2 = f"_v2_{zip_id}"
+                 var_it1 = f"zip_it1_{zip_id}"
+                 var_it2 = f"zip_it2_{zip_id}"
+                 var_i = f"i_{zip_id}"
+                 var_v1 = f"v1_{zip_id}"
+                 var_v2 = f"v2_{zip_id}"
 
                  self.output.append(f"{self._indent()}{var_it1} := {it1}")
                  self.output.append(f"{self._indent()}{var_it2} := {it2}")
@@ -404,7 +404,7 @@ class ComprehensionsMixin(TranslatorBase):
         if target_var is None:
             is_inline = True
             self.unique_id_counter += 1
-            target_var = f"_comp_{self.unique_id_counter}"
+            target_var = f"comp_{self.unique_id_counter}"
 
         gen = node.generators[0] # Handle first generator
         self._infer_generator_types(gen)
@@ -438,11 +438,11 @@ class ComprehensionsMixin(TranslatorBase):
                  it1 = self.visit(zip_args[0])
                  it2 = self.visit(zip_args[1])
 
-                 var_it1 = f"_zip_it1_{zip_id}"
-                 var_it2 = f"_zip_it2_{zip_id}"
-                 var_i = f"_i_{zip_id}"
-                 var_v1 = f"_v1_{zip_id}"
-                 var_v2 = f"_v2_{zip_id}"
+                 var_it1 = f"zip_it1_{zip_id}"
+                 var_it2 = f"zip_it2_{zip_id}"
+                 var_i = f"i_{zip_id}"
+                 var_v1 = f"v1_{zip_id}"
+                 var_v2 = f"v2_{zip_id}"
 
                  self.output.append(f"{self._indent()}{var_it1} := {it1}")
                  self.output.append(f"{self._indent()}{var_it2} := {it2}")

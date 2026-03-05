@@ -23,13 +23,13 @@ for x, y in zip(a, b):
 """
     v_code = translate(source)
     # Check for unique variable naming pattern
-    assert "_zip_it1_1 := a" in v_code
-    assert "_zip_it2_1 := b" in v_code
-    assert "for _i_1, _v1_1 in _zip_it1_1 {" in v_code
-    assert "if _i_1 >= _zip_it2_1.len { break }" in v_code
-    assert "_v2_1 := _zip_it2_1[_i_1]" in v_code
-    assert "x := _v1_1" in v_code
-    assert "y := _v2_1" in v_code
+    assert "zip_it1_1 := a" in v_code
+    assert "zip_it2_1 := b" in v_code
+    assert "for i_1, v1_1 in zip_it1_1 {" in v_code
+    assert "if i_1 >= zip_it2_1.len { break }" in v_code
+    assert "v2_1 := zip_it2_1[i_1]" in v_code
+    assert "x := v1_1" in v_code
+    assert "y := v2_1" in v_code
 
 def test_zip_list_comp():
     source = """
@@ -42,7 +42,7 @@ sums = [x + y for x, y in zip(a, b)]
     # Assuming this is the first zip call in the translator instance for this test
     # But wait, translate() creates a NEW translator instance each time.
     # So counter resets to 0, then increments to 1.
-    assert "_zip_it1_1 := a" in v_code
+    assert "zip_it1_1 := a" in v_code
     assert "sums << x + y" in v_code
 
 def test_zip_single_target():
@@ -53,7 +53,7 @@ for t in zip(a, b):
     print(t)
 """
     v_code = translate(source)
-    assert "t := [_v1_1, _v2_1]" in v_code
+    assert "t := [v1_1, v2_1]" in v_code
 
 def test_zip_multiple_usage_collision():
     source = """
@@ -66,9 +66,9 @@ for x, y in zip(a, b):
 """
     v_code = translate(source)
     # First loop
-    assert "_zip_it1_1 := a" in v_code
+    assert "zip_it1_1 := a" in v_code
     # Second loop should have different suffix
-    assert "_zip_it1_2 := a" in v_code
+    assert "zip_it1_2 := a" in v_code
     # Ensure no collision in variable declarations (not rigorous, but checks presence)
-    assert "for _i_1, _v1_1 in _zip_it1_1 {" in v_code
-    assert "for _i_2, _v1_2 in _zip_it1_2 {" in v_code
+    assert "for i_1, v1_1 in zip_it1_1 {" in v_code
+    assert "for i_2, v1_2 in zip_it1_2 {" in v_code

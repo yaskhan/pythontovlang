@@ -65,7 +65,7 @@ def test_match(x: object):
         v_code = translator.emitter.emit()
 
         # The assignment should be narrowed
-        assert "a_val := (_match_subject_any_1 as A)" in v_code
+        assert "a_val := (match_subject_any_1 as A)" in v_code
         # Usage should be casted (or if it's already A, maybe not needed, but NamesMixin will do it)
         assert "return (a_val as A).a" in v_code
 
@@ -102,8 +102,8 @@ def test_match(box: Box):
         translator.visit(tree)
         v_code = translator.emitter.emit()
 
-        assert "p := (_match_subject_any_1 as Point)" in v_code
-        assert "x_val := Any((_match_subject_any_1 as Point).x)" in v_code
+        assert "p := (match_subject_any_1 as Point)" in v_code
+        assert "x_val := Any((match_subject_any_1 as Point).x)" in v_code
         assert "return x_val + (p as Point).y" in v_code
 
 if __name__ == "__main__":

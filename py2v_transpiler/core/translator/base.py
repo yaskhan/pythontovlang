@@ -311,6 +311,9 @@ class TranslatorBase(ast.NodeVisitor):
         Sanitizes Python identifiers that collide with V lang reserved keywords
         or other files in the same SCC cluster.
         """
+        if not is_type and name.startswith('_') and not (name.startswith('__') and name.endswith('__')):
+             name = f"py{name}"
+
         # Ensure robustness against test classes and mock translators that do not fully initialize the base class.
         compatibility = getattr(self, 'compatibility', None)
         if compatibility and compatibility.is_v_reserved(name):
@@ -481,7 +484,7 @@ class TranslatorBase(ast.NodeVisitor):
 
     def _create_temp(self) -> str:
         self.unique_id_counter += 1
-        return f"_aug_tmp_{self.unique_id_counter}"
+        return f"aug_tmp_{self.unique_id_counter}"
 
     def _capture_value(self, node: ast.AST) -> tuple[str, list[str]]:
         """
@@ -512,7 +515,7 @@ class TranslatorBase(ast.NodeVisitor):
             else:
                 base_expr, base_setup = self._capture_value(node.value)
 
-            return f"{base_expr}.{node.attr}", base_setup
+            return f"{base_expr}.{self._sanitize_name(node.attr)}", base_setup
 
         elif isinstance(node, ast.Subscript):
             # Recurse on base if it's an L-value container
