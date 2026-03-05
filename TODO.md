@@ -106,6 +106,7 @@
 - [x] Support for raw string literals (r"...")
 - [x] Support for variable annotations without assignment (x: int)
 - [x] Support for generic type alias syntax (type T = ...) (Python 3.12+)
+- [x] Support for PEP 695 explicit variance modifiers (+T, -T)
 - [x] Support for f-string debug expressions (f"{x=}")
 - [x] Support for multiple context managers in single 'with' statement
 - [x] Support for slice assignment (l[x:y] = [1, 2])
