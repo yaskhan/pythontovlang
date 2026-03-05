@@ -1,6 +1,6 @@
 import ast
 import os
-from typing import Any, List, Optional, Dict, Set
+from typing import Any, List, Optional, Dict, Set, Tuple
 from py2v_transpiler.core.compatibility import CompatibilityLayer
 from py2v_transpiler.core.generator import VCodeEmitter
 from py2v_transpiler.stdlib_map.mapper import StdLibMapper
@@ -98,7 +98,7 @@ class TranslatorBase(ast.NodeVisitor):
         self.current_class_bases: List[str] = []
         self.current_class_is_unittest: bool = False
         self._zip_counter: int = 0
-        self.defined_classes: Dict[str, Dict[str, bool]] = {}
+        self.defined_classes: Dict[str, Dict[str, Any]] = {}
         self.used_builtins: Set[str] = set()
         self.used_complex: bool = False
         self.used_list_concat: bool = False
@@ -115,6 +115,7 @@ class TranslatorBase(ast.NodeVisitor):
         self.single_dispatch_functions: Dict[str, Dict[str, str]] = {} # dispatcher_name -> {type_name -> impl_func_name}
         self.known_interfaces: Set[str] = set()
         self.class_hierarchy: Dict[str, List[str]] = {} # class_name -> list of direct base names
+        self.property_setters: Set[Tuple[str, str]] = set() # (class_name, property_name)
         self.function_names: Set[str] = set()
         self.overloaded_signatures: Dict[str, List[Dict[str, Any]]] = {} # func_name -> list of overload signatures
         self.finally_stack: List[ast.Try] = [] # Stack of active try-finally blocks
@@ -305,6 +306,32 @@ class TranslatorBase(ast.NodeVisitor):
                     all_v.append(v_gen)
                     seen.add(v_gen)
         return all_v
+
+    def _find_defining_class_for_static_method(self, class_name: str, method_name: str) -> Optional[str]:
+        """Finds the class in the hierarchy where the static/class method is defined."""
+        visited = set()
+        stack = [class_name]
+        while stack:
+            curr = stack.pop()
+            if curr in visited:
+                continue
+            visited.add(curr)
+
+            # Check defined classes in translator first
+            info = getattr(self, "defined_classes", {}).get(curr, {})
+            if method_name in info.get("static_methods", set()) or method_name in info.get("class_methods", set()):
+                return curr
+
+            # Check analyzer if available
+            if hasattr(self, "type_inference"):
+                if method_name in self.type_inference.static_methods.get(curr, set()):
+                    return curr
+                if method_name in self.type_inference.class_methods.get(curr, set()):
+                    return curr
+
+            if curr in self.class_hierarchy:
+                stack.extend(self.class_hierarchy[curr])
+        return None
 
     def _sanitize_name(self, name: str, is_type: bool = False) -> str:
         """
@@ -556,6 +583,8 @@ class TranslatorBase(ast.NodeVisitor):
         elif isinstance(node, ast.Call):
             if isinstance(node.func, ast.Name):
                 fid = node.func.id
+                if fid in self.defined_classes:
+                    return fid
                 if fid == "str":
                     if node.args and self._is_literal_string_expr(node.args[0]):
                         return "LiteralString"
@@ -626,6 +655,7 @@ class TranslatorBase(ast.NodeVisitor):
                 attr_name = f"{node.value.id}.{node.attr}"
                 if hasattr(self.type_inference, "type_map") and attr_name in self.type_inference.type_map:
                     return self.type_inference.type_map[attr_name]
+
             return "Any"
         elif isinstance(node, ast.Subscript):
             if isinstance(node.value, ast.Attribute) and isinstance(node.value.value, ast.Name):
