@@ -127,27 +127,6 @@ class PydanticModelProcessor:
 
         has_validation = False
 
-        # Apply Config transformations
-        if config:
-            for field_info in fields:
-                if field_info.type_str == "string":
-                    if config.str_strip_whitespace:
-                        code.append(f"    m.{field_info.name} = m.{field_info.name}.trim()")
-                        has_validation = True
-                    if config.str_to_lower:
-                        code.append(f"    m.{field_info.name} = m.{field_info.name}.to_lower()")
-                        has_validation = True
-                    if config.str_to_upper:
-                        code.append(f"    m.{field_info.name} = m.{field_info.name}.to_upper()")
-                        has_validation = True
-
-                    if config.min_anystr_length is not None:
-                        code.append(f'    if m.{field_info.name}.len < {config.min_anystr_length} {{ return error("Validation Error: {field_info.name} length must be >= {config.min_anystr_length}") }}')
-                        has_validation = True
-                    if config.max_anystr_length is not None:
-                        code.append(f'    if m.{field_info.name}.len > {config.max_anystr_length} {{ return error("Validation Error: {field_info.name} length must be <= {config.max_anystr_length}") }}')
-                        has_validation = True
-
         # 1. Model validators (mode='before')
         for v in validators:
             if v.is_model_validator and v.mode == 'before':
