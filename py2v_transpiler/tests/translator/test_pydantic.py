@@ -65,12 +65,12 @@ class User(BaseModel):
         v_code = self.translate(code)
 
         # Check factory signature
-        self.assertIn("fn new_user(name string, age int, email ...string) !User {", v_code)
+        self.assertIn("fn new_user(name string, age int, email string = 'unknown@example.com') !User {", v_code)
         # Check factory implementation
         self.assertIn("name: name", v_code)
         self.assertIn("age: age", v_code)
-        self.assertIn("email: if email.len > 0 { email[0] } else { 'unknown@example.com' }", v_code)
-        self.assertIn("self.validate() or { return err }", v_code)
+        self.assertIn("email: email", v_code)
+        self.assertIn('self.validate() or { return error("Validation failed: ${err}") }', v_code)
 
     def test_pydantic_manual_init(self):
         code = """
@@ -89,7 +89,8 @@ class User(BaseModel):
         # Check that __init__ was converted to a factory returning !User
         self.assertIn("fn new_user(name string, age int) !User {", v_code)
         # Check that it calls validate
-        self.assertIn("self.validate() or { return err }", v_code)
+        self.assertIn('self.validate() or { return error("Validation failed: ${err}") }', v_code)
+
     def test_extended_field_constraints(self):
         code = """
 from pydantic import BaseModel, Field
