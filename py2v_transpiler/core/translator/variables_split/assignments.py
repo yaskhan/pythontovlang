@@ -165,6 +165,14 @@ class AssignmentsMixin(TranslatorBase):
 
         elif isinstance(target, ast.Attribute):
             # obj.attr = value
+            # Check for property setter
+            obj_type = self._guess_type(target.value)
+            if (obj_type, target.attr) in self.property_setters:
+                obj_expr = self.visit(target.value)
+                rhs_expr = self.visit(node.value)
+                self.output.append(f"{self._indent()}{obj_expr}.set_{target.attr}({rhs_expr})")
+                return
+
             # Check for function attribute assignment
             obj_name = self.visit(target.value)
             sanitized_attr = self._sanitize_name(target.attr)
