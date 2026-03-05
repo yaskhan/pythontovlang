@@ -29,8 +29,8 @@ class Config:
         "fn (self Config) value() int {",
         "return self._value",
         "}",
-        # Any is used for union types in setter
-        "fn (self Config) set_value(new_value Any) {",
+        # Union type is now preserved in setter
+        "fn (self Config) set_value(new_value string | int) {",
         "if new_value is str {",
     ]
 
@@ -135,8 +135,8 @@ class Result:
     print(code)
     print()
 
-    # Getter with union type should use Any
-    assert "fn (self Result) value() Any {" in code
+    # Getter with union type should use union
+    assert "fn (self Result) value() int | string {" in code
     # Setter accepts int
     assert "fn (self Result) set_value(new_value int) {" in code
 
@@ -196,5 +196,5 @@ class Measurement:
 
     # Getter returns f64
     assert "fn (self Measurement) value() f64 {" in code
-    # Setter accepts Any for union type
-    assert "fn (self Measurement) set_value(new_value Any) {" in code
+    # Setter accepts union type
+    assert "fn (self Measurement) set_value(new_value int | f64) {" in code

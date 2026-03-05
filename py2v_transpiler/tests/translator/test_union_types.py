@@ -17,8 +17,8 @@ class TestUnionTypes(unittest.TestCase):
     def test_union_arg(self):
         source = "def f(x: int | str): pass"
         result = self.transpile(source)
-        # Should be 'x Any' not 'x int | string'
-        self.assertIn("x Any", result)
+        # Should be 'x int | string'
+        self.assertIn("x int | string", result)
 
     def test_optional_union_arg(self):
         source = "def f(x: int | None): pass"
@@ -49,16 +49,9 @@ class TestUnionTypes(unittest.TestCase):
     def test_ann_assign_union_no_init(self):
         source = "x: int | str"
         result = self.transpile(source)
-        # Should use 'any' default value? Or just 'x := ...'
-        # Current logic tries to map type to default value.
-        # If type is 'any', default is '0'? No, 'any' in V?
-        # V variables cannot be just 'any' without initialization?
-        # Actually `x := any(0)`. Or `x := 0`.
-        # If we map to 'any', we need a default.
-        # My map logic returns 'any' for 'any'.
-        # Let's see what happens.
-        # Expect 'x := 0' (fallback) or something valid.
-        self.assertNotIn("int | string", result)
+        # Without initialization, it falls back to a simple default type/value.
+        # Currently it seems it defaults to 0.
+        self.assertIn("x := 0", result)
 
 if __name__ == '__main__':
     unittest.main()

@@ -5,19 +5,7 @@ from py2v_transpiler.models.v_types import map_python_type_to_v
 
 
 class AssignmentsMixin(TranslatorBase):
-    """Обработка присваиваний: visit_Assign и вспомогательные методы"""
-    
-    def _is_literal_string_expr(self, node: ast.AST) -> bool:
-        """Checks if an expression is a literal string, literal concatenation, or f-string without variables."""
-        if isinstance(node, ast.Constant) and isinstance(node.value, str):
-            return True
-        if isinstance(node, ast.JoinedStr):
-            return all(self._is_literal_string_expr(v) for v in node.values)
-        if isinstance(node, ast.FormattedValue):
-            return self._is_literal_string_expr(node.value)
-        if isinstance(node, ast.BinOp) and isinstance(node.op, ast.Add):
-            return self._is_literal_string_expr(node.left) and self._is_literal_string_expr(node.right)
-        return False
+    """Assignment handling: visit_Assign and helper methods"""
 
     def _is_compile_time_evaluable(self, node: ast.AST) -> bool:
         """
@@ -43,6 +31,9 @@ class AssignmentsMixin(TranslatorBase):
         if isinstance(target, ast.Name):
             lhs = self._sanitize_name(target.id)
 
+            if self.in_main:
+                 self.defined_top_level_symbols.add(target.id)
+
             # Check for NewType: UserId = NewType('UserId', int)
             if isinstance(node.value, ast.Call) and isinstance(node.value.func, ast.Name) and node.value.func.id == "NewType":
                 if len(node.value.args) == 2:
@@ -51,22 +42,24 @@ class AssignmentsMixin(TranslatorBase):
                     try:
                         if hasattr(ast, 'unparse'):
                              base_str = ast.unparse(node.value.args[1])
-                             mapped_base = map_python_type_to_v(base_str, allow_union=True)
-                             self.emitter.add_struct(f"type {lhs} = {mapped_base}")
+                             mapped_base = map_python_type_to_v(base_str, allow_union=True, self_name=self._get_full_self_type())
+                             pub = "pub " if self._is_exported(target.id) else ""
+                             self.emitter.add_struct(f"{pub}type {lhs} = {mapped_base}")
                              return
                     except:
                         pass
 
             # Check for TypeVar: T = TypeVar("T", int, str)
             if isinstance(node.value, ast.Call) and isinstance(node.value.func, ast.Name) and node.value.func.id == "TypeVar":
+                self.type_vars.add(target.id)
                 # Check args for constraints
                 # args[0] is name
                 constraints = []
                 for arg in node.value.args[1:]:
                     if isinstance(arg, ast.Name):
-                        constraints.append(map_python_type_to_v(arg.id))
+                        constraints.append(map_python_type_to_v(arg.id, self_name=self._get_full_self_type()))
                     elif isinstance(arg, ast.Constant) and isinstance(arg.value, str):
-                        constraints.append(map_python_type_to_v(arg.value))
+                        constraints.append(map_python_type_to_v(arg.value, self_name=self._get_full_self_type()))
 
                 # Check keyword bound
                 for kw in node.value.keywords:
@@ -75,7 +68,7 @@ class AssignmentsMixin(TranslatorBase):
                         # We can use ast.unparse and map
                          try:
                              bound_str = ast.unparse(kw.value)
-                             mapped = map_python_type_to_v(bound_str)
+                             mapped = map_python_type_to_v(bound_str, self_name=self._get_full_self_type())
                              # If mapped is "int | string", we use it
                              constraints.append(mapped)
                          except:
@@ -90,7 +83,8 @@ class AssignmentsMixin(TranslatorBase):
                     # We need to be careful not to create "A | B | C" if they are distinct
 
                     final_type = " | ".join(constraints)
-                    self.emitter.add_struct(f"type {sanitized_lhs} = {final_type}")
+                    pub = "pub " if self._is_exported(target.id) else ""
+                    self.emitter.add_struct(f"{pub}type {sanitized_lhs} = {final_type}")
                 return
 
             # Check for type alias: MyType = int or MyType = OtherType or MyType = List[int]
@@ -98,8 +92,8 @@ class AssignmentsMixin(TranslatorBase):
                 is_type_alias = False
                 type_alias_val = ""
 
-                # Check if LHS is capitalized (heuristic)
-                if lhs[0].isupper():
+                # Check if LHS is capitalized or looks like a private type alias (heuristic)
+                if lhs[0].isupper() or (lhs.startswith('_') and len(lhs) > 1 and any(c.isupper() for c in lhs)):
                      # Check if it was inferred by TypeInference (e.g. OrderedCollection = list)
                      if hasattr(self, 'type_inference') and lhs in self.type_inference.type_map and isinstance(node.value, ast.Name):
                           is_type_alias = True
@@ -111,7 +105,7 @@ class AssignmentsMixin(TranslatorBase):
                               # Unparse RHS to string
                               if hasattr(ast, 'unparse'):
                                   rhs_source = ast.unparse(node.value)
-                                  mapped = map_python_type_to_v(rhs_source, allow_union=True)
+                                  mapped = map_python_type_to_v(rhs_source, allow_union=True, self_name=self._get_full_self_type())
                                   # Check if mapped value looks like a type and not void/same-as-input-expression
                                   # map_python_type_to_v returns input if it fails to map usually, unless it parses successfully via _map_ast_type
                                   # For List[int], it returns []int. List[int] != []int.
@@ -144,7 +138,29 @@ class AssignmentsMixin(TranslatorBase):
                               pass
 
                 if is_type_alias:
-                     self.emitter.add_struct(f"type {lhs} = {type_alias_val}")
+                     pub = "pub " if self._is_exported(target.id) else ""
+
+                     # Extract potential generic parameters from type_alias_val
+                     # If it contains _T (and we tracked _T as TypeVar), we might need [T]
+                     # However, V type aliases for generics MUST have [T] explicitly.
+                     # Since this is a simple assignment alias, we look for tracked type_vars
+                     found_vars = []
+                     for tv in self.type_vars:
+                         if f"{tv}" in type_alias_val:
+                             v_gen = self._get_generic_map([tv]).get(tv, "T")
+                             if v_gen not in found_vars:
+                                 found_vars.append(v_gen)
+
+                     gen_str = f"[{', '.join(found_vars)}]" if found_vars else ""
+
+                     # If it's a generic alias, we need to replace the Python TypeVar name with V generic name in the RHS too
+                     if found_vars:
+                         # This is a bit naive, but let's try
+                         for tv in sorted(list(self.type_vars), key=len, reverse=True):
+                              v_gen = self._get_generic_map([tv]).get(tv, "T")
+                              type_alias_val = type_alias_val.replace(tv, v_gen)
+
+                     self.emitter.add_struct(f"{pub}type {lhs}{gen_str} = {type_alias_val}")
                      return
 
         elif isinstance(target, ast.Attribute):
@@ -227,6 +243,18 @@ class AssignmentsMixin(TranslatorBase):
              # Destructuring assignment with nested support
              rhs = self.visit(node.value)
 
+             if self.in_main:
+                  # Track top-level symbols for destructuring
+                  def track_targets(t):
+                       if isinstance(t, (ast.Tuple, ast.List)):
+                            for elt in t.elts:
+                                 track_targets(elt)
+                       elif isinstance(t, ast.Starred):
+                            track_targets(t.value)
+                       elif isinstance(t, ast.Name):
+                            self.defined_top_level_symbols.add(t.id)
+                  track_targets(target)
+
              # Optimization: If simple unpacking a, b = 1, 2 (RHS is Tuple/List literal) and no starred elements
              # And no nested targets!
              def is_simple(targets):
@@ -305,6 +333,12 @@ class AssignmentsMixin(TranslatorBase):
                         if target.id not in self.type_inference.type_map:
                             self.type_inference.type_map[target.id] = assigned_type
 
+            # Check for LiteralString
+            is_literal_string = False
+            if v_type == "LiteralString":
+                is_literal_string = True
+                if not self._is_literal_string_expr(node.value):
+                    self.output.append(f"{self._indent()}// WARNING: LiteralString variable '{lhs}' receives non-literal value")
 
             # Check for implicit LiteralString (constant strings, concatenation, f-strings without vars)
             # If so, we track it as string and potentially as a constant
@@ -362,31 +396,34 @@ class AssignmentsMixin(TranslatorBase):
                         if isinstance(target, ast.Name):
                             if v_type == "unknown":
                                 v_type = "Any"
-                            self.emitter.add_global(f"{lhs} {v_type}")
+                            pub = "pub " if self._is_exported(target.id) else ""
+                            self.emitter.add_global(f"{pub}{lhs} {v_type}")
                     elif base_lhs.isupper():
                         emit_fn = lambda stmt: self.emitter.add_init_statement(stmt.strip())
                         if isinstance(target, ast.Name):
                             v_lhs = self._to_snake_case(lhs)
+                            pub = "pub " if self._is_exported(target.id) else ""
                             if self._is_compile_time_evaluable(node.value):
-                                # Compile-time константа (например DEFAULT_WIDTH = 100) → блок const
-                                self.emitter.add_constant(f"{v_lhs} = {rhs}")
+                                # Compile-time constant (e.g. DEFAULT_WIDTH = 100) -> const block
+                                self.emitter.add_constant(f"{pub}{v_lhs} = {rhs}")
                                 return
                             else:
-                                # Runtime UPPER_CASE (например Vector_ZERO = new_Vector(...)) → global + init()
+                                # Runtime UPPER_CASE (e.g. Vector_ZERO = new_Vector(...)) -> global + init()
                                 if v_type == "unknown" or v_type == "int":
                                     v_type = "Any"
-                                self.emitter.add_global(f"{v_lhs} {v_type}")
+                                self.emitter.add_global(f"{pub}{v_lhs} {v_type}")
                                 lhs = v_lhs
 
-                if self.in_main and isinstance(target, ast.Name) and (lhs in getattr(self, "global_vars", set()) or lhs.isupper() or is_implicit_literal):
+                if self.in_main and isinstance(target, ast.Name) and (lhs in getattr(self, "global_vars", set()) or lhs.isupper() or is_implicit_literal or is_literal_string):
                     v_lhs = self._to_snake_case(lhs) if not lhs.islower() else lhs
-                    # Для compile-time констант мы уже сделали return выше — присваивание не нужно
-                    if is_implicit_literal and self._is_compile_time_evaluable(node.value) and not lhs.isupper():
-                        self.emitter.add_constant(f"{v_lhs} = {rhs}")
+                    # For compile-time constants we already returned above - assignment not needed
+                    pub = "pub " if self._is_exported(target.id) else ""
+                    if (is_implicit_literal or is_literal_string) and self._is_compile_time_evaluable(node.value) and not lhs.isupper():
+                        self.emitter.add_constant(f"{pub}{v_lhs} = {rhs}")
                         return
-                    if is_implicit_literal and not self._is_compile_time_evaluable(node.value) and not lhs.isupper():
+                    if (is_implicit_literal or is_literal_string) and not self._is_compile_time_evaluable(node.value) and not lhs.isupper():
                         if lhs not in getattr(self, "global_vars", set()):
-                            self.emitter.add_global(f"{v_lhs} string")
+                            self.emitter.add_global(f"{pub}{v_lhs} string")
                         self.emitter.add_init_statement(f"{v_lhs} = {rhs}")
                         return
                     if not (lhs.isupper() and self._is_compile_time_evaluable(node.value)):
@@ -401,13 +438,37 @@ class AssignmentsMixin(TranslatorBase):
                         emit_fn(f"{self._indent()}mut {v_lhs} := {local_v_type}(none)")
                     else:
                         emit_fn(f"{self._indent()}mut {v_lhs} := ?Any(none)")
+                    if not self.in_main: self._local_vars_in_scope.add(v_lhs)
                 else:
+                    v_lhs = self._to_snake_case(lhs) if (isinstance(target, ast.Name) and not lhs.islower()) else lhs
                     if isinstance(target, ast.Attribute) or isinstance(target, ast.Subscript):
                         emit_fn(f"{self._indent()}{lhs} = {rhs}")
                     else:
                         v_lhs = self._to_snake_case(lhs) if not lhs.islower() else lhs
                         if emit_fn == self.output.append:
-                            emit_fn(f"{self._indent()}{v_lhs} := {rhs}")
+                            if not self.in_main and v_lhs in self._local_vars_in_scope:
+                                emit_fn(f"{self._indent()}{v_lhs} = {rhs}")
+                            else:
+                                is_mut = False
+                                if hasattr(self, 'type_inference') and hasattr(self.type_inference, 'mutability_map'):
+                                    # Try precise lookup by location first
+                                    loc_key = f"{v_lhs}@{node.lineno}:{node.col_offset}"
+                                    mut_info = self.type_inference.mutability_map.get(loc_key)
+                                    if not mut_info:
+                                        mut_info = self.type_inference.mutability_map.get(v_lhs)
+
+                                    if mut_info:
+                                        is_mut = mut_info.get("is_reassigned", False) and not mut_info.get("is_final", False)
+
+                                # Special handling for buffer protocol: always mutable if bytearray
+                                if not is_mut:
+                                    # check if it is a call to bytearray
+                                    if isinstance(node.value, ast.Call) and isinstance(node.value.func, ast.Name) and node.value.func.id == "bytearray":
+                                        is_mut = True
+
+                                mut_prefix = "mut " if is_mut else ""
+                                emit_fn(f"{self._indent()}{mut_prefix}{v_lhs} := {rhs}")
+                                if not self.in_main: self._local_vars_in_scope.add(v_lhs)
                         else:
                             # if it's going to init(), it shouldn't be := if it's a global
                             emit_fn(f"{self._indent()}{v_lhs} = {rhs}")
@@ -467,7 +528,18 @@ class AssignmentsMixin(TranslatorBase):
             if not self.in_main and lhs in self._local_vars_in_scope:
                 self.output.append(f"{self._indent()}{lhs} = {source_expr}")
             else:
-                self.output.append(f"{self._indent()}{lhs} := {source_expr}")
+                is_mut = False
+                if hasattr(self, 'type_inference') and hasattr(self.type_inference, 'mutability_map'):
+                    loc_key = f"{lhs}@{target.lineno}:{target.col_offset}"
+                    mut_info = self.type_inference.mutability_map.get(loc_key)
+                    if not mut_info:
+                        mut_info = self.type_inference.mutability_map.get(lhs)
+
+                    if mut_info:
+                        is_mut = mut_info.get("is_reassigned", False) and not mut_info.get("is_final", False)
+
+                mut_prefix = "mut " if is_mut else ""
+                self.output.append(f"{self._indent()}{mut_prefix}{lhs} := {source_expr}")
                 if not self.in_main:
                     self._local_vars_in_scope.add(lhs)
 
