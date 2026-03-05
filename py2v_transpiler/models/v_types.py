@@ -186,11 +186,11 @@ def _map_ast_type(node: ast.AST, self_name: str = "Self", allow_union: bool = Fa
                 return f"?{non_none[0]}"
             if allow_union:
                 # Deduplicate while preserving order
-                unique_types = []
-                for t in mapped_args:
-                    if t not in unique_types:
-                        unique_types.append(t)
-                return " | ".join(unique_types)
+                unique_args = []
+                for arg in mapped_args:
+                    if arg not in unique_args:
+                        unique_args.append(arg)
+                return " | ".join(unique_args)
             return "Any"
 
         elif value_id == 'Callable':

@@ -92,9 +92,8 @@ class AssignmentsMixin(TranslatorBase):
                 is_type_alias = False
                 type_alias_val = ""
 
-                # Check if LHS is capitalized or starts with underscore + capitalized (heuristic for type alias)
-                clean_lhs = target.id.lstrip('_')
-                if clean_lhs and (clean_lhs[0].isupper() or (lhs.startswith('_') and len(lhs) > 1 and any(c.isupper() for c in lhs))):
+                # Check if LHS is capitalized or looks like a private type alias (heuristic)
+                if lhs[0].isupper() or (lhs.startswith('_') and len(lhs) > 1 and any(c.isupper() for c in lhs)):
                      # Check if it was inferred by TypeInference (e.g. OrderedCollection = list)
                      if hasattr(self, 'type_inference') and lhs in self.type_inference.type_map and isinstance(node.value, ast.Name):
                           is_type_alias = True
@@ -113,7 +112,7 @@ class AssignmentsMixin(TranslatorBase):
                                   # For int, it returns int.
                                   # For "unknown", it returns "unknown".
 
-                                  if mapped != "void" and (mapped != rhs_source or isinstance(node.value, (ast.Subscript, ast.BinOp))):
+                                  if mapped != "void" and mapped != rhs_source:
                                        is_type_alias = True
                                        type_alias_val = mapped
                                   elif mapped == "int" and rhs_source == "int": # Primitive
@@ -129,9 +128,9 @@ class AssignmentsMixin(TranslatorBase):
                                        is_type_alias = True
                                        type_alias_val = "bool"
                                   # For MyType = OtherType (Name = Name)
-                                  elif isinstance(node.value, ast.Name) and node.value.id.lstrip('_')[0:1].isupper():
+                                  elif isinstance(node.value, ast.Name) and node.value.id[0].isupper():
                                        is_type_alias = True
-                                       type_alias_val = self._sanitize_name(node.value.id, is_type=True)
+                                       type_alias_val = node.value.id
                               else:
                                   # Fallback for older python without ast.unparse (unlikely in this env)
                                   pass
@@ -161,8 +160,7 @@ class AssignmentsMixin(TranslatorBase):
                               v_gen = self._get_generic_map([tv]).get(tv, "T")
                               type_alias_val = type_alias_val.replace(tv, v_gen)
 
-                     sanitized_lhs = self._sanitize_name(target.id, is_type=True)
-                     self.emitter.add_struct(f"{pub}type {sanitized_lhs}{gen_str} = {type_alias_val}")
+                     self.emitter.add_struct(f"{pub}type {lhs}{gen_str} = {type_alias_val}")
                      return
 
         elif isinstance(target, ast.Attribute):
