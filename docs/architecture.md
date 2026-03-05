@@ -241,6 +241,7 @@ fn main() {
 ## Type System Mapping
 
 ### Basic Types
+
 | Python | V |
 |--------|-----|
 | `int` | `int` |
@@ -251,6 +252,7 @@ fn main() {
 | `Any` | `Any` |
 
 ### Generic Types
+
 | Python | V |
 |--------|-----|
 | `list[T]` | `[]T` |
@@ -261,6 +263,7 @@ fn main() {
 | `Union[A, B]` | `A \| B` or `Any` |
 
 ### Callable Types
+
 | Python | V |
 |--------|-----|
 | `Callable[[int], str]` | `fn (int) string` |
