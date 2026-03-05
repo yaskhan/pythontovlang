@@ -36,7 +36,7 @@ class MyClass:
 
     generated_code = translator.emitter.emit()
 
-    assert "fn (self MyClass) str() {" in generated_code
+    assert "fn (self MyClass) str() string {" in generated_code
     assert "fn (self MyClass) repr() {" in generated_code
 
 def test_repr_without_str():
@@ -51,5 +51,5 @@ class MyClass2:
 
     generated_code = translator.emitter.emit()
 
-    assert "fn (self MyClass2) str() {" in generated_code
+    assert "fn (self MyClass2) str() string {" in generated_code
     assert "fn (self MyClass2) repr() {" not in generated_code
