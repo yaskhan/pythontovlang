@@ -64,7 +64,7 @@ class AnnotationsMixin(TranslatorBase):
                     self.emitter.add_struct(f"{pub}type {target} = {rhs_v_type}")
                     return
 
-            is_literal_string_type = type_str in ("LiteralString", "typing.LiteralString", "typing_extensions.LiteralString")
+            is_literal_string_type = v_type == "LiteralString" or type_str in ("LiteralString", "typing.LiteralString", "typing_extensions.LiteralString")
 
             # Check if this is a LiteralString being assigned a non-literal value
             if is_literal_string_type:
