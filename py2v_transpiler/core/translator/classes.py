@@ -30,15 +30,39 @@ class ClassesMixin(TranslatorBase):
         # Pre-register class definition to allow class instantiation inside its own methods
         has_init = False
         has_new = False
+        static_methods = set()
+        class_methods = set()
         for child in node.body:
             if isinstance(child, (ast.FunctionDef, ast.AsyncFunctionDef)):
                 if child.name == "__init__":
                     has_init = True
                 elif child.name == "__new__":
                     has_new = True
+
+                # Check for @staticmethod or @classmethod
+                for decorator in child.decorator_list:
+                    dec_name = ""
+                    if isinstance(decorator, ast.Name):
+                        dec_name = decorator.id
+                    elif isinstance(decorator, ast.Call):
+                        if isinstance(decorator.func, ast.Name):
+                            dec_name = decorator.func.id
+                    elif isinstance(decorator, ast.Attribute):
+                        dec_name = decorator.attr
+
+                    if dec_name == "staticmethod":
+                        static_methods.add(child.name)
+                    elif dec_name == "classmethod":
+                        class_methods.add(child.name)
+
         if not hasattr(self, "defined_classes"):
             self.defined_classes = {}
-        self.defined_classes[struct_name] = {"has_init": has_init, "has_new": has_new}
+        self.defined_classes[struct_name] = {
+            "has_init": has_init,
+            "has_new": has_new,
+            "static_methods": static_methods,
+            "class_methods": class_methods
+        }
 
         # Save previous state to restore later (for nesting)
         prev_class = self.current_class
@@ -991,7 +1015,15 @@ class ClassesMixin(TranslatorBase):
         # Don't overwrite if it was already set (e.g. by dataclass factory)
         current_info = self.defined_classes.get(struct_name)
         if not current_info or not (current_info.get("has_init") or current_info.get("has_new")):
-            self.defined_classes[struct_name] = {"has_init": has_init, "has_new": False}
+            if current_info:
+                current_info["has_init"] = has_init
+            else:
+                self.defined_classes[struct_name] = {
+                    "has_init": has_init,
+                    "has_new": False,
+                    "static_methods": static_methods,
+                    "class_methods": class_methods
+                }
 
         # Ensure we output the nested struct definition at the top level
         # visit_ClassDef processes body elements via iteration.

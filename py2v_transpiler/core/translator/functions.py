@@ -292,19 +292,21 @@ class FunctionsMixin(TranslatorBase):
             is_method = False
             receiver_str = ""
 
-        if is_method and args and args[0].arg == "self":
-            # Handle 'self' - it becomes the receiver in V
-            # UNLESS it is static
-            if not dec_info.is_static:
-                # fn (s Struct) method()
-                if self.current_class_generics:
-                    # fn (s Struct[T]) method()
-                    gen_str = f"[{', '.join(self.current_class_generics)}]"
-                    receiver_str = f"({args[0].arg} {struct_name}{gen_str}) "
-                else:
-                    receiver_str = f"({args[0].arg} {struct_name}) "
+        if is_method and args and (args[0].arg == "self" or args[0].arg == "cls"):
+            # Handle 'self' or 'cls' - 'self' becomes the receiver in V
+            # UNLESS it is static or classmethod
+            if not dec_info.is_static and not dec_info.is_classmethod:
+                if args[0].arg == "self":
+                    # fn (mut s Struct) method()
+                    mut_receiver = "mut " if getattr(dec_info, 'is_setter', False) else ""
+                    if self.current_class_generics:
+                        # fn (mut s Struct[T]) method()
+                        gen_str = f"[{', '.join(self.current_class_generics)}]"
+                        receiver_str = f"({mut_receiver}{args[0].arg} {struct_name}{gen_str}) "
+                    else:
+                        receiver_str = f"({mut_receiver}{args[0].arg} {struct_name}) "
 
-            args = args[1:]  # Remove self from arguments list
+            args = args[1:]  # Remove self/cls from arguments list
         elif is_unittest_method and args and args[0].arg == "self":
             # Remove self from unittest method args
             args = args[1:]
@@ -398,6 +400,10 @@ class FunctionsMixin(TranslatorBase):
         if not is_unittest_method:
             func_name = self._sanitize_name(node.name)
 
+            # Static/Class methods naming: Prefix with struct name
+            if dec_info.is_static or dec_info.is_classmethod:
+                func_name = f"{struct_name}_{func_name}"
+
             if not is_method:
                 self.defined_top_level_symbols.add(node.name)
 
@@ -434,6 +440,8 @@ class FunctionsMixin(TranslatorBase):
 
             if dec_info.is_setter:
                 func_name = f"set_{func_name}"
+                if struct_name:
+                    self.property_setters.add((struct_name, node.name))
 
             if self.current_class and not is_new_method:
                 func_name = self._mangle_name(func_name, struct_name)
@@ -509,6 +517,9 @@ class FunctionsMixin(TranslatorBase):
                 func_name = op
         elif func_name in ("__str__", "__repr__"):
             func_name = "str"
+            decl = f"{deprecated_attr}fn {receiver_str}{func_name}() string {{"
+        elif func_name == "__str__":
+            decl = f"{noreturn_attr}{deprecated_attr}pub fn {receiver_str}str() string {{"
         elif func_name == "__iter__":
             # V iterators use 'next' method returning '?'
             # If a class has __iter__, it usually returns an iterator.
@@ -567,6 +578,27 @@ class FunctionsMixin(TranslatorBase):
         prev_ret_type: Optional[str] = getattr(self, "current_function_return_type", None)
         self.current_function_return_type = ret_type
 
+        if is_nested:
+            self._scope_stack[-1].add(func_name)
+
+        # Initialize scope with arguments and receiver
+        current_scope = set(args_names)
+        # Re-check for self if it was removed from args
+        orig_args = node.args.args
+        if hasattr(node.args, "posonlyargs"):
+            orig_args = node.args.posonlyargs + orig_args
+
+        if is_method and orig_args and orig_args[0].arg == "self" and not dec_info.is_static:
+            current_scope.add(orig_args[0].arg)
+
+        # Handle classmethod: map 'cls' to struct name in scope
+        if dec_info.is_classmethod and orig_args and orig_args[0].arg == "cls":
+            # Map 'cls' to the struct name within the function body
+            self.name_remap[orig_args[0].arg] = struct_name
+            current_scope.add(orig_args[0].arg)
+
+        self._scope_stack.append(current_scope)
+
         try:
             # Check for docstring
             body = node.body
@@ -591,6 +623,8 @@ class FunctionsMixin(TranslatorBase):
             for stmt in body:
                 self.visit(stmt)
         finally:
+            if dec_info.is_classmethod and orig_args and orig_args[0].arg == "cls":
+                del self.name_remap[orig_args[0].arg]
             self.current_function_return_type = prev_ret_type
 
         # Pop function generic scope

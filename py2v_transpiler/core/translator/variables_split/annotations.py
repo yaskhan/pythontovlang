@@ -165,9 +165,9 @@ class AnnotationsMixin(TranslatorBase):
                     if v_type and v_type != "unknown":
                         if not v_type.startswith("?"):
                             v_type = f"?{v_type}"
-                        emit_fn(f"{self._indent()}mut {target} := {v_type}(none)")
+                        emit_fn(f"{self._indent()}mut {target} := (none as {v_type})")
                     else:
-                        emit_fn(f"{self._indent()}mut {target} := ?Any(none)")
+                        emit_fn(f"{self._indent()}mut {target} := (none as ?Any)")
                     if not self.in_main: self._local_vars_in_scope.add(target)
                 else:
                     # We ignore the annotation for now and rely on type inference and V's auto-typing

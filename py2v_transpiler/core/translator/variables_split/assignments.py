@@ -165,6 +165,14 @@ class AssignmentsMixin(TranslatorBase):
 
         elif isinstance(target, ast.Attribute):
             # obj.attr = value
+            # Check for property setter
+            obj_type = self._guess_type(target.value)
+            if (obj_type, target.attr) in self.property_setters:
+                obj_expr = self.visit(target.value)
+                rhs_expr = self.visit(node.value)
+                self.output.append(f"{self._indent()}{obj_expr}.set_{target.attr}({rhs_expr})")
+                return
+
             # Check for function attribute assignment
             obj_name = self.visit(target.value)
             if obj_name in self.function_names:
@@ -435,9 +443,9 @@ class AssignmentsMixin(TranslatorBase):
                     if local_v_type and local_v_type != "unknown":
                         if not local_v_type.startswith("?"):
                             local_v_type = f"?{local_v_type}"
-                        emit_fn(f"{self._indent()}mut {v_lhs} := {local_v_type}(none)")
+                        emit_fn(f"{self._indent()}mut {v_lhs} := (none as {local_v_type})")
                     else:
-                        emit_fn(f"{self._indent()}mut {v_lhs} := ?Any(none)")
+                        emit_fn(f"{self._indent()}mut {v_lhs} := (none as ?Any)")
                     if not self.in_main: self._local_vars_in_scope.add(v_lhs)
                 else:
                     v_lhs = self._to_snake_case(lhs) if (isinstance(target, ast.Name) and not lhs.islower()) else lhs
