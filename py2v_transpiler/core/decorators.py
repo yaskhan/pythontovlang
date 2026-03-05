@@ -27,7 +27,6 @@ class DecoratorProcessor:
 
     def analyze(self, node: ast.FunctionDef, current_class: Optional[str]) -> DecoratorInfo:
         from py2v_transpiler.pydantic_support.detector import PydanticDetector
-        from py2v_transpiler.pydantic_support.validator_processor import PydanticValidatorProcessor
 
         info = DecoratorInfo()
 
