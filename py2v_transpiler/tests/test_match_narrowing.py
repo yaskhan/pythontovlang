@@ -103,7 +103,7 @@ def test_match(box: Box):
         v_code = translator.emitter.emit()
 
         assert "p := (_match_subject_any_1 as Point)" in v_code
-        assert "x_val := Any((_match_subject_any_1 as Point).x)" in v_code
+        assert "x_val := ((_match_subject_any_1 as Point).x as Any)" in v_code
         assert "return x_val + (p as Point).y" in v_code
 
 if __name__ == "__main__":

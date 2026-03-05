@@ -120,7 +120,7 @@ class VCodeEmitter:
         lines = [f"module {module_name}\n"]
 
         # Define custom Any type
-        lines.append("type Any = bool | int | i64 | f64 | string | []u8\n")
+        lines.append("pub type Any = bool | int | i64 | f64 | string | []u8 | none\n")
 
         # Sort and deduplicate imports
         unique_imports = sorted(list(set(imports)))
