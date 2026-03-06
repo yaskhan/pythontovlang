@@ -11,6 +11,21 @@ The transpiler includes dedicated support for transpiling [Pydantic](https://doc
     - `default=...`: Sets the default value of the Vlang struct attribute.
     - **Validation constraints** (`gt`, `lt`, `ge`, `le`, `max_length`, `min_length`): Generates a custom `.validate() !` method on the Vlang struct.
 - **Validators** (`@validator`, `@field_validator`, `@model_validator`): Detected by the transpiler. Currently passed through to the standard code generation, but serves as a hook for advanced manual implementation.
+- **Nested `Config` class**: Supports model-wide configuration options.
+
+### Supported Config Options
+
+| Option | Vlang Implementation |
+|--------|----------------------|
+| `str_strip_whitespace` | Calls `.trim()` on all string fields in `.validate()` |
+| `str_to_lower` | Calls `.to_lower()` on all string fields in `.validate()` |
+| `str_to_upper` | Calls `.to_upper()` on all string fields in `.validate()` |
+| `min_anystr_length` | Adds length check to all string fields in `.validate()` |
+| `max_anystr_length` | Adds length check to all string fields in `.validate()` |
+| `validate_all` | Ensures `.validate()` method is always generated |
+| `allow_mutation` | If `False`, removes `mut` keyword from V struct fields |
+| `extra` | Emits a comment; V structs are strict by default (`forbid`) |
+| `validate_assignment` | Emits a comment; currently not enforced on every assignment |
 
 ## How it works (Architecture)
 

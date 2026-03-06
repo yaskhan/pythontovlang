@@ -508,7 +508,7 @@ class TranslatorBase(ast.NodeVisitor):
 
     def _create_temp(self) -> str:
         self.unique_id_counter += 1
-        return f"_aug_tmp_{self.unique_id_counter}"
+        return f"py_aug_tmp_{self.unique_id_counter}"
 
     def _capture_value(self, node: ast.AST) -> tuple[str, list[str]]:
         """

@@ -281,7 +281,7 @@ class AssignmentsMixin(TranslatorBase):
         if len(node.targets) > 1:
             # chained assignment: a = b = c = 1
             rhs = self.visit(node.value)
-            tmp = f"_assign_tmp_{self.unique_id_counter}"
+            tmp = f"py_assign_tmp_{self.unique_id_counter}"
             self.unique_id_counter += 1
             self.output.append(f"{self._indent()}{tmp} := {rhs}")
 
@@ -489,7 +489,7 @@ class AssignmentsMixin(TranslatorBase):
         if isinstance(target, (ast.Tuple, ast.List)):
              # Assign source to a temporary variable to avoid repeated evaluation
              # and allow slicing
-             tmp_var = f"_destruct_{self._zip_counter}"
+             tmp_var = f"py_destruct_{self._zip_counter}"
              self._zip_counter += 1
              self.output.append(f"{self._indent()}{tmp_var} := {source_expr}")
 

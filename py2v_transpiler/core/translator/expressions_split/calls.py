@@ -661,6 +661,13 @@ class CallsMixin(TranslatorBase):
              gen = args[0]
              return f"{gen}.next()"
 
+        # Handle len(obj) -> obj.len
+        if (func_name_str == "len" or func_name_str == "py_len") and len(args) == 1:
+            # Create a dummy Attribute parent to handle precedence
+            dummy_attr = ast.Attribute(value=node.args[0], attr="len")
+            obj_str = self._visit_with_parens(dummy_attr, node.args[0])
+            return f"{obj_str}.len"
+
         if isinstance(func_node, ast.Attribute) and func_node.attr == "clear" and not module_name:
              obj = self.visit(func_node.value)
              return f"/* {obj}.clear() */ {obj} = {{}}"

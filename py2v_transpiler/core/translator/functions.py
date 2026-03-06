@@ -195,15 +195,34 @@ class FunctionsMixin(TranslatorBase):
 
         if is_nested:
             # Nested functions are always single implementation
-            self._generate_function_for_struct(
-                node,
-                is_async,
-                is_method,
-                "",
-                dec_info,
-                is_generator,
-                is_abstract,
-            )
+            # Hoist nested functions if they have generics to satisfy V
+            has_generics = hasattr(node, "type_params") and node.type_params
+            if has_generics:
+                 # Check for outer generics too
+                 all_v = self._get_all_active_v_generics()
+                 if all_v: has_generics = True
+
+            if has_generics:
+                self._generate_function_for_struct(
+                    node,
+                    is_async,
+                    is_method,
+                    "",
+                    dec_info,
+                    is_generator,
+                    is_abstract,
+                    force_standalone=True
+                )
+            else:
+                self._generate_function_for_struct(
+                    node,
+                    is_async,
+                    is_method,
+                    "",
+                    dec_info,
+                    is_generator,
+                    is_abstract,
+                )
         else:
             old_output = self.output
             for struct_name in struct_names:
@@ -227,13 +246,14 @@ class FunctionsMixin(TranslatorBase):
         dec_info: Any,
         is_generator: bool,
         is_abstract: bool = False,
+        force_standalone: bool = False,
     ) -> None:
         # If we are distributing an abstract method to a descendant, skip it.
         # It only needs to be in the interface.
         if is_abstract and struct_name != self.current_class:
             return
 
-        is_nested = len(self._scope_stack) > 0
+        is_nested = len(self._scope_stack) > 0 and not force_standalone
 
         old_output = self.output
         self.output = []
@@ -563,6 +583,17 @@ class FunctionsMixin(TranslatorBase):
                     ret_type += gen_str
                 if is_pydantic:
                     ret_type = "!" + ret_type
+
+        # Visibility handling
+        pub_prefix = ""
+        if not is_nested:
+            if (not is_method and self._is_exported(node.name)) or (is_method and getattr(self, 'config', None) and not func_name.startswith('_') and not is_init):
+                 pub_prefix = "pub "
+
+            # Factory function: pub if class is exported
+            if is_init:
+                 if self._is_exported(struct_name):
+                      pub_prefix = "pub "
 
         # Visibility handling
         pub_prefix = ""
