@@ -64,11 +64,11 @@ class StdLibMapper:
                 "getcwd": "os.getwd",
                 "system": "os.system",
                 "getenv": "os.getenv",
-                "mkdir": "os.mkdir",
-                "makedirs": "os.mkdir_all",
-                "remove": "os.rm",
-                "rmdir": "os.rmdir",
-                "listdir": "os.ls",
+                "mkdir": self._os_mkdir,
+                "makedirs": self._os_mkdir_all,
+                "remove": self._os_remove,
+                "rmdir": self._os_rmdir,
+                "listdir": self._os_ls,
                 "path.join": "os.join_path",
                 "path.exists": "os.exists",
                 "path.isfile": "os.is_file",
@@ -622,3 +622,28 @@ class StdLibMapper:
 
     def _platform_python_implementation(self, args: List[str]) -> str:
         return "'V'"
+
+    def _os_remove(self, args: List[str]) -> str:
+        if len(args) >= 1:
+            return f"os.rm({args[0]}) or {{ panic(err) }}"
+        return "/* os.remove args error */"
+
+    def _os_mkdir(self, args: List[str]) -> str:
+        if len(args) >= 1:
+            return f"os.mkdir({args[0]}) or {{ panic(err) }}"
+        return "/* os.mkdir args error */"
+
+    def _os_mkdir_all(self, args: List[str]) -> str:
+        if len(args) >= 1:
+            return f"os.mkdir_all({args[0]}) or {{ panic(err) }}"
+        return "/* os.makedirs args error */"
+
+    def _os_rmdir(self, args: List[str]) -> str:
+        if len(args) >= 1:
+            return f"os.rmdir({args[0]}) or {{ panic(err) }}"
+        return "/* os.rmdir args error */"
+
+    def _os_ls(self, args: List[str]) -> str:
+        if len(args) >= 1:
+            return f"os.ls({args[0]}) or {{ panic(err) }}"
+        return "/* os.listdir args error */"
