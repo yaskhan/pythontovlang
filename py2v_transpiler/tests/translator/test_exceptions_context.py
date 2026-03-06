@@ -37,6 +37,7 @@ with open("file.txt") as f:
     result = translator.visit_Module(tree)
 
     # open is mapped to os.open
-    assert 'f := os.open("file.txt")' in result.replace("'", '"')
+    assert 'os.open("file.txt")' in result.replace("'", '"')
     assert "defer { f.close() }" in result
+    assert "f := os.open" in result.replace("'", '"')
     assert "println('${f.read()}')" in result

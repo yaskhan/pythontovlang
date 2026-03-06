@@ -6,6 +6,22 @@ class ExceptionsMixin(TranslatorBase):
     """Обработка исключений: try, except, raise, finally"""
     
     def visit_Raise(self, node: ast.Raise) -> None:
+        if self.in_pydantic_validator:
+            if node.exc:
+                if isinstance(node.exc, ast.Call):
+                    msg = ""
+                    if node.exc.args:
+                        msg = self.visit(node.exc.args[0])
+                    self.output.append(f"{self._indent()}return error({msg})")
+                elif isinstance(node.exc, ast.Name):
+                    self.output.append(f"{self._indent()}return error('{node.exc.id}')")
+                else:
+                    val = self.visit(node.exc)
+                    self.output.append(f"{self._indent()}return error('${{{val}}}')")
+            else:
+                self.output.append(f"{self._indent()}return error('Validation Error')")
+            return
+
         self.emitter.add_import('div72.vexc')
         if node.exc:
             if isinstance(node.exc, ast.Call):
@@ -60,7 +76,7 @@ class ExceptionsMixin(TranslatorBase):
                 self.output.append(f"{self._indent()}    }}")
 
         self.vexc_depth += 1
-        success_var = f"_success_{self.unique_id_counter}"
+        success_var = f"py_success_{self.unique_id_counter}"
         self.unique_id_counter += 1
         if node.orelse:
             self.output.append(f"{self._indent()}mut {success_var} := false")
@@ -81,7 +97,7 @@ class ExceptionsMixin(TranslatorBase):
         self._indent_level += 1
 
         if node.handlers:
-             exc_var = f"_exc_{self.unique_id_counter}"
+             exc_var = f"py_exc_{self.unique_id_counter}"
              self.unique_id_counter += 1
              self.output.append(f"{self._indent()}{exc_var} := vexc.get_curr_exc()")
 
@@ -112,7 +128,19 @@ class ExceptionsMixin(TranslatorBase):
                  if handler_opened_block:
                       self._indent_level += 1
                  if handler.name:
-                      self.output.append(f"{self._indent()}{handler.name} := {exc_var}")
+                      # Try to narrow type for exception variable using mypy data
+                      narrowed_type = None
+                      if hasattr(handler, 'lineno'):
+                           # Mypy plugin stores narrowed types with @line:* suffix for blocks
+                           loc_key = f"{handler.name}@{handler.lineno}:*"
+                           narrowed_type = self.type_inference.type_map.get(loc_key)
+
+                      if narrowed_type and narrowed_type not in ("Exception", "Any", "vexc.Exception", "none"):
+                           # Ensure the type is correctly mapped to V
+                           v_type = self._map_type(narrowed_type)
+                           self.output.append(f"{self._indent()}{handler.name} := {exc_var} as {v_type}")
+                      else:
+                           self.output.append(f"{self._indent()}{handler.name} := {exc_var}")
 
                  for stmt in handler.body:
                       self.visit(stmt)
@@ -130,8 +158,8 @@ class ExceptionsMixin(TranslatorBase):
                   self.output.append(f"{self._indent()}}}")
         else:
              # Just try/finally
-             self.output.append(f"{self._indent()}_exc := vexc.get_curr_exc()")
-             self.output.append(f"{self._indent()}vexc.raise(_exc.name, _exc.msg)")
+             self.output.append(f"{self._indent()}py_exc := vexc.get_curr_exc()")
+             self.output.append(f"{self._indent()}vexc.raise(py_exc.name, py_exc.msg)")
 
         self._indent_level -= 1
         self.output.append(f"{self._indent()}}}")

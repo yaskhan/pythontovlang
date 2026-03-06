@@ -23,6 +23,130 @@ class ConditionalsMixin(TranslatorBase):
     def visit_If(self, node: ast.If) -> None:
         self._visit_if(node, is_elif=False)
 
+    def _collect_narrowing(self, node: ast.AST, positive: bool) -> dict[str, str]:
+        """Manually identifies narrowing patterns in a test expression."""
+        res = {}
+        if isinstance(node, ast.Call) and isinstance(node.func, ast.Name) and node.func.id == "isinstance":
+             if positive and len(node.args) == 2 and isinstance(node.args[0], ast.Name):
+                  var_name = node.args[0].id
+                  try:
+                      arg1 = node.args[1]
+                      if isinstance(arg1, ast.Tuple):
+                           parts = []
+                           for elt in arg1.elts:
+                                parts.append(self._map_type(ast.unparse(elt)))
+                           v_type = self._register_sum_type(" | ".join(sorted(list(set(parts)))))
+                      else:
+                           v_type = self._map_type(ast.unparse(arg1))
+
+                      if v_type not in ("Any", "void", "unknown"):
+                          res[var_name] = v_type
+                  except: pass
+        elif isinstance(node, ast.Compare) and len(node.ops) == 1:
+             op = node.ops[0]
+             left = node.left
+             right = node.comparators[0]
+             if isinstance(left, ast.Name):
+                  var_name = left.id
+                  is_none = False
+                  if isinstance(right, ast.Constant) and right.value is None: is_none = True
+                  elif isinstance(right, ast.Name) and right.id in ("None", "none"): is_none = True
+
+                  if is_none:
+                       if (isinstance(op, (ast.IsNot, ast.NotEq)) and positive) or (isinstance(op, (ast.Is, ast.Eq)) and not positive):
+                            # Narrow from ?T to T
+                            orig_type = self.type_inference.type_map.get(var_name)
+                            if not orig_type:
+                                 orig_type = self._guess_type(left)
+
+                            if orig_type and orig_type.startswith("?"):
+                                 res[var_name] = orig_type[1:]
+                       elif (isinstance(op, (ast.Is, ast.Eq)) and positive) or (isinstance(op, (ast.IsNot, ast.NotEq)) and not positive):
+                            res[var_name] = "none"
+        elif isinstance(node, ast.UnaryOp) and isinstance(node.op, ast.Not):
+             return self._collect_narrowing(node.operand, not positive)
+        elif isinstance(node, ast.BoolOp) and isinstance(node.op, ast.And) and positive:
+             for val in node.values:
+                  res.update(self._collect_narrowing(val, True))
+        elif isinstance(node, ast.BoolOp) and isinstance(node.op, ast.Or) and not positive:
+             for val in node.values:
+                  res.update(self._collect_narrowing(val, False))
+        return res
+
+    def _apply_flow_narrowing(self, body_nodes: list[ast.stmt], test_node: ast.AST | None = None, positive: bool = True) -> None:
+        """Narrows variable types based on Mypy's location-based inference AND manual patterns."""
+        if not body_nodes:
+            return
+
+        narrowed_vars: dict[str, str] = {}
+
+        # 1. Manual Pattern Narrowing (high confidence)
+        if test_node:
+             narrowed_vars.update(self._collect_narrowing(test_node, positive))
+
+        # 2. Mypy location-based narrowing (supplementary)
+        if hasattr(self.type_inference, "type_map"):
+            first_node = body_nodes[0]
+            line = getattr(first_node, "lineno", 0)
+            col = getattr(first_node, "col_offset", 0)
+
+            for var_name in list(self._local_vars_in_scope):
+                if var_name in narrowed_vars: continue
+
+                sanitized_name = self._sanitize_name(var_name)
+                # Try specific location
+                loc_key = f"{var_name}@{line}:{col}"
+                narrowed_type = self.type_inference.type_map.get(loc_key)
+
+                if not narrowed_type:
+                    # Try line wildcard
+                    loc_key = f"{var_name}@{line}:*"
+                    narrowed_type = self.type_inference.type_map.get(loc_key)
+
+                if not narrowed_type:
+                    # Try sanitized name
+                    loc_key = f"{sanitized_name}@{line}:{col}"
+                    narrowed_type = self.type_inference.type_map.get(loc_key)
+                    if not narrowed_type:
+                         loc_key = f"{sanitized_name}@{line}:*"
+                         narrowed_type = self.type_inference.type_map.get(loc_key)
+
+                if not narrowed_type:
+                    continue
+
+                base_type = self.type_inference.type_map.get(var_name)
+                if not base_type:
+                    base_type = self.type_inference.type_map.get(sanitized_name)
+
+                if not base_type or base_type == "Any":
+                    continue
+
+                if narrowed_type != base_type:
+                    if base_type.startswith("?") and base_type[1:] == narrowed_type:
+                        continue
+                    if narrowed_type == "Any" or base_type == "Any":
+                        continue
+                    narrowed_vars[var_name] = narrowed_type
+
+        # Emit shadowed assignments for all narrowed variables
+        for var_name, narrowed_type in narrowed_vars.items():
+             if narrowed_type == "none":
+                  # Variable is known to be None/none.
+                  # We could potentially shadow it but V's 'none' isn't really a type you want to shadow with often
+                  continue
+
+             # If it is a SumType name from mypy, we need to map it
+             if " | " in narrowed_type or "builtins." in narrowed_type:
+                  narrowed_type = self._map_type(narrowed_type)
+
+             sanitized_name = self._sanitize_name(var_name)
+             if var_name in self._local_vars_in_scope:
+                  # Use Functional Casting if target type is primitive, else Sum Type assertion
+                  if narrowed_type in ("int", "f64", "string", "bool"):
+                       self.output.append(f"{self._indent()}{sanitized_name} := {narrowed_type}({sanitized_name})")
+                  else:
+                       self.output.append(f"{self._indent()}{sanitized_name} := ({sanitized_name} as {narrowed_type})")
+
     def _visit_if(self, node: ast.If, is_elif: bool = False) -> None:
         if not is_elif:
             # Check for if __name__ == "__main__":
@@ -43,6 +167,8 @@ class ConditionalsMixin(TranslatorBase):
                         v_type = "Any"
                     if not v_type.startswith("?"):
                         v_type = f"?{v_type}"
+
+                    # They are always mut because they are assigned later
                     self.output.append(f"{self._indent()}mut {var} := {v_type}(none)")
                     self._local_vars_in_scope.add(var)
 
@@ -152,6 +278,8 @@ class ConditionalsMixin(TranslatorBase):
 
         if narrow_if:
              self.output.append(f"{self._indent()}{narrow_if}")
+        else:
+             self._apply_flow_narrowing(node.body, node.test, positive=True)
 
         for stmt in node.body:
             self.visit(stmt)
@@ -169,11 +297,19 @@ class ConditionalsMixin(TranslatorBase):
                 self._indent_level += 1
                 if narrow_else:
                     self.output.append(f"{self._indent()}{narrow_else}")
+                else:
+                    self._apply_flow_narrowing(node.orelse, node.test, positive=False)
                 for stmt in node.orelse:
                     self.visit(stmt)
                 self._indent_level -= 1
                 self.output.append(f"{self._indent()}}}")
         else:
+            if narrow_else or (node.orelse and not is_elif):
+                # This part is a bit tricky: if there was no explicit else in Python,
+                # but we have a narrow_else, we still emit an else block in V.
+                # However, if there IS an orelse (else/elif), we already handled it above.
+                pass
+
             if narrow_else:
                 self.output.append(f"{self._indent()}}} else {{")
                 self._indent_level += 1

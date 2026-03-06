@@ -26,9 +26,17 @@ class DecoratorProcessor:
         self.visitor = visitor
 
     def analyze(self, node: ast.FunctionDef, current_class: Optional[str]) -> DecoratorInfo:
+        from py2v_transpiler.pydantic_support.detector import PydanticDetector
+
         info = DecoratorInfo()
 
         for decorator in node.decorator_list:
+            if PydanticDetector.is_validator_decorator(decorator):
+                # We can handle or flag validator decorators here
+                # For now, just mark it so it doesn't get ignored
+                info.decorators_to_handle.append(self._get_decorator_name(decorator))
+                continue
+
             dec_name = self._get_decorator_name(decorator)
 
             if dec_name == "staticmethod":
@@ -68,7 +76,8 @@ class DecoratorProcessor:
                 info.decorators_to_handle.append(dec_name)
             else:
                 # Custom or unknown -> emit as comment in visitor
-                pass
+                if self.visitor and hasattr(self.visitor, "warnings"):
+                    self.visitor.warnings.append(f"Custom decorator '{dec_name}' at line {getattr(node, 'lineno', '?')} is not fully supported and might generate invalid code.")
 
         if info.cache_wrapper_needed:
             func_name = node.name
