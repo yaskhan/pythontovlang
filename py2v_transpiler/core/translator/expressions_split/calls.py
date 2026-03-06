@@ -628,7 +628,7 @@ class CallsMixin(TranslatorBase):
         is_class = False
         has_factory = False
 
-        lookup_name = func_name_str
+        lookup_name = func_name_str or ""
         if lookup_name.startswith("py_"):
             # Check if it was sanitized
             for orig_id in ("int", "float", "bool", "str", "map", "filter"):
