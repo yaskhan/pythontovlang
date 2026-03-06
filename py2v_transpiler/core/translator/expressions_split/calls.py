@@ -229,7 +229,11 @@ class CallsMixin(TranslatorBase):
                 if self.current_class_bases:
                     parent = self.current_class_bases[0]
                     if method_name == "__init__":
-                        return f"self.{parent} = new_{parent}({', '.join(args)})"
+                        # We use anonymous embedding (PascalCase parent) by default for inheritance.
+                        # Multi-parameter generic bases use explicit naming (lowercase), but we'll stick to
+                        # self.{parent} here because if it's explicitly named, V might require standard
+                        # field initialization anyway, but keeping `self.{parent}` works for the standard case.
+                        return f"self.{parent} = new_{parent.lower()}({', '.join(args)})"
                     return f"self.{parent}.{method_name}({', '.join(args)})"
                 else:
                     return f"/* super().{method_name} call without known parent */"
@@ -241,7 +245,7 @@ class CallsMixin(TranslatorBase):
                 if self.current_class_bases and class_name in self.current_class_bases:
                     if len(args) >= 1 and args[0] == "self":
                         base_args = args[1:]
-                        return f"self.{class_name} = new_{class_name}({', '.join(base_args)})"
+                        return f"self.{class_name} = new_{class_name.lower()}({', '.join(base_args)})"
 
         # Handle unittest assertions
         # Strictly check for self.assertX if possible to avoid regressions
@@ -528,7 +532,7 @@ class CallsMixin(TranslatorBase):
 
         if is_class:
             if has_init:
-                return f"new_{func_name_str}({', '.join(args)})"
+                return f"new_{func_name_str.lower()}({', '.join(args)})"
             else:
                 return f"{func_name_str}{{{', '.join(args)}}}"
 

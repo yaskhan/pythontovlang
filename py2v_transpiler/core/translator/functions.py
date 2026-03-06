@@ -287,7 +287,7 @@ class FunctionsMixin(TranslatorBase):
         if node.name == "__new__":
             is_new_method = True
             # Rename __new__
-            node.name = f"new_{struct_name}_new"
+            node.name = f"new_{struct_name.lower()}_new"
             # Remove 'cls' argument if present
             if args and args[0].arg == "cls":
                 args = args[1:]
@@ -473,7 +473,7 @@ class FunctionsMixin(TranslatorBase):
             func_name = "init_subclass"
         elif func_name == "__init__":
             is_init = True
-            func_name = f"new_{struct_name}"
+            func_name = f"new_{struct_name.lower()}"
             receiver_str = ""  # Factory is static
             ret_type = struct_name
             if self.current_class_generics:
@@ -735,7 +735,7 @@ class FunctionsMixin(TranslatorBase):
 
             base_func_name = self._sanitize_name(node.name)
             if node.name == "__init__":
-                base_func_name = f"new_{struct_name}"
+                base_func_name = f"new_{struct_name.lower()}"
                 receiver_str = ""  # Factory is static
                 ret_type = struct_name
                 if self.current_class_generics:

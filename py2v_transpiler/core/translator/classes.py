@@ -417,11 +417,15 @@ class ClassesMixin(TranslatorBase):
                         )
                         # V only allows anonymous embedding of structs/interfaces. Skip if it maps to array/map.
                         if not (v_type.startswith("[]") or v_type.startswith("map[")):
-                            # Use explicit field name for generic bases to avoid V syntax errors with commas
-                            field_name = self._sanitize_name(base_name.lower())
-                            # Make sure it's distinct and lowercased
-                            if field_name == "type": field_name = "py_type"
-                            fields.append(f"    {field_name} {v_type}")
+                            if "," in v_type:
+                                # Use explicit field name ONLY for multi-parameter generic bases to avoid V syntax errors with commas
+                                field_name = self._sanitize_name(base_name.lower())
+                                # Make sure it's distinct and lowercased
+                                if field_name == "type": field_name = "py_type"
+                                fields.append(f"    {field_name} {v_type}")
+                            else:
+                                # Use standard anonymous embedding for single parameter generic types like Base[T]
+                                fields.append(f"    {v_type}")
                     self.current_class_bases.append(base_name)
 
             elif isinstance(base, ast.Name):
