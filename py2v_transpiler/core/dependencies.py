@@ -36,26 +36,16 @@ class DependencyAnalyzer(ast.NodeVisitor):
             potential_path = os.path.join(root_path, *sub_parts)
             if os.path.exists(potential_path + ".py"):
                 return os.path.relpath(potential_path + ".py", root_path)
-            if os.path.exists(potential_path + ".pyi"):
-                return os.path.relpath(potential_path + ".pyi", root_path)
-            if os.path.isdir(potential_path):
-                if os.path.exists(os.path.join(potential_path, "__init__.py")):
-                    return os.path.relpath(os.path.join(potential_path, "__init__.py"), root_path)
-                if os.path.exists(os.path.join(potential_path, "__init__.pyi")):
-                    return os.path.relpath(os.path.join(potential_path, "__init__.pyi"), root_path)
+            if os.path.isdir(potential_path) and os.path.exists(os.path.join(potential_path, "__init__.py")):
+                return os.path.relpath(os.path.join(potential_path, "__init__.py"), root_path)
 
         # 2. Try relative import (relative to current_file_path)
         current_dir = os.path.dirname(os.path.join(root_path, current_file_path))
         potential_path = os.path.join(current_dir, *parts)
         if os.path.exists(potential_path + ".py"):
             return os.path.relpath(potential_path + ".py", root_path)
-        if os.path.exists(potential_path + ".pyi"):
-            return os.path.relpath(potential_path + ".pyi", root_path)
-        if os.path.isdir(potential_path):
-            if os.path.exists(os.path.join(potential_path, "__init__.py")):
-                return os.path.relpath(os.path.join(potential_path, "__init__.py"), root_path)
-            if os.path.exists(os.path.join(potential_path, "__init__.pyi")):
-                return os.path.relpath(os.path.join(potential_path, "__init__.pyi"), root_path)
+        if os.path.isdir(potential_path) and os.path.exists(os.path.join(potential_path, "__init__.py")):
+            return os.path.relpath(os.path.join(potential_path, "__init__.py"), root_path)
 
         return None
 
@@ -64,16 +54,11 @@ class DependencyAnalyzer(ast.NodeVisitor):
         file_list: List[str] = []
         for root, dirs, files in os.walk(root_path):
             for file in files:
-                if file.endswith(".py") or file.endswith(".pyi"):
+                if file.endswith(".py"):
                     full_path = os.path.join(root, file)
                     rel_path = os.path.relpath(full_path, root_path)
                     # Support dot-notation keys for SCC lookup
-                    dot_path = rel_path
-                    if dot_path.endswith('.pyi'):
-                        dot_path = dot_path[:-4]
-                    elif dot_path.endswith('.py'):
-                        dot_path = dot_path[:-3]
-                    dot_path = dot_path.replace('/', '.').replace('\\', '.')
+                    dot_path = rel_path.replace('.py', '').replace('/', '.').replace('\\', '.')
                     file_list.append(rel_path)
                     deps = self.analyze_file(full_path)
                     raw_graph[rel_path] = deps
@@ -84,7 +69,7 @@ class DependencyAnalyzer(ast.NodeVisitor):
         # Resolve dependencies to file paths
         resolved_graph: Dict[str, Set[str]] = {}
         for file, deps in raw_graph.items():
-            if not (file.endswith(".py") or file.endswith(".pyi")): continue
+            if not file.endswith(".py"): continue
             resolved_deps = set()
             for dep in deps:
                 resolved_path = self._resolve_module_to_path(dep, root_path, file)

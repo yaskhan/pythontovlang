@@ -87,13 +87,9 @@ class VCodeEmitter:
             lines.append("")
 
         if self.globals:
-            lines.insert(1, "// To compile with globals, use: v -enable-globals .")
-            for g in self.globals:
-                sanitized_g = g
-                if g.startswith("pub "):
-                    sanitized_g = g[4:]
-                lines.append(f"__global {sanitized_g}")
-            lines.append("")
+            lines.append("__global (")
+            lines.extend(["    " + g for g in self.globals])
+            lines.append(")\n")
 
         if self.constants:
             lines.append("const (")
@@ -131,7 +127,7 @@ class VCodeEmitter:
         lines = [f"module {module_name}\n"]
 
         # Define custom Any type
-        lines.append("pub type Any = bool | int | i64 | f64 | string | []u8 | none\n")
+        lines.append("type Any = bool | int | i64 | f64 | string | []u8\n")
 
         # Sort and deduplicate imports
         unique_imports = sorted(list(set(imports)))

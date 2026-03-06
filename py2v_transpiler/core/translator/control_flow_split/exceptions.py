@@ -60,7 +60,7 @@ class ExceptionsMixin(TranslatorBase):
                 self.output.append(f"{self._indent()}    }}")
 
         self.vexc_depth += 1
-        success_var = f"py_success_{self.unique_id_counter}"
+        success_var = f"_success_{self.unique_id_counter}"
         self.unique_id_counter += 1
         if node.orelse:
             self.output.append(f"{self._indent()}mut {success_var} := false")
@@ -81,7 +81,7 @@ class ExceptionsMixin(TranslatorBase):
         self._indent_level += 1
 
         if node.handlers:
-             exc_var = f"py_exc_{self.unique_id_counter}"
+             exc_var = f"_exc_{self.unique_id_counter}"
              self.unique_id_counter += 1
              self.output.append(f"{self._indent()}{exc_var} := vexc.get_curr_exc()")
 
@@ -130,8 +130,8 @@ class ExceptionsMixin(TranslatorBase):
                   self.output.append(f"{self._indent()}}}")
         else:
              # Just try/finally
-             self.output.append(f"{self._indent()}py_exc := vexc.get_curr_exc()")
-             self.output.append(f"{self._indent()}vexc.raise(py_exc.name, py_exc.msg)")
+             self.output.append(f"{self._indent()}_exc := vexc.get_curr_exc()")
+             self.output.append(f"{self._indent()}vexc.raise(_exc.name, _exc.msg)")
 
         self._indent_level -= 1
         self.output.append(f"{self._indent()}}}")

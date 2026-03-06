@@ -60,10 +60,8 @@ p = Point(1, z=3)
     assert "z int" not in out # InitVar shouldn't be a field
     assert "c int" not in out # ClassVar shouldn't be a field (though we didn't add it explicitly to attributes above so it's ignored)
 
-    # We passed z as kwarg - InitVar should be excluded from struct init if not using factory
-    # The translator outputs 'p := Point{x: 1}' to self.output
-    output_str = "".join(translator.output)
-    assert "Point{x: 1}" in out or "Point{x: 1}" in output_str
+    # We passed z as kwarg
+    assert "Point{x: 1, z: 3}" in out or "Point{x: 1, z: 3}" in "".join(translator.output)
 
     # Actually visit_Assign outputs to translator.output or emitter?
     # VariablesMixin adds to translator.output. But in DummyTranslator we don't handle Module level assignments to put them in a function.

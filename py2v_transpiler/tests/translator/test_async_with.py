@@ -21,10 +21,9 @@ async def foo():
         pass
 """
         result = self.transpile(source)
-        # Expect temp mgr, defer exit, and x := enter
-        self.assertIn("ctx_mgr_0 := mgr", result)
-        self.assertIn("defer { ctx_mgr_0.exit(none, none, none) }", result)
-        self.assertIn("x := ctx_mgr_0.enter()", result)
+        # Expect 'x := mgr' and 'defer { x.close() }'
+        self.assertIn("x := mgr", result)
+        self.assertIn("defer { x.close() }", result)
 
     def test_async_with_no_var(self):
         source = """
@@ -35,7 +34,7 @@ async def foo():
         result = self.transpile(source)
         # Expect temp var and defer
         self.assertIn("defer {", result)
-        self.assertIn(".exit(none, none, none) }", result)
+        self.assertIn(".close() }", result)
 
 if __name__ == '__main__':
     unittest.main()

@@ -23,8 +23,8 @@ else:
     print("finished")
 """
         result = self.transpile(source)
-        self.assertIn("mut py_loop_completed_", result)
-        self.assertIn("if py_loop_completed_", result)
+        self.assertIn("mut _loop_completed_", result)
+        self.assertIn("if _loop_completed_", result)
         self.assertIn("break", result)
         # We expect the flag to be set to false before break
         # regex or strict check difficult due to generated IDs
@@ -39,8 +39,8 @@ else:
     print("finished")
 """
         result = self.transpile(source)
-        self.assertIn("mut py_loop_completed_", result)
-        self.assertIn("if py_loop_completed_", result)
+        self.assertIn("mut _loop_completed_", result)
+        self.assertIn("if _loop_completed_", result)
 
 if __name__ == '__main__':
     unittest.main()
