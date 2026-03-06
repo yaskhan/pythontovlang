@@ -42,7 +42,7 @@ class TestMutationTracking:
         # Note: current implementation might use cap: 1 initialization
         result = self._transpile(code)
         assert "mut l :=" in result
-        assert "l.append(2)" in result
+        assert "l << 2" in result
 
     def test_aug_assign_mutability(self):
         code = """

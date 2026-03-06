@@ -668,9 +668,15 @@ class CallsMixin(TranslatorBase):
             obj_str = self._visit_with_parens(dummy_attr, node.args[0])
             return f"{obj_str}.len"
 
-        if isinstance(func_node, ast.Attribute) and func_node.attr == "clear" and not module_name:
-             obj = self.visit(func_node.value)
-             return f"/* {obj}.clear() */ {obj} = {{}}"
+        if isinstance(func_node, ast.Attribute) and not module_name:
+            if func_node.attr == "append" and len(args) == 1:
+                obj_type = self._guess_type(func_node.value)
+                if obj_type.startswith("[]") or obj_type == "Any":
+                    obj = self.visit(func_node.value)
+                    return f"{obj} << {args[0]}"
+            elif func_node.attr == "clear":
+                obj = self.visit(func_node.value)
+                return f"/* {obj}.clear() */ {obj} = {{}}"
 
         # Handle list.sort(reverse=True)
         if isinstance(func_node, ast.Attribute) and func_node.attr == "sort":
