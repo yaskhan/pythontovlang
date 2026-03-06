@@ -181,4 +181,5 @@
 ## Infrastructure & Tooling
 - [x] Set up comprehensive test suite (pytest)
 - [x] CLI Interface polish
+- [x] Automated V compilation check for transpiler output
 - [ ] Documentation and Usage Examples
