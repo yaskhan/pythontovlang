@@ -865,13 +865,21 @@ class FunctionsMixin(TranslatorBase):
             receiver_str: str = ""
             args_names: List[str] = []
 
+            is_init = False
+            is_pydantic = False
+            if node.name == "__init__":
+                class_info = self.defined_classes.get(struct_name, {})
+                is_pydantic = class_info.get("is_pydantic", False)
+                if not class_info.get("has_new"):
+                    is_init = True
+
             if is_generator:
                 yield_type = self.coroutine_handler.get_yield_type(node)
                 args_str_list.append(f"ch_out chan {yield_type}")
                 args_str_list.append(f"ch_in chan PyGeneratorInput")
                 self.coroutine_handler.enter_generator("ch_out", "ch_in")
 
-            if is_method and not dec_info.is_static:
+            if is_method and not dec_info.is_static and not is_init:
                 # Add self
                 args = node.args.args
                 if hasattr(node.args, "posonlyargs"):
@@ -891,8 +899,14 @@ class FunctionsMixin(TranslatorBase):
                 args_str_list.append(f"{arg_name} {arg_type}")
                 args_names.append(arg_name)
                 # Clean up type for name mangling (e.g. ?int -> opt_int, []string -> arr_string)
+                # Ensure generic type parameters are not in the name, including nested generics
+                import re
+                clean_arg_type = arg_type
+                for gen in all_v_generics:
+                    clean_arg_type = re.sub(rf'\b{re.escape(gen)}\b', 'generic', clean_arg_type)
+
                 clean_type = (
-                    arg_type.replace("?", "opt_")
+                    clean_arg_type.replace("?", "opt_")
                     .replace("[]", "arr_")
                     .replace("[", "_")
                     .replace("]", "")
@@ -903,11 +917,20 @@ class FunctionsMixin(TranslatorBase):
             args_str = ", ".join(args_str_list)
             ret_type = sig["return"]
 
-            base_func_name = self._sanitize_name(node.name)
-            if self.current_class:
-                base_func_name = self._sanitize_name(
-                    self._mangle_name(base_func_name, self.current_class)
-                )
+            if is_init:
+                base_func_name = self._get_factory_name(struct_name)
+                ret_type = struct_name
+                if self.current_class_generics:
+                    gen_str = f"[{', '.join(self.current_class_generics)}]"
+                    ret_type += gen_str
+                if is_pydantic:
+                    ret_type = "!" + ret_type
+            else:
+                base_func_name = self._sanitize_name(node.name)
+                if self.current_class:
+                    base_func_name = self._sanitize_name(
+                        self._mangle_name(base_func_name, self.current_class)
+                    )
 
             if type_suffix_parts:
                 func_name = f"{base_func_name}_{'_'.join(type_suffix_parts)}"
@@ -935,8 +958,15 @@ class FunctionsMixin(TranslatorBase):
             self.function_names.add(func_name)
 
             pub_prefix = ""
-            if (not is_method and self._is_exported(node.name)) or (is_method and getattr(self, 'config', None) and not func_name.startswith('_')):
-                 pub_prefix = "pub "
+            is_nested = len(self._scope_stack) > 0
+            if not is_nested:
+                if (not is_method and self._is_exported(node.name)) or (is_method and getattr(self, 'config', None) and not func_name.startswith('_') and not is_init):
+                     pub_prefix = "pub "
+
+                # Factory function: pub if class is exported
+                if is_init:
+                     if self._is_exported(struct_name):
+                          pub_prefix = "pub "
 
             if is_operator:
                 decl = f"{deprecated_attr}{pub_prefix}fn {receiver_str}{op_str} ({args_str}) {ret_type} {{"
@@ -951,6 +981,17 @@ class FunctionsMixin(TranslatorBase):
             # Track current function return type for visit_Return
             prev_ret_type: Optional[str] = getattr(self, "current_function_return_type", None)
             self.current_function_return_type = ret_type
+
+            prev_in_init = getattr(self, "in_init", False)
+            if is_init:
+                self.in_init = True
+                class_info = self.defined_classes.get(struct_name, {})
+                if class_info.get("is_pydantic"):
+                    # Result type factory: strip ! from ret_type for allocation
+                    alloc_type = ret_type[1:] if ret_type.startswith("!") else ret_type
+                    self.output.append(f"{self._indent()}mut self := {alloc_type}{{}}")
+                else:
+                    self.output.append(f"{self._indent()}mut self := {ret_type}{{}}")
 
             try:
                 # Note: We are using the implementation body, but its local types might need casts
@@ -976,6 +1017,12 @@ class FunctionsMixin(TranslatorBase):
                     self.visit(stmt)
             finally:
                 self.current_function_return_type = prev_ret_type
+                if is_init:
+                    class_info = self.defined_classes.get(struct_name, {})
+                    if class_info.get("is_pydantic"):
+                        self.output.append(f"{self._indent()}self.validate() or {{ return err }}")
+                    self.output.append(f"{self._indent()}return self")
+                    self.in_init = prev_in_init
 
             # Pop function generic scope
             self.generic_scopes.pop()
