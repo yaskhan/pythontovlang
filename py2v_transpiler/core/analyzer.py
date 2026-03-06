@@ -303,6 +303,10 @@ class TypeInference(ast.NodeVisitor):
         elif isinstance(node, ast.Call) and isinstance(node.func, ast.Name):
              if node.func.id == "Node": # Special case for test_dict_inference_self_attribute
                  return "Node"
+             if node.func.id == "str": return "string"
+             if node.func.id == "int": return "int"
+             if node.func.id == "float": return "f64"
+             if node.func.id == "bool": return "bool"
              return "Any"
         elif isinstance(node, ast.List):
             if not node.elts:
