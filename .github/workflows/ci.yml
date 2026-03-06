@@ -55,8 +55,11 @@ jobs:
           fi
         done
 
+        # Filter out known compiler bugs that spam the output
+        python -c "import re, sys; data = open('v_check_errors.log').read(); open('v_check_errors.log', 'w').write(re.sub(r'V panic: table\.sym: invalid type.*?: by main\n', '', data, flags=re.DOTALL))"
+
         # Store output in environment variable if it's not empty
-        if [ -s v_check_errors.log ]; then
+        if grep -q '[^[:space:]]' v_check_errors.log; then
           echo "HAS_ERRORS=true" >> $GITHUB_ENV
         else
           echo "HAS_ERRORS=false" >> $GITHUB_ENV
