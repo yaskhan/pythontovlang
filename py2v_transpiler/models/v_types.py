@@ -304,9 +304,9 @@ def _map_ast_type(
             if literal_registrar:
                 # Concatenate all literal arguments
                 lit_vals = []
-                for arg in args:
-                    if isinstance(arg, ast.Constant):
-                        lit_vals.append(str(arg.value))
+                for lit_node in args:
+                    if isinstance(lit_node, ast.Constant):
+                        lit_vals.append(str(lit_node.value))
                 if lit_vals:
                     return literal_registrar("|".join(lit_vals))
 
