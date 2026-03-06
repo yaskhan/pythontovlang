@@ -45,6 +45,8 @@ class StdLibMapper:
             "datetime": {
                 "datetime.now": "time.now",
                 "date.today": "time.now",
+                "datetime": self._datetime_datetime,
+                "date": self._datetime_date,
             },
             "sys": {
                 "exit": "exit",
@@ -388,6 +390,29 @@ class StdLibMapper:
             # safe cast?
             return f"time.sleep({args[0]} * time.second)"
         return "/* time.sleep args error */"
+
+    def _datetime_datetime(self, args: List[str]) -> str:
+        # datetime.datetime(year, month, day, hour=0, minute=0, second=0, microsecond=0, tzinfo=None, *, fold=0)
+        # V: time.Time{year: ..., month: ..., day: ..., hour: ..., minute: ..., second: ..., nanosecond: ...}
+        fields = ["year", "month", "day", "hour", "minute", "second", "microsecond"]
+        parts = []
+        for i, val in enumerate(args):
+            if i < len(fields):
+                field = fields[i]
+                if field == "microsecond":
+                    parts.append(f"nanosecond: {val} * 1000")
+                else:
+                    parts.append(f"{field}: {val}")
+        return f"time.Time{{ {', '.join(parts)} }}"
+
+    def _datetime_date(self, args: List[str]) -> str:
+        # datetime.date(year, month, day)
+        fields = ["year", "month", "day"]
+        parts = []
+        for i, val in enumerate(args):
+            if i < len(fields):
+                parts.append(f"{fields[i]}: {val}")
+        return f"time.Time{{ {', '.join(parts)} }}"
 
     def _shutil_copy(self, args: List[str]) -> str:
         if len(args) >= 2:

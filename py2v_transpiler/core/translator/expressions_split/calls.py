@@ -34,12 +34,31 @@ class CallsMixin(TranslatorBase):
         if isinstance(curr, ast.Name):
             qualified_name_parts.append(curr.id)
             qualified_name_parts.reverse()
+
+            # Expand root name if it's an imported symbol
+            full_qualified_parts = qualified_name_parts[:]
+            if qualified_name_parts[0] in self.imported_symbols:
+                full_name = self.imported_symbols[qualified_name_parts[0]]
+                full_qualified_parts = full_name.split(".") + qualified_name_parts[1:]
+
             # Check if any prefix is a known module (longest match first)
-            for i in range(len(qualified_name_parts), 0, -1):
-                prefix = ".".join(qualified_name_parts[:i])
+            for i in range(len(full_qualified_parts), 0, -1):
+                prefix = ".".join(full_qualified_parts[:i])
+
+                # Check original module names (keys in mapper)
+                if getattr(self, "mapper", None) and hasattr(self.mapper, "mappings") and prefix in self.mapper.mappings:
+                    module_name = prefix
+                    func_name = ".".join(full_qualified_parts[i:])
+                    break
+
+                # Check aliases and SCC modules
                 if prefix in self.imported_modules:
                     module_name = self.imported_modules[prefix]
-                    func_name = ".".join(qualified_name_parts[i:])
+                    func_name = ".".join(full_qualified_parts[i:])
+                    break
+                elif prefix in self.imported_modules.values():
+                    module_name = prefix
+                    func_name = ".".join(full_qualified_parts[i:])
                     break
 
             if not module_name:
@@ -60,10 +79,11 @@ class CallsMixin(TranslatorBase):
             if func_node.id in self.imported_symbols:
                 # from mod import func
                 full_name = self.imported_symbols[func_node.id]
+                # If full_name is e.g. "datetime.datetime", and it is a class, we want to map it.
                 parts = full_name.split(".")
                 if len(parts) > 1:
-                    module_name = parts[0]
-                    func_name = parts[1]
+                    module_name = ".".join(parts[:-1])
+                    func_name = parts[-1]
                 else:
                     func_name = parts[0]
             elif func_node.id == "open":

@@ -31,8 +31,10 @@ jobs:
         pip install .[dev]
 
     - name: Run tests
+      env:
+        PYTHONPATH: .
       run: |
-        pytest
+        pytest --rootdir=.
 
     - name: Type check with mypy
       run: |
