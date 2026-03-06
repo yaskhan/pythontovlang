@@ -371,8 +371,8 @@ class StdLibMapper:
 
     def _json_loads(self, args: List[str]) -> str:
         if len(args) >= 1:
-             # Default to map[string]string for generic JSON object
-             return f"json.decode(map[string]string, {args[0]}) or {{}}"
+             # Default to map[string]Any for generic JSON object
+             return f"json.decode(map[string]Any, {args[0]}) or {{ panic(err) }}"
         return "/* json.loads args error */"
 
     def _time_time(self, args: List[str]) -> str:
