@@ -489,8 +489,8 @@ class ClassesMixin(TranslatorBase):
                         # DO NOT add to added_fields here, let metadata loop handle it
                         continue
 
-                if is_class_var:
-                    # Mark as added so metadata doesn't duplicate it (though metadata shouldn't have it)
+                if is_class_var and is_dataclass:
+                    # Mark as added so metadata doesn't duplicate it
                     added_fields.add(field_name)
                     continue
 
