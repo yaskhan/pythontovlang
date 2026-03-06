@@ -104,6 +104,23 @@ class OperatorsMixin(TranslatorBase):
         if isinstance(node.op, ast.MatMult):
              return f"{left}.matmul({right})"
 
+        # Handle set operations
+        is_left_set = left_type.startswith("map[") and left_type.endswith("]bool")
+        is_right_set = right_type.startswith("map[") and right_type.endswith("]bool")
+
+        if is_left_set and is_right_set:
+            if isinstance(node.op, ast.BitOr):
+                self.used_builtins.add("py_set_union")
+                return f"py_set_union({left}, {right})"
+            elif isinstance(node.op, ast.BitAnd):
+                self.used_builtins.add("py_set_intersection")
+                return f"py_set_intersection({left}, {right})"
+            elif isinstance(node.op, ast.Sub):
+                self.used_builtins.add("py_set_difference")
+                return f"py_set_difference({left}, {right})"
+            elif isinstance(node.op, ast.BitXor):
+                self.used_builtins.add("py_set_xor")
+                return f"py_set_xor({left}, {right})"
 
         # Check for bytes formatting: b"%s" % b"a"
         if isinstance(node.op, ast.Mod):

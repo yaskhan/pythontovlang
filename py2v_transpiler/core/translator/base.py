@@ -602,6 +602,12 @@ class TranslatorBase(ast.NodeVisitor):
                 if fid in ("bytearray", "memoryview", "bytes"): return "[]u8"
                 if fid in ("isinstance", "hasattr", "getattr", "setattr"): return "bool"
                 if fid in ("bytes", "bytearray", "memoryview"): return "[]u8"
+                if fid in ("set", "frozenset"):
+                    if node.args:
+                        arg_type = self._guess_type(node.args[0])
+                        if arg_type.startswith("[]"):
+                            return f"map[{arg_type[2:]}]bool"
+                    return "map[Any]bool"
             elif isinstance(node.func, ast.Attribute) and node.func.attr == "bytes":
                 return "[]u8"
         elif isinstance(node, (ast.List, ast.Tuple)):
@@ -616,6 +622,18 @@ class TranslatorBase(ast.NodeVisitor):
             if len(element_types) == 1:
                 return f"[]{list(element_types)[0]}"
             return "[]Any"
+        elif isinstance(node, ast.Set):
+            if not node.elts:
+                return "map[Any]bool"
+            element_types = set()
+            for elt in node.elts:
+                if isinstance(elt, ast.Starred):
+                    element_types.add("Any")
+                else:
+                    element_types.add(self._guess_type(elt))
+            if len(element_types) == 1:
+                return f"map[{list(element_types)[0]}]bool"
+            return "map[Any]bool"
         elif isinstance(node, ast.Dict):
             if not node.keys:
                 return "map[string]Any"
