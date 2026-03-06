@@ -51,6 +51,11 @@ class SubscriptsMixin(TranslatorBase):
         # Handle Ellipsis directly if node.slice is Ellipsis node (not Constant, unlikely in recent python ast but possible)
         # In 3.12, it is usually Constant(value=Ellipsis)
 
+        # Use tuple struct indexing if applicable
+        if val_type.startswith("TupleStruct_"):
+             if isinstance(node.slice, ast.Constant) and isinstance(node.slice.value, int):
+                  return f"{value}.it_{node.slice.value}"
+
         # Fast path: Native V indexing if type is known or fallback 'int' (assumed native array in tests).
         # We only use dynamic fallback if type is explicitly 'Any'
         is_native = True
@@ -71,6 +76,9 @@ class SubscriptsMixin(TranslatorBase):
         else:
             index = self.visit(node.slice)
             if is_native:
+                # Use it_N for constant index on TupleStruct
+                if val_type.startswith("TupleStruct_") and index.isdigit():
+                     return f"{value}.it_{index}"
                 return f"{value}[{index}]"
             else:
                 self.used_builtins.add("py_subscript")

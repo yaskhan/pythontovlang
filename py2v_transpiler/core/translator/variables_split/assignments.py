@@ -391,8 +391,25 @@ class AssignmentsMixin(TranslatorBase):
                 if isinstance(node.value, ast.Dict) and not node.value.keys and v_type.startswith("map["):
                     rhs = f"{v_type}{{}}"
                 else:
+                    # Update v_type from mypy if available for better literal translation
+                    if isinstance(target, ast.Name) and hasattr(self, 'type_inference'):
+                        loc_key = f"{target.id}@{node.lineno}:{node.col_offset}"
+                        mypy_v_type = self.type_inference.type_map.get(loc_key)
+                        if mypy_v_type and (mypy_v_type.startswith("LiteralEnum_") or mypy_v_type.startswith("TupleStruct_")):
+                             v_type = mypy_v_type
+
                     self.current_assignment_type = v_type
                     rhs = self.visit(node.value)
+
+                    # Handle Literal conversion
+                    if v_type.startswith("LiteralEnum_"):
+                        # rhs is likely a literal string or int from visit(node.value)
+                        # We need to map it to the enum field
+                        clean_val = "".join(c for c in rhs if c.isalnum() or c == "_").lower()
+                        if not clean_val: clean_val = "empty"
+                        if clean_val[0].isdigit(): clean_val = "v" + clean_val
+                        rhs = f".{clean_val}"
+
                     if hasattr(self, "current_assignment_type"):
                         del self.current_assignment_type
 
@@ -541,6 +558,8 @@ class AssignmentsMixin(TranslatorBase):
                 self.output.append(f"{self._indent()}{lhs} = {source_expr}")
             else:
                 is_mut = False
+                v_type = getattr(self, "_guess_type", lambda x: "unknown")(target)
+
                 if hasattr(self, 'type_inference') and hasattr(self.type_inference, 'mutability_map'):
                     loc_key = f"{lhs}@{target.lineno}:{target.col_offset}"
                     mut_info = self.type_inference.mutability_map.get(loc_key)
@@ -550,7 +569,11 @@ class AssignmentsMixin(TranslatorBase):
                     if mut_info:
                         is_mut = (mut_info.get("is_reassigned", False) or mut_info.get("is_mutated", False)) and not mut_info.get("is_final", False)
 
-                v_type = getattr(self, "_guess_type", lambda x: "unknown")(target)
+                    # Update v_type from mypy if available
+                    mypy_v_type = self.type_inference.type_map.get(loc_key)
+                    if mypy_v_type:
+                        v_type = mypy_v_type
+
                 if is_mut and self._is_clonable_collection(v_type):
                     # For collections, V requires .clone() when assigning to a mutable variable
                     # unless it's a fresh literal
@@ -558,6 +581,16 @@ class AssignmentsMixin(TranslatorBase):
                         source_expr = f"{source_expr}.clone()"
 
                 mut_prefix = "mut " if is_mut else ""
+
+                # Handle Literal conversion from source_expr if target is LiteralEnum
+                if v_type.startswith("LiteralEnum_"):
+                     # If source_expr is a literal (e.g. '1' or '"a"'), convert to enum
+                     if source_expr.startswith("'") or source_expr.startswith('"') or source_expr.isdigit():
+                         clean_val = "".join(c for c in source_expr if c.isalnum() or c == "_").lower()
+                         if not clean_val: clean_val = "empty"
+                         if clean_val[0].isdigit(): clean_val = "v" + clean_val
+                         source_expr = f"{v_type}.{clean_val}"
+
                 self.output.append(f"{self._indent()}{mut_prefix}{lhs} := {source_expr}")
                 if not self.in_main:
                     self._local_vars_in_scope.add(lhs)

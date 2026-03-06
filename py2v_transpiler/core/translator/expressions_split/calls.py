@@ -283,6 +283,16 @@ class CallsMixin(TranslatorBase):
         # Fallback to existing logic
         func_name_str = self.visit(node.func)
 
+        # Handle process_data as tuple[string, int] optimization: strip it if possible
+        if " as " in func_name_str and func_name_str.startswith("(") and func_name_str.endswith(")"):
+             # Heuristic: if it looks like a casted function call, it might be from map_python_type_to_v for Tuple
+             # In V, functions are not sum types usually.
+             parts = func_name_str[1:-1].split(" as ")
+             if len(parts) == 2:
+                  # Check if parts[0] is a known function
+                  # For now, just strip it to avoid the (f as type)() syntax which V doesn't like for non-interfaces
+                  func_name_str = parts[0]
+
         # Handle object.__new__(cls) or super().__new__(cls)
         if isinstance(node.func, ast.Attribute) and node.func.attr == "__new__":
             receiver = self.visit(node.func.value)
@@ -888,6 +898,49 @@ class CallsMixin(TranslatorBase):
                     return f"print('{joined_content}')"
                 else:
                     return f"print('{joined_content}{end}')"
+
+        # Handle LiteralEnum and TupleStruct conversion for arguments
+        if call_sig and "args" in call_sig:
+            for i, arg_type_str in enumerate(call_sig["args"]):
+                if i < len(args):
+                    v_type = self._map_type(arg_type_str, register_sum_types=True)
+                    arg_val = args[i]
+                    if v_type.startswith("LiteralEnum_"):
+                        if (
+                            arg_val.startswith("'")
+                            or arg_val.startswith('"')
+                            or arg_val.isdigit()
+                        ):
+                            clean_val = "".join(
+                                c for c in arg_val if c.isalnum() or c == "_"
+                            ).lower()
+                            if not clean_val:
+                                clean_val = "empty"
+                            if clean_val[0].isdigit():
+                                clean_val = "v" + clean_val
+                            args[i] = f".{clean_val}"
+                    elif v_type.startswith("TupleStruct_"):
+                        if arg_val.startswith("[") and arg_val.endswith("]"):
+                            inner_vals = []
+                            bracket_depth = 0
+                            current = ""
+                            for char in arg_val[1:-1]:
+                                if char == "[":
+                                    bracket_depth += 1
+                                elif char == "]":
+                                    bracket_depth -= 1
+                                if char == "," and bracket_depth == 0:
+                                    inner_vals.append(current.strip())
+                                    current = ""
+                                else:
+                                    current += char
+                            if current:
+                                inner_vals.append(current.strip())
+
+                            pairs = [f"it_{j}: {val}" for j, val in enumerate(inner_vals)]
+                            args[i] = f"{v_type}{{{', '.join(pairs)}}}"
+                        elif arg_val == "none":
+                            args[i] = f"(none as ?{v_type})"
 
         # Check if it is a generator call
         if self.coroutine_handler.is_generator(func_name_str):

@@ -106,6 +106,8 @@ class TranslatorBase(ast.NodeVisitor):
         self.used_string_format: bool = False
         self.dataclasses: Dict[str, List[str]] = {}
         self._generated_sum_types: Dict[str, str] = {}
+        self._generated_literal_enums: Dict[str, str] = {}
+        self._generated_tuple_structs: Dict[str, str] = {}
         self.global_vars: Set[str] = set()
         self.renamed_functions: Dict[str, str] = {"main": "py_main"}
         self.name_remap: Dict[str, str] = {}
@@ -456,7 +458,107 @@ class TranslatorBase(ast.NodeVisitor):
         self._generated_sum_types[normalized] = result
         return result
 
-    def _map_type(self, type_str: str, struct_name: Optional[str] = None, allow_union: bool = True, register_sum_types: bool = True) -> str:
+    def _register_literal_enum(
+        self, literal_vals_str: str, original_type_str: str = ""
+    ) -> str:
+        """Generates a V enum for a Python Literal and returns its name."""
+        vals = literal_vals_str.split("|")
+        vals.sort()
+        normalized_key = "|".join(vals)
+
+        if normalized_key in self._generated_literal_enums:
+            return self._generated_literal_enums[normalized_key]
+        # Generate a name: LiteralEnum_Val1Val2
+        def clean(s: str) -> str:
+            return "".join(c for c in s if c.isalnum() or c == "_")
+
+        enum_name = "LiteralEnum_" + "".join(clean(v).capitalize() for v in vals)
+
+        # Avoid collisions
+        base_name = enum_name
+        counter = 1
+        while any(v == enum_name for v in self._generated_literal_enums.values()):
+            enum_name = f"{base_name}_{counter}"
+            counter += 1
+
+        fields = []
+        for v in vals:
+            field_name = clean(v).lower()
+            if not field_name:
+                field_name = "empty"
+            if field_name[0].isdigit():
+                field_name = "v" + field_name
+            fields.append(f"    {field_name}")
+
+        pub = (
+            "pub "
+            if self.config and getattr(self.config, "include_all_symbols", False)
+            else ""
+        )
+        self.emitter.add_struct(f"{pub}enum {enum_name} {{\n" + "\n".join(fields) + "\n}")
+
+        self._generated_literal_enums[normalized_key] = enum_name
+        return enum_name
+
+    def _register_tuple_struct(self, tuple_types_str: str) -> str:
+        """Generates a V struct for a Python fixed-size Tuple and returns its name."""
+        if tuple_types_str in self._generated_tuple_structs:
+            return self._generated_tuple_structs[tuple_types_str]
+
+        types = [t.strip() for t in tuple_types_str.split("|")]
+        # Generate a name: TupleStruct_Type1Type2
+        def clean(s: str) -> str:
+            m = {
+                "int": "Int",
+                "string": "String",
+                "bool": "Bool",
+                "f64": "F64",
+                "i64": "I64",
+                "u32": "U32",
+                "u64": "U64",
+                "i8": "I8",
+                "i16": "I16",
+                "u8": "U8",
+                "u16": "U16",
+                "Any": "Any",
+                "void": "Void",
+                "none": "None",
+            }
+            res = m.get(s, s).replace("[]", "Array").replace("map", "Map")
+            return "".join(c for c in res if c.isalnum() or c == "_")
+
+        struct_name = "TupleStruct_" + "".join(clean(t) for t in types)
+
+        # Avoid collisions
+        base_name = struct_name
+        counter = 1
+        while any(v == struct_name for v in self._generated_tuple_structs.values()):
+            struct_name = f"{base_name}_{counter}"
+            counter += 1
+
+        fields = []
+        for i, t in enumerate(types):
+            fields.append(f"    it_{i} {t}")
+
+        pub = (
+            "pub "
+            if self.config and getattr(self.config, "include_all_symbols", False)
+            else ""
+        )
+        self.emitter.add_struct(
+            f"{pub}struct {struct_name} {{\n" + "\n".join(fields) + "\n}"
+        )
+
+        self._generated_tuple_structs[tuple_types_str] = struct_name
+        return struct_name
+
+    def _map_type(
+        self,
+        type_str: str,
+        struct_name: Optional[str] = None,
+        allow_union: bool = True,
+        register_sum_types: bool = True,
+    ) -> str:
         """
         Centralized type mapping that performs map_python_type_to_v
         followed by imported_symbols and SCC-based re-mapping.
@@ -464,13 +566,21 @@ class TranslatorBase(ast.NodeVisitor):
         from py2v_transpiler.models.v_types import map_python_type_to_v
 
         registrar = self._register_sum_type if register_sum_types else None
+        lit_registrar = (
+            (lambda s: self._register_literal_enum(s, type_str))
+            if register_sum_types
+            else None
+        )
+        tup_registrar = self._register_tuple_struct if register_sum_types else None
 
         v_type = map_python_type_to_v(
             type_str,
             self_name=self._get_full_self_type(struct_name),
             generic_map=self._get_combined_generic_map(),
             allow_union=allow_union,
-            sum_type_registrar=registrar
+            sum_type_registrar=registrar,
+            literal_registrar=lit_registrar,
+            tuple_registrar=tup_registrar,
         )
 
         # Centralize LiteralString to string mapping

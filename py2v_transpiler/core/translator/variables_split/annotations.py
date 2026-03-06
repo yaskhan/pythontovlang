@@ -111,6 +111,15 @@ class AnnotationsMixin(TranslatorBase):
                 else:
                     self.current_assignment_type = v_type
                     rhs = self.visit(node.value)
+
+                    # Handle Literal conversion
+                    if v_type.startswith("LiteralEnum_"):
+                        # rhs is likely a literal string or int from visit(node.value)
+                        clean_val = "".join(c for c in rhs if c.isalnum() or c == "_").lower()
+                        if not clean_val: clean_val = "empty"
+                        if clean_val[0].isdigit(): clean_val = "v" + clean_val
+                        rhs = f".{clean_val}"
+
                     if hasattr(self, "current_assignment_type"):
                         del self.current_assignment_type
 

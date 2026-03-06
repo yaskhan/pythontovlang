@@ -14,7 +14,15 @@ class VType(Enum):
     NONE = auto()
     UNKNOWN = auto()
 
-def map_python_type_to_v(py_type: str, self_name: str = "Self", allow_union: bool = True, generic_map: Optional[dict[str, str]] = None, sum_type_registrar: Optional[Callable[[str], str]] = None) -> str:
+def map_python_type_to_v(
+    py_type: str,
+    self_name: str = "Self",
+    allow_union: bool = True,
+    generic_map: Optional[dict[str, str]] = None,
+    sum_type_registrar: Optional[Callable[[str], str]] = None,
+    literal_registrar: Optional[Callable[[str], str]] = None,
+    tuple_registrar: Optional[Callable[[str], str]] = None,
+) -> str:
     """Maps a Python type name to its V equivalent."""
     if not py_type:
         return 'void'
@@ -47,12 +55,29 @@ def map_python_type_to_v(py_type: str, self_name: str = "Self", allow_union: boo
 
     try:
         # Use AST to parse complex types
-        node = ast.parse(py_type, mode='eval').body
-        return _map_ast_type(node, self_name, allow_union, generic_map, sum_type_registrar)
+        node = ast.parse(py_type, mode="eval").body
+        return _map_ast_type(
+            node,
+            self_name,
+            allow_union,
+            generic_map,
+            sum_type_registrar,
+            literal_registrar,
+            tuple_registrar,
+        )
     except SyntaxError:
         return py_type
 
-def _map_ast_type(node: ast.AST, self_name: str = "Self", allow_union: bool = True, generic_map: Optional[dict[str, str]] = None, sum_type_registrar: Optional[Callable[[str], str]] = None) -> str:
+
+def _map_ast_type(
+    node: ast.AST,
+    self_name: str = "Self",
+    allow_union: bool = True,
+    generic_map: Optional[dict[str, str]] = None,
+    sum_type_registrar: Optional[Callable[[str], str]] = None,
+    literal_registrar: Optional[Callable[[str], str]] = None,
+    tuple_registrar: Optional[Callable[[str], str]] = None,
+) -> str:
     if isinstance(node, ast.Name):
         if node.id == "Self":
             return self_name
@@ -94,19 +119,35 @@ def _map_ast_type(node: ast.AST, self_name: str = "Self", allow_union: bool = Tr
 
     elif isinstance(node, ast.Constant):
         if node.value is None:
-            return 'none'
+            return "none"
         if node.value is Ellipsis:
-            return '...'
+            return "..."
         if isinstance(node.value, str):
             try:
-                inner_node = ast.parse(node.value, mode='eval').body
-                return _map_ast_type(inner_node, self_name, allow_union, generic_map, sum_type_registrar)
+                inner_node = ast.parse(node.value, mode="eval").body
+                return _map_ast_type(
+                    inner_node,
+                    self_name,
+                    allow_union,
+                    generic_map,
+                    sum_type_registrar,
+                    literal_registrar,
+                    tuple_registrar,
+                )
             except SyntaxError:
                 return node.value
         return str(node.value)
 
     elif isinstance(node, ast.Starred):
-        return _map_ast_type(node.value, self_name, allow_union, generic_map, sum_type_registrar)
+        return _map_ast_type(
+            node.value,
+            self_name,
+            allow_union,
+            generic_map,
+            sum_type_registrar,
+            literal_registrar,
+            tuple_registrar,
+        )
 
     elif isinstance(node, ast.Subscript):
         # Handle List[T], Dict[K,V], Optional[T], etc.
@@ -139,7 +180,18 @@ def _map_ast_type(node: ast.AST, self_name: str = "Self", allow_union: bool = Tr
             args = [slice_node]
 
         # Helper to map args, handling nested types
-        mapped_args = [_map_ast_type(arg, self_name, allow_union, generic_map, sum_type_registrar) for arg in args]
+        mapped_args = [
+            _map_ast_type(
+                arg,
+                self_name,
+                allow_union,
+                generic_map,
+                sum_type_registrar,
+                literal_registrar,
+                tuple_registrar,
+            )
+            for arg in args
+        ]
 
         if value_id in ('List', 'list', 'Sequence', 'MutableSequence', 'Iterable', 'Iterator'):
             if mapped_args:
@@ -161,13 +213,17 @@ def _map_ast_type(node: ast.AST, self_name: str = "Self", allow_union: bool = Tr
                 return "&strings.Builder"
             return "os.File"
 
-        elif value_id == 'Tuple':
+        elif value_id == "Tuple":
             # Tuple[int, ...] -> []int
-            if len(mapped_args) == 2 and mapped_args[1] == '...':
+            if len(mapped_args) == 2 and mapped_args[1] == "...":
                 return f"[]{mapped_args[0]}"
 
+            # Use tuple registrar for fixed-size tuples if available
+            if tuple_registrar:
+                return tuple_registrar(" | ".join(mapped_args))
+
             # Tuple[int, int] -> []int (if all same)
-            first = mapped_args[0] if mapped_args else 'Any'
+            first = mapped_args[0] if mapped_args else "Any"
             if all(arg == first for arg in mapped_args):
                 return f"[]{first}"
 
@@ -243,16 +299,30 @@ def _map_ast_type(node: ast.AST, self_name: str = "Self", allow_union: bool = Tr
 
             return "fn"
 
-        elif value_id == 'Literal':
+        elif value_id == "Literal":
+            # Use literal registrar if available
+            if literal_registrar:
+                # Concatenate all literal arguments
+                lit_vals = []
+                for arg in args:
+                    if isinstance(arg, ast.Constant):
+                        lit_vals.append(str(arg.value))
+                if lit_vals:
+                    return literal_registrar("|".join(lit_vals))
+
             # Literal[1] -> int, Literal['a'] -> string
             if args:
                 lit_arg = args[0]
                 if isinstance(lit_arg, ast.Constant):
-                    if isinstance(lit_arg.value, int): return 'int'
-                    if isinstance(lit_arg.value, float): return 'f64'
-                    if isinstance(lit_arg.value, str): return 'string'
-                    if isinstance(lit_arg.value, bool): return 'bool'
-            return 'string' # default?
+                    if isinstance(lit_arg.value, int):
+                        return "int"
+                    if isinstance(lit_arg.value, float):
+                        return "f64"
+                    if isinstance(lit_arg.value, str):
+                        return "string"
+                    if isinstance(lit_arg.value, bool):
+                        return "bool"
+            return "string"  # default?
 
         elif value_id == 'Type':
             # Type[C] -> C
@@ -288,10 +358,26 @@ def _map_ast_type(node: ast.AST, self_name: str = "Self", allow_union: bool = Tr
     elif isinstance(node, ast.BinOp):
         # A | B (Python 3.10+ Union)
         if isinstance(node.op, ast.BitOr):
-            left_type = _map_ast_type(node.left, self_name, allow_union, generic_map, sum_type_registrar)
-            right_type = _map_ast_type(node.right, self_name, allow_union, generic_map, sum_type_registrar)
+            left_type = _map_ast_type(
+                node.left,
+                self_name,
+                allow_union,
+                generic_map,
+                sum_type_registrar,
+                literal_registrar,
+                tuple_registrar,
+            )
+            right_type = _map_ast_type(
+                node.right,
+                self_name,
+                allow_union,
+                generic_map,
+                sum_type_registrar,
+                literal_registrar,
+                tuple_registrar,
+            )
 
-            if left_type == 'none':
+            if left_type == "none":
                 return f"?{right_type}"
             if right_type == 'none':
                 return f"?{left_type}"

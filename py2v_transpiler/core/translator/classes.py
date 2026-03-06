@@ -160,8 +160,6 @@ class ClassesMixin(TranslatorBase):
         is_protocol = False
         is_named_tuple = False
         is_typed_dict = False
-
-        # If this is a main struct, collect fields from its mixins first
         if is_main_struct:
             mixin_nodes = getattr(self.type_inference, "mixin_nodes", {})
             # main_to_mixins is now recursive thanks to the analyzer change
@@ -475,6 +473,29 @@ class ClassesMixin(TranslatorBase):
                         fields.append(f"    {val}")
                 if val != "builtins.object":
                     self.current_class_bases.append(base.attr)
+
+        # If it's a NamedTuple, try to find metadata from mypy
+        namedtuple_metadata = None
+        if is_named_tuple and hasattr(self.type_inference, "call_signatures"):
+            for k, sig_data in self.type_inference.call_signatures.items():
+                if "namedtuple_metadata" in sig_data:
+                    if (
+                        k.startswith(f"{node.name}@")
+                        or k.split("@")[0].endswith(f".{node.name}")
+                        or k.startswith(f"{struct_name}@")
+                    ):
+                        namedtuple_metadata = sig_data["namedtuple_metadata"]
+                        break
+
+        if namedtuple_metadata:
+            for f_name, f_type_str in zip(
+                namedtuple_metadata["fields"], namedtuple_metadata["types"]
+            ):
+                field_name = self._sanitize_name(f_name)
+                if field_name not in added_fields:
+                    added_fields.add(field_name)
+                    field_type = self._map_type(f_type_str, struct_name)
+                    fields.append(f"    {field_name} {field_type}")
 
         if is_typed_dict:
             self.readonly_fields[struct_name] = set()

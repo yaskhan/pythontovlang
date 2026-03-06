@@ -209,7 +209,7 @@ class LiteralsMixin(TranslatorBase):
         return f"{{{', '.join(elements)}}}"
 
     def visit_Tuple(self, node: ast.Tuple) -> str:
-        # Translate Tuple (a, b) to Array [a, b]
+        # Translate Tuple (a, b) to Array [a, b] or TupleStruct{...}
         # Check for starred elements
         has_starred = any(isinstance(elt, ast.Starred) for elt in node.elts)
         if has_starred:
@@ -230,6 +230,13 @@ class LiteralsMixin(TranslatorBase):
             return f"py_list_concat({', '.join(chunks)})"
 
         elements = [str(self.visit(elt)) for elt in node.elts]
+
+        # Use tuple struct if target type is a registered tuple struct
+        v_type = getattr(self, "current_assignment_type", "")
+        if v_type and v_type.startswith("TupleStruct_"):
+            pairs = [f"it_{i}: {el}" for i, el in enumerate(elements)]
+            return f"{v_type}{{{', '.join(pairs)}}}"
+
         return f"[{', '.join(elements)}]"
 
     def visit_JoinedStr(self, node: ast.JoinedStr) -> str:

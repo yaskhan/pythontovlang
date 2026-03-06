@@ -718,7 +718,13 @@ class FunctionsMixin(TranslatorBase):
 
         # Track current function return type for visit_Return
         prev_ret_type: Optional[str] = getattr(self, "current_function_return_type", None)
-        self.current_function_return_type = ret_type
+
+        # Handle LiteralEnum or TupleStruct return types
+        actual_ret_type = ret_type
+        if ret_type in self._generated_literal_enums.values() or ret_type in self._generated_tuple_structs.values():
+             actual_ret_type = ret_type
+
+        self.current_function_return_type = actual_ret_type
 
         if is_nested:
             self._scope_stack[-1].add(func_name)

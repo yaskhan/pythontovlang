@@ -23,7 +23,9 @@ def foo(x: Literal[1, 2]) -> Literal['a', 'b']:
     return 'a'
 """
     v_code = translate(source)
-    assert "fn foo(x int) string {" in v_code
+    assert "enum LiteralEnum_12" in v_code
+    assert "enum LiteralEnum_AB" in v_code
+    assert "fn foo(x LiteralEnum_12) LiteralEnum_AB {" in v_code
 
 def test_typing_final():
     source = """

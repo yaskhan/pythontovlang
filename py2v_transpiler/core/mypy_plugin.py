@@ -50,10 +50,18 @@ class VlangPlugin(Plugin):
                     pass
 
                 dataclass_metadata = None
+                namedtuple_metadata = None
                 try:
                     from mypy.types import Instance
                     if isinstance(ctx.default_return_type, Instance):
                         type_info = ctx.default_return_type.type
+                        if 'namedtuple' in type_info.metadata:
+                            nt_meta = type_info.metadata['namedtuple']
+                            namedtuple_metadata = {
+                                "fields": nt_meta.get("fields", []),
+                                "types": [str(t) for t in nt_meta.get("types", [])]
+                            }
+
                         if 'dataclass' in type_info.metadata:
                             dataclass_metadata = type_info.metadata['dataclass']
                             has_post_init = '__post_init__' in type_info.names
@@ -84,6 +92,8 @@ class VlangPlugin(Plugin):
                 }
                 if dataclass_metadata:
                     sig_data["dataclass_metadata"] = dataclass_metadata
+                if namedtuple_metadata:
+                    sig_data["namedtuple_metadata"] = namedtuple_metadata
 
                 self.collected_sigs[fullname][key] = json.dumps(sig_data)
 
@@ -106,12 +116,20 @@ class VlangPlugin(Plugin):
                 is_class = False
                 has_init = False
                 dataclass_metadata = None
+                namedtuple_metadata = None
                 try:
                     from mypy.types import Instance
                     if isinstance(ctx.default_return_type, Instance):
                         type_info = ctx.default_return_type.type
                         is_class = type_info.fullname == fullname
                         has_init = '__init__' in type_info.names
+                        if 'namedtuple' in type_info.metadata:
+                            nt_meta = type_info.metadata['namedtuple']
+                            namedtuple_metadata = {
+                                "fields": nt_meta.get("fields", []),
+                                "types": [str(t) for t in nt_meta.get("types", [])]
+                            }
+
                         if 'dataclass' in type_info.metadata:
                             dataclass_metadata = type_info.metadata['dataclass']
                             has_post_init = '__post_init__' in type_info.names
@@ -142,6 +160,8 @@ class VlangPlugin(Plugin):
                 }
                 if dataclass_metadata:
                     sig_data["dataclass_metadata"] = dataclass_metadata
+                if namedtuple_metadata:
+                    sig_data["namedtuple_metadata"] = namedtuple_metadata
 
                 self.collected_sigs[fullname][key] = json.dumps(sig_data)
 
