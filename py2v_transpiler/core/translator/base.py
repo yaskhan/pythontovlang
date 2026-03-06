@@ -577,7 +577,7 @@ class TranslatorBase(ast.NodeVisitor):
              if isinstance(node.value, str): return "string"
              if isinstance(node.value, bytes): return "[]u8"
              if isinstance(node.value, complex): return "PyComplex"
-             if node.value is None: return "int"
+             if node.value is None: return "Any"
              return "int"
         elif isinstance(node, (ast.UnaryOp)):
             if isinstance(node.op, ast.Not):
@@ -638,6 +638,8 @@ class TranslatorBase(ast.NodeVisitor):
             v_type = "Any"
             if len(val_types) == 1:
                 v_type = list(val_types)[0]
+            elif len(val_types) > 1:
+                v_type = "Any"
 
             return f"map[{k_type}]{v_type}"
         elif isinstance(node, ast.Name):

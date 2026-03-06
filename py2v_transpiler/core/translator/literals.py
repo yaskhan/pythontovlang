@@ -176,6 +176,9 @@ class LiteralsMixin(TranslatorBase):
                 val_str = self.visit(v)
                 pairs.append(f"{key_str}: {val_str}")
 
+        if "Any" in v_type:
+            return f"{v_type}{{{', '.join(pairs)}}}"
+
         return f"{{{', '.join(pairs)}}}"
 
     def visit_Set(self, node: ast.Set) -> str:
