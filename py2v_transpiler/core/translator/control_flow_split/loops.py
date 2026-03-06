@@ -3,13 +3,13 @@ from typing import Dict, Any
 from ..base import TranslatorBase
 
 class LoopsMixin(TranslatorBase):
-    """Обработка циклов: for, async for, while"""
+    """Loop handling: for, async for, while"""
     
     def visit_While(self, node: ast.While) -> None:
         loop_ctx: Dict[str, Any] = {}
         flag_name = ""
         if node.orelse:
-            flag_name = f"_loop_completed_{self.unique_id_counter}"
+            flag_name = f"py_loop_completed_{self.unique_id_counter}"
             self.unique_id_counter += 1
             self.output.append(f"{self._indent()}mut {flag_name} := true")
             loop_ctx['flag'] = flag_name
@@ -63,9 +63,9 @@ class LoopsMixin(TranslatorBase):
 
         # Push loop context to stack for break handling
         self.loop_stack.append({'vexc_depth': self.vexc_depth})
-# 1. Сначала проверяем на деструктуризацию кортежа (из feat-ветки)
+# 1. Check for tuple destructuring (from feat branch)
         if isinstance(node.target, ast.Tuple) and target.startswith("[") and target.endswith("]"):
-            val_name = f"_val_{id(node)}"
+            val_name = f"py_val_{id(node)}"
             self.output.append(f"{self._indent()}for {val_name} in {iter_expr} {{")
             self._indent_level += 1
             for i, elt in enumerate(node.target.elts):
@@ -80,7 +80,7 @@ class LoopsMixin(TranslatorBase):
                 self.output.append(f"{self._indent()}// else clause in async for not supported yet")
             return
 
-        # 2. Если это не кортеж, проверяем итерацию по строке (из main-ветки)
+        # 2. If not a tuple, check for string iteration (from main branch)
         is_string_iter = False
         if isinstance(node.iter, ast.Call) and getattr(node.iter.func, 'id', '') == "str":
             is_string_iter = True
@@ -88,20 +88,20 @@ class LoopsMixin(TranslatorBase):
             is_string_iter = True
 
         if is_string_iter:
-            # Специфичная логика V: u8 -> string
+            # V-specific logic: u8 -> string
             self.output.append(f"{self._indent()}for {target}_u8 in {iter_expr} {{")
             self._indent_level += 1
             self.output.append(f"{self._indent()}{target} := {target}_u8.ascii_str()")
             for stmt in node.body:
                 self.visit(stmt)
         else:
-            # Стандартный цикл для всех остальных случаев
+            # Standard loop for all other cases
             self.output.append(f"{self._indent()}for {target} in {iter_expr} {{")
             self._indent_level += 1
             for stmt in node.body:
                 self.visit(stmt)
 
-        # 3. Закрываем блок (это было общим в обеих ветках)
+        # 3. Close the block (common to both branches)
         self._indent_level -= 1
         self.output.append(f"{self._indent()}}}")
 
@@ -114,7 +114,7 @@ class LoopsMixin(TranslatorBase):
         loop_ctx: Dict[str, Any] = {}
         flag_name = ""
         if node.orelse:
-            flag_name = f"_loop_completed_{self.unique_id_counter}"
+            flag_name = f"py_loop_completed_{self.unique_id_counter}"
             self.unique_id_counter += 1
             self.output.append(f"{self._indent()}mut {flag_name} := true")
             loop_ctx['flag'] = flag_name
@@ -141,11 +141,11 @@ class LoopsMixin(TranslatorBase):
                 zip_id = self._zip_counter
                 it1 = self.visit(zip_args[0])
                 it2 = self.visit(zip_args[1])
-                var_it1 = f"_zip_it1_{zip_id}"
-                var_it2 = f"_zip_it2_{zip_id}"
-                var_i = f"_i_{zip_id}"
-                var_v1 = f"_v1_{zip_id}"
-                var_v2 = f"_v2_{zip_id}"
+                var_it1 = f"py_zip_it1_{zip_id}"
+                var_it2 = f"py_zip_it2_{zip_id}"
+                var_i = f"py_i_{zip_id}"
+                var_v1 = f"py_v1_{zip_id}"
+                var_v2 = f"py_v2_{zip_id}"
                 self.output.append(f"{self._indent()}{var_it1} := {it1}")
                 self.output.append(f"{self._indent()}{var_it2} := {it2}")
                 self.output.append(f"{self._indent()}for {var_i}, {var_v1} in {var_it1} {{")
@@ -185,11 +185,11 @@ class LoopsMixin(TranslatorBase):
                 if func_node.id in ("range", "xrange"):
                     is_range = True
             elif isinstance(func_node, ast.Attribute):
-                # Поддержка six.moves.xrange или подобных конструкций
+                # Support for six.moves.xrange or similar constructs
                 if func_node.attr == "xrange":
                     is_range = True
 
-        # Логика для dict.items() из main
+        # Logic for dict.items() from main
         if isinstance(node.iter, ast.Call) and isinstance(node.iter.func, ast.Attribute) and node.iter.func.attr == "items":
             if isinstance(node.target, ast.Tuple):
                 if target.startswith("[") and target.endswith("]"):
@@ -242,7 +242,7 @@ class LoopsMixin(TranslatorBase):
                      else:
                          self.output.append(f"{self._indent()}// TODO: handle enumerate with single target variable")
 
-        # Определяем вспомогательные флаги из обеих веток
+        # Determine helper flags from both branches
         is_enumerate = isinstance(node.iter, ast.Call) and getattr(node.iter.func, "id", "") == "enumerate"
         is_dict_items = isinstance(node.iter, ast.Call) and isinstance(node.iter.func, ast.Attribute) and node.iter.func.attr == "items"
 
@@ -256,9 +256,9 @@ class LoopsMixin(TranslatorBase):
         elif hasattr(self, '_guess_type') and self._guess_type(iter_to_check) == "string":
             is_string_iter = True
 
-        # 1. Обработка деструктуризации кортежа (кроме случаев с enumerate/dict.items)
+        # 1. Handle tuple destructuring (except for enumerate/dict.items)
         if isinstance(node.target, ast.Tuple) and target.startswith("[") and target.endswith("]") and not is_enumerate and not is_dict_items:
-            val_name = f"_val_{id(node)}"
+            val_name = f"py_val_{id(node)}"
             self.output.append(f"{self._indent()}for {val_name} in {iter_expr} {{")
             self._indent_level += 1
             for i, elt in enumerate(node.target.elts):
@@ -270,7 +270,7 @@ class LoopsMixin(TranslatorBase):
             self.output.append(f"{self._indent()}}}")
             self.loop_stack.pop()
 
-            # Обработка orelse (из feat ветки)
+            # Handle orelse (from feat branch)
             if node.orelse:
                 self.output.append(f"{self._indent()}if {flag_name} {{")
                 self._indent_level += 1
@@ -280,11 +280,11 @@ class LoopsMixin(TranslatorBase):
                 self.output.append(f"{self._indent()}}}")
             return
 
-        # 2. Подготовка таргета для dict.items
+        # 2. Prepare target for dict.items
         if is_dict_items and target.startswith("[") and target.endswith("]"):
             target = target[1:-1]
 
-        # 3. Генерация основного цикла (с учетом специфики строк в V)
+        # 3. Generate main loop (accounting for V string specifics)
         if is_string_iter:
             if is_enumerate and "," in target:
                 parts = [p.strip() for p in target.split(",")]
@@ -301,7 +301,7 @@ class LoopsMixin(TranslatorBase):
             self.output.append(f"{self._indent()}for {target} in {iter_expr} {{")
             self._indent_level += 1
 
-        # Тело цикла (общее для строк и обычного случая)
+        # Loop body (common for strings and normal cases)
         for stmt in node.body:
             self.visit(stmt)
         self._indent_level -= 1

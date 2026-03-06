@@ -134,6 +134,7 @@ class TranslatorBase(ast.NodeVisitor):
         self.warnings: List[str] = []
         self.type_vars: Set[str] = set()
         self.current_function_return_type: Optional[str] = None
+        self.in_pydantic_validator: bool = False
 
     def _is_literal_string_expr(self, node: ast.AST) -> bool:
         """
@@ -160,6 +161,10 @@ class TranslatorBase(ast.NodeVisitor):
 
     def _is_collection_type(self, v_type: str) -> bool:
         return v_type.startswith("[]") or v_type.startswith("map[") or v_type == "string" or v_type == "LiteralString"
+
+    def _is_clonable_collection(self, v_type: str) -> bool:
+        """Checks if a V type is a collection that requires .clone() for mutable assignment."""
+        return v_type.startswith("[]") or v_type.startswith("map[")
 
     def _is_string_type(self, v_type: str) -> bool:
         return v_type == "string" or v_type == "LiteralString"
@@ -496,7 +501,7 @@ class TranslatorBase(ast.NodeVisitor):
 
     def _create_temp(self) -> str:
         self.unique_id_counter += 1
-        return f"_aug_tmp_{self.unique_id_counter}"
+        return f"py_aug_tmp_{self.unique_id_counter}"
 
     def _capture_value(self, node: ast.AST) -> tuple[str, list[str]]:
         """

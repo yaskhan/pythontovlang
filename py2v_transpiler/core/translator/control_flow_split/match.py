@@ -23,13 +23,13 @@ class MatchMixin(TranslatorBase):
         subject = self.visit(node.subject)
         self._zip_counter += 1
         match_id = self._zip_counter
-        subject_var = f"_match_subject_{match_id}"
-        found_var = f"_match_found_{match_id}"
+        subject_var = f"py_match_subject_{match_id}"
+        found_var = f"py_match_found_{match_id}"
 
         self.output.append(f"{self._indent()}// Match statement converted to separate if blocks")
         self.output.append(f"{self._indent()}{subject_var} := {subject}")
         # Create an 'any' alias for type checking
-        subject_any = f"_match_subject_any_{match_id}"
+        subject_any = f"py_match_subject_any_{match_id}"
         self.output.append(f"{self._indent()}{subject_any} := ({subject_var} as Any)")
         self.output.append(f"{self._indent()}mut {found_var} := false")
 
@@ -238,7 +238,7 @@ class MatchMixin(TranslatorBase):
                  else:
                      # Fallback to positional index if unknown
                      # Python usually requires __match_args__ but we can try to be helpful
-                     attr = f"_{i}"
+                     attr = f"py_{i}"
 
                  cast_expr = f"({subject_expr} as {cls_name})"
                  val_expr = f"({cast_expr}.{attr} as Any)"

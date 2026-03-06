@@ -222,7 +222,7 @@ class MixinInferer(ast.NodeVisitor):
 class TypeInference(ast.NodeVisitor):
     def __init__(self):
         self.type_map: Dict[str, str] = {}
-        self.mutability_map: Dict[str, Dict[str, bool]] = {}
+        self.mutability_map: Dict[str, Dict[str, Any]] = {}
         self.location_map: Dict[str, str] = {}
         self.call_signatures: Dict[str, Dict[str, Any]] = {}
         self.mixin_to_main: Dict[str, list[str]] = {}
@@ -233,13 +233,14 @@ class TypeInference(ast.NodeVisitor):
 
     def analyze(self, tree: ast.AST) -> Dict[str, str]:
         """Analyzes the AST to infer variable types."""
-        self.visit(tree)
-        # Type Alias Inference
+        # Type Alias Inference SHOULD RUN FIRST so we don't misidentify aliases as 'fn' in visit_Call
         alias_inferer = AliasInferer()
         alias_inferer.analyze(tree)
         for k, v in alias_inferer.alias_to_type.items():
             if k not in self.type_map or self.type_map[k] == "Any":
                 self.type_map[k] = v
+
+        self.visit(tree)
 
         # Mixin Inference
         mixin_inferer = MixinInferer()
@@ -253,6 +254,32 @@ class TypeInference(ast.NodeVisitor):
 
         return self.type_map
 
+    def _mark_mutated(self, node: ast.AST):
+        if isinstance(node, ast.Name):
+            name = node.id
+            if name not in self.mutability_map:
+                self.mutability_map[name] = {"is_reassigned": False, "is_final": False, "is_mutated": False}
+            self.mutability_map[name]["is_mutated"] = True
+        elif isinstance(node, ast.Attribute) and isinstance(node.value, ast.Name):
+            name = f"{node.value.id}.{node.attr}"
+            if name not in self.mutability_map:
+                self.mutability_map[name] = {"is_reassigned": False, "is_final": False, "is_mutated": False}
+            self.mutability_map[name]["is_mutated"] = True
+
+    def _mark_reassigned(self, node: ast.AST):
+        if isinstance(node, ast.Name):
+            name = node.id
+            if name in self.mutability_map:
+                self.mutability_map[name]["is_reassigned"] = True
+            else:
+                self.mutability_map[name] = {"is_reassigned": False, "is_final": False, "is_mutated": False}
+                # If we see it first time here, it might be the initial assignment.
+                # But NodeVisitor walks the tree.
+                # Usually mypy tracks this better.
+        elif isinstance(node, (ast.Tuple, ast.List)):
+            for elt in node.elts:
+                self._mark_reassigned(elt)
+
     def _guess_node_type(self, node: ast.AST) -> str:
         if isinstance(node, ast.Constant):
             if isinstance(node.value, int):
@@ -263,11 +290,18 @@ class TypeInference(ast.NodeVisitor):
                 return "string"
             if isinstance(node.value, bool):
                 return "bool"
+        elif isinstance(node, ast.Attribute) and isinstance(node.value, ast.Name) and node.value.id == "self":
+            # Heuristic for self.attributes
+            return self.type_map.get(node.attr, "Any")
         elif isinstance(node, ast.Name):
             return self.type_map.get(node.id, "Any")
         elif isinstance(node, ast.Call) and isinstance(node.func, ast.Name):
              if node.func.id == "Node": # Special case for test_dict_inference_self_attribute
                  return "Node"
+             if node.func.id == "str": return "string"
+             if node.func.id == "int": return "int"
+             if node.func.id == "float": return "f64"
+             if node.func.id == "bool": return "bool"
              return "Any"
         elif isinstance(node, ast.List):
             if not node.elts:
@@ -303,20 +337,59 @@ class TypeInference(ast.NodeVisitor):
         return "Any"
 
     def visit_Call(self, node: ast.Call) -> Any:
-        if isinstance(node.func, ast.Attribute) and node.func.attr == "append":
-            if isinstance(node.func.value, ast.Name):
-                var_name = node.func.value.id
-                if len(node.args) == 1:
-                    elt_type = self._guess_node_type(node.args[0])
-                    if elt_type != "Any":
-                        new_type = f"[]{elt_type}"
-                        if var_name not in self.type_map or self.type_map[var_name] == "[]Any":
-                            self.type_map[var_name] = new_type
+        if isinstance(node.func, ast.Attribute):
+            mutating_methods = {
+                "append", "extend", "insert", "pop", "remove", "clear",
+                "update", "setdefault", "delete", "add", "discard"
+            }
+            if node.func.attr in mutating_methods:
+                self._mark_mutated(node.func.value)
+
+            if node.func.attr == "append":
+                if isinstance(node.func.value, ast.Name):
+                    var_name = node.func.value.id
+                    if len(node.args) == 1:
+                        elt_type = self._guess_node_type(node.args[0])
+                        if elt_type != "Any":
+                            new_type = f"[]{elt_type}"
+                            if var_name not in self.type_map or self.type_map[var_name] == "[]Any":
+                                self.type_map[var_name] = new_type
+        elif isinstance(node.func, ast.Name):
+            var_name = node.func.id
+            # Don't overwrite if already inferred as something more specific (like list/set/dict alias)
+            if var_name not in self.type_map or self.type_map[var_name] == "Any":
+                # If it's called, it's likely a function
+                # But we check AliasInferer first in analyze() to be safe.
+                # Actually, visit_Call runs before AliasInferer.analyze().
+                # Let's check if it's a known collection builtin.
+                if var_name not in ("list", "set", "dict"):
+                    # Use a more specific function type if possible
+                    self.type_map[var_name] = "fn (...Any) Any"
+
+        self.generic_visit(node)
+
+    def visit_ClassDef(self, node: ast.ClassDef) -> Any:
+        for stmt in node.body:
+            if isinstance(stmt, ast.Assign):
+                for target in stmt.targets:
+                    if isinstance(target, ast.Name):
+                        self.type_map[target.id] = self._guess_node_type(stmt.value)
         self.generic_visit(node)
 
     def visit_Assign(self, node: ast.Assign) -> Any:
         for target in node.targets:
+            if isinstance(target, ast.Attribute) and isinstance(target.value, ast.Name) and target.value.id == "self":
+                 # Heuristic for class field types
+                 self.type_map[target.attr] = self._guess_node_type(node.value)
+
+            if isinstance(target, ast.Name):
+                if target.id in self.mutability_map:
+                    self.mutability_map[target.id]["is_reassigned"] = True
+                else:
+                    self.mutability_map[target.id] = {"is_reassigned": False, "is_final": False, "is_mutated": False}
+
             if isinstance(target, ast.Subscript):
+                self._mark_mutated(target.value)
                 dict_name = None
                 if isinstance(target.value, ast.Name):
                     dict_name = target.value.id
@@ -355,6 +428,19 @@ class TypeInference(ast.NodeVisitor):
 
         self.generic_visit(node)
 
+    def visit_AugAssign(self, node: ast.AugAssign) -> Any:
+        if isinstance(node.target, (ast.Name, ast.Attribute)):
+            self._mark_reassigned(node.target)
+        elif isinstance(node.target, ast.Subscript):
+            self._mark_mutated(node.target.value)
+        self.generic_visit(node)
+
+    def visit_Delete(self, node: ast.Delete) -> Any:
+        for target in node.targets:
+            if isinstance(target, ast.Subscript):
+                self._mark_mutated(target.value)
+        self.generic_visit(node)
+
     def _infer_collection_type(self, node: ast.AST) -> str:
         return self._guess_node_type(node)
 
@@ -388,38 +474,64 @@ class TypeInference(ast.NodeVisitor):
         self.generic_visit(node)
 
     def visit_FunctionDef(self, node: ast.FunctionDef) -> Any:
+        # Register the function itself in type map
+        # Use a more descriptive function type if possible
+        self.type_map[node.name] = "fn (...Any) Any"
+
+        # Register arguments in type map
+        for arg in node.args.args:
+            v_type = "Any"
+            if arg.annotation:
+                try:
+                    type_str = ast.unparse(arg.annotation)
+                    v_type = map_python_type_to_v(type_str)
+                except Exception:
+                    pass
+
+            # Map LiteralString to string for V compatibility
+            if v_type == "LiteralString": v_type = "string"
+
+            self.type_map[arg.arg] = v_type
+            # Also register with location for more precise lookup if possible
+            if hasattr(arg, 'lineno'):
+                self.type_map[f"{arg.arg}@{arg.lineno}:{arg.col_offset}"] = v_type
+
         # Handle return type
         if node.returns:
             try:
                 type_str = ast.unparse(node.returns)
-                if type_str in ("LiteralString", "typing.LiteralString", "typing_extensions.LiteralString"):
-                    v_type = "LiteralString"
-                else:
-                    v_type = map_python_type_to_v(type_str)
+                v_type = map_python_type_to_v(type_str)
+                if v_type == "LiteralString": v_type = "string"
                 self.type_map[f"{node.name}@return"] = v_type
             except:
                 pass
+        elif node.name not in ("__init__", "__post_init__", "setUp", "tearDown"):
+            # Heuristic return type inference: scan for return statements
+            found_types = set()
+            has_return_value = False
 
-        for arg in node.args.args:
-            if arg.annotation:
-                try:
-                    type_str = ast.unparse(arg.annotation)
-                    if type_str in ("LiteralString", "typing.LiteralString", "typing_extensions.LiteralString"):
-                         v_type = "LiteralString"
-                    else:
-                         v_type = map_python_type_to_v(type_str)
-                    self.type_map[arg.arg] = v_type
-                except AttributeError:
-                    if isinstance(arg.annotation, ast.Name):
-                        v_type = map_python_type_to_v(arg.annotation.id)
-                        self.type_map[arg.arg] = v_type
-                    elif isinstance(arg.annotation, ast.Constant) and isinstance(
-                        arg.annotation.value, str
-                    ):
-                        v_type = map_python_type_to_v(arg.annotation.value)
-                        self.type_map[arg.arg] = v_type
-                except Exception:
-                    pass
+            def find_returns(n: ast.AST):
+                nonlocal has_return_value
+                for child in ast.iter_child_nodes(n):
+                    if isinstance(child, ast.Return):
+                        if child.value:
+                            has_return_value = True
+                            typ = self._guess_node_type(child.value)
+                            if typ != "Any":
+                                found_types.add(typ)
+                    elif not isinstance(child, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef, ast.Lambda)):
+                        find_returns(child)
+
+            find_returns(node)
+
+            if len(found_types) == 1:
+                res_type = list(found_types)[0]
+                if res_type != "void":
+                    self.type_map[f"{node.name}@return"] = res_type
+            elif len(found_types) > 1:
+                self.type_map[f"{node.name}@return"] = "Any"
+            elif has_return_value:
+                self.type_map[f"{node.name}@return"] = "Any"
 
         self.generic_visit(node)
 

@@ -160,23 +160,49 @@ class VlangPlugin(Plugin):
         global _global_collected_types, _global_collected_sigs, _global_collected_mutability
 
         # Collect types from checker's type_map for narrowing
-        from mypy.nodes import NameExpr, MemberExpr, Var
+        from mypy.nodes import NameExpr, MemberExpr, Var, FuncDef
         if self.checker and hasattr(self.checker, 'type_map'):
             for expr, typ in self.checker.type_map.items():
-                if isinstance(expr, (NameExpr, MemberExpr)):
-                    if hasattr(expr, 'line'):
-                        key = f"{expr.line}:{expr.column}"
-                        name = ""
-                        if isinstance(expr, NameExpr):
-                            name = expr.fullname or expr.name
-                        elif isinstance(expr, MemberExpr):
-                            # For member expressions, we want to store it by its full name if possible
-                            # but also by its location for the transpiler to find it.
-                            name = expr.name
-                            if expr.fullname:
-                                name = expr.fullname
+                if hasattr(expr, 'line'):
+                    key = f"{expr.line}:{expr.column}"
 
+                    name = None
+                    fullname = None
+                    if isinstance(expr, NameExpr):
+                        name = expr.name
+                        fullname = expr.fullname
+                    elif isinstance(expr, MemberExpr):
+                        name = expr.name
+                        fullname = expr.fullname
+                    elif isinstance(expr, Var):
+                        name = expr.name
+                        fullname = expr.fullname
+                    elif hasattr(expr, 'name'):
+                        name = getattr(expr, 'name')
+                        fullname = getattr(expr, 'fullname', None)
+
+                    if name:
+                        # Store by multiple keys to increase hit rate
                         self.collected_types[name][key] = str(typ)
+                        # Also store by line only for block-start heuristic
+                        self.collected_types[name][f"{expr.line}:*"] = str(typ)
+                        if fullname:
+                            self.collected_types[fullname][key] = str(typ)
+                            self.collected_types[fullname][f"{expr.line}:*"] = str(typ)
+
+        # Collect types from all visited expressions if possible
+        # This is more expensive but ensures we get narrowing for every variable usage
+        if self.checker and hasattr(self.checker, 'visitor'):
+             # Unfortunately mypy doesn't keep all expression types in a simple map always,
+             # except for what's in self.checker.type_map which we already collected.
+             pass
+
+        # Try to find all variables in all modules to get their types
+        for file_node in self._files_to_process:
+            for name, sym in file_node.names.items():
+                if sym.node and hasattr(sym.node, 'type') and sym.node.type:
+                    key = f"{sym.node.line}:{sym.node.column}"
+                    self.collected_types[sym.node.fullname or name][key] = str(sym.node.type)
 
         # Collect mutability info from processed files
         from mypy.nodes import Var, FuncDef, Block, AssignmentStmt, NameExpr, MypyFile
@@ -227,7 +253,28 @@ class VlangPlugin(Plugin):
                 collect_vars(node.else_body, collected, visited)
             elif isinstance(node, TryStmt):
                 collect_vars(node.body, collected, visited)
-                for h in node.handlers: collect_vars(h.body, collected, visited)
+                for h in node.handlers:
+                    # Collect type of exception variable at handler start
+                    h_type = getattr(h, 'type', None)
+                    if h_type:
+                        collect_vars(h_type, collected, visited)
+                    h_name = getattr(h, 'name', None)
+                    if h_name:
+                        # In mypy, h.name is often a NameExpr
+                        if isinstance(h_name, NameExpr):
+                             # Try to get type from checker's type_map for this expression
+                             if self.checker and hasattr(self.checker, 'type_map') and h_name in self.checker.type_map:
+                                  typ = self.checker.type_map[h_name]
+                                  self.collected_types[h_name.name][f"{getattr(h, 'line', -1)}:*"] = str(typ)
+                                  # Also store with fullname if available
+                                  if h_name.fullname:
+                                       self.collected_types[h_name.fullname][f"{getattr(h, 'line', -1)}:*"] = str(typ)
+
+                        collect_vars(h_name, collected, visited)
+
+                    h_body = getattr(h, 'body', None)
+                    if h_body:
+                        collect_vars(h_body, collected, visited)
                 collect_vars(node.else_body, collected, visited)
                 collect_vars(node.finally_body, collected, visited)
             elif isinstance(node, AssignmentStmt):

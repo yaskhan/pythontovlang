@@ -628,7 +628,7 @@ class CallsMixin(TranslatorBase):
         is_class = False
         has_factory = False
 
-        lookup_name = func_name_str
+        lookup_name = func_name_str or ""
         if lookup_name.startswith("py_"):
             # Check if it was sanitized
             for orig_id in ("int", "float", "bool", "str", "map", "filter"):
@@ -661,9 +661,22 @@ class CallsMixin(TranslatorBase):
              gen = args[0]
              return f"{gen}.next()"
 
-        if isinstance(func_node, ast.Attribute) and func_node.attr == "clear" and not module_name:
-             obj = self.visit(func_node.value)
-             return f"/* {obj}.clear() */ {obj} = {{}}"
+        # Handle len(obj) -> obj.len
+        if (func_name_str == "len" or func_name_str == "py_len") and len(args) == 1:
+            # Create a dummy Attribute parent to handle precedence
+            dummy_attr = ast.Attribute(value=node.args[0], attr="len")
+            obj_str = self._visit_with_parens(dummy_attr, node.args[0])
+            return f"{obj_str}.len"
+
+        if isinstance(func_node, ast.Attribute) and not module_name:
+            if func_node.attr == "append" and len(args) == 1:
+                obj_type = self._guess_type(func_node.value)
+                if obj_type.startswith("[]") or obj_type == "Any":
+                    obj = self.visit(func_node.value)
+                    return f"{obj} << {args[0]}"
+            elif func_node.attr == "clear":
+                obj = self.visit(func_node.value)
+                return f"/* {obj}.clear() */ {obj} = {{}}"
 
         # Handle list.sort(reverse=True)
         if isinstance(func_node, ast.Attribute) and func_node.attr == "sort":

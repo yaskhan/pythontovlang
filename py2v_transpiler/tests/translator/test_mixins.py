@@ -56,11 +56,11 @@ struct ServiceB {
     base_id int = 42
 }
 
-fn (self ServiceA) get_id() {
+fn (self ServiceA) get_id() int {
     return self.base_id
 }
 
-fn (self ServiceB) get_id() {
+fn (self ServiceB) get_id() int {
     return self.base_id
 }
 """

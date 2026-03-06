@@ -32,6 +32,7 @@ This transpiler supports a wide range of Python language features and standard l
 -   **Math**: Mappings for `math` module functions (`sqrt`, `sin`, `pi`, etc.).
 -   **File I/O**: `open()` context managers (`with open(...)`) mapped to `os.open` with `defer { close() }`.
 -   **Modules**: Support for `random`, `json`, `time`, `datetime`, `os`, `sys`, and basic regex (`re`).
+-   **Pydantic**: Full support for `BaseModel`, `Field` validation, `ConfigDict`, validators (`@field_validator`, `@model_validator`), and automatic `.validate() !` method generation. See [Pydantic Support](docs/pydantic.md).
 
 ## Installation
 
