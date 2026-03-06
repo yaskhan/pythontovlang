@@ -1047,7 +1047,8 @@ class FunctionsMixin(TranslatorBase):
             self.output.append(f"{self._indent()}vexc.end_try()")
 
         if getattr(self, "in_init", False) and not node.value:
-            class_info = self.defined_classes.get(self.current_class, {})
+            current_class = self.current_class or ""
+            class_info = self.defined_classes.get(current_class, {})
             if class_info.get("is_pydantic"):
                 self.output.append(f"{self._indent()}self.validate() or {{ return err }}")
             self.output.append(f"{self._indent()}return self")
