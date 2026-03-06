@@ -286,6 +286,7 @@ class AssignmentsMixin(TranslatorBase):
             self.output.append(f"{self._indent()}{tmp} := {rhs}")
 
             for t in node.targets:
+                # Reset rhs for each target to avoid accumulation of .clone()
                 self._visit_destructuring(t, tmp)
             return
 
@@ -473,6 +474,10 @@ class AssignmentsMixin(TranslatorBase):
                                     if isinstance(node.value, ast.Call) and isinstance(node.value.func, ast.Name) and node.value.func.id == "bytearray":
                                         is_mut = True
 
+                                if is_mut and self._is_clonable_collection(v_type):
+                                    if not (rhs.startswith("[") or rhs.startswith("map[") or rhs.startswith("{")):
+                                        rhs = f"{rhs}.clone()"
+
                                 mut_prefix = "mut " if is_mut else ""
                                 emit_fn(f"{self._indent()}{mut_prefix}{v_lhs} := {rhs}")
                                 if not self.in_main: self._local_vars_in_scope.add(v_lhs)
@@ -544,6 +549,13 @@ class AssignmentsMixin(TranslatorBase):
 
                     if mut_info:
                         is_mut = (mut_info.get("is_reassigned", False) or mut_info.get("is_mutated", False)) and not mut_info.get("is_final", False)
+
+                v_type = getattr(self, "_guess_type", lambda x: "unknown")(target)
+                if is_mut and self._is_clonable_collection(v_type):
+                    # For collections, V requires .clone() when assigning to a mutable variable
+                    # unless it's a fresh literal
+                    if not (source_expr.startswith("[") or source_expr.startswith("map[") or source_expr.startswith("{")):
+                        source_expr = f"{source_expr}.clone()"
 
                 mut_prefix = "mut " if is_mut else ""
                 self.output.append(f"{self._indent()}{mut_prefix}{lhs} := {source_expr}")

@@ -160,6 +160,10 @@ class TranslatorBase(ast.NodeVisitor):
     def _is_collection_type(self, v_type: str) -> bool:
         return v_type.startswith("[]") or v_type.startswith("map[") or v_type == "string" or v_type == "LiteralString"
 
+    def _is_clonable_collection(self, v_type: str) -> bool:
+        """Checks if a V type is a collection that requires .clone() for mutable assignment."""
+        return v_type.startswith("[]") or v_type.startswith("map[")
+
     def _is_string_type(self, v_type: str) -> bool:
         return v_type == "string" or v_type == "LiteralString"
 
