@@ -30,7 +30,7 @@ class Config:
         "return self._value",
         "}",
         # Union type is now preserved in setter
-        "fn (mut self Config) set_value(new_value SumType_IntString) {",
+        "fn (self Config) set_value(new_value string | int) {",
         "if new_value is str {",
     ]
 
@@ -74,7 +74,7 @@ class Converter:
     # Check that getter returns int
     assert "fn (self Converter) count() int {" in code
     # Check that setter accepts string
-    assert "fn (mut self Converter) set_count(value string) {" in code
+    assert "fn (self Converter) set_count(value string) {" in code
 
 
 def test_property_with_optional_types():
@@ -107,7 +107,7 @@ class DataHolder:
     # Check that getter returns ?string
     assert "fn (self DataHolder) data() ?string {" in code
     # Check that setter accepts ?string
-    assert "fn (mut self DataHolder) set_data(value ?string) {" in code
+    assert "fn (self DataHolder) set_data(value ?string) {" in code
 
 
 def test_property_getter_union_setter_single():
@@ -136,9 +136,9 @@ class Result:
     print()
 
     # Getter with union type should use union
-    assert "fn (self Result) value() SumType_IntString {" in code
+    assert "fn (self Result) value() int | string {" in code
     # Setter accepts int
-    assert "fn (mut self Result) set_value(new_value int) {" in code
+    assert "fn (self Result) set_value(new_value int) {" in code
 
 
 def test_property_no_type_hints():
@@ -166,7 +166,7 @@ class Simple:
 
     # Without annotations, void is used for return and int for arguments by default
     assert "fn (self Simple) x() {" in code
-    assert "fn (mut self Simple) set_x(value int) {" in code
+    assert "fn (self Simple) set_x(value int) {" in code
 
 
 def test_property_float_int_conversion():
@@ -197,4 +197,4 @@ class Measurement:
     # Getter returns f64
     assert "fn (self Measurement) value() f64 {" in code
     # Setter accepts union type
-    assert "fn (mut self Measurement) set_value(new_value SumType_F64Int) {" in code
+    assert "fn (self Measurement) set_value(new_value int | f64) {" in code

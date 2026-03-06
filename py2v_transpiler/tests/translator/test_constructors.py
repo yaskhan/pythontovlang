@@ -24,7 +24,7 @@ class Decimal:
         return object.__new__(cls)
 """
         result = self.transpile(source)
-        self.assertIn("fn new_decimal(value string) Decimal {", result)
+        self.assertIn("fn new_Decimal(value string) Decimal {", result)
         self.assertIn("return Decimal{}", result)
         # Should NOT have __new__ method
         self.assertNotIn("__new__", result)
@@ -37,7 +37,7 @@ class Point:
         self.y = y
 """
         result = self.transpile(source)
-        self.assertIn("fn new_point(x int, y int) Point {", result)
+        self.assertIn("fn new_Point(x int, y int) Point {", result)
         self.assertIn("mut self := Point{}", result)
 
     def test_new_and_init(self):
@@ -50,8 +50,8 @@ class Decimal:
         self.value = value
 """
         result = self.transpile(source)
-        self.assertIn("fn new_decimal(value string) Decimal {", result)
-        self.assertIn("return new_decimal()", result)
+        self.assertIn("fn new_Decimal(value string) Decimal {", result)
+        self.assertIn("return new_Decimal()", result)
         self.assertIn("fn (self Decimal) init(value string) {", result)
 
     def test_instantiation_new(self):
@@ -64,7 +64,7 @@ d = Decimal("1.2")
         # We need visit_Module to see the main block
         tree = ast.parse(source)
         res_module = self.translator.visit_Module(tree)
-        self.assertIn("d := new_decimal('1.2')", res_module)
+        self.assertIn("d := new_Decimal('1.2')", res_module)
 
     def test_instantiation_init(self):
         source = """
@@ -75,7 +75,7 @@ p = Point(1)
 """
         tree = ast.parse(source)
         res_module = self.translator.visit_Module(tree)
-        self.assertIn("p := new_point(1)", res_module)
+        self.assertIn("p := new_Point(1)", res_module)
 
 if __name__ == '__main__':
     unittest.main()

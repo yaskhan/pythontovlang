@@ -147,7 +147,7 @@ class LiteralsMixin(TranslatorBase):
                     # Unpacking **expr
                     if current_chunk:
                         # Flush current chunk
-                        chunk_str = f"{{{', '.join(current_chunk)}}}"
+                        chunk_str = f"map[string]int{{{', '.join(current_chunk)}}}"
                         chunks.append(chunk_str)
                         current_chunk = []
                     chunks.append(str(self.visit(v)))
@@ -157,7 +157,7 @@ class LiteralsMixin(TranslatorBase):
                     current_chunk.append(f"{key_str}: {val_str}")
 
             if current_chunk:
-                chunk_str = f"{{{', '.join(current_chunk)}}}"
+                chunk_str = f"map[string]Any{{{', '.join(current_chunk)}}}"
                 chunks.append(chunk_str)
 
             return f"py_dict_merge({', '.join(chunks)})"
@@ -176,7 +176,8 @@ class LiteralsMixin(TranslatorBase):
                 val_str = self.visit(v)
                 pairs.append(f"{key_str}: {val_str}")
 
-        return f"{{{', '.join(pairs)}}}"
+        v_type = self._guess_type(node)
+        return f"{v_type}{{{', '.join(pairs)}}}"
 
     def visit_Set(self, node: ast.Set) -> str:
         # Check for starred elements
@@ -188,7 +189,7 @@ class LiteralsMixin(TranslatorBase):
             for elt in node.elts:
                 if isinstance(elt, ast.Starred):
                     if current_chunk:
-                        chunks.append(f"{{{', '.join(current_chunk)}}}")
+                        chunks.append(f"map[int]bool{{{', '.join(current_chunk)}}}")
                         current_chunk = []
                     chunks.append(str(self.visit(elt.value)))
                 else:
@@ -196,17 +197,18 @@ class LiteralsMixin(TranslatorBase):
                     current_chunk.append(f"{val}: true")
 
             if current_chunk:
-                chunks.append(f"{{{', '.join(current_chunk)}}}")
+                chunks.append(f"map[int]bool{{{', '.join(current_chunk)}}}")
 
             return f"py_dict_merge({', '.join(chunks)})"
 
-        # {1, 2} -> {1: true, 2: true}
+        # {1, 2} -> map[int]bool{1: true, 2: true}
+        # Simplified assumption that elements are ints
         elements = []
         for elt in node.elts:
             val = self.visit(elt)
             elements.append(f"{val}: true")
 
-        return f"{{{', '.join(elements)}}}"
+        return f"map[int]bool{{{', '.join(elements)}}}"
 
     def visit_Tuple(self, node: ast.Tuple) -> str:
         # Translate Tuple (a, b) to Array [a, b]

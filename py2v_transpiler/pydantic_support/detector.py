@@ -31,27 +31,3 @@ class PydanticDetector:
         if isinstance(node, ast.Attribute) and node.attr in ("validator", "field_validator", "model_validator"):
              return True
         return False
-
-    @staticmethod
-    def is_computed_field(node: ast.expr) -> bool:
-        """Checks if a decorator is @computed_field."""
-        if isinstance(node, ast.Name):
-            return node.id == "computed_field"
-        if isinstance(node, ast.Attribute) and node.attr == "computed_field":
-            return True
-        if isinstance(node, ast.Call):
-            if isinstance(node.func, ast.Name):
-                return node.func.id == "computed_field"
-            if isinstance(node.func, ast.Attribute) and node.func.attr == "computed_field":
-                return True
-        return False
-
-    @staticmethod
-    def is_config_dict(node: ast.expr) -> bool:
-        """Checks if an expression is a call to ConfigDict()."""
-        if isinstance(node, ast.Call):
-            if isinstance(node.func, ast.Name) and node.func.id == "ConfigDict":
-                return True
-            if isinstance(node.func, ast.Attribute) and node.func.attr == "ConfigDict":
-                return True
-        return False

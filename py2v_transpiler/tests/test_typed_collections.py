@@ -41,12 +41,12 @@ class TestTypedCollections(unittest.TestCase):
     def test_homogeneous_dict_str_int(self):
         code = "d = {'a': 1, 'b': 2}"
         v_code = transpile(code, "test_dict_str_int.py")
-        self.assertIn("d := {'a': 1, 'b': 2}", v_code)
+        self.assertIn("d := map[string]int{'a': 1, 'b': 2}", v_code)
 
     def test_homogeneous_dict_int_str(self):
         code = "d = {1: 'a', 2: 'b'}"
         v_code = transpile(code, "test_dict_int_str.py")
-        self.assertIn("d := {1: 'a', 2: 'b'}", v_code)
+        self.assertIn("d := map[int]string{1: 'a', 2: 'b'}", v_code)
 
     def test_empty_list_with_annotation(self):
         code = "l: list[float] = []"

@@ -45,7 +45,7 @@ def test_translator_dict_literal():
     analyzer.analyze(tree)
     result = translator.visit_Module(tree)
 
-    assert "d := {'a': 1, 'b': 2}" in result
+    assert "d := map[string]int{'a': 1, 'b': 2}" in result
 
 def test_translator_dict_empty():
     parser = PyASTParser()

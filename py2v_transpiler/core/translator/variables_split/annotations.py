@@ -165,9 +165,9 @@ class AnnotationsMixin(TranslatorBase):
                     if v_type and v_type != "unknown":
                         if not v_type.startswith("?"):
                             v_type = f"?{v_type}"
-                        emit_fn(f"{self._indent()}mut {target} := (none as {v_type})")
+                        emit_fn(f"{self._indent()}mut {target} := {v_type}(none)")
                     else:
-                        emit_fn(f"{self._indent()}mut {target} := (none as ?Any)")
+                        emit_fn(f"{self._indent()}mut {target} := ?Any(none)")
                     if not self.in_main: self._local_vars_in_scope.add(target)
                 else:
                     # We ignore the annotation for now and rely on type inference and V's auto-typing
@@ -189,7 +189,7 @@ class AnnotationsMixin(TranslatorBase):
                                         mut_info = self.type_inference.mutability_map.get(v_target)
 
                                     if mut_info:
-                                        is_mut = (mut_info.get("is_reassigned", False) or mut_info.get("is_mutated", False)) and not mut_info.get("is_final", False)
+                                        is_mut = mut_info.get("is_reassigned", False) and not mut_info.get("is_final", False)
 
                                 mut_prefix = "mut " if is_mut else ""
                                 emit_fn(f"{self._indent()}{mut_prefix}{v_target} := {rhs}")

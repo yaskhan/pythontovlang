@@ -229,8 +229,7 @@ class CallsMixin(TranslatorBase):
                 if self.current_class_bases:
                     parent = self.current_class_bases[0]
                     if method_name == "__init__":
-                        factory_name = self._get_factory_name(parent)
-                        return f"self.{parent} = {factory_name}({', '.join(args)})"
+                        return f"self.{parent} = new_{parent}({', '.join(args)})"
                     return f"self.{parent}.{method_name}({', '.join(args)})"
                 else:
                     return f"/* super().{method_name} call without known parent */"
@@ -242,8 +241,7 @@ class CallsMixin(TranslatorBase):
                 if self.current_class_bases and class_name in self.current_class_bases:
                     if len(args) >= 1 and args[0] == "self":
                         base_args = args[1:]
-                        factory_name = self._get_factory_name(class_name)
-                        return f"self.{class_name} = {factory_name}({', '.join(base_args)})"
+                        return f"self.{class_name} = new_{class_name}({', '.join(base_args)})"
 
         # Handle unittest assertions
         # Strictly check for self.assertX if possible to avoid regressions
@@ -606,8 +604,7 @@ class CallsMixin(TranslatorBase):
                                      # Fallback to zero value or placeholder if not found
                                      pass
 
-                factory_name = self._get_factory_name(func_name_str)
-                return f"{factory_name}({', '.join(final_factory_args)})"
+                return f"new_{func_name_str}({', '.join(final_factory_args)})"
             return f"{func_name_str}{{{', '.join(struct_args)}}}"
         elif hasattr(self, 'dataclasses') and func_name_str in self.dataclasses:
             field_order = self.dataclasses[func_name_str]
@@ -647,8 +644,7 @@ class CallsMixin(TranslatorBase):
 
         if is_class:
             if has_factory:
-                factory_name = self._get_factory_name(func_name_str)
-                return f"{factory_name}({', '.join(args)})"
+                return f"new_{func_name_str}({', '.join(args)})"
             else:
                 return f"{func_name_str}{{{', '.join(args)}}}"
 
@@ -898,7 +894,7 @@ class CallsMixin(TranslatorBase):
              # x := gen
              # This order is CORRECT for V.
 
-             self.output.append(f"{self._indent()}{ch_out_name} := chan {yield_type}{{cap: 0}}")
+             self.output.append(f"{self._indent()}{ch_out_name} := chan ?{yield_type}{{cap: 0}}")
              self.output.append(f"{self._indent()}{ch_in_name} := chan PyGeneratorInput{{cap: 0}}")
              self.output.append(f"{self._indent()}{gen_var_name} := PyGenerator[{yield_type}]{{out: {ch_out_name}, in_: {ch_in_name}}}")
 

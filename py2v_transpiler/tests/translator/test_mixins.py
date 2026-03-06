@@ -25,7 +25,7 @@ fn (self User) login() {
     self.is_authenticated = true
 }
 
-fn new_user(username string) User {
+fn new_User(username string) User {
     mut self := User{}
     self.username = username
     return self

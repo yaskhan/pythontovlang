@@ -66,22 +66,6 @@ class AttributesMixin(TranslatorBase):
             # So we apply mangling regardless of receiver, if we are inside a class.
             attr_name = self._sanitize_name(self._mangle_name(node.attr, self.current_class))
 
-        # Static/Class methods resolution
-        # If receiver is a class name or its type is a class we know, check for static methods.
-        target_class = None
-        defined_classes = getattr(self, "defined_classes", {})
-        if obj in defined_classes:
-            target_class = obj
-        else:
-            obj_type = self._guess_type(node.value)
-            if obj_type in defined_classes:
-                target_class = obj_type
-
-        if target_class:
-            defining_class = self._find_defining_class_for_static_method(target_class, node.attr)
-            if defining_class:
-                return f"{defining_class}_{attr_name}"
-
         # Check if obj corresponds to a known function (Function Attributes)
         # obj is already visited code, e.g. "func_name".
         # We check if `obj` is in `self.function_names`.
