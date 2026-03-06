@@ -1,4 +1,5 @@
 import ast
+import re
 from typing import List, Any
 from ..base import TranslatorBase
 from py2v_transpiler.models.v_types import map_python_type_to_v
@@ -942,26 +943,25 @@ class CallsMixin(TranslatorBase):
              return gen_var_name
 
         # Check if callee expects mutable arguments
-        final_args = []
+        final_args_list: List[str] = []
         mutated_indices = []
         if func_name_str in getattr(self.type_inference, "func_param_mutability", {}):
             mutated_indices = self.type_inference.func_param_mutability[func_name_str]
 
-        for i, arg in enumerate(args):
+        for i, arg_str in enumerate(args):
             if i in mutated_indices:
                 # If the argument is a variable, add 'mut '
                 # Note: Literals cannot be passed as mut.
                 # Heuristic: if arg is simple name or attribute, and not prefixed with 'mut ' already.
-                if not arg.startswith("mut "):
+                if not arg_str.startswith("mut "):
                     # Simple check for identifier-like string
-                    import re
-                    if re.match(r'^[a-zA-Z_][a-zA-Z0-9._]*$', arg):
-                         final_args.append(f"mut {arg}")
+                    if re.match(r'^[a-zA-Z_][a-zA-Z0-9._]*$', arg_str):
+                         final_args_list.append(f"mut {arg_str}")
                     else:
-                         final_args.append(arg)
+                         final_args_list.append(arg_str)
                 else:
-                    final_args.append(arg)
+                    final_args_list.append(arg_str)
             else:
-                final_args.append(arg)
+                final_args_list.append(arg_str)
 
-        return f"{func_name_str}({', '.join(final_args)})"
+        return f"{func_name_str}({', '.join(final_args_list)})"
