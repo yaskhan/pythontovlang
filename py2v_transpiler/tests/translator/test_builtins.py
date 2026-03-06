@@ -55,3 +55,17 @@ d = int("ff", 16)
     assert "b := int(3.14)" in v_code
     assert "c := 0" in v_code
     assert "d := int(strconv.parse_int('ff', 16, 32) or { 0 })" in v_code
+
+def test_len_builtin():
+    source = """
+a = [1, 2, 3]
+n = len(a)
+s = "hello"
+l = len(s)
+d = {"a": 1}
+m = len(d)
+"""
+    v_code = translate(source)
+    assert "n := a.len" in v_code
+    assert "l := s.len" in v_code
+    assert "m := d.len" in v_code

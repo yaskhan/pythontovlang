@@ -31,11 +31,11 @@ arr[f()] **= 2
     v_code = transpile(source)
     # Check that f() is assigned to a temp variable
     # We expect something like:
-    # _aug_tmp_1 := f()
-    # arr[_aug_tmp_1] = math.pow(arr[_aug_tmp_1], 2)
+    # py_aug_tmp_1 := f()
+    # arr[py_aug_tmp_1] = math.pow(arr[py_aug_tmp_1], 2)
 
     print(v_code)
-    assert "_aug_tmp_" in v_code
+    assert "py_aug_tmp_" in v_code
     assert ":= f()" in v_code
     assert "math.pow" in v_code
 
@@ -59,7 +59,7 @@ get_obj().x //= 2
 """
     v_code = transpile(source)
     # Should capture get_obj()
-    assert "_aug_tmp_" in v_code
+    assert "py_aug_tmp_" in v_code
     assert ":= get_obj()" in v_code
     # Assuming integer division or floor depending on inference, but here likely int
     assert ".x = int(math.floor(f64(" in v_code
@@ -74,7 +74,7 @@ arr[f()][g()] **= 2
     v_code = transpile(source)
 
     # Check that f() and g() are captured in assignments
-    assert "_aug_tmp_" in v_code
+    assert "py_aug_tmp_" in v_code
     # Should contain assignments for f() and g() calls
     assert ":= f()" in v_code
     assert ":= g()" in v_code

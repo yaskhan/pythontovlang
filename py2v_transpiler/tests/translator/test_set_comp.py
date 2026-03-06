@@ -35,7 +35,7 @@ def test_set_comprehension_zip():
 s = {x+y for x, y in zip([1,2], [3,4])}
 """
     v_code = transpile(code)
-    assert "_zip_it1_" in v_code
+    assert "py_zip_it1_" in v_code
     assert "s[x + y] = true" in v_code
 
 def test_set_comp_string_literal():

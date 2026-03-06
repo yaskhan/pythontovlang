@@ -43,7 +43,7 @@ class TestComplexComprehensions(unittest.TestCase):
     def test_complex_zip_comprehension(self):
         code = "res = [x + y for x, y in zip([1, 2], [3, 4]) if x > 1]"
         v_code = self.translate(code)
-        self.assertIn("for _i_1, _v1_1 in _zip_it1_1 {", v_code)
+        self.assertIn("for py_i_1, py_v1_1 in py_zip_it1_1 {", v_code)
         self.assertIn("if x > 1 {", v_code)
         self.assertIn("res << x + y", v_code)
 

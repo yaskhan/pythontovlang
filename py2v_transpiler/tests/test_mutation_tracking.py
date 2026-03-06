@@ -22,7 +22,7 @@ class TestMutationTracking:
             del d['a']
         """
         result = self._transpile(code)
-        assert "mut d :=" in result
+        assert "mut d := {'a': 1}" in result
 
     def test_dict_subscript_assign_mutability(self):
         code = """
