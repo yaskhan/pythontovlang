@@ -6,6 +6,22 @@ class ExceptionsMixin(TranslatorBase):
     """Обработка исключений: try, except, raise, finally"""
     
     def visit_Raise(self, node: ast.Raise) -> None:
+        if self.in_pydantic_validator:
+            if node.exc:
+                if isinstance(node.exc, ast.Call):
+                    msg = ""
+                    if node.exc.args:
+                        msg = self.visit(node.exc.args[0])
+                    self.output.append(f"{self._indent()}return error({msg})")
+                elif isinstance(node.exc, ast.Name):
+                    self.output.append(f"{self._indent()}return error('{node.exc.id}')")
+                else:
+                    val = self.visit(node.exc)
+                    self.output.append(f"{self._indent()}return error('${{{val}}}')")
+            else:
+                self.output.append(f"{self._indent()}return error('Validation Error')")
+            return
+
         self.emitter.add_import('div72.vexc')
         if node.exc:
             if isinstance(node.exc, ast.Call):

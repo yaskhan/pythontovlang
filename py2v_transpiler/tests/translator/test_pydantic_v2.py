@@ -50,7 +50,9 @@ class User(BaseModel):
         self.assertIn('if m.name.len < 2 { return error("Validation Error: name length must be >= 2")', v_code)
 
         # Check field_validator integration
-        self.assertIn("m.email = User_validate_email(m.email)", v_code)
+        self.assertIn("m.email = fn (v string) !string {", v_code)
+        self.assertIn("if '@' !in v {", v_code)
+        self.assertIn("return error('Invalid email')", v_code)
 
         # Check computed_field (as a method)
         self.assertIn("fn (self User) display_name() string {", v_code)
@@ -72,4 +74,7 @@ class MyModel(BaseModel):
 """
         v_code = self.translate(code)
         self.assertIn("fn (mut m MyModel) validate() ! {", v_code)
-        self.assertIn("m.check_sum()", v_code)
+        self.assertIn("m = fn (mut self MyModel) !MyModel {", v_code)
+        self.assertIn("if self.x + self.y > 100 {", v_code)
+        self.assertIn("return error('sum too large')", v_code)
+        self.assertIn("}(mut m) !", v_code)
