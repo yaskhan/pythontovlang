@@ -158,12 +158,12 @@ def _map_ast_type(node: ast.AST, self_name: str = "Self", allow_union: bool = Fa
         elif value_id == 'Literal':
             # Literal[1] -> int, Literal['a'] -> string
             if args:
-                arg = args[0]
-                if isinstance(arg, ast.Constant):
-                    if isinstance(arg.value, int): return 'int'
-                    if isinstance(arg.value, float): return 'f64'
-                    if isinstance(arg.value, str): return 'string'
-                    if isinstance(arg.value, bool): return 'bool'
+                first_arg = args[0]
+                if isinstance(first_arg, ast.Constant):
+                    if isinstance(first_arg.value, int): return 'int'
+                    if isinstance(first_arg.value, float): return 'f64'
+                    if isinstance(first_arg.value, str): return 'string'
+                    if isinstance(first_arg.value, bool): return 'bool'
             return 'string' # default?
 
         elif value_id == 'Type':
