@@ -439,6 +439,11 @@ class FunctionsMixin(TranslatorBase):
                     arg_type = self._map_type(type_str, struct_name)
                 except Exception:
                     pass
+            else:
+                # Inferred type might be more specific
+                inferred = self.type_inference.type_map.get(arg_name)
+                if isinstance(inferred, str):
+                    arg_type = inferred
             args_str_list.append(f"{arg_name} ...{arg_type}")
             args_names.append(arg_name)
 
@@ -451,6 +456,11 @@ class FunctionsMixin(TranslatorBase):
                     arg_type = self._map_type(type_str, struct_name)
                 except Exception:
                     pass
+            else:
+                # Inferred type might be more specific
+                inferred = self.type_inference.type_map.get(arg_name)
+                if isinstance(inferred, str):
+                    arg_type = inferred
             args_str_list.append(f"{arg_name} {arg_type}")
             args_names.append(arg_name)
 
@@ -469,12 +479,17 @@ class FunctionsMixin(TranslatorBase):
                     node.returns.value, str
                 ):
                     ret_type = node.returns.value
-        elif not is_generator and not node.returns and node.name == "__enter__":
-            # Infer return type for __enter__ (enter) if missing
-            for body_stmt in node.body:
-                if isinstance(body_stmt, ast.Return) and isinstance(body_stmt.value, ast.Name) and body_stmt.value.id == "self":
-                    ret_type = self._get_full_self_type(struct_name)
-                    break
+        elif not is_generator and not node.returns:
+            # Try to get inferred return type from analyzer
+            inferred_ret = self.type_inference.type_map.get(f"{node.name}@return")
+            if isinstance(inferred_ret, str):
+                 ret_type = inferred_ret
+            elif node.name == "__enter__":
+                # Infer return type for __enter__ (enter) if missing
+                for body_stmt in node.body:
+                    if isinstance(body_stmt, ast.Return) and isinstance(body_stmt.value, ast.Name) and body_stmt.value.id == "self":
+                        ret_type = self._get_full_self_type(struct_name)
+                        break
 
         # Check for NoReturn
         is_noreturn = False
