@@ -66,9 +66,9 @@ class FunctionsMixin(TranslatorBase):
             if hasattr(node.args, "kwonlyargs"):
                 args = args + node.args.kwonlyargs
 
-            # Handle self
+            # Handle self/cls
             is_method = self.current_class is not None
-            if is_method and args and args[0].arg == "self":
+            if is_method and args and (args[0].arg == "self" or (node.name == "__new__" and args[0].arg == "cls")):
                 args = args[1:]
 
             for arg in args:
@@ -98,9 +98,10 @@ class FunctionsMixin(TranslatorBase):
                     ):
                         sig["return"] = node.returns.value
 
-            if node.name not in self.overloaded_signatures:
-                self.overloaded_signatures[node.name] = []
-            self.overloaded_signatures[node.name].append(sig)
+            ov_key = f"{ov_struct_name}.{node.name}" if ov_struct_name else node.name
+            if ov_key not in self.overloaded_signatures:
+                self.overloaded_signatures[ov_key] = []
+            self.overloaded_signatures[ov_key].append(sig)
             return
 
         # Check for @singledispatch
@@ -364,11 +365,9 @@ class FunctionsMixin(TranslatorBase):
 
         # Check for __new__ or other static-like methods that might have 'cls'
         is_new_method = False
+        original_node_name = node.name
         if node.name == "__new__":
             is_new_method = True
-            # Rename __new__ to factory name
-            node.name = self._get_factory_name(struct_name)
-            # Remove 'cls' argument if present
             if args and args[0].arg == "cls":
                 args = args[1:]
             # Treat as static
@@ -505,9 +504,11 @@ class FunctionsMixin(TranslatorBase):
 
         if not is_unittest_method:
             func_name = self._sanitize_name(node.name)
+            if original_node_name == "__new__":
+                func_name = self._get_factory_name(struct_name)
 
             # Static/Class methods naming: Prefix with struct name
-            if dec_info.is_static or dec_info.is_classmethod:
+            if (dec_info.is_static or dec_info.is_classmethod) and original_node_name != "__new__":
                 func_name = f"{struct_name}_{func_name}"
 
             if not is_method:
@@ -527,7 +528,8 @@ class FunctionsMixin(TranslatorBase):
                 func_name = "__iter__"  # Handled below
 
             # Check if this is the implementation of an overloaded function
-            if func_name in self.overloaded_signatures and not is_new_method:
+            ov_key = f"{struct_name}.{original_node_name}" if is_method or original_node_name == "__new__" else original_node_name
+            if ov_key in self.overloaded_signatures:
                 # We need to generate a variant for each overload signature
                 self._generate_overload_variants(
                     node, struct_name, is_method, dec_info, is_generator
@@ -816,6 +818,7 @@ class FunctionsMixin(TranslatorBase):
         is_generator: bool,
     ) -> None:
         """Generates V functions for each @overload signature using the implementation body."""
+        ov_key = f"{struct_name}.{node.name}" if is_method or node.name == "__new__" else node.name
 
         func_generics_str = ""
         py_func_generics = []
@@ -855,7 +858,7 @@ class FunctionsMixin(TranslatorBase):
         elif is_deprecated:
             deprecated_attr = "[deprecated]\n"
 
-        for sig in self.overloaded_signatures[node.name]:
+        for sig in self.overloaded_signatures[ov_key]:
             old_output = self.output
             self.output = []
             old_indent = self._indent_level
@@ -867,11 +870,14 @@ class FunctionsMixin(TranslatorBase):
 
             is_init = False
             is_pydantic = False
+            is_new_factory = False
             if node.name == "__init__":
                 class_info = self.defined_classes.get(struct_name, {})
                 is_pydantic = class_info.get("is_pydantic", False)
                 if not class_info.get("has_new"):
                     is_init = True
+            elif node.name == "__new__":
+                is_new_factory = True
 
             if is_generator:
                 yield_type = self.coroutine_handler.get_yield_type(node)
@@ -879,17 +885,28 @@ class FunctionsMixin(TranslatorBase):
                 args_str_list.append(f"ch_in chan PyGeneratorInput")
                 self.coroutine_handler.enter_generator("ch_out", "ch_in")
 
-            if is_method and not dec_info.is_static and not is_init:
+            if is_method and not dec_info.is_static and not is_init and not is_new_factory:
                 # Add self
                 args = node.args.args
                 if hasattr(node.args, "posonlyargs"):
                     args = node.args.posonlyargs + args
                 if args and args[0].arg == "self":
+                    # For overloads, we use the method name (node.name) or ov_key to decide mutability.
+                    # If any overload implementation needs mutability, we should probably emit it.
+                    # Heuristic: constructors (new/init) always need mut, setters need mut.
+                    # General methods: check analyzer's mutability map.
+                    is_mutated = False
+                    if hasattr(self, 'type_inference') and hasattr(self.type_inference, 'mutability_map'):
+                         mut_info = self.type_inference.mutability_map.get("self")
+                         if mut_info:
+                             is_mutated = mut_info.get("is_mutated", False)
+
+                    mut_receiver = "mut " if getattr(dec_info, 'is_setter', False) or is_init or node.name == "__init__" or is_mutated else ""
                     if self.current_class_generics:
                         gen_str = f"[{', '.join(self.current_class_generics)}]"
-                        receiver_str = f"({args[0].arg} {struct_name}{gen_str}) "
+                        receiver_str = f"({mut_receiver}{args[0].arg} {struct_name}{gen_str}) "
                     else:
-                        receiver_str = f"({args[0].arg} {struct_name}) "
+                        receiver_str = f"({mut_receiver}{args[0].arg} {struct_name}) "
 
             # Generate mangled name based on argument types
             type_suffix_parts = []
@@ -917,7 +934,7 @@ class FunctionsMixin(TranslatorBase):
             args_str = ", ".join(args_str_list)
             ret_type = sig["return"]
 
-            if is_init:
+            if is_init or is_new_factory:
                 base_func_name = self._get_factory_name(struct_name)
                 ret_type = struct_name
                 if self.current_class_generics:
@@ -927,7 +944,9 @@ class FunctionsMixin(TranslatorBase):
                     ret_type = "!" + ret_type
             else:
                 base_func_name = self._sanitize_name(node.name)
-                if self.current_class:
+                if node.name == "__init__":
+                    base_func_name = "init"
+                elif self.current_class:
                     base_func_name = self._sanitize_name(
                         self._mangle_name(base_func_name, self.current_class)
                     )
