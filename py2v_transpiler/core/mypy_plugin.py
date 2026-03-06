@@ -253,7 +253,28 @@ class VlangPlugin(Plugin):
                 collect_vars(node.else_body, collected, visited)
             elif isinstance(node, TryStmt):
                 collect_vars(node.body, collected, visited)
-                for h in node.handlers: collect_vars(h.body, collected, visited)
+                for h in node.handlers:
+                    # Collect type of exception variable at handler start
+                    h_type = getattr(h, 'type', None)
+                    if h_type:
+                        collect_vars(h_type, collected, visited)
+                    h_name = getattr(h, 'name', None)
+                    if h_name:
+                        # In mypy, h.name is often a NameExpr
+                        if isinstance(h_name, NameExpr):
+                             # Try to get type from checker's type_map for this expression
+                             if self.checker and hasattr(self.checker, 'type_map') and h_name in self.checker.type_map:
+                                  typ = self.checker.type_map[h_name]
+                                  self.collected_types[h_name.name][f"{getattr(h, 'line', -1)}:*"] = str(typ)
+                                  # Also store with fullname if available
+                                  if h_name.fullname:
+                                       self.collected_types[h_name.fullname][f"{getattr(h, 'line', -1)}:*"] = str(typ)
+
+                        collect_vars(h_name, collected, visited)
+
+                    h_body = getattr(h, 'body', None)
+                    if h_body:
+                        collect_vars(h_body, collected, visited)
                 collect_vars(node.else_body, collected, visited)
                 collect_vars(node.finally_body, collected, visited)
             elif isinstance(node, AssignmentStmt):
