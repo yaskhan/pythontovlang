@@ -32,7 +32,7 @@ jobs:
 
     - name: Run tests
       run: |
-        pytest --ignore=py2v_transpiler/tests/input/cpython
+        pytest --ignore=py2v_transpiler/tests/input/cpython --ignore=py2v_transpiler/tests/input/transpile
 
     - name: Type check with mypy
       run: |
