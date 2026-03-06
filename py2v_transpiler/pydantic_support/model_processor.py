@@ -31,7 +31,8 @@ class PydanticModelProcessor:
                 v_info = self.validator_processor.extract_info(item)
                 if v_info:
                     validators.append(v_info)
-                methods.append(item)
+                else:
+                    methods.append(item)
             elif PydanticDetector.is_config_class(item):
                 config = self.config_processor.extract(item)
             elif isinstance(item, ast.Assign):
@@ -164,15 +165,18 @@ class PydanticModelProcessor:
         # 1. Model validators (mode='before')
         for v in validators:
             if v.is_model_validator and v.mode == 'before':
-                has_validation = True
-                code.append(f"    m.{v.name}()")
+                v_logic = self._generate_validator_logic(v, struct_name, fields)
+                if v_logic:
+                    has_validation = True
+                    code.extend(v_logic)
 
         # 2. Field validators (mode='before')
         for v in validators:
             if not v.is_model_validator and v.mode == 'before':
-                has_validation = True
-                for f_name in v.fields:
-                    code.append(f"    m.{f_name} = {struct_name}_{v.name}(m.{f_name})")
+                v_logic = self._generate_validator_logic(v, struct_name, fields)
+                if v_logic:
+                    has_validation = True
+                    code.extend(v_logic)
 
         # 3. Built-in field constraints
         for field_info in fields:
@@ -184,23 +188,97 @@ class PydanticModelProcessor:
         # 4. Field validators (mode='after' or default)
         for v in validators:
             if not v.is_model_validator and (v.mode in ('after', 'default') or not v.mode):
-                has_validation = True
-                for f_name in v.fields:
-                    # If it's a classmethod validator, it's called as Struct_name_validator(value)
-                    # We assume it returns the validated value
-                    code.append(f"    m.{f_name} = {struct_name}_{v.name}(m.{f_name})")
+                v_logic = self._generate_validator_logic(v, struct_name, fields)
+                if v_logic:
+                    has_validation = True
+                    code.extend(v_logic)
 
         # 5. Model validators (mode='after' or default)
         for v in validators:
             if v.is_model_validator and (v.mode in ('after', 'default') or not v.mode):
-                has_validation = True
-                code.append(f"    m.{v.name}()")
+                v_logic = self._generate_validator_logic(v, struct_name, fields)
+                if v_logic:
+                    has_validation = True
+                    code.extend(v_logic)
 
         if not has_validation and not (config and config.validate_all):
             return ""
 
         code.append("}")
         return "\n".join(code)
+
+    def _generate_validator_logic(self, v_info: PydanticValidatorInfo, struct_name: str, fields: List[PydanticFieldInfo]) -> List[str]:
+        node = v_info.node
+        if not node:
+            return []
+
+        res = []
+        field_map = {f.name: f for f in fields}
+
+        # Save visitor state
+        old_output = self.visitor.output
+        old_indent = self.visitor._indent_level
+        old_in_validator = self.visitor.in_pydantic_validator
+        old_remap = self.visitor.name_remap.copy()
+        old_ret_type = getattr(self.visitor, 'current_function_return_type', None)
+
+        self.visitor.in_pydantic_validator = True
+        self.visitor._indent_level = 2
+
+        try:
+            if v_info.is_model_validator:
+                res.append(f"    m = fn (mut self {struct_name}) !{struct_name} {{")
+                self.visitor.output = []
+                self.visitor.current_function_return_type = struct_name
+
+                real_args = node.args.args
+                if real_args:
+                    self.visitor.name_remap[real_args[0].arg] = "self"
+
+                body = node.body
+                if body and isinstance(body[0], ast.Expr) and isinstance(body[0].value, ast.Constant) and isinstance(body[0].value.value, str):
+                    body = body[1:]
+
+                for stmt in body:
+                    self.visitor.visit(stmt)
+
+                for line in self.visitor.output:
+                    res.append(line)
+                res.append("    }(mut m) !")
+            else:
+                for f_name in v_info.fields:
+                    f_info = field_map.get(f_name)
+                    f_type = f_info.type_str if f_info else "Any"
+
+                    res.append(f"    m.{f_name} = fn (v {f_type}) !{f_type} {{")
+                    self.visitor.output = []
+                    self.visitor.current_function_return_type = f_type
+
+                    real_args = node.args.args
+                    if real_args and real_args[0].arg in ('cls', 'self'):
+                        real_args = real_args[1:]
+
+                    if real_args:
+                        self.visitor.name_remap[real_args[0].arg] = "v"
+
+                    body = node.body
+                    if body and isinstance(body[0], ast.Expr) and isinstance(body[0].value, ast.Constant) and isinstance(body[0].value.value, str):
+                        body = body[1:]
+
+                    for stmt in body:
+                        self.visitor.visit(stmt)
+
+                    for line in self.visitor.output:
+                        res.append(line)
+                    res.append(f"    }}(m.{f_name}) !")
+        finally:
+            self.visitor.output = old_output
+            self.visitor._indent_level = old_indent
+            self.visitor.in_pydantic_validator = old_in_validator
+            self.visitor.name_remap = old_remap
+            self.visitor.current_function_return_type = old_ret_type
+
+        return res
 
     def _generate_factory_method(self, struct_name: str, fields: List[PydanticFieldInfo], export: str) -> str:
         """Generates a new_StructName factory function."""

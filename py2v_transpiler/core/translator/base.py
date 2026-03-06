@@ -133,6 +133,7 @@ class TranslatorBase(ast.NodeVisitor):
         self.warnings: List[str] = []
         self.type_vars: Set[str] = set()
         self.current_function_return_type: Optional[str] = None
+        self.in_pydantic_validator: bool = False
 
     def _is_literal_string_expr(self, node: ast.AST) -> bool:
         """

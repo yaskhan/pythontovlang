@@ -6,6 +6,7 @@ from dataclasses import dataclass
 class PydanticValidatorInfo:
     name: str
     fields: List[str]
+    node: Optional[ast.FunctionDef | ast.AsyncFunctionDef] = None
     mode: str = "after" # 'before', 'after', 'wrap', 'plain'
     is_model_validator: bool = False
 
@@ -49,17 +50,26 @@ class PydanticValidatorProcessor:
                     val = dec_keywords["mode"]
                     if isinstance(val, ast.Constant) and isinstance(val.value, str):
                         mode = val.value
+                elif "pre" in dec_keywords:
+                    val = dec_keywords["pre"]
+                    if isinstance(val, ast.Constant) and val.value is True:
+                        mode = "before"
+
             elif dec_name in ("model_validator", "root_validator"):
                 is_model_validator = True
                 if "mode" in dec_keywords:
                     val = dec_keywords["mode"]
                     if isinstance(val, ast.Constant) and isinstance(val.value, str):
                         mode = val.value
+                elif "pre" in dec_keywords:
+                    val = dec_keywords["pre"]
+                    if isinstance(val, ast.Constant) and val.value is True:
+                        mode = "before"
 
         if is_field_validator:
-            return PydanticValidatorInfo(name=node.name, fields=fields, mode=mode, is_model_validator=False)
+            return PydanticValidatorInfo(name=node.name, fields=fields, node=node, mode=mode, is_model_validator=False)
         if is_model_validator:
-            return PydanticValidatorInfo(name=node.name, fields=[], mode=mode, is_model_validator=True)
+            return PydanticValidatorInfo(name=node.name, fields=[], node=node, mode=mode, is_model_validator=True)
 
         return None
 
