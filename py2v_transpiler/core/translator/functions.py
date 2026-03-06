@@ -576,7 +576,6 @@ class FunctionsMixin(TranslatorBase):
             func_name = dec_info.implementation_name
 
         is_init = False
-        is_pydantic = False
         if "decl" not in locals() and func_name == "__init_subclass__":
             receiver_str = ""
             func_name = "init_subclass"
@@ -598,17 +597,6 @@ class FunctionsMixin(TranslatorBase):
                     ret_type += gen_str
                 if is_pydantic:
                     ret_type = "!" + ret_type
-
-        # Visibility handling
-        pub_prefix = ""
-        if not is_nested:
-            if (not is_method and self._is_exported(node.name)) or (is_method and getattr(self, 'config', None) and not func_name.startswith('_') and not is_init):
-                 pub_prefix = "pub "
-
-            # Factory function: pub if class is exported
-            if is_init:
-                 if self._is_exported(struct_name):
-                      pub_prefix = "pub "
 
         # Visibility handling
         pub_prefix = ""
@@ -720,7 +708,13 @@ class FunctionsMixin(TranslatorBase):
         prev_in_init = getattr(self, "in_init", False)
         if is_init:
             self.in_init = True
-            self.output.append(f"{self._indent()}mut self := {ret_type}{{}}")
+            class_info = self.defined_classes.get(struct_name, {})
+            if class_info.get("is_pydantic"):
+                # Result type factory: strip ! from ret_type for allocation
+                alloc_type = ret_type[1:] if ret_type.startswith("!") else ret_type
+                self.output.append(f"{self._indent()}mut self := {alloc_type}{{}}")
+            else:
+                self.output.append(f"{self._indent()}mut self := {ret_type}{{}}")
 
         # Track current function return type for visit_Return
         prev_ret_type: Optional[str] = getattr(self, "current_function_return_type", None)
@@ -786,8 +780,9 @@ class FunctionsMixin(TranslatorBase):
             self.coroutine_handler.exit_generator()
 
         if is_init:
-            if is_pydantic:
-                self.output.append(f'{self._indent()}self.validate() or {{ return error("Validation failed: ${{err}}") }}')
+            class_info = self.defined_classes.get(struct_name, {})
+            if class_info.get("is_pydantic"):
+                self.output.append(f"{self._indent()}self.validate() or {{ return err }}")
             self.output.append(f"{self._indent()}return self")
             self.in_init = prev_in_init
 
@@ -1067,6 +1062,10 @@ class FunctionsMixin(TranslatorBase):
             self.output.append(f"{self._indent()}vexc.end_try()")
 
         if getattr(self, "in_init", False) and not node.value:
+            current_class = self.current_class or ""
+            class_info = self.defined_classes.get(current_class, {})
+            if class_info.get("is_pydantic"):
+                self.output.append(f"{self._indent()}self.validate() or {{ return err }}")
             self.output.append(f"{self._indent()}return self")
         elif node.value:
             # Pass return type as contextual assignment type to help literal translation

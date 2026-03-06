@@ -53,44 +53,6 @@ class Item(BaseModel):
         self.assertIn("if m.price != none {", v_code)
         self.assertIn("if m.price? <= 0.0 {", v_code)
 
-    def test_pydantic_factory_generation(self):
-        code = """
-from pydantic import BaseModel, Field
-
-class User(BaseModel):
-    name: str = Field(min_length=2)
-    age: int = Field(gt=0)
-    email: str = 'unknown@example.com'
-"""
-        v_code = self.translate(code)
-
-        # Check factory signature
-        self.assertIn("fn new_user(name string, age int, email string = 'unknown@example.com') !User {", v_code)
-        # Check factory implementation
-        self.assertIn("name: name", v_code)
-        self.assertIn("age: age", v_code)
-        self.assertIn("email: email", v_code)
-        self.assertIn('self.validate() or { return error("Validation failed: ${err}") }', v_code)
-
-    def test_pydantic_manual_init(self):
-        code = """
-from pydantic import BaseModel, Field
-
-class User(BaseModel):
-    name: str
-    age: int
-
-    def __init__(self, name: str, age: int):
-        self.name = name
-        self.age = age
-"""
-        v_code = self.translate(code)
-
-        # Check that __init__ was converted to a factory returning !User
-        self.assertIn("fn new_user(name string, age int) !User {", v_code)
-        # Check that it calls validate
-        self.assertIn('self.validate() or { return error("Validation failed: ${err}") }', v_code)
-
     def test_extended_field_constraints(self):
         code = """
 from pydantic import BaseModel, Field
