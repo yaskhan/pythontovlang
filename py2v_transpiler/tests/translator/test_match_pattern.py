@@ -22,9 +22,9 @@ match x:
         pass
 """
     v_code = translate(source)
-    # New refactored structure uses separate if blocks with _match_found flag
-    assert "_match_found_1" in v_code
-    assert "if !_match_found_1 && (_match_subject_any_1 == 1) {" in v_code
+    # New refactored structure uses separate if blocks with py_match_found flag
+    assert "py_match_found_1" in v_code
+    assert "if !py_match_found_1 && (py_match_subject_any_1 == 1) {" in v_code
     assert "if (x > 0) {" in v_code
 
 def test_match_sequence():
@@ -105,7 +105,7 @@ match x:
 """
     v_code = translate(source)
     # New structure uses separate if blocks
-    assert "if !_match_found_1 {" in v_code
+    assert "if !py_match_found_1 {" in v_code
 
 def test_match_class():
     source = """
