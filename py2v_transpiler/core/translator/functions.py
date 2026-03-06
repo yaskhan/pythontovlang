@@ -561,11 +561,13 @@ class FunctionsMixin(TranslatorBase):
             func_name = dec_info.implementation_name
 
         is_init = False
+        is_pydantic = False
         if "decl" not in locals() and func_name == "__init_subclass__":
             receiver_str = ""
             func_name = "init_subclass"
         elif func_name == "__init__":
             class_info = self.defined_classes.get(struct_name, {})
+            is_pydantic = class_info.get("is_pydantic", False)
             if class_info.get("has_new"):
                 # If __new__ is present, __init__ becomes a regular method named 'init'
                 func_name = "init"
@@ -579,6 +581,19 @@ class FunctionsMixin(TranslatorBase):
                     gen_str = f"[{', '.join(self.current_class_generics)}]"
                     # Do NOT add to func_name here, as func_generics_str will add it to the 'fn' decl
                     ret_type += gen_str
+                if is_pydantic:
+                    ret_type = "!" + ret_type
+
+        # Visibility handling
+        pub_prefix = ""
+        if not is_nested:
+            if (not is_method and self._is_exported(node.name)) or (is_method and getattr(self, 'config', None) and not func_name.startswith('_') and not is_init):
+                 pub_prefix = "pub "
+
+            # Factory function: pub if class is exported
+            if is_init:
+                 if self._is_exported(struct_name):
+                      pub_prefix = "pub "
 
         # Visibility handling
         pub_prefix = ""
@@ -756,6 +771,8 @@ class FunctionsMixin(TranslatorBase):
             self.coroutine_handler.exit_generator()
 
         if is_init:
+            if is_pydantic:
+                self.output.append(f'{self._indent()}self.validate() or {{ return error("Validation failed: ${{err}}") }}')
             self.output.append(f"{self._indent()}return self")
             self.in_init = prev_in_init
 
