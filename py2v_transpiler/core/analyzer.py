@@ -1,5 +1,5 @@
 import ast
-from typing import Dict, Any, Tuple, Optional
+from typing import Dict, Any, Tuple, Optional, List, Set
 from py2v_transpiler.models.v_types import map_python_type_to_v
 
 try:
@@ -224,10 +224,85 @@ class MixinInferer(ast.NodeVisitor):
                             self.main_to_mixins[cls_name].append(m)
 
 
+class FunctionMutabilityScanner(ast.NodeVisitor):
+    def __init__(self):
+        # function_name -> [index of mutated parameters]
+        self.func_param_mutability: Dict[str, List[int]] = {}
+        self.current_func: Optional[str] = None
+        self.current_params: List[str] = []
+        self.mutated_params: Set[str] = set()
+
+    def analyze(self, tree: ast.AST):
+        self.visit(tree)
+        return self.func_param_mutability
+
+    def visit_FunctionDef(self, node: ast.FunctionDef):
+        old_func = self.current_func
+        old_params = self.current_params
+        old_mutated = self.mutated_params
+
+        self.current_func = node.name
+        self.current_params = [arg.arg for arg in node.args.args]
+        self.mutated_params = set()
+
+        self.generic_visit(node)
+
+        mutated_indices = [
+            i for i, p in enumerate(self.current_params) if p in self.mutated_params
+        ]
+        self.func_param_mutability[node.name] = mutated_indices
+
+        self.current_func = old_func
+        self.current_params = old_params
+        self.mutated_params = old_mutated
+
+    def visit_AsyncFunctionDef(self, node: ast.AsyncFunctionDef):
+        self.visit_FunctionDef(node) # type: ignore
+
+    def _mark_mutated(self, node: ast.AST):
+        if isinstance(node, ast.Name) and node.id in self.current_params:
+            self.mutated_params.add(node.id)
+        elif isinstance(node, ast.Attribute) and isinstance(node.value, ast.Name):
+            if node.value.id in self.current_params:
+                self.mutated_params.add(node.value.id)
+
+    def visit_Assign(self, node: ast.Assign):
+        for target in node.targets:
+            if isinstance(target, (ast.Subscript, ast.Attribute)):
+                self._mark_mutated(target.value)
+            elif isinstance(target, ast.Name):
+                self._mark_mutated(target)
+        self.generic_visit(node)
+
+    def visit_AugAssign(self, node: ast.AugAssign):
+        if isinstance(node.target, (ast.Subscript, ast.Attribute)):
+            self._mark_mutated(node.target.value)
+        elif isinstance(node.target, ast.Name):
+            self._mark_mutated(node.target)
+        self.generic_visit(node)
+
+    def visit_Delete(self, node: ast.Delete):
+        for target in node.targets:
+            if isinstance(target, ast.Subscript):
+                self._mark_mutated(target.value)
+        self.generic_visit(node)
+
+    def visit_Call(self, node: ast.Call):
+        if isinstance(node.func, ast.Attribute):
+            mutating_methods = {
+                "append", "extend", "insert", "pop", "remove", "clear",
+                "update", "setdefault", "delete", "add", "discard"
+            }
+            if node.func.attr in mutating_methods:
+                self._mark_mutated(node.func.value)
+        self.generic_visit(node)
+
+
 class TypeInference(ast.NodeVisitor):
     def __init__(self):
         self.type_map: Dict[str, str] = {}
         self.mutability_map: Dict[str, Dict[str, Any]] = {}
+        self.func_param_mutability: Dict[str, List[int]] = {}
         self.location_map: Dict[str, str] = {}
         self.call_signatures: Dict[str, Dict[str, Any]] = {}
         self.mixin_to_main: Dict[str, list[str]] = {}
@@ -244,6 +319,20 @@ class TypeInference(ast.NodeVisitor):
         for k, v in alias_inferer.alias_to_type.items():
             if k not in self.type_map or self.type_map[k] == "Any":
                 self.type_map[k] = v
+
+        # Preliminary pass for function parameter mutability
+        mut_scanner = FunctionMutabilityScanner()
+        self.func_param_mutability = mut_scanner.analyze(tree)
+
+        # Pre-seed stdlib mutability
+        # dict.update(other) -> dict is mutated (receiver), but what about parameters?
+        # Usually we only care about parameters here.
+        self.func_param_mutability.update({
+             "json.decode": [1], # second arg is often a target object? No, V's json.decode(Type, str)
+             "os.open": [],
+             "py_csv_reader": [],
+             "py_csv_writer": [],
+        })
 
         self.visit(tree)
 
@@ -266,6 +355,12 @@ class TypeInference(ast.NodeVisitor):
                 self.mutability_map[name] = {"is_reassigned": False, "is_final": False, "is_mutated": False}
             self.mutability_map[name]["is_mutated"] = True
         elif isinstance(node, ast.Attribute) and isinstance(node.value, ast.Name):
+            # Track both the object and the attribute access
+            obj_name = node.value.id
+            if obj_name not in self.mutability_map:
+                self.mutability_map[obj_name] = {"is_reassigned": False, "is_final": False, "is_mutated": False}
+            self.mutability_map[obj_name]["is_mutated"] = True
+
             name = f"{node.value.id}.{node.attr}"
             if name not in self.mutability_map:
                 self.mutability_map[name] = {"is_reassigned": False, "is_final": False, "is_mutated": False}
@@ -360,6 +455,13 @@ class TypeInference(ast.NodeVisitor):
                             if var_name not in self.type_map or self.type_map[var_name] == "[]Any":
                                 self.type_map[var_name] = new_type
         elif isinstance(node.func, ast.Name):
+            func_name = node.func.id
+            if func_name in self.func_param_mutability:
+                mutated_indices = self.func_param_mutability[func_name]
+                for i, arg in enumerate(node.args):
+                    if i in mutated_indices:
+                        self._mark_mutated(arg)
+
             var_name = node.func.id
             # Don't overwrite if already inferred as something more specific (like list/set/dict alias)
             if var_name not in self.type_map or self.type_map[var_name] == "Any":
@@ -485,6 +587,11 @@ class TypeInference(ast.NodeVisitor):
 
         # Register arguments in type map
         for arg in node.args.args:
+            # Map arg_name and func_name.arg_name to mutability info for better lookup
+            fullname = f"{node.name}.{arg.arg}"
+            if fullname in self.mutability_map:
+                 self.mutability_map[arg.arg] = self.mutability_map[fullname]
+
             v_type = "Any"
             if arg.annotation:
                 try:

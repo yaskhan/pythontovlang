@@ -941,4 +941,27 @@ class CallsMixin(TranslatorBase):
 
              return gen_var_name
 
-        return f"{func_name_str}({', '.join(args)})"
+        # Check if callee expects mutable arguments
+        final_args = []
+        mutated_indices = []
+        if func_name_str in getattr(self.type_inference, "func_param_mutability", {}):
+            mutated_indices = self.type_inference.func_param_mutability[func_name_str]
+
+        for i, arg in enumerate(args):
+            if i in mutated_indices:
+                # If the argument is a variable, add 'mut '
+                # Note: Literals cannot be passed as mut.
+                # Heuristic: if arg is simple name or attribute, and not prefixed with 'mut ' already.
+                if not arg.startswith("mut "):
+                    # Simple check for identifier-like string
+                    import re
+                    if re.match(r'^[a-zA-Z_][a-zA-Z0-9._]*$', arg):
+                         final_args.append(f"mut {arg}")
+                    else:
+                         final_args.append(arg)
+                else:
+                    final_args.append(arg)
+            else:
+                final_args.append(arg)
+
+        return f"{func_name_str}({', '.join(final_args)})"

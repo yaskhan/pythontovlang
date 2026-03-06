@@ -421,9 +421,11 @@ class FunctionsMixin(TranslatorBase):
 
             is_mut = False
             if hasattr(self, 'type_inference') and hasattr(self.type_inference, 'mutability_map'):
+                # Heuristic: check for both arg_name and func_name.arg_name
                 mut_info = self.type_inference.mutability_map.get(arg_name)
-                # For arguments, we usually check if they are reassigned or mutated in the function scope
-                # full name for arguments in mypy is usually module.func.arg
+                if not mut_info:
+                    mut_info = self.type_inference.mutability_map.get(f"{node.name}.{arg_name}")
+
                 if mut_info:
                     is_mut = mut_info.get("is_reassigned", False) or mut_info.get("is_mutated", False)
 
