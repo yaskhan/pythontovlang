@@ -7,16 +7,16 @@ import pytest
 
 
 def pytest_collection_modifyitems(config, items):
-    """Modify collected items to exclude tests from cpython and transpile directories."""
-    # Filter out tests from cpython and transpile directories
+    """Modify collected items to exclude tests from input directory."""
+    # Filter out tests from input directory (cpython, transpile, tr)
     items[:] = [
         item for item in items
-        if "cpython" not in str(item.fspath) and "transpile" not in str(item.fspath)
+        if "input" not in str(item.fspath)
     ]
 
 
 def pytest_ignore_collect(collection_path, config):
-    """Ignore the cpython and transpile directories during test collection."""
-    if "cpython" in str(collection_path) or "transpile" in str(collection_path):
+    """Ignore the input directory during test collection."""
+    if "input" in str(collection_path):
         return True
     return None
