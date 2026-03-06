@@ -1,4 +1,5 @@
 import ast
+from typing import TypeGuard
 
 class PydanticDetector:
     @staticmethod
@@ -55,3 +56,8 @@ class PydanticDetector:
             if isinstance(node.func, ast.Attribute) and node.func.attr == "ConfigDict":
                 return True
         return False
+
+    @staticmethod
+    def is_config_class(node: ast.AST) -> TypeGuard[ast.ClassDef]:
+        """Checks if a class definition is a nested Config class."""
+        return isinstance(node, ast.ClassDef) and node.name == "Config"
