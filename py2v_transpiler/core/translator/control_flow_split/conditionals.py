@@ -140,12 +140,28 @@ class ConditionalsMixin(TranslatorBase):
                   narrowed_type = self._map_type(narrowed_type)
 
              sanitized_name = self._sanitize_name(var_name)
+             # V doesn't allow shadowing of parameters or variables in the same scope.
+             # However, V's `if x is Type` auto-narrows `x` within the block anyway.
+             # To handle complex narrowing (like TypeGuard) without redeclaration,
+             # we check if the variable is already in scope.
              if var_name in self._local_vars_in_scope:
-                  # Use Functional Casting if target type is primitive, else Sum Type assertion
+                  # If already in scope, we use a different name for the narrowed version
+                  # to avoid redefinition while still allowing type-safe access.
+                  narrowed_name = f"narrowed_{sanitized_name}"
+                  if narrowed_type in ("int", "f64", "string", "bool"):
+                       self.output.append(f"{self._indent()}{narrowed_name} := {narrowed_type}({sanitized_name})")
+                  else:
+                       self.output.append(f"{self._indent()}{narrowed_name} := ({sanitized_name} as {narrowed_type})")
+                  # Map original name to narrowed name within this block
+                  self.name_remap[var_name] = narrowed_name
+             else:
+                  # If not in scope (should not happen for parameters/locals, but maybe for globals),
+                  # we can declare it.
                   if narrowed_type in ("int", "f64", "string", "bool"):
                        self.output.append(f"{self._indent()}{sanitized_name} := {narrowed_type}({sanitized_name})")
                   else:
                        self.output.append(f"{self._indent()}{sanitized_name} := ({sanitized_name} as {narrowed_type})")
+                  self._local_vars_in_scope.add(var_name)
 
     def _visit_if(self, node: ast.If, is_elif: bool = False) -> None:
         if not is_elif:
@@ -222,7 +238,10 @@ class ConditionalsMixin(TranslatorBase):
                             elif v_narrowed_type == "builtins.float": v_narrowed_type = "f64"
                             elif v_narrowed_type == "builtins.bool": v_narrowed_type = "bool"
 
-                            narrow_if = f"{arg_name} := ({arg_name} as {v_narrowed_type})"
+                            # Use a unique name for narrowing to avoid redefinition errors in V
+                            narrowed_arg_name = f"narrowed_{arg_name}"
+                            narrow_if = f"{narrowed_arg_name} := ({arg_name} as {v_narrowed_type})"
+                            self.name_remap[arg_name] = narrowed_arg_name
 
                             if is_typeis:
                                 orig_type = self._guess_type(arg_node)
@@ -254,10 +273,11 @@ class ConditionalsMixin(TranslatorBase):
                                     v_remaining_type = "Any"
 
                                 if v_remaining_type:
+                                    narrow_else_name = f"narrowed_else_{arg_name}"
                                     if v_remaining_type == "none" and orig_type.startswith("?"):
-                                        narrow_else = f"{arg_name} := {orig_type}(none)"
+                                        narrow_else = f"{narrow_else_name} := {orig_type}(none)"
                                     else:
-                                        narrow_else = f"{arg_name} := ({arg_name} as {v_remaining_type})"
+                                        narrow_else = f"{narrow_else_name} := ({arg_name} as {v_remaining_type})"
 
         # Check for walrus operator
         self._walrus_assignments = []

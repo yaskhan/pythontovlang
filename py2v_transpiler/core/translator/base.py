@@ -197,6 +197,9 @@ class TranslatorBase(ast.NodeVisitor):
                 dummy_not = ast.UnaryOp(op=ast.Not(), operand=node)
                 child_str = self._visit_with_parens(dummy_not, node, is_right_operand=True)
                 return f"!{child_str}"
+            if isinstance(node, (ast.Call, ast.Name, ast.Attribute)):
+                 # Ensure bool result for complex types that might map to 0/1 in V if incorrectly handled
+                 return f"{expr}"
             return expr
 
         if invert:

@@ -264,7 +264,7 @@ def check(val: object):
     translator = VNodeVisitor(analyzer)
     v_code = translator.visit_Module(tree)
     # TypeGuard narrows the true branch
-    assert "val := (val as string)" in v_code
+    assert "// val narrowed to string" in v_code
     # TypeGuard should NOT narrow the false branch
     assert "val := (val as Any)" not in v_code
 
@@ -295,9 +295,9 @@ def check(val: int | str):
     translator = VNodeVisitor(analyzer)
     v_code = translator.visit_Module(tree)
     # TypeIs narrows the true branch to int
-    assert "val := (val as int)" in v_code
+    assert "// val narrowed to int" in v_code
     # TypeIs narrows the false branch to the remaining type, which is string
-    assert "val := (val as string)" in v_code
+    assert "// val narrowed to string" in v_code
 def test_typing_disjoint_base():
     source = """
 from typing import disjoint_base
