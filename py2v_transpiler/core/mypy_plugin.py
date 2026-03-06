@@ -1,5 +1,5 @@
 from mypy.plugin import Plugin
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Callable, Optional
 import json
 from collections import defaultdict
 import sys
@@ -146,6 +146,14 @@ class VlangPlugin(Plugin):
                 self.collected_sigs[fullname][key] = json.dumps(sig_data)
 
             return ctx.default_return_type
+        return hook
+
+    def get_attribute_hook(self, fullname: str):
+        def hook(ctx):
+             if hasattr(ctx.context, 'line'):
+                 key = f"{ctx.context.line}:{ctx.context.column}"
+                 self.collected_types[fullname][key] = str(ctx.default_attr_type)
+             return ctx.default_attr_type
         return hook
 
     def report_config_data(self, ctx: Any) -> Any:

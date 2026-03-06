@@ -105,7 +105,7 @@ class AssignmentsMixin(TranslatorBase):
                               # Unparse RHS to string
                               if hasattr(ast, 'unparse'):
                                   rhs_source = ast.unparse(node.value)
-                                  mapped = map_python_type_to_v(rhs_source, allow_union=True, self_name=self._get_full_self_type())
+                                  mapped = self._map_type(rhs_source, allow_union=True, register_sum_types=False)
                                   # Check if mapped value looks like a type and not void/same-as-input-expression
                                   # map_python_type_to_v returns input if it fails to map usually, unless it parses successfully via _map_ast_type
                                   # For List[int], it returns []int. List[int] != []int.
@@ -165,6 +165,14 @@ class AssignmentsMixin(TranslatorBase):
 
         elif isinstance(target, ast.Attribute):
             # obj.attr = value
+            # Check for property setter
+            obj_type = self._guess_type(target.value)
+            if (obj_type, target.attr) in self.property_setters:
+                obj_expr = self.visit(target.value)
+                rhs_expr = self.visit(node.value)
+                self.output.append(f"{self._indent()}{obj_expr}.set_{target.attr}({rhs_expr})")
+                return
+
             # Check for function attribute assignment
             obj_name = self.visit(target.value)
             if obj_name in self.function_names:
@@ -273,11 +281,12 @@ class AssignmentsMixin(TranslatorBase):
         if len(node.targets) > 1:
             # chained assignment: a = b = c = 1
             rhs = self.visit(node.value)
-            tmp = f"_assign_tmp_{self.unique_id_counter}"
+            tmp = f"py_assign_tmp_{self.unique_id_counter}"
             self.unique_id_counter += 1
             self.output.append(f"{self._indent()}{tmp} := {rhs}")
 
             for t in node.targets:
+                # Reset rhs for each target to avoid accumulation of .clone()
                 self._visit_destructuring(t, tmp)
             return
 
@@ -396,34 +405,33 @@ class AssignmentsMixin(TranslatorBase):
                         if isinstance(target, ast.Name):
                             if v_type == "unknown":
                                 v_type = "Any"
-                            pub = "pub " if self._is_exported(target.id) else ""
-                            self.emitter.add_global(f"{pub}{lhs} {v_type}")
+                            self.emitter.add_global(f"{lhs} {v_type}")
                     elif base_lhs.isupper():
                         emit_fn = lambda stmt: self.emitter.add_init_statement(stmt.strip())
                         if isinstance(target, ast.Name):
                             v_lhs = self._to_snake_case(lhs)
-                            pub = "pub " if self._is_exported(target.id) else ""
                             if self._is_compile_time_evaluable(node.value):
                                 # Compile-time constant (e.g. DEFAULT_WIDTH = 100) -> const block
+                                pub = "pub " if self._is_exported(target.id) else ""
                                 self.emitter.add_constant(f"{pub}{v_lhs} = {rhs}")
                                 return
                             else:
                                 # Runtime UPPER_CASE (e.g. Vector_ZERO = new_Vector(...)) -> global + init()
                                 if v_type == "unknown" or v_type == "int":
                                     v_type = "Any"
-                                self.emitter.add_global(f"{pub}{v_lhs} {v_type}")
+                                self.emitter.add_global(f"{v_lhs} {v_type}")
                                 lhs = v_lhs
 
                 if self.in_main and isinstance(target, ast.Name) and (lhs in getattr(self, "global_vars", set()) or lhs.isupper() or is_implicit_literal or is_literal_string):
                     v_lhs = self._to_snake_case(lhs) if not lhs.islower() else lhs
                     # For compile-time constants we already returned above - assignment not needed
-                    pub = "pub " if self._is_exported(target.id) else ""
                     if (is_implicit_literal or is_literal_string) and self._is_compile_time_evaluable(node.value) and not lhs.isupper():
+                        pub = "pub " if self._is_exported(target.id) else ""
                         self.emitter.add_constant(f"{pub}{v_lhs} = {rhs}")
                         return
                     if (is_implicit_literal or is_literal_string) and not self._is_compile_time_evaluable(node.value) and not lhs.isupper():
                         if lhs not in getattr(self, "global_vars", set()):
-                            self.emitter.add_global(f"{pub}{v_lhs} string")
+                            self.emitter.add_global(f"{v_lhs} string")
                         self.emitter.add_init_statement(f"{v_lhs} = {rhs}")
                         return
                     if not (lhs.isupper() and self._is_compile_time_evaluable(node.value)):
@@ -435,9 +443,9 @@ class AssignmentsMixin(TranslatorBase):
                     if local_v_type and local_v_type != "unknown":
                         if not local_v_type.startswith("?"):
                             local_v_type = f"?{local_v_type}"
-                        emit_fn(f"{self._indent()}mut {v_lhs} := {local_v_type}(none)")
+                        emit_fn(f"{self._indent()}mut {v_lhs} := (none as {local_v_type})")
                     else:
-                        emit_fn(f"{self._indent()}mut {v_lhs} := ?Any(none)")
+                        emit_fn(f"{self._indent()}mut {v_lhs} := (none as ?Any)")
                     if not self.in_main: self._local_vars_in_scope.add(v_lhs)
                 else:
                     v_lhs = self._to_snake_case(lhs) if (isinstance(target, ast.Name) and not lhs.islower()) else lhs
@@ -458,13 +466,17 @@ class AssignmentsMixin(TranslatorBase):
                                         mut_info = self.type_inference.mutability_map.get(v_lhs)
 
                                     if mut_info:
-                                        is_mut = mut_info.get("is_reassigned", False) and not mut_info.get("is_final", False)
+                                        is_mut = (mut_info.get("is_reassigned", False) or mut_info.get("is_mutated", False)) and not mut_info.get("is_final", False)
 
                                 # Special handling for buffer protocol: always mutable if bytearray
                                 if not is_mut:
                                     # check if it is a call to bytearray
                                     if isinstance(node.value, ast.Call) and isinstance(node.value.func, ast.Name) and node.value.func.id == "bytearray":
                                         is_mut = True
+
+                                if is_mut and self._is_clonable_collection(v_type):
+                                    if not (rhs.startswith("[") or rhs.startswith("map[") or rhs.startswith("{")):
+                                        rhs = f"{rhs}.clone()"
 
                                 mut_prefix = "mut " if is_mut else ""
                                 emit_fn(f"{self._indent()}{mut_prefix}{v_lhs} := {rhs}")
@@ -482,7 +494,7 @@ class AssignmentsMixin(TranslatorBase):
         if isinstance(target, (ast.Tuple, ast.List)):
              # Assign source to a temporary variable to avoid repeated evaluation
              # and allow slicing
-             tmp_var = f"_destruct_{self._zip_counter}"
+             tmp_var = f"py_destruct_{self._zip_counter}"
              self._zip_counter += 1
              self.output.append(f"{self._indent()}{tmp_var} := {source_expr}")
 
@@ -536,7 +548,14 @@ class AssignmentsMixin(TranslatorBase):
                         mut_info = self.type_inference.mutability_map.get(lhs)
 
                     if mut_info:
-                        is_mut = mut_info.get("is_reassigned", False) and not mut_info.get("is_final", False)
+                        is_mut = (mut_info.get("is_reassigned", False) or mut_info.get("is_mutated", False)) and not mut_info.get("is_final", False)
+
+                v_type = getattr(self, "_guess_type", lambda x: "unknown")(target)
+                if is_mut and self._is_clonable_collection(v_type):
+                    # For collections, V requires .clone() when assigning to a mutable variable
+                    # unless it's a fresh literal
+                    if not (source_expr.startswith("[") or source_expr.startswith("map[") or source_expr.startswith("{")):
+                        source_expr = f"{source_expr}.clone()"
 
                 mut_prefix = "mut " if is_mut else ""
                 self.output.append(f"{self._indent()}{mut_prefix}{lhs} := {source_expr}")

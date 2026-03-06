@@ -43,10 +43,10 @@ if __name__ == "__main__":
         with open("temp_match_guards.v", "r") as f:
             v_code = f.read()
 
-        # Check for _match_found flag
-        assert "_match_found_1" in v_code
+        # Check for py_match_found flag
+        assert "py_match_found_1" in v_code
         # Check for guard if block with parentheses
-        assert "if (len(n) > 5) {" in v_code
+        assert "if (n.len > 5) {" in v_code
 
     finally:
         if os.path.exists("temp_match_guards.py"): os.remove("temp_match_guards.py")

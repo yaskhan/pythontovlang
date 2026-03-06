@@ -36,6 +36,7 @@ py2v my_project/ --recursive
 | [Standard Library Mapping](stdlib-mapping.md) | Python to V standard library correspondence |
 | [Architecture](architecture.md) | Internal structure of the transpiler |
 | [Development](development.md) | Developer guidelines |
+| [Pydantic](pydantic.md) | Pydantic Support |
 
 ## Example
 

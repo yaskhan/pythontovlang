@@ -23,14 +23,14 @@ class MatchMixin(TranslatorBase):
         subject = self.visit(node.subject)
         self._zip_counter += 1
         match_id = self._zip_counter
-        subject_var = f"_match_subject_{match_id}"
-        found_var = f"_match_found_{match_id}"
+        subject_var = f"py_match_subject_{match_id}"
+        found_var = f"py_match_found_{match_id}"
 
         self.output.append(f"{self._indent()}// Match statement converted to separate if blocks")
         self.output.append(f"{self._indent()}{subject_var} := {subject}")
         # Create an 'any' alias for type checking
-        subject_any = f"_match_subject_any_{match_id}"
-        self.output.append(f"{self._indent()}{subject_any} := Any({subject_var})")
+        subject_any = f"py_match_subject_any_{match_id}"
+        self.output.append(f"{self._indent()}{subject_any} := ({subject_var} as Any)")
         self.output.append(f"{self._indent()}mut {found_var} := false")
 
         # Flatten MatchOr patterns to simplify code generation
@@ -119,13 +119,13 @@ class MatchMixin(TranslatorBase):
                          else:
                              slice_expr = f"[{idx}..{end_expr}]"
 
-                         branches.append(f"{subject_expr} is {t} {{ Any(({subject_expr} as {t}){slice_expr}) }}")
+                         branches.append(f"{subject_expr} is {t} {{ (({subject_expr} as {t}){slice_expr} as Any) }}")
                      elif from_end:
                          # Index from end: len - offset
-                         branches.append(f"{subject_expr} is {t} {{ Any(({subject_expr} as {t})[({subject_expr} as {t}).len - {idx}]) }}")
+                         branches.append(f"{subject_expr} is {t} {{ (({subject_expr} as {t})[({subject_expr} as {t}).len - {idx}] as Any) }}")
                      else:
-                         branches.append(f"{subject_expr} is {t} {{ Any(({subject_expr} as {t})[{idx}]) }}")
-                branches.append("else { Any(0) }") # Fallback
+                         branches.append(f"{subject_expr} is {t} {{ (({subject_expr} as {t})[{idx}] as Any) }}")
+                branches.append("else { (0 as Any) }") # Fallback
                 return f"if {' else if '.join(branches[:-1])} {branches[-1]}"
 
             # Generate condition
@@ -198,8 +198,8 @@ class MatchMixin(TranslatorBase):
                  # Extract
                  branches = []
                  for t in map_types:
-                     branches.append(f"{subject_expr} is {t} {{ Any(({subject_expr} as {t})[{k_val}]) }}")
-                 branches.append("else { Any(0) }")
+                     branches.append(f"{subject_expr} is {t} {{ (({subject_expr} as {t})[{k_val}] as Any) }}")
+                 branches.append("else { (0 as Any) }")
                  extract_expr = f"if {' else if '.join(branches[:-1])} {branches[-1]}"
 
                  sub_cond, sub_binds = self._compile_pattern(p, extract_expr)
@@ -212,8 +212,8 @@ class MatchMixin(TranslatorBase):
 
                  branches = []
                  for t in map_types:
-                     branches.append(f"{subject_expr} is {t} {{ Any(py_dict_residual(({subject_expr} as {t}), {exclude_list})) }}")
-                 else_part = " else { Any(map[string]Any{}) }"
+                     branches.append(f"{subject_expr} is {t} {{ (py_dict_residual(({subject_expr} as {t}), {exclude_list}) as Any) }}")
+                 else_part = " else { (map[string]Any{} as Any) }"
                  extract_expr = f"if {' else if '.join(branches)}{else_part}"
 
                  bindings.append(f"{rest} := {extract_expr}")
@@ -238,10 +238,10 @@ class MatchMixin(TranslatorBase):
                  else:
                      # Fallback to positional index if unknown
                      # Python usually requires __match_args__ but we can try to be helpful
-                     attr = f"_{i}"
+                     attr = f"py_{i}"
 
                  cast_expr = f"({subject_expr} as {cls_name})"
-                 val_expr = f"Any({cast_expr}.{attr})"
+                 val_expr = f"({cast_expr}.{attr} as Any)"
                  sub_cond, sub_bindings = self._compile_pattern(sub_pat, val_expr)
                  cond += f" && ({sub_cond})"
                  bindings.extend(sub_bindings)
@@ -252,7 +252,7 @@ class MatchMixin(TranslatorBase):
                  # _compile_pattern expects subject_expr to be Any if it does type checks.
                  # If we pass `${cast_expr}.attr`, it is typed.
                  # So we wrap it: `Any(...)`.
-                 val_expr = f"Any({cast_expr}.{attr})"
+                 val_expr = f"({cast_expr}.{attr} as Any)"
                  sub_cond, sub_bindings = self._compile_pattern(sub_pat, val_expr)
                  cond += f" && ({sub_cond})"
                  bindings.extend(sub_bindings)

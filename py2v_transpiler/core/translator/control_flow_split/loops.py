@@ -9,7 +9,7 @@ class LoopsMixin(TranslatorBase):
         loop_ctx: Dict[str, Any] = {}
         flag_name = ""
         if node.orelse:
-            flag_name = f"_loop_completed_{self.unique_id_counter}"
+            flag_name = f"py_loop_completed_{self.unique_id_counter}"
             self.unique_id_counter += 1
             self.output.append(f"{self._indent()}mut {flag_name} := true")
             loop_ctx['flag'] = flag_name
@@ -65,7 +65,7 @@ class LoopsMixin(TranslatorBase):
         self.loop_stack.append({'vexc_depth': self.vexc_depth})
 # 1. Сначала проверяем на деструктуризацию кортежа (из feat-ветки)
         if isinstance(node.target, ast.Tuple) and target.startswith("[") and target.endswith("]"):
-            val_name = f"_val_{id(node)}"
+            val_name = f"py_val_{id(node)}"
             self.output.append(f"{self._indent()}for {val_name} in {iter_expr} {{")
             self._indent_level += 1
             for i, elt in enumerate(node.target.elts):
@@ -114,7 +114,7 @@ class LoopsMixin(TranslatorBase):
         loop_ctx: Dict[str, Any] = {}
         flag_name = ""
         if node.orelse:
-            flag_name = f"_loop_completed_{self.unique_id_counter}"
+            flag_name = f"py_loop_completed_{self.unique_id_counter}"
             self.unique_id_counter += 1
             self.output.append(f"{self._indent()}mut {flag_name} := true")
             loop_ctx['flag'] = flag_name
@@ -141,11 +141,11 @@ class LoopsMixin(TranslatorBase):
                 zip_id = self._zip_counter
                 it1 = self.visit(zip_args[0])
                 it2 = self.visit(zip_args[1])
-                var_it1 = f"_zip_it1_{zip_id}"
-                var_it2 = f"_zip_it2_{zip_id}"
-                var_i = f"_i_{zip_id}"
-                var_v1 = f"_v1_{zip_id}"
-                var_v2 = f"_v2_{zip_id}"
+                var_it1 = f"py_zip_it1_{zip_id}"
+                var_it2 = f"py_zip_it2_{zip_id}"
+                var_i = f"py_i_{zip_id}"
+                var_v1 = f"py_v1_{zip_id}"
+                var_v2 = f"py_v2_{zip_id}"
                 self.output.append(f"{self._indent()}{var_it1} := {it1}")
                 self.output.append(f"{self._indent()}{var_it2} := {it2}")
                 self.output.append(f"{self._indent()}for {var_i}, {var_v1} in {var_it1} {{")
@@ -258,7 +258,7 @@ class LoopsMixin(TranslatorBase):
 
         # 1. Обработка деструктуризации кортежа (кроме случаев с enumerate/dict.items)
         if isinstance(node.target, ast.Tuple) and target.startswith("[") and target.endswith("]") and not is_enumerate and not is_dict_items:
-            val_name = f"_val_{id(node)}"
+            val_name = f"py_val_{id(node)}"
             self.output.append(f"{self._indent()}for {val_name} in {iter_expr} {{")
             self._indent_level += 1
             for i, elt in enumerate(node.target.elts):

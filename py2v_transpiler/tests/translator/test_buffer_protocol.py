@@ -26,7 +26,7 @@ class MockTranslator(CallsMixin, LiteralsMixin, NamesMixin, TranslatorBase):
         self.current_class = None
         self.defined_classes = {}
         self.renamed_functions = {"main": "py_main"}
-        self._local_vars_in_scope = set()
+        self._scope_stack = [set()]
 
     def visit(self, node):
         if node is None: return "none"

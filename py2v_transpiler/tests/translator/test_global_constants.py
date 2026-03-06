@@ -38,8 +38,7 @@ Vector_ZERO: Final = Vector(0, 0, 0)
 """
     v_code = translate(source)
     # Because Vector is not compile time evaluable, it should be in __global and initialized in init()
-    assert "__global (" in v_code
-    assert "vector_zero Any" in v_code
+    assert "__global vector_zero Any" in v_code
 
     assert "fn init() {" in v_code
     assert "vector_zero = Vector(0, 0, 0)" in v_code
@@ -54,8 +53,7 @@ VECTOR_ONE = Vector(1, 1, 1)
 """
     v_code = translate(source)
     # Uppercase but runtime initialization
-    assert "__global (" in v_code
-    assert "vector_one Any" in v_code
+    assert "__global vector_one Any" in v_code
 
     assert "fn init() {" in v_code
     assert "vector_one = Vector(1, 1, 1)" in v_code
