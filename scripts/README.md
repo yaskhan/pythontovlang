@@ -72,6 +72,37 @@ Implement parsing and translation of `TypeForm[T]` annotations.
 ---cut---
 ```
 
+## Формат Issues
+
+Каждый consolidated issue обязательно следует шаблону:
+
+```markdown
+## Problem
+Чёткое описание проблемы
+
+## Affected Tests
+Таблица с файлами и ошибками
+
+## Example
+Python Input → Current Invalid V Output → Expected V Output
+
+## Root Cause
+Анализ корневой причины
+
+## Tasks
+Конкретные шаги для исправления
+
+## Files to Modify
+Список файлов для изменения
+
+## Acceptance Criteria
+Чеклист для проверки
+
+## Priority
+Приоритет с обоснованием
+```
+
+
 ## Структура файлов
 
 ```
