@@ -20,10 +20,10 @@ a = b = 1
 """
         result = self.transpile(source)
         # Expected:
-        # py_assign_tmp_0 := 1
-        # a := py_assign_tmp_0
-        # b := py_assign_tmp_0
-        self.assertIn("py_assign_tmp_", result)
+        # _assign_tmp_0 := 1
+        # a := _assign_tmp_0
+        # b := _assign_tmp_0
+        self.assertIn("_assign_tmp_", result)
         self.assertIn("a :=", result)
         self.assertIn("b :=", result)
 

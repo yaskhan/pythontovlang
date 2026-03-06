@@ -35,8 +35,8 @@ class MyClass:
     tree = ast.parse(source)
     code = visitor.visit(tree)
 
-    # static_method should NOT have receiver and should be prefixed with class name
-    assert "fn MyClass_static_method(arg int)" in code, f"Code:\n{code}"
+    # static_method should NOT have receiver
+    assert "fn static_method(arg int)" in code, f"Code:\n{code}"
     # instance_method SHOULD have receiver
     assert "fn (self MyClass) instance_method()" in code, f"Code:\n{code}"
 
@@ -113,9 +113,9 @@ class MyClass:
     tree = ast.parse(source)
     code = visitor.visit(tree)
 
-    # Treated as static method (no receiver) and prefixed with class name
-    # The argument 'cls' is removed.
-    assert "fn MyClass_factory()" in code, f"Code:\n{code}"
+    # Treated as static method (no receiver)
+    # The argument 'cls' is present. Type defaults to int.
+    assert "fn factory(cls int)" in code, f"Code:\n{code}"
 
     """Test PEP 702 @deprecated decorator on function"""
     source = """

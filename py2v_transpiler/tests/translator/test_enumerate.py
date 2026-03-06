@@ -21,7 +21,7 @@ for i, item in enumerate(items):
     print(f"{i}: {item}")
 """
     v_code = translate(source)
-    assert "items := []int{1, 2, 3}" in v_code
+    assert "items := [1, 2, 3]" in v_code
     assert "for i, item in items {" in v_code
 
 def test_enumerate_single_target():

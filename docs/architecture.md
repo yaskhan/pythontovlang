@@ -56,7 +56,7 @@ class TypeInference:
 ```
 
 **Type Inference Process**:
-1. Run mypy on source code (automatically resolving and extracting types from available `.pyi` stub files)
+1. Run mypy on source code
 2. Parse mypy output
 3. Annotate AST nodes with types
 4. Handle special cases (aliases, generics)
@@ -241,7 +241,6 @@ fn main() {
 ## Type System Mapping
 
 ### Basic Types
-
 | Python | V |
 |--------|-----|
 | `int` | `int` |
@@ -252,7 +251,6 @@ fn main() {
 | `Any` | `Any` |
 
 ### Generic Types
-
 | Python | V |
 |--------|-----|
 | `list[T]` | `[]T` |
@@ -263,7 +261,6 @@ fn main() {
 | `Union[A, B]` | `A \| B` or `Any` |
 
 ### Callable Types
-
 | Python | V |
 |--------|-----|
 | `Callable[[int], str]` | `fn (int) string` |

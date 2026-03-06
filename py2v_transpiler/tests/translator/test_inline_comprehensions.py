@@ -14,11 +14,11 @@ class TestInlineComprehensions(TranspilerTest):
     def test_inline_list_comp_in_call(self):
         code = "max([x * 2 for x in [1, 2, 3]])"
         expected = """
-        mut py_comp_1 := []int{cap: 3}
+        mut _comp_1 := []int{cap: 3}
         for x in [1, 2, 3] {
-            py_comp_1 << x * 2
+            _comp_1 << x * 2
         }
-        max(py_comp_1)
+        max(_comp_1)
         """
         self.assert_transpilation(code, expected)
 
@@ -55,10 +55,10 @@ class TestInlineComprehensions(TranspilerTest):
     def test_generator_exp_in_call(self):
         code = "sum(x * 2 for x in [1, 2, 3])"
         expected = """
-        mut py_comp_1 := []int{cap: 3}
+        mut _comp_1 := []int{cap: 3}
         for x in [1, 2, 3] {
-            py_comp_1 << x * 2
+            _comp_1 << x * 2
         }
-        sum(py_comp_1)
+        sum(_comp_1)
         """
         self.assert_transpilation(code, expected)

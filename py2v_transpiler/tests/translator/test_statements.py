@@ -54,4 +54,6 @@ def test_translator_set_literal():
     result = translator.visit_Module(tree)
 
     # Check for map usage for set simulation
-    assert "s := {1: true, 2: true}" in result
+    assert "map[int]bool" in result
+    assert "1: true" in result
+    assert "2: true" in result

@@ -1,5 +1,4 @@
 import ast
-import sys
 from py2v_transpiler.core.parser import PyASTParser
 from py2v_transpiler.core.analyzer import TypeInference
 from py2v_transpiler.core.translator import VNodeVisitor
@@ -116,33 +115,6 @@ class A:
 """
     v_code = translate(source)
     assert "fn (self A) foo() A {" in v_code
-
-def test_typing_self_generic():
-    if sys.version_info < (3, 12):
-        return
-    source = """
-from typing import Self
-
-class Builder[T]:
-    def set_value(self, value: T) -> Self:
-        return self
-"""
-    v_code = translate(source)
-    assert "fn (self Builder[T]) set_value[T](value T) Builder[T] {" in v_code
-
-def test_typing_self_generic_legacy():
-    source = """
-from typing import Self, TypeVar, Generic
-
-T = TypeVar("T")
-
-class Builder(Generic[T]):
-    def set_value(self, value: T) -> Self:
-        return self
-"""
-    v_code = translate(source)
-    # V generic map: T -> T
-    assert "fn (self Builder[T]) set_value[T](value T) Builder[T] {" in v_code
 
 def test_typing_cast():
     source = """

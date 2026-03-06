@@ -23,13 +23,13 @@ for x, y in zip(a, b):
 """
     v_code = translate(source)
     # Check for unique variable naming pattern
-    assert "py_zip_it1_1 := a" in v_code
-    assert "py_zip_it2_1 := b" in v_code
-    assert "for py_i_1, py_v1_1 in py_zip_it1_1 {" in v_code
-    assert "if py_i_1 >= py_zip_it2_1.len { break }" in v_code
-    assert "py_v2_1 := py_zip_it2_1[py_i_1]" in v_code
-    assert "x := py_v1_1" in v_code
-    assert "y := py_v2_1" in v_code
+    assert "_zip_it1_1 := a" in v_code
+    assert "_zip_it2_1 := b" in v_code
+    assert "for _i_1, _v1_1 in _zip_it1_1 {" in v_code
+    assert "if _i_1 >= _zip_it2_1.len { break }" in v_code
+    assert "_v2_1 := _zip_it2_1[_i_1]" in v_code
+    assert "x := _v1_1" in v_code
+    assert "y := _v2_1" in v_code
 
 def test_zip_list_comp():
     source = """
@@ -42,7 +42,7 @@ sums = [x + y for x, y in zip(a, b)]
     # Assuming this is the first zip call in the translator instance for this test
     # But wait, translate() creates a NEW translator instance each time.
     # So counter resets to 0, then increments to 1.
-    assert "py_zip_it1_1 := a" in v_code
+    assert "_zip_it1_1 := a" in v_code
     assert "sums << x + y" in v_code
 
 def test_zip_single_target():
@@ -53,7 +53,7 @@ for t in zip(a, b):
     print(t)
 """
     v_code = translate(source)
-    assert "t := [py_v1_1, py_v2_1]" in v_code
+    assert "t := [_v1_1, _v2_1]" in v_code
 
 def test_zip_multiple_usage_collision():
     source = """
@@ -66,9 +66,9 @@ for x, y in zip(a, b):
 """
     v_code = translate(source)
     # First loop
-    assert "py_zip_it1_1 := a" in v_code
+    assert "_zip_it1_1 := a" in v_code
     # Second loop should have different suffix
-    assert "py_zip_it1_2 := a" in v_code
+    assert "_zip_it1_2 := a" in v_code
     # Ensure no collision in variable declarations (not rigorous, but checks presence)
-    assert "for py_i_1, py_v1_1 in py_zip_it1_1 {" in v_code
-    assert "for py_i_2, py_v1_2 in py_zip_it1_2 {" in v_code
+    assert "for _i_1, _v1_1 in _zip_it1_1 {" in v_code
+    assert "for _i_2, _v1_2 in _zip_it1_2 {" in v_code

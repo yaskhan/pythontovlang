@@ -112,5 +112,5 @@ for key in ("name", "age"):
     result = translator.visit_Module(tree)
 
     assert "match key {" in result
-    assert "'name' { (d.name as Any) }" in result
-    assert "'age' { (d.age as Any) }" in result
+    assert "'name' { Any(d.name) }" in result
+    assert "'age' { Any(d.age) }" in result

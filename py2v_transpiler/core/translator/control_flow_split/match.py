@@ -1,37 +1,21 @@
 import ast
-from typing import List, Tuple, Dict
+from typing import List, Tuple
 from ..base import TranslatorBase
 
 class MatchMixin(TranslatorBase):
     """Обработка match/case (Python 3.10+)"""
     
-    def _unmangle_generic_name(self, name: str) -> str:
-        """Restores generic syntax from mangled identifiers and maps Python types to V types."""
-        from py2v_transpiler.models.v_types import map_python_type_to_v
-        if "__py2v_gen_L__" not in name:
-            return map_python_type_to_v(name)
-
-        # Restore original syntax
-        res = name.replace("__py2v_gen_L__", "[")
-        res = res.replace("__py2v_gen_R__", "]")
-        res = res.replace("__py2v_gen_C__", ", ")
-
-        # Now map it properly using map_python_type_to_v
-        return map_python_type_to_v(res)
-
     def visit_Match(self, node: "ast.Match") -> None:
         subject = self.visit(node.subject)
         self._zip_counter += 1
         match_id = self._zip_counter
-        subject_var = f"py_match_subject_{match_id}"
-        found_var = f"py_match_found_{match_id}"
+        subject_var = f"_match_subject_{match_id}"
 
-        self.output.append(f"{self._indent()}// Match statement converted to separate if blocks")
+        self.output.append(f"{self._indent()}// Match statement converted to if-else chain")
         self.output.append(f"{self._indent()}{subject_var} := {subject}")
         # Create an 'any' alias for type checking
-        subject_any = f"py_match_subject_any_{match_id}"
-        self.output.append(f"{self._indent()}{subject_any} := ({subject_var} as Any)")
-        self.output.append(f"{self._indent()}mut {found_var} := false")
+        subject_any = f"_match_subject_any_{match_id}"
+        self.output.append(f"{self._indent()}{subject_any} := Any({subject_var})")
 
         # Flatten MatchOr patterns to simplify code generation
         expanded_cases = []
@@ -44,37 +28,33 @@ class MatchMixin(TranslatorBase):
             else:
                 expanded_cases.append(case)
 
+        is_first = True
         for case in expanded_cases:
             cond, bindings = self._compile_pattern(case.pattern, subject_any)
 
+            if case.guard:
+                guard_expr = self.visit(case.guard)
+                cond = f"({cond}) && ({guard_expr})"
+
+            prefix = "if" if is_first else "else if"
             if cond == "true":
-                self.output.append(f"{self._indent()}if !{found_var} {{")
+                # Wildcard or fallback
+                prefix = "else"
+                self.output.append(f"{self._indent()}{prefix} {{")
             else:
-                self.output.append(f"{self._indent()}if !{found_var} && ({cond}) {{")
+                self.output.append(f"{self._indent()}{prefix} {cond} {{")
 
             self._indent_level += 1
             for binding in bindings:
                 self.output.append(f"{self._indent()}{binding}")
-
-            if case.guard:
-                guard_expr = self.visit(case.guard)
-                self.output.append(f"{self._indent()}if ({guard_expr}) {{")
-                self._indent_level += 1
-                for stmt in case.body:
-                    self.visit(stmt)
-                self.output.append(f"{self._indent()}{found_var} = true")
-                self._indent_level -= 1
-                self.output.append(f"{self._indent()}}}")
-            else:
-                for stmt in case.body:
-                    self.visit(stmt)
-                self.output.append(f"{self._indent()}{found_var} = true")
-
+            for stmt in case.body:
+                self.visit(stmt)
             self._indent_level -= 1
             self.output.append(f"{self._indent()}}}")
 
-            if cond == "true" and not case.guard:
-                break # Optimization: literal wildcard with no guard always matches
+            if cond == "true":
+                break # Stop processing further cases as this one matches everything
+            is_first = False
 
     def _compile_pattern(self, pattern: ast.AST, subject_expr: str) -> Tuple[str, List[str]]:
         bindings: List[str] = []
@@ -119,14 +99,14 @@ class MatchMixin(TranslatorBase):
                          else:
                              slice_expr = f"[{idx}..{end_expr}]"
 
-                         branches.append(f"{subject_expr} is {t} {{ (({subject_expr} as {t}){slice_expr} as Any) }}")
+                         branches.append(f"{subject_expr} is {t} {{ Any(({subject_expr} as {t}){slice_expr}) }}")
                      elif from_end:
                          # Index from end: len - offset
-                         branches.append(f"{subject_expr} is {t} {{ (({subject_expr} as {t})[({subject_expr} as {t}).len - {idx}] as Any) }}")
+                         branches.append(f"{subject_expr} is {t} {{ Any(({subject_expr} as {t})[({subject_expr} as {t}).len - {idx}]) }}")
                      else:
-                         branches.append(f"{subject_expr} is {t} {{ (({subject_expr} as {t})[{idx}] as Any) }}")
-                branches.append("else { (0 as Any) }") # Fallback
-                return f"if {' else if '.join(branches[:-1])} {branches[-1]}"
+                         branches.append(f"{subject_expr} is {t} {{ Any(({subject_expr} as {t})[{idx}]) }}")
+                branches.append("else { Any(0) }") # Fallback
+                return f"if {' else if '.join(branches)}"
 
             # Generate condition
             num_patterns = len(patterns)
@@ -198,53 +178,33 @@ class MatchMixin(TranslatorBase):
                  # Extract
                  branches = []
                  for t in map_types:
-                     branches.append(f"{subject_expr} is {t} {{ (({subject_expr} as {t})[{k_val}] as Any) }}")
-                 branches.append("else { (0 as Any) }")
-                 extract_expr = f"if {' else if '.join(branches[:-1])} {branches[-1]}"
+                     branches.append(f"{subject_expr} is {t} {{ Any(({subject_expr} as {t})[{k_val}]) }}")
+                 branches.append("else { Any(0) }")
+                 extract_expr = f"if {' else if '.join(branches)}"
 
                  sub_cond, sub_binds = self._compile_pattern(p, extract_expr)
                  cond += f" && ({sub_cond})"
                  bindings.extend(sub_binds)
 
              if rest:
-                 self.used_builtins.add("py_dict_residual")
-                 exclude_list = "[]string{" + ", ".join(self.visit(k) for k in keys) + "}"
-
-                 branches = []
-                 for t in map_types:
-                     branches.append(f"{subject_expr} is {t} {{ (py_dict_residual(({subject_expr} as {t}), {exclude_list}) as Any) }}")
-                 else_part = " else { (map[string]Any{} as Any) }"
-                 extract_expr = f"if {' else if '.join(branches)}{else_part}"
-
-                 bindings.append(f"{rest} := {extract_expr}")
+                 # Capture rest? Complex. Ignore for now.
+                 pass
 
              return cond, bindings
 
         elif isinstance(pattern, ast.MatchClass):
              cls_name = self.visit(pattern.cls)
-             # Restore generic syntax if mangled and map Python types to V types
-             cls_name = self._unmangle_generic_name(cls_name)
+             # Map Python builtin types to V types
+             if cls_name == "int":
+                 cls_name = "int"
+             elif cls_name == "float":
+                 cls_name = "f64"
+             elif cls_name == "str":
+                 cls_name = "string"
+             elif cls_name == "bool":
+                 cls_name = "bool"
 
              cond = f"({subject_expr} is {cls_name})"
-
-             # Handle positional patterns using __match_args__ or dataclass fields
-             match_args = []
-             if cls_name in self.dataclasses:
-                 match_args = self.dataclasses[cls_name]
-
-             for i, sub_pat in enumerate(pattern.patterns):
-                 if i < len(match_args):
-                     attr = match_args[i]
-                 else:
-                     # Fallback to positional index if unknown
-                     # Python usually requires __match_args__ but we can try to be helpful
-                     attr = f"py_{i}"
-
-                 cast_expr = f"({subject_expr} as {cls_name})"
-                 val_expr = f"({cast_expr}.{attr} as Any)"
-                 sub_cond, sub_bindings = self._compile_pattern(sub_pat, val_expr)
-                 cond += f" && ({sub_cond})"
-                 bindings.extend(sub_bindings)
 
              for attr, sub_pat in zip(pattern.kwd_attrs, pattern.kwd_patterns):
                  cast_expr = f"({subject_expr} as {cls_name})"
@@ -252,7 +212,7 @@ class MatchMixin(TranslatorBase):
                  # _compile_pattern expects subject_expr to be Any if it does type checks.
                  # If we pass `${cast_expr}.attr`, it is typed.
                  # So we wrap it: `Any(...)`.
-                 val_expr = f"({cast_expr}.{attr} as Any)"
+                 val_expr = f"Any({cast_expr}.{attr})"
                  sub_cond, sub_bindings = self._compile_pattern(sub_pat, val_expr)
                  cond += f" && ({sub_cond})"
                  bindings.extend(sub_bindings)
@@ -261,42 +221,11 @@ class MatchMixin(TranslatorBase):
 
         elif isinstance(pattern, ast.MatchOr):
             parts = []
-            all_alternatives_bindings: List[List[str]] = []
+            # bindings must be identical
             for p in pattern.patterns:
-                alt_cond, alt_binds = self._compile_pattern(p, subject_expr)
-                parts.append(f"({alt_cond})")
-                all_alternatives_bindings.append(alt_binds)
-
-            # Group bindings by variable name
-            binding_map: Dict[str, List[Tuple[List[str], str]]] = {}
-            for b_list in all_alternatives_bindings:
-                for b_str in b_list:
-                    name, expr = b_str.split(" := ", 1)
-                    if name not in binding_map:
-                        binding_map[name] = []
-                    binding_map[name].append((b_list, expr))
-
-            for name, alternatives in binding_map.items():
-                if len(alternatives) == len(pattern.patterns):
-                    # Variable is bound in all alternatives
-                    first_expr = alternatives[0][1]
-                    if all(alt[1] == first_expr for alt in alternatives):
-                        # All alternatives bind to the exact same expression
-                        bindings.append(f"{name} := {first_expr}")
-                    else:
-                        # Bindings differ (e.g., due to different narrowing)
-                        # Generate: var := if cond1 { expr1 } else if cond2 { expr2 } ... else { exprN }
-                        branches = []
-                        for i, (b_list, expr) in enumerate(alternatives):
-                            cond = parts[i]
-                            if i == len(alternatives) - 1:
-                                branches.append(f"else {{ {expr} }}")
-                            else:
-                                branches.append(f"{cond} {{ {expr} }}")
-
-                        binding_expr = f"if {' else if '.join(branches[:-1])} {branches[-1]}"
-                        bindings.append(f"{name} := {binding_expr}")
-
+                c, b = self._compile_pattern(p, subject_expr)
+                parts.append(f"({c})")
+                if not bindings: bindings.extend(b)
             return " || ".join(parts), bindings
 
         elif isinstance(pattern, ast.MatchAs):
@@ -308,41 +237,24 @@ class MatchMixin(TranslatorBase):
                  # Narrowing: if the sub-pattern is a specific class, we can cast the variable
                  if isinstance(pattern.pattern, ast.MatchClass):
                      cls_name = self.visit(pattern.pattern.cls)
-                     cls_name = self._unmangle_generic_name(cls_name)
-                     val_expr = f"({subject_expr} as {cls_name})"
-                 else:
-                     # General type narrowing from mypy for the bound name
-                     if pattern.name:
-                        # Use location of the pattern to find the narrowed type of the variable
-                        # In MatchAs, the variable is defined at this location.
-                        loc_key = f"{pattern.name}@{getattr(pattern, 'lineno', 0)}:{getattr(pattern, 'col_offset', 0)}"
-                        narrowed_type = self.type_inference.type_map.get(loc_key)
-
-                        if not narrowed_type:
-                            temp_node = ast.Name(id=pattern.name, ctx=ast.Store(), lineno=getattr(pattern, 'lineno', 0), col_offset=getattr(pattern, 'col_offset', 0))
-                            narrowed_type = self._guess_type(temp_node)
-
-                        if narrowed_type not in ("Any", "void", "int"):
-                             val_expr = f"({subject_expr} as {narrowed_type})"
+                     if cls_name == "int":
+                         val_expr = f"({subject_expr} as int)"
+                     elif cls_name == "float":
+                         val_expr = f"({subject_expr} as f64)"
+                     elif cls_name == "str":
+                         val_expr = f"({subject_expr} as string)"
+                     elif cls_name == "bool":
+                         val_expr = f"({subject_expr} as bool)"
+                     else:
+                         val_expr = f"({subject_expr} as {cls_name})"
 
              if pattern.name:
-                 # Check if the name itself should be narrowed based on mypy info
-                 loc_key = f"{pattern.name}@{getattr(pattern, 'lineno', 0)}:{getattr(pattern, 'col_offset', 0)}"
-                 narrowed_type = self.type_inference.type_map.get(loc_key)
-                 if narrowed_type and narrowed_type not in ("Any", "void", "int"):
-                      if " as " not in val_expr: # Avoid double cast
-                           val_expr = f"({val_expr} as {narrowed_type})"
                  bindings.append(f"{pattern.name} := {val_expr}")
              return cond, bindings
 
         elif isinstance(pattern, ast.MatchStar):
-             val_expr = subject_expr
              if pattern.name:
-                 temp_node = ast.Name(id=pattern.name, ctx=ast.Store(), lineno=getattr(pattern, 'lineno', 0), col_offset=getattr(pattern, 'col_offset', 0))
-                 narrowed_type = self._guess_type(temp_node)
-                 if narrowed_type not in ("Any", "void"):
-                      val_expr = f"({subject_expr} as {narrowed_type})"
-                 bindings.append(f"{pattern.name} := {val_expr}")
+                 bindings.append(f"{pattern.name} := {subject_expr}")
              return "true", bindings
 
         return "false", bindings

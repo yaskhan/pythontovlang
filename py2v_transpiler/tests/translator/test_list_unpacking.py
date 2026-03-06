@@ -31,12 +31,12 @@ class TestListUnpacking(unittest.TestCase):
 
     def test_set_unpacking(self):
         source = "x = {1, *a}"
-        # Set {1} -> {1: true}
+        # Set {1} -> map[int]bool{1: true}
         # Unpacked *a -> a (assuming a is map[int]bool or compatible)
-        # py_dict_merge({1: true}, a)
+        # py_dict_merge(map[int]bool{1: true}, a)
         result = self.transpile(source)
         self.assertIn("py_dict_merge", result)
-        self.assertIn("{1: true}", result)
+        self.assertIn("map[int]bool{1: true}", result)
         # We check order? Dict merge order not guaranteed but args order is.
         # py_dict_merge(..., a)
         # Regex or flexible matching might be needed

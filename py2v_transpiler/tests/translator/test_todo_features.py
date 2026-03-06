@@ -51,7 +51,7 @@ class TestTodoFeatures(TranspilerTest):
             "x = 10\ns = f'{x=}'",
             """
             x := 10
-            s := 'x=${py_repr(x)}'
+            s := 'x=${x}'
             """
         )
 
@@ -63,12 +63,10 @@ class TestTodoFeatures(TranspilerTest):
                 pass
             """,
             """
-            ctx_mgr_0 := A()
-            defer { ctx_mgr_0.exit(none, none, none) }
-            a := ctx_mgr_0.enter()
-            ctx_mgr_1 := B()
-            defer { ctx_mgr_1.exit(none, none, none) }
-            b := ctx_mgr_1.enter()
+            a := A()
+            defer { a.close() }
+            b := B()
+            defer { b.close() }
             """
         )
 
@@ -93,11 +91,7 @@ class TestTodoFeatures(TranspilerTest):
         # Let's just match output for now: `l := ...` (without mut) if that's what it emits.
         # The failure output showed:
         # Got:
-        # mut l := []int{cap: 4}
-        # l << 1
-        # l << 2
-        # l << 3
-        # l << 4
+        # l := [1, 2, 3, 4]
         # l.delete_many(1, (3) - (1))
         # l.insert_many(1, [5, 6])
         self.assert_transpilation(
@@ -106,11 +100,7 @@ class TestTodoFeatures(TranspilerTest):
             l[1:3] = [5, 6]
             """,
             """
-            mut l := []int{cap: 4}
-            l << 1
-            l << 2
-            l << 3
-            l << 4
+            l := [1, 2, 3, 4]
             l.delete_many(1, (3) - (1))
             l.insert_many(1, [5, 6])
             """

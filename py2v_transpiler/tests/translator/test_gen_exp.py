@@ -36,5 +36,5 @@ g = (x + y for x, y in zip([1], [2]))
     v_code = transpile(code)
     assert "mut g := []int{}" in v_code
     # zip iter is not simple prealloc
-    assert "py_zip_it1_" in v_code
+    assert "_zip_it1_" in v_code
     assert "g << x + y" in v_code

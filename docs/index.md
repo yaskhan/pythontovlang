@@ -36,7 +36,6 @@ py2v my_project/ --recursive
 | [Standard Library Mapping](stdlib-mapping.md) | Python to V standard library correspondence |
 | [Architecture](architecture.md) | Internal structure of the transpiler |
 | [Development](development.md) | Developer guidelines |
-| [Pydantic](pydantic.md) | Pydantic Support |
 
 ## Example
 
@@ -64,25 +63,23 @@ if __name__ == "__main__":
 ```v
 import math
 
-pub fn fibonacci(n int) []int {
-    // Generate Fibonacci sequence.
+fn fibonacci(n int) []int {
+    // Generate Fibonacci sequence
     if n <= 0 {
-        return []Any{}
+        return []
     } else if n == 1 {
         return [0]
     }
-    mut seq := []int{cap: 2}
-    seq << 0
-    seq << 1
-    for i in 2..n {
-        seq.append(seq[-1] + seq[-2])
+
+    mut seq := []int{len: 2, init: [0, 1]}
+    for i in 2 .. n {
+        seq << seq[seq.len - 1] + seq[seq.len - 2]
     }
     return seq
 }
 
 fn main() {
-    // if __name__ == '__main__':
-    println('${fibonacci(10)}')
+    println(fibonacci(10))
 }
 ```
 

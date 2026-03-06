@@ -25,7 +25,7 @@ fn (self User) login() {
     self.is_authenticated = true
 }
 
-fn new_user(username string) User {
+fn new_User(username string) User {
     mut self := User{}
     self.username = username
     return self
@@ -56,11 +56,11 @@ struct ServiceB {
     base_id int = 42
 }
 
-fn (self ServiceA) get_id() int {
+fn (self ServiceA) get_id() {
     return self.base_id
 }
 
-fn (self ServiceB) get_id() int {
+fn (self ServiceB) get_id() {
     return self.base_id
 }
 """
