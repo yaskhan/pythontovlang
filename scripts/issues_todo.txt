@@ -1,0 +1,315 @@
+##title: Fix compilation error in test_string_literals.v
+##descr: The transpiler generates invalid V code for `test_string_literals.v`. When compiling, V reports the following errors:
+
+```text
+test_string_literals.v:88:28: error: `}` expected; explicit `map` initialization does not support parameters
+```
+
+### Task
+Investigate why the transpiler generates invalid V code for `test_string_literals.py` and fix the underlying transpiler logic.
+
+### Requirements
+- The generated V file `test_string_literals.v` must compile without errors
+- Do not manually edit the generated V file; fix the transpiler source code
+
+---cut---
+##title: Fix compilation error in test_args_kwargs.v
+##descr: The transpiler generates invalid V code for `test_args_kwargs.v`. When compiling, V reports the following errors:
+
+```text
+test_args_kwargs.v:22:21: error: cannot use ...(variadic) with non-final parameter args
+```
+
+### Task
+Investigate why the transpiler generates invalid V code for `test_args_kwargs.py` and fix the underlying transpiler logic.
+
+### Requirements
+- The generated V file `test_args_kwargs.v` must compile without errors
+- Do not manually edit the generated V file; fix the transpiler source code
+
+---cut---
+##title: Fix compilation error in test_type_annotations.v
+##descr: The transpiler generates invalid V code for `test_type_annotations.v`. When compiling, V reports the following errors:
+
+```text
+test_type_annotations.v:18:9: error: redefinition of `x`
+```
+
+### Task
+Investigate why the transpiler generates invalid V code for `test_type_annotations.py` and fix the underlying transpiler logic.
+
+### Requirements
+- The generated V file `test_type_annotations.v` must compile without errors
+- Do not manually edit the generated V file; fix the transpiler source code
+
+---cut---
+##title: Fix compilation error in py2v_helpers.v
+##descr: The transpiler generates invalid V code for `py2v_helpers.v`. When compiling, V reports the following errors:
+
+```text
+py2v_helpers.v:3:57: error: named sum type cannot have none as its variant
+```
+
+### Task
+Investigate why the transpiler generates invalid V code for `py2v_helpers.py` and fix the underlying transpiler logic.
+
+### Requirements
+- The generated V file `py2v_helpers.v` must compile without errors
+- Do not manually edit the generated V file; fix the transpiler source code
+
+---cut---
+##title: Fix compilation error in test_decorators.v
+##descr: The transpiler generates invalid V code for `test_decorators.v`. When compiling, V reports the following errors:
+
+```text
+test_decorators.v:30:35: error: cannot use ...(variadic) with non-final parameter args
+```
+
+### Task
+Investigate why the transpiler generates invalid V code for `test_decorators.py` and fix the underlying transpiler logic.
+
+### Requirements
+- The generated V file `test_decorators.v` must compile without errors
+- Do not manually edit the generated V file; fix the transpiler source code
+
+---cut---
+##title: Fix compilation error in test_tuple_type.v
+##descr: The transpiler generates invalid V code for `test_tuple_type.v`. When compiling, V reports the following errors:
+
+```text
+test_tuple_type.v:8:27: error: unexpected number `1`, expecting name
+```
+
+### Task
+Investigate why the transpiler generates invalid V code for `test_tuple_type.py` and fix the underlying transpiler logic.
+
+### Requirements
+- The generated V file `test_tuple_type.v` must compile without errors
+- Do not manually edit the generated V file; fix the transpiler source code
+
+---cut---
+##title: Fix compilation error in test_bitwise_ops.v
+##descr: The transpiler generates invalid V code for `test_bitwise_ops.v`. When compiling, V reports the following errors:
+
+```text
+test_bitwise_ops.v:54:24: error: inline sum types have been deprecated and will be removed on January 1, 2023 due to complicating the language and the compiler too much; define named sum types with `type Foo = Bar | Baz` instead
+```
+
+### Task
+Investigate why the transpiler generates invalid V code for `test_bitwise_ops.py` and fix the underlying transpiler logic.
+
+### Requirements
+- The generated V file `test_bitwise_ops.v` must compile without errors
+- Do not manually edit the generated V file; fix the transpiler source code
+
+---cut---
+##title: Fix compilation error in test_none_type.v
+##descr: The transpiler generates invalid V code for `test_none_type.v`. When compiling, V reports the following errors:
+
+```text
+test_none_type.v:43:9: error: redefinition of `y`
+```
+
+### Task
+Investigate why the transpiler generates invalid V code for `test_none_type.py` and fix the underlying transpiler logic.
+
+### Requirements
+- The generated V file `test_none_type.v` must compile without errors
+- Do not manually edit the generated V file; fix the transpiler source code
+
+---cut---
+##title: Fix compilation error in test_set_operations.v
+##descr: The transpiler generates invalid V code for `test_set_operations.v`. When compiling, V reports the following errors:
+
+```text
+test_set_operations.v:8:21: error: unexpected number `1`, expecting name
+```
+
+### Task
+Investigate why the transpiler generates invalid V code for `test_set_operations.py` and fix the underlying transpiler logic.
+
+### Requirements
+- The generated V file `test_set_operations.v` must compile without errors
+- Do not manually edit the generated V file; fix the transpiler source code
+
+---cut---
+##title: Fix compilation error in test_slice_ops.v
+##descr: The transpiler generates invalid V code for `test_slice_ops.v`. When compiling, V reports the following errors:
+
+```text
+test_slice_ops.v:78:9: error: redefinition of `lst`
+```
+
+### Task
+Investigate why the transpiler generates invalid V code for `test_slice_ops.py` and fix the underlying transpiler logic.
+
+### Requirements
+- The generated V file `test_slice_ops.v` must compile without errors
+- Do not manually edit the generated V file; fix the transpiler source code
+
+---cut---
+##title: Fix compilation error in test_advenced.v
+##descr: The transpiler generates invalid V code for `test_advenced.v`. When compiling, V reports the following errors:
+
+```text
+test_advenced.v:3:1: builder error: cannot import module "div72.vexc" (not found)
+```
+
+### Task
+Investigate why the transpiler generates invalid V code for `test_advenced.py` and fix the underlying transpiler logic.
+
+### Requirements
+- The generated V file `test_advenced.v` must compile without errors
+- Do not manually edit the generated V file; fix the transpiler source code
+
+---cut---
+##title: Fix compilation error in test_function_annotations.v
+##descr: The transpiler generates invalid V code for `test_function_annotations.v`. When compiling, V reports the following errors:
+
+```text
+test_function_annotations.v:30:13: error: redefinition of `value`
+```
+
+### Task
+Investigate why the transpiler generates invalid V code for `test_function_annotations.py` and fix the underlying transpiler logic.
+
+### Requirements
+- The generated V file `test_function_annotations.v` must compile without errors
+- Do not manually edit the generated V file; fix the transpiler source code
+
+---cut---
+##title: Fix compilation error in test_even_more_features.v
+##descr: The transpiler generates invalid V code for `test_even_more_features.v`. When compiling, V reports the following errors:
+
+```text
+test_even_more_features.v:12:8: error: function names cannot contain uppercase letters, use snake_case instead
+```
+
+### Task
+Investigate why the transpiler generates invalid V code for `test_even_more_features.py` and fix the underlying transpiler logic.
+
+### Requirements
+- The generated V file `test_even_more_features.v` must compile without errors
+- Do not manually edit the generated V file; fix the transpiler source code
+
+---cut---
+##title: Fix compilation error in test_iterators.v
+##descr: The transpiler generates invalid V code for `test_iterators.v`. When compiling, V reports the following errors:
+
+```text
+test_iterators.v:30:16: error: unexpected token `(` after anonymous function signature, expecting `{`
+```
+
+### Task
+Investigate why the transpiler generates invalid V code for `test_iterators.py` and fix the underlying transpiler logic.
+
+### Requirements
+- The generated V file `test_iterators.v` must compile without errors
+- Do not manually edit the generated V file; fix the transpiler source code
+
+---cut---
+##title: Fix compilation error in test_advenced_helpers.v
+##descr: The transpiler generates invalid V code for `test_advenced_helpers.v`. When compiling, V reports the following errors:
+
+```text
+test_advenced_helpers.v:3:57: error: named sum type cannot have none as its variant
+```
+
+### Task
+Investigate why the transpiler generates invalid V code for `test_advenced_helpers.py` and fix the underlying transpiler logic.
+
+### Requirements
+- The generated V file `test_advenced_helpers.v` must compile without errors
+- Do not manually edit the generated V file; fix the transpiler source code
+
+---cut---
+##title: Fix compilation error in test_dict_operations.v
+##descr: The transpiler generates invalid V code for `test_dict_operations.v`. When compiling, V reports the following errors:
+
+```text
+test_dict_operations.v:8:24: error: unexpected token `[`, expecting name
+```
+
+### Task
+Investigate why the transpiler generates invalid V code for `test_dict_operations.py` and fix the underlying transpiler logic.
+
+### Requirements
+- The generated V file `test_dict_operations.v` must compile without errors
+- Do not manually edit the generated V file; fix the transpiler source code
+
+---cut---
+##title: Fix compilation error in test_more_features.v
+##descr: The transpiler generates invalid V code for `test_more_features.v`. When compiling, V reports the following errors:
+
+```text
+test_more_features.v:6:31: error: cannot use ...(variadic) with non-final parameter args
+```
+
+### Task
+Investigate why the transpiler generates invalid V code for `test_more_features.py` and fix the underlying transpiler logic.
+
+### Requirements
+- The generated V file `test_more_features.v` must compile without errors
+- Do not manually edit the generated V file; fix the transpiler source code
+
+---cut---
+##title: Fix compilation error in test_context_managers.v
+##descr: The transpiler generates invalid V code for `test_context_managers.v`. When compiling, V reports the following errors:
+
+```text
+test_context_managers.v:33:23: error: use assignment `=` instead of declaration `:=` when modifying struct fields
+```
+
+### Task
+Investigate why the transpiler generates invalid V code for `test_context_managers.py` and fix the underlying transpiler logic.
+
+### Requirements
+- The generated V file `test_context_managers.v` must compile without errors
+- Do not manually edit the generated V file; fix the transpiler source code
+
+---cut---
+##title: Fix compilation error in test_function_defs.v
+##descr: The transpiler generates invalid V code for `test_function_defs.v`. When compiling, V reports the following errors:
+
+```text
+test_function_defs.v:56:28: error: cannot use ...(variadic) with non-final parameter args
+```
+
+### Task
+Investigate why the transpiler generates invalid V code for `test_function_defs.py` and fix the underlying transpiler logic.
+
+### Requirements
+- The generated V file `test_function_defs.v` must compile without errors
+- Do not manually edit the generated V file; fix the transpiler source code
+
+---cut---
+##title: Fix compilation error in test_exceptions.v
+##descr: The transpiler generates invalid V code for `test_exceptions.v`. When compiling, V reports the following errors:
+
+```text
+test_exceptions.v:3:1: builder error: cannot import module "div72.vexc" (not found)
+```
+
+### Task
+Investigate why the transpiler generates invalid V code for `test_exceptions.py` and fix the underlying transpiler logic.
+
+### Requirements
+- The generated V file `test_exceptions.v` must compile without errors
+- Do not manually edit the generated V file; fix the transpiler source code
+
+---cut---
+##title: Fix compilation error in test_global_nonlocal.v
+##descr: The transpiler generates invalid V code for `test_global_nonlocal.v`. When compiling, V reports the following errors:
+
+```text
+test_global_nonlocal.v:60:27: error: use `_` to name an unused parameter
+```
+
+### Task
+Investigate why the transpiler generates invalid V code for `test_global_nonlocal.py` and fix the underlying transpiler logic.
+
+### Requirements
+- The generated V file `test_global_nonlocal.v` must compile without errors
+- Do not manually edit the generated V file; fix the transpiler source code
+
+---cut---
