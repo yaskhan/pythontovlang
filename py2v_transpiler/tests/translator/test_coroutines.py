@@ -19,7 +19,7 @@ def gen():
     v_code = translate(py_code)
     # Check for signature change and body
     # It might be indented differently or have comments
-    assert "fn gen(ch_out chan ?int, ch_in chan PyGeneratorInput) {" in v_code
+    assert "fn gen(ch_out chan int, ch_in chan PyGeneratorInput) {" in v_code
     assert "py_yield(ch_out, ch_in, 1)" in v_code
     assert "ch_out.close()" in v_code
 
@@ -31,7 +31,7 @@ def gen(n):
 """
     v_code = translate(py_code)
     # fn gen(ch chan int, n int)
-    assert "fn gen(ch_out chan ?int, ch_in chan PyGeneratorInput, n int) {" in v_code
+    assert "fn gen(ch_out chan int, ch_in chan PyGeneratorInput, n int) {" in v_code
     # Loop checks
     # Range translation: 0..n or similar
     assert "0..n" in v_code or "range(n)" in v_code # V uses 0..n usually
@@ -51,11 +51,11 @@ def main():
     v_code = translate(py_code)
 
     # Check generator def
-    assert "fn gen(ch_out chan ?int, ch_in chan PyGeneratorInput, max int) {" in v_code
+    assert "fn gen(ch_out chan int, ch_in chan PyGeneratorInput, max int) {" in v_code
 
     # Check main
     # Should see channel creation and spawn
-    assert "chan ?int{cap: 0}" in v_code
+    assert "chan int{cap: 0}" in v_code
     assert "spawn gen(" in v_code
     # check that we loop over the channel
     # The channel name is generated, e.g. ch_1
@@ -92,7 +92,7 @@ def gen(a, b):
     yield a + b
 """
     v_code = translate(py_code)
-    assert "fn gen(ch_out chan ?int, ch_in chan PyGeneratorInput, a int, b int) {" in v_code
+    assert "fn gen(ch_out chan int, ch_in chan PyGeneratorInput, a int, b int) {" in v_code
     assert "py_yield(ch_out, ch_in, a + b)" in v_code
 
 def test_generator_with_type_annotation():
@@ -103,7 +103,7 @@ def gen() -> Iterator[str]:
     yield "a"
 """
     v_code = translate(py_code)
-    assert "fn gen(ch_out chan ?string, ch_in chan PyGeneratorInput) {" in v_code
+    assert "fn gen(ch_out chan string, ch_in chan PyGeneratorInput) {" in v_code
     assert "py_yield(ch_out, ch_in, 'a')" in v_code
 
 def test_generator_usage_with_type():
@@ -118,4 +118,4 @@ def main():
         print(x)
 """
     v_code = translate(py_code)
-    assert "chan ?string{cap: 0}" in v_code
+    assert "chan string{cap: 0}" in v_code

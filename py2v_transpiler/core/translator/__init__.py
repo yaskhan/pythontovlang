@@ -28,8 +28,16 @@ class VNodeVisitor(
     LiteralsMixin,
     TranslatorBase
 ):
-    def __init__(self, type_inference):
+    def visit(self, node: ast.AST) -> Any:
+        self.parent_stack.append(node)
+        try:
+            return super().visit(node)
+        finally:
+            self.parent_stack.pop()
+
+    def __init__(self, type_inference, config=None):
         super().__init__(type_inference)
+        self.config = config
         self.decorator_processor = DecoratorProcessor(self)
         self.coroutine_handler = CoroutineHandler()
         # Use emitter for structured output
@@ -57,6 +65,7 @@ class VNodeVisitor(
         self.loop_stack: List[Dict[str, Any]] = [] # Stack of active loops for break/continue tracking
         self.unique_id_counter: int = 0
         self.vexc_depth: int = 0
+        self.parent_stack: List[ast.AST] = []
 
         self.mapper = StdLibMapper()
         self.imported_modules: Dict[str, str] = {} # alias -> module_name

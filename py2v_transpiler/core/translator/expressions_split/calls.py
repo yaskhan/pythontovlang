@@ -229,7 +229,8 @@ class CallsMixin(TranslatorBase):
                 if self.current_class_bases:
                     parent = self.current_class_bases[0]
                     if method_name == "__init__":
-                        return f"self.{parent} = new_{parent}({', '.join(args)})"
+                        factory_name = self._get_factory_name(parent)
+                        return f"self.{parent} = {factory_name}({', '.join(args)})"
                     return f"self.{parent}.{method_name}({', '.join(args)})"
                 else:
                     return f"/* super().{method_name} call without known parent */"
@@ -241,7 +242,8 @@ class CallsMixin(TranslatorBase):
                 if self.current_class_bases and class_name in self.current_class_bases:
                     if len(args) >= 1 and args[0] == "self":
                         base_args = args[1:]
-                        return f"self.{class_name} = new_{class_name}({', '.join(base_args)})"
+                        factory_name = self._get_factory_name(class_name)
+                        return f"self.{class_name} = {factory_name}({', '.join(base_args)})"
 
         # Handle unittest assertions
         # Strictly check for self.assertX if possible to avoid regressions
@@ -281,6 +283,13 @@ class CallsMixin(TranslatorBase):
         # Fallback to existing logic
         func_name_str = self.visit(node.func)
 
+        # Handle object.__new__(cls) or super().__new__(cls)
+        if isinstance(node.func, ast.Attribute) and node.func.attr == "__new__":
+            receiver = self.visit(node.func.value)
+            if receiver in ("object", "super()") or (receiver == self.current_class):
+                # __new__ factory implementation: object.__new__(cls) -> Struct{}
+                if self.current_class:
+                    return f"{self.current_class}{{}}"
 
         # If func_name_str was mangled/sanitized by visit_Name, we need the original to check builtins
         # like "map", "filter", "print". Let's check if the un-sanitized version matches anything.
@@ -474,10 +483,26 @@ class CallsMixin(TranslatorBase):
             if len(args) == 1:
                 return f"{args[0]}.str()"
             return "''"
-        elif func_name_str == "bytes":
-            # Handle bytes(msg, "utf8") or bytes(msg, encoding="utf8")
+        elif func_name_str in ("bytes", "bytearray"):
+            if len(args) == 0:
+                return "[]u8{}"
+            elif len(args) >= 1:
+                arg_type = self._guess_type(node.args[0])
+                if arg_type == "int":
+                    return f"[]u8{{len: {args[0]}}}"
+                if arg_type == "string":
+                    return f"{args[0]}.bytes()"
+
+                # Ensure a copy is made for buffer-like or list-like arguments
+                return f"{args[0]}.clone()"
+            return "[]u8{}"
+        elif func_name_str in ("bytes.fromhex", "bytearray.fromhex"):
+            self.emitter.add_import("encoding.hex")
+            return f"hex.decode({args[0]}) or {{ []u8{{}} }}"
+        elif func_name_str == "memoryview":
             if len(args) >= 1:
-                return f"{args[0]}.bytes()"
+                return f"{args[0]}"
+            return "[]u8{}"
 
         # Handle dataclass constructor call
         dataclass_metadata = None
@@ -487,19 +512,102 @@ class CallsMixin(TranslatorBase):
         if dataclass_metadata:
             # Reconstruct the fields based on mypy's exact attributes
             struct_args = []
+            factory_args = []
             init_fields = [attr for attr in dataclass_metadata.get('attributes', []) if attr.get('is_in_init')]
+            has_post_init = dataclass_metadata.get("has_post_init", False)
 
             # Map positional args
             for i, arg_val in enumerate(args):
                 if i < len(init_fields):
-                    struct_args.append(f"{self._sanitize_name(init_fields[i]['name'])}: {arg_val}")
+                    field_name = self._sanitize_name(init_fields[i]['name'])
+                    if not init_fields[i].get('is_init_var', False):
+                        struct_args.append(f"{field_name}: {arg_val}")
+                    factory_args.append(arg_val)
             # Map keyword args
             for keyword in node.keywords:
                 if keyword.arg:
                      kw_val_str = str(self.visit(keyword.value))
-                     # We might want to verify it's a valid init field, but trust python logic for now
-                     struct_args.append(f"{self._sanitize_name(keyword.arg)}: {kw_val_str}")
+                     field_name = self._sanitize_name(keyword.arg)
 
+                     is_init_var = False
+                     for attr in init_fields:
+                         if attr['name'] == keyword.arg:
+                             is_init_var = attr.get('is_init_var', False)
+                             break
+
+                     if not is_init_var:
+                        struct_args.append(f"{field_name}: {kw_val_str}")
+                     factory_args.append(f"{field_name}: {kw_val_str}")
+
+            if has_post_init:
+                # V doesn't support kwargs in functions, so we must map all arguments to positional order
+                final_factory_args = []
+
+                # First, fill with positional args provided in the call
+                for i in range(len(args)):
+                    final_factory_args.append(args[i])
+
+                # Then, fill remaining from keywords if they match attribute names
+                # and are not already filled by positional
+                for i in range(len(args), len(init_fields)):
+                    field_name = init_fields[i]['name']
+                    # Look for this field in keywords
+                    found_kw = False
+                    for keyword in node.keywords:
+                        if keyword.arg == field_name:
+                            final_factory_args.append(str(self.visit(keyword.value)))
+                            found_kw = True
+                            break
+                    if not found_kw:
+                        # Try to find default from body if it's missing in call-site
+                        # but subsequent keywords are provided.
+                        # V requires positional arguments to be filled if we want to provide later ones.
+                        # Check if any LATER field is provided in keywords
+                        later_provided = False
+                        for j in range(i + 1, len(init_fields)):
+                            later_field = init_fields[j]['name']
+                            for kw in node.keywords:
+                                if kw.arg == later_field:
+                                    later_provided = True
+                                    break
+                            if later_provided: break
+
+                        if later_provided:
+                            # We MUST provide a value. Try to find the default value.
+                            # Heuristic: if we can't find it, we might have to use a zero-value
+                            # or emit a placeholder.
+                            found_default = False
+                            for body_stmt in getattr(self, "current_class_body", []):
+                                # ...
+                                pass
+
+                            # Simple fallback: if we don't provide it, and it has a default in V fn,
+                            # it's only okay if it's at the end.
+                            # For the test case Point(1, z=3) where y=5 is missing:
+                            # We need to find y's default.
+                            if init_fields[i].get('has_default'):
+                                # Try to find default from current_class_body
+                                found_default_val = False
+                                for body_stmt in getattr(self, "current_class_body", []):
+                                    if isinstance(body_stmt, ast.AnnAssign) and isinstance(body_stmt.target, ast.Name) and body_stmt.target.id == field_name:
+                                        if body_stmt.value:
+                                            final_factory_args.append(str(self.visit(body_stmt.value)))
+                                            found_default_val = True
+                                        break
+                                    elif isinstance(body_stmt, ast.Assign):
+                                        for target in body_stmt.targets:
+                                            if isinstance(target, ast.Name) and target.id == field_name:
+                                                final_factory_args.append(str(self.visit(body_stmt.value)))
+                                                found_default_val = True
+                                                break
+                                    if found_default_val: break
+
+                                if not found_default_val:
+                                     # Fallback to zero value or placeholder if not found
+                                     pass
+
+                factory_name = self._get_factory_name(func_name_str)
+                return f"{factory_name}({', '.join(final_factory_args)})"
             return f"{func_name_str}{{{', '.join(struct_args)}}}"
         elif hasattr(self, 'dataclasses') and func_name_str in self.dataclasses:
             field_order = self.dataclasses[func_name_str]
@@ -518,17 +626,29 @@ class CallsMixin(TranslatorBase):
 
         # Handle standard class instantiation
         is_class = False
-        has_init = False
+        has_factory = False
+
+        lookup_name = func_name_str
+        if lookup_name.startswith("py_"):
+            # Check if it was sanitized
+            for orig_id in ("int", "float", "bool", "str", "map", "filter"):
+                if f"py_{orig_id}" == lookup_name:
+                    lookup_name = orig_id
+                    break
+
         if call_sig and "is_class" in call_sig:
             is_class = call_sig["is_class"]
-            has_init = call_sig.get("has_init", False)
-        elif hasattr(self, 'defined_classes') and func_name_str in self.defined_classes:
+            has_factory = call_sig.get("has_init", False) or call_sig.get("has_new", False)
+        elif hasattr(self, 'defined_classes') and lookup_name in self.defined_classes:
             is_class = True
-            has_init = self.defined_classes[func_name_str]
+            class_info = self.defined_classes[lookup_name]
+            has_factory = class_info.get("has_init", False) or class_info.get("has_new", False)
+            func_name_str = lookup_name # Use non-prefixed name for call if it is a class
 
         if is_class:
-            if has_init:
-                return f"new_{func_name_str}({', '.join(args)})"
+            if has_factory:
+                factory_name = self._get_factory_name(func_name_str)
+                return f"{factory_name}({', '.join(args)})"
             else:
                 return f"{func_name_str}{{{', '.join(args)}}}"
 
@@ -541,9 +661,22 @@ class CallsMixin(TranslatorBase):
              gen = args[0]
              return f"{gen}.next()"
 
-        if isinstance(func_node, ast.Attribute) and func_node.attr == "clear" and not module_name:
-             obj = self.visit(func_node.value)
-             return f"/* {obj}.clear() */ {obj} = {{}}"
+        # Handle len(obj) -> obj.len
+        if (func_name_str == "len" or func_name_str == "py_len") and len(args) == 1:
+            # Create a dummy Attribute parent to handle precedence
+            dummy_attr = ast.Attribute(value=node.args[0], attr="len")
+            obj_str = self._visit_with_parens(dummy_attr, node.args[0])
+            return f"{obj_str}.len"
+
+        if isinstance(func_node, ast.Attribute) and not module_name:
+            if func_node.attr == "append" and len(args) == 1:
+                obj_type = self._guess_type(func_node.value)
+                if obj_type.startswith("[]") or obj_type == "Any":
+                    obj = self.visit(func_node.value)
+                    return f"{obj} << {args[0]}"
+            elif func_node.attr == "clear":
+                obj = self.visit(func_node.value)
+                return f"/* {obj}.clear() */ {obj} = {{}}"
 
         # Handle list.sort(reverse=True)
         if isinstance(func_node, ast.Attribute) and func_node.attr == "sort":
@@ -770,12 +903,7 @@ class CallsMixin(TranslatorBase):
              # visit_Call is expression visitor, but we are emitting statements.
              # self.output appends to current block.
              # This works if visit_Call is called at statement level (Expr).
-             # If called inside expression (e.g. x = gen()), emitting statements before x = ... works in V?
-             # V allows `x := { stmts; val }` block expressions but syntax is specific (unsafe block or similar).
-             # Standard V does not support arbitrary statement blocks in expressions.
-             # However, our TranslatorBase usually visits statements.
-             # If we are inside `visit_Assign`, `visit(value)` is called.
-             # If we emit statements here, they appear BEFORE the assignment statement in `self.output`.
+             # If called inside expression (e.g. x = gen()), emitting statements here, they appear BEFORE the assignment statement in `self.output`.
              # So:
              # ch := ...
              # gen := ...
@@ -783,7 +911,7 @@ class CallsMixin(TranslatorBase):
              # x := gen
              # This order is CORRECT for V.
 
-             self.output.append(f"{self._indent()}{ch_out_name} := chan ?{yield_type}{{cap: 0}}")
+             self.output.append(f"{self._indent()}{ch_out_name} := chan {yield_type}{{cap: 0}}")
              self.output.append(f"{self._indent()}{ch_in_name} := chan PyGeneratorInput{{cap: 0}}")
              self.output.append(f"{self._indent()}{gen_var_name} := PyGenerator[{yield_type}]{{out: {ch_out_name}, in_: {ch_in_name}}}")
 

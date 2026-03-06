@@ -90,7 +90,7 @@ class MyClass:
         pass
 """
         result = self.transpile(source)
-        self.assertIn("fn new_MyClass_new() {", result)
+        self.assertIn("fn new_my_class() {", result)
 
     def test_ellipsis_literal(self):
         source = """

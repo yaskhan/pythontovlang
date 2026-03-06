@@ -22,8 +22,10 @@ match x:
         pass
 """
     v_code = translate(source)
-    # Expect if condition with guard
-    assert "if (_match_subject_any_1 == 1) && (x > 0)" in v_code
+    # New refactored structure uses separate if blocks with py_match_found flag
+    assert "py_match_found_1" in v_code
+    assert "if !py_match_found_1 && (py_match_subject_any_1 == 1) {" in v_code
+    assert "if (x > 0) {" in v_code
 
 def test_match_sequence():
     source = """
@@ -102,7 +104,8 @@ match x:
         pass
 """
     v_code = translate(source)
-    assert "else {" in v_code
+    # New structure uses separate if blocks
+    assert "if !py_match_found_1 {" in v_code
 
 def test_match_class():
     source = """
@@ -115,3 +118,17 @@ match x:
 """
     v_code = translate(source)
     assert "is Point" in v_code
+
+def test_match_mapping_rest():
+    source = """
+x = {'a': 1, 'b': 2}
+match x:
+    case {'a': 1, **rest}:
+        pass
+"""
+    v_code = translate(source)
+    # Expect py_dict_residual call
+    assert "py_dict_residual" in v_code
+    assert "rest :=" in v_code
+    # Expect exclude list
+    assert "[]string{'a'}" in v_code

@@ -10,6 +10,7 @@ This document lists all Python language features supported by the transpiler.
 |---------|--------|-------|
 | Basic types (int, float, bool, str) | ✅ | Direct mapping |
 | Type inference (mypy) | ✅ | Using static analysis |
+| `.pyi` stub files | ✅ | Mypy plugin uses type stubs for accurate static typing |
 | Lists | ✅ | `list[T]` → `[]T` |
 | Dictionaries | ✅ | `dict[K, V]` → `map[K]V` |
 | Tuples | ✅ | Fixed-size tuples → arrays |
@@ -21,7 +22,7 @@ This document lists all Python language features supported by the transpiler.
 | Literal types | ✅ | `Literal[1, "a"]` |
 | Final variables | ✅ | `Final[T]` |
 | ClassVar | ✅ | Class variables |
-| Self type | ✅ | Python 3.11+ |
+| Self type | ✅ | Python 3.11+, support for generic context (PEP 673 + 695) |
 | Annotated types | ✅ | `Annotated[T, ...]` |
 | TypeGuard | ✅ | Type narrowing |
 | NoReturn | ✅ | Functions that never return |
@@ -30,6 +31,7 @@ This document lists all Python language features supported by the transpiler.
 | TypeVar | ✅ | Generics |
 | Required/NotRequired | ✅ | TypedDict fields |
 | Unpack | ✅ | TypedDict unpacking |
+| TypeForm | 🧪 | PEP 747 (mapped to `Any`). See limitations below. |
 
 ### Control Flow
 
@@ -68,7 +70,7 @@ This document lists all Python language features supported by the transpiler.
 | Bi-directional generators | ✅ | `send()`, `throw()`, `close()` |
 | singledispatch | ✅ | `functools.singledispatch` |
 | Overload decorator | ✅ | `@overload` |
-| Type parameters (PEP 695) | ✅ | Python 3.12+ syntax |
+| Type parameters (PEP 695) | ✅ | Python 3.12+ full support including ParamSpec and TypeVarTuple |
 
 ### Object-Oriented Programming
 
@@ -226,6 +228,7 @@ This document lists all Python language features supported by the transpiler.
 | `typing` | ✅ | Most typing constructs |
 | `dataclasses` | ✅ | Field definitions |
 | `enum` | ✅ | Enum, Flag, auto() |
+| `pydantic` | ✅ | `BaseModel`, `Field` validation and alias support |
 | `pathlib` | ⚠️ | Basic Path operations |
 | `io` | ⚠️ | `StringIO`, basic I/O |
 | `logging` | ⚠️ | Basic logging |
@@ -268,5 +271,12 @@ This document lists all Python language features supported by the transpiler.
 ## Legend
 
 - ✅ = Fully supported
+- 🧪 = Experimental (requires `--experimental` flag)
 - ⚠️ = Partially supported (some features may not work)
 - ❌ = Not supported
+
+## Type Reification Limitations (PEP 747)
+
+Python's PEP 747 introduces `TypeForm[T]` to annotate values that represent a type itself. In V, there is no direct equivalent for runtime type reification that matches Python's dynamic nature.
+
+Currently, the transpiler maps `TypeForm[T]` to the V `Any` sum type. This allows the code to compile and run, but loses the static type-checking guarantees that Python's type checkers (like mypy) provide for `TypeForm`. Use this feature with caution and ensure that runtime type checks are performed if necessary.

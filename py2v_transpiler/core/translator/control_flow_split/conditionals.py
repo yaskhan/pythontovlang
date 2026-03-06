@@ -43,6 +43,8 @@ class ConditionalsMixin(TranslatorBase):
                         v_type = "Any"
                     if not v_type.startswith("?"):
                         v_type = f"?{v_type}"
+
+                    # They are always mut because they are assigned later
                     self.output.append(f"{self._indent()}mut {var} := {v_type}(none)")
                     self._local_vars_in_scope.add(var)
 
