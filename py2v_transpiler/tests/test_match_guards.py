@@ -46,7 +46,7 @@ if __name__ == "__main__":
         # Check for _match_found flag
         assert "_match_found_1" in v_code
         # Check for guard if block with parentheses
-        assert "if (len(n) > 5) {" in v_code
+        assert "if (n.len > 5) {" in v_code
 
     finally:
         if os.path.exists("temp_match_guards.py"): os.remove("temp_match_guards.py")
