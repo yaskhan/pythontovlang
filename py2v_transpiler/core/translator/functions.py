@@ -566,6 +566,7 @@ class FunctionsMixin(TranslatorBase):
             func_name = "init_subclass"
         elif func_name == "__init__":
             class_info = self.defined_classes.get(struct_name, {})
+            is_pydantic = class_info.get("is_pydantic", False)
             if class_info.get("has_new"):
                 # If __new__ is present, __init__ becomes a regular method named 'init'
                 func_name = "init"
@@ -579,6 +580,8 @@ class FunctionsMixin(TranslatorBase):
                     gen_str = f"[{', '.join(self.current_class_generics)}]"
                     # Do NOT add to func_name here, as func_generics_str will add it to the 'fn' decl
                     ret_type += gen_str
+                if is_pydantic:
+                    ret_type = "!" + ret_type
 
         # Visibility handling
         pub_prefix = ""
@@ -690,7 +693,13 @@ class FunctionsMixin(TranslatorBase):
         prev_in_init = getattr(self, "in_init", False)
         if is_init:
             self.in_init = True
-            self.output.append(f"{self._indent()}mut self := {ret_type}{{}}")
+            class_info = self.defined_classes.get(struct_name, {})
+            if class_info.get("is_pydantic"):
+                # Result type factory: strip ! from ret_type for allocation
+                alloc_type = ret_type[1:] if ret_type.startswith("!") else ret_type
+                self.output.append(f"{self._indent()}mut self := {alloc_type}{{}}")
+            else:
+                self.output.append(f"{self._indent()}mut self := {ret_type}{{}}")
 
         # Track current function return type for visit_Return
         prev_ret_type: Optional[str] = getattr(self, "current_function_return_type", None)
@@ -756,6 +765,9 @@ class FunctionsMixin(TranslatorBase):
             self.coroutine_handler.exit_generator()
 
         if is_init:
+            class_info = self.defined_classes.get(struct_name, {})
+            if class_info.get("is_pydantic"):
+                self.output.append(f"{self._indent()}self.validate() or {{ return err }}")
             self.output.append(f"{self._indent()}return self")
             self.in_init = prev_in_init
 
@@ -1035,6 +1047,9 @@ class FunctionsMixin(TranslatorBase):
             self.output.append(f"{self._indent()}vexc.end_try()")
 
         if getattr(self, "in_init", False) and not node.value:
+            class_info = self.defined_classes.get(self.current_class, {})
+            if class_info.get("is_pydantic"):
+                self.output.append(f"{self._indent()}self.validate() or {{ return err }}")
             self.output.append(f"{self._indent()}return self")
         elif node.value:
             # Pass return type as contextual assignment type to help literal translation

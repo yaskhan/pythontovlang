@@ -103,8 +103,20 @@ class PydanticModelProcessor:
         struct_def.append("}")
 
         # Register the class in translator so it knows it exists
-        self.visitor.defined_classes[struct_name] = {"has_init": False, "has_new": False}
+        self.visitor.defined_classes[struct_name] = {
+            "has_init": False,
+            "has_new": False,
+            "is_pydantic": True
+        }
         self.visitor.emitter.add_struct("\n".join(struct_def))
+
+        # Generate automatic factory if no __init__ is present
+        has_init = any(isinstance(m, (ast.FunctionDef, ast.AsyncFunctionDef)) and m.name == "__init__" for m in methods)
+        if not has_init:
+            factory_code = self._generate_factory_method(struct_name, fields, export)
+            self.visitor.emitter.add_function(factory_code)
+            self.visitor.defined_classes[struct_name]["has_init"] = True
+            self.visitor.defined_classes[struct_name]["has_new"] = True
 
         # Generate Validation Method
         validation_code = self._generate_validate_method(struct_name, fields, validators, export, config)
@@ -187,5 +199,48 @@ class PydanticModelProcessor:
         if not has_validation and not (config and config.validate_all):
             return ""
 
+        code.append("}")
+        return "\n".join(code)
+
+    def _generate_factory_method(self, struct_name: str, fields: List[PydanticFieldInfo], export: str) -> str:
+        """Generates a new_StructName factory function."""
+        factory_name = self.visitor._get_factory_name(struct_name)
+        required = [f for f in fields if not f.default_val]
+        optional = [f for f in fields if f.default_val]
+
+        args = []
+        for f in required:
+            args.append(f"{f.name} {f.type_str}")
+
+        # V doesn't support optional parameters. We make the last optional field variadic.
+        # The ones before it remain required in the factory signature.
+        for f in optional[:-1]:
+            args.append(f"{f.name} {f.type_str}")
+
+        if optional:
+            last = optional[-1]
+            args.append(f"{last.name} ...{last.type_str}")
+
+        args_str = ", ".join(args)
+        code = [
+            f"// {factory_name} creates a new {struct_name} and validates it.",
+            f"{export}fn {factory_name}({args_str}) !{struct_name} {{",
+            f"    mut self := {struct_name}{{"
+        ]
+
+        for f in required:
+            code.append(f"        {f.name}: {f.name}")
+        for f in optional[:-1]:
+            code.append(f"        {f.name}: {f.name}")
+
+        if optional:
+            last = optional[-1]
+            dv = last.default_val if last.default_val else "none"
+            # Handle variadic parameter: if empty use default
+            code.append(f"        {last.name}: if {last.name}.len > 0 {{ {last.name}[0] }} else {{ {dv} }}")
+
+        code.append("    }")
+        code.append("    self.validate() or { return err }")
+        code.append("    return self")
         code.append("}")
         return "\n".join(code)
