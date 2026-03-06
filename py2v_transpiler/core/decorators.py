@@ -76,7 +76,8 @@ class DecoratorProcessor:
                 info.decorators_to_handle.append(dec_name)
             else:
                 # Custom or unknown -> emit as comment in visitor
-                pass
+                if self.visitor and hasattr(self.visitor, "warnings"):
+                    self.visitor.warnings.append(f"Custom decorator '{dec_name}' at line {getattr(node, 'lineno', '?')} is not fully supported and might generate invalid code.")
 
         if info.cache_wrapper_needed:
             func_name = node.name
