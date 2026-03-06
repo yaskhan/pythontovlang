@@ -313,3 +313,2133 @@ Investigate why the transpiler generates invalid V code for `test_global_nonloca
 - Do not manually edit the generated V file; fix the transpiler source code
 
 ---cut---
+##title: Fix compilation error in tests/translator/test_repr.v
+##descr: The transpiler generates invalid V code for `tests/translator/test_repr.v`. When compiling, V reports the following errors:
+
+```text
+test_repr.v:30:28: error: use assignment `=` instead of declaration `:=` when modifying struct fields
+```
+
+### Task
+Investigate why the transpiler generates invalid V code for `test_repr.py` and fix the underlying transpiler logic.
+
+### Requirements
+- The generated V file `test_repr.v` must compile without errors
+- Do not manually edit the generated V file; fix the transpiler source code
+
+---cut---
+##title: Fix compilation error in tests/translator/test_http.v
+##descr: The transpiler generates invalid V code for `tests/translator/test_http.v`. When compiling, V reports the following errors:
+
+```text
+test_http.v:7:29: error: mutable arguments are only allowed for arrays, interfaces, maps, pointers, structs or their aliases
+```
+
+### Task
+Investigate why the transpiler generates invalid V code for `test_http.py` and fix the underlying transpiler logic.
+
+### Requirements
+- The generated V file `test_http.v` must compile without errors
+- Do not manually edit the generated V file; fix the transpiler source code
+
+---cut---
+##title: Fix compilation error in tests/translator/test_chained_assign.v
+##descr: The transpiler generates invalid V code for `tests/translator/test_chained_assign.v`. When compiling, V reports the following errors:
+
+```text
+test_chained_assign.v:10:8: error: function names cannot contain uppercase letters, use snake_case instead
+```
+
+### Task
+Investigate why the transpiler generates invalid V code for `test_chained_assign.py` and fix the underlying transpiler logic.
+
+### Requirements
+- The generated V file `test_chained_assign.v` must compile without errors
+- Do not manually edit the generated V file; fix the transpiler source code
+
+---cut---
+##title: Fix compilation error in tests/translator/test_sqlite3.v
+##descr: The transpiler generates invalid V code for `tests/translator/test_sqlite3.v`. When compiling, V reports the following errors:
+
+```text
+test_sqlite3.v:7:29: error: mutable arguments are only allowed for arrays, interfaces, maps, pointers, structs or their aliases
+```
+
+### Task
+Investigate why the transpiler generates invalid V code for `test_sqlite3.py` and fix the underlying transpiler logic.
+
+### Requirements
+- The generated V file `test_sqlite3.v` must compile without errors
+- Do not manually edit the generated V file; fix the transpiler source code
+
+---cut---
+##title: Fix compilation error in tests/translator/test_classes.v
+##descr: The transpiler generates invalid V code for `tests/translator/test_classes.v`. When compiling, V reports the following errors:
+
+```text
+test_classes.v:3:1: builder error: cannot import module "ast" (not found)
+```
+
+### Task
+Investigate why the transpiler generates invalid V code for `test_classes.py` and fix the underlying transpiler logic.
+
+### Requirements
+- The generated V file `test_classes.v` must compile without errors
+- Do not manually edit the generated V file; fix the transpiler source code
+
+---cut---
+##title: Fix compilation error in tests/translator/test_input.v
+##descr: The transpiler generates invalid V code for `tests/translator/test_input.v`. When compiling, V reports the following errors:
+
+```text
+test_input.v:6:29: error: mutable arguments are only allowed for arrays, interfaces, maps, pointers, structs or their aliases
+```
+
+### Task
+Investigate why the transpiler generates invalid V code for `test_input.py` and fix the underlying transpiler logic.
+
+### Requirements
+- The generated V file `test_input.v` must compile without errors
+- Do not manually edit the generated V file; fix the transpiler source code
+
+---cut---
+##title: Fix compilation error in tests/translator/test_platform.v
+##descr: The transpiler generates invalid V code for `tests/translator/test_platform.v`. When compiling, V reports the following errors:
+
+```text
+test_platform.v:7:29: error: mutable arguments are only allowed for arrays, interfaces, maps, pointers, structs or their aliases
+```
+
+### Task
+Investigate why the transpiler generates invalid V code for `test_platform.py` and fix the underlying transpiler logic.
+
+### Requirements
+- The generated V file `test_platform.v` must compile without errors
+- Do not manually edit the generated V file; fix the transpiler source code
+
+---cut---
+##title: Fix compilation error in tests/translator/test_raise_from.v
+##descr: The transpiler generates invalid V code for `tests/translator/test_raise_from.v`. When compiling, V reports the following errors:
+
+```text
+test_raise_from.v:10:8: error: function names cannot contain uppercase letters, use snake_case instead
+```
+
+### Task
+Investigate why the transpiler generates invalid V code for `test_raise_from.py` and fix the underlying transpiler logic.
+
+### Requirements
+- The generated V file `test_raise_from.v` must compile without errors
+- Do not manually edit the generated V file; fix the transpiler source code
+
+---cut---
+##title: Fix compilation error in tests/translator/test_strings.v
+##descr: The transpiler generates invalid V code for `tests/translator/test_strings.v`. When compiling, V reports the following errors:
+
+```text
+test_strings.v:3:1: builder error: cannot import module "ast" (not found)
+```
+
+### Task
+Investigate why the transpiler generates invalid V code for `test_strings.py` and fix the underlying transpiler logic.
+
+### Requirements
+- The generated V file `test_strings.v` must compile without errors
+- Do not manually edit the generated V file; fix the transpiler source code
+
+---cut---
+##title: Fix compilation error in tests/translator/test_flow_narrowing.v
+##descr: The transpiler generates invalid V code for `tests/translator/test_flow_narrowing.v`. When compiling, V reports the following errors:
+
+```text
+test_flow_narrowing.v:3:1: builder error: cannot import module "ast" (not found)
+```
+
+### Task
+Investigate why the transpiler generates invalid V code for `test_flow_narrowing.py` and fix the underlying transpiler logic.
+
+### Requirements
+- The generated V file `test_flow_narrowing.v` must compile without errors
+- Do not manually edit the generated V file; fix the transpiler source code
+
+---cut---
+##title: Fix compilation error in tests/translator/test_map_filter.v
+##descr: The transpiler generates invalid V code for `tests/translator/test_map_filter.v`. When compiling, V reports the following errors:
+
+```text
+test_map_filter.v:6:29: error: mutable arguments are only allowed for arrays, interfaces, maps, pointers, structs or their aliases
+```
+
+### Task
+Investigate why the transpiler generates invalid V code for `test_map_filter.py` and fix the underlying transpiler logic.
+
+### Requirements
+- The generated V file `test_map_filter.v` must compile without errors
+- Do not manually edit the generated V file; fix the transpiler source code
+
+---cut---
+##title: Fix compilation error in tests/translator/test_decimal_fractions.v
+##descr: The transpiler generates invalid V code for `tests/translator/test_decimal_fractions.v`. When compiling, V reports the following errors:
+
+```text
+test_decimal_fractions.v:3:1: builder error: cannot import module "ast" (not found)
+```
+
+### Task
+Investigate why the transpiler generates invalid V code for `test_decimal_fractions.py` and fix the underlying transpiler logic.
+
+### Requirements
+- The generated V file `test_decimal_fractions.v` must compile without errors
+- Do not manually edit the generated V file; fix the transpiler source code
+
+---cut---
+##title: Fix compilation error in tests/translator/test_pydantic_v2.v
+##descr: The transpiler generates invalid V code for `tests/translator/test_pydantic_v2.v`. When compiling, V reports the following errors:
+
+```text
+test_pydantic_v2.v:5:56: error: mutable arguments are only allowed for arrays, interfaces, maps, pointers, structs or their aliases
+```
+
+### Task
+Investigate why the transpiler generates invalid V code for `test_pydantic_v2.py` and fix the underlying transpiler logic.
+
+### Requirements
+- The generated V file `test_pydantic_v2.v` must compile without errors
+- Do not manually edit the generated V file; fix the transpiler source code
+
+---cut---
+##title: Fix compilation error in tests/translator/test_list_comp_prealloc.v
+##descr: The transpiler generates invalid V code for `tests/translator/test_list_comp_prealloc.v`. When compiling, V reports the following errors:
+
+```text
+test_list_comp_prealloc.v:27:9: error: redefinition of `node`
+```
+
+### Task
+Investigate why the transpiler generates invalid V code for `test_list_comp_prealloc.py` and fix the underlying transpiler logic.
+
+### Requirements
+- The generated V file `test_list_comp_prealloc.v` must compile without errors
+- Do not manually edit the generated V file; fix the transpiler source code
+
+---cut---
+##title: Fix compilation error in tests/translator/test_literalstring.v
+##descr: The transpiler generates invalid V code for `tests/translator/test_literalstring.v`. When compiling, V reports the following errors:
+
+```text
+test_literalstring.v:3:1: builder error: cannot import module "ast" (not found)
+```
+
+### Task
+Investigate why the transpiler generates invalid V code for `test_literalstring.py` and fix the underlying transpiler logic.
+
+### Requirements
+- The generated V file `test_literalstring.v` must compile without errors
+- Do not manually edit the generated V file; fix the transpiler source code
+
+---cut---
+##title: Fix compilation error in tests/translator/test_yield_from.v
+##descr: The transpiler generates invalid V code for `tests/translator/test_yield_from.v`. When compiling, V reports the following errors:
+
+```text
+test_yield_from.v:10:8: error: function names cannot contain uppercase letters, use snake_case instead
+```
+
+### Task
+Investigate why the transpiler generates invalid V code for `test_yield_from.py` and fix the underlying transpiler logic.
+
+### Requirements
+- The generated V file `test_yield_from.v` must compile without errors
+- Do not manually edit the generated V file; fix the transpiler source code
+
+---cut---
+##title: Fix compilation error in tests/translator/test_complex_comprehensions.v
+##descr: The transpiler generates invalid V code for `tests/translator/test_complex_comprehensions.v`. When compiling, V reports the following errors:
+
+```text
+test_complex_comprehensions.v:12:8: error: function names cannot contain uppercase letters, use snake_case instead
+```
+
+### Task
+Investigate why the transpiler generates invalid V code for `test_complex_comprehensions.py` and fix the underlying transpiler logic.
+
+### Requirements
+- The generated V file `test_complex_comprehensions.v` must compile without errors
+- Do not manually edit the generated V file; fix the transpiler source code
+
+---cut---
+##title: Fix compilation error in tests/translator/test_operator_overloading.v
+##descr: The transpiler generates invalid V code for `tests/translator/test_operator_overloading.v`. When compiling, V reports the following errors:
+
+```text
+test_operator_overloading.v:6:29: error: mutable arguments are only allowed for arrays, interfaces, maps, pointers, structs or their aliases
+```
+
+### Task
+Investigate why the transpiler generates invalid V code for `test_operator_overloading.py` and fix the underlying transpiler logic.
+
+### Requirements
+- The generated V file `test_operator_overloading.v` must compile without errors
+- Do not manually edit the generated V file; fix the transpiler source code
+
+---cut---
+##title: Fix compilation error in tests/translator/test_try_else.v
+##descr: The transpiler generates invalid V code for `tests/translator/test_try_else.v`. When compiling, V reports the following errors:
+
+```text
+test_try_else.v:10:8: error: function names cannot contain uppercase letters, use snake_case instead
+```
+
+### Task
+Investigate why the transpiler generates invalid V code for `test_try_else.py` and fix the underlying transpiler logic.
+
+### Requirements
+- The generated V file `test_try_else.v` must compile without errors
+- Do not manually edit the generated V file; fix the transpiler source code
+
+---cut---
+##title: Fix compilation error in tests/translator/test_disjoint_base.v
+##descr: The transpiler generates invalid V code for `tests/translator/test_disjoint_base.v`. When compiling, V reports the following errors:
+
+```text
+test_disjoint_base.v:3:1: builder error: cannot import module "ast" (not found)
+```
+
+### Task
+Investigate why the transpiler generates invalid V code for `test_disjoint_base.py` and fix the underlying transpiler logic.
+
+### Requirements
+- The generated V file `test_disjoint_base.v` must compile without errors
+- Do not manually edit the generated V file; fix the transpiler source code
+
+---cut---
+##title: Fix compilation error in tests/translator/test_threading.v
+##descr: The transpiler generates invalid V code for `tests/translator/test_threading.v`. When compiling, V reports the following errors:
+
+```text
+test_threading.v:7:29: error: mutable arguments are only allowed for arrays, interfaces, maps, pointers, structs or their aliases
+```
+
+### Task
+Investigate why the transpiler generates invalid V code for `test_threading.py` and fix the underlying transpiler logic.
+
+### Requirements
+- The generated V file `test_threading.v` must compile without errors
+- Do not manually edit the generated V file; fix the transpiler source code
+
+---cut---
+##title: Fix compilation error in tests/translator/test_pydantic_validators.v
+##descr: The transpiler generates invalid V code for `tests/translator/test_pydantic_validators.v`. When compiling, V reports the following errors:
+
+```text
+test_pydantic_validators.v:3:57: error: mutable arguments are only allowed for arrays, interfaces, maps, pointers, structs or their aliases
+```
+
+### Task
+Investigate why the transpiler generates invalid V code for `test_pydantic_validators.py` and fix the underlying transpiler logic.
+
+### Requirements
+- The generated V file `test_pydantic_validators.v` must compile without errors
+- Do not manually edit the generated V file; fix the transpiler source code
+
+---cut---
+##title: Fix compilation error in tests/translator/test_typing.v
+##descr: The transpiler generates invalid V code for `tests/translator/test_typing.v`. When compiling, V reports the following errors:
+
+```text
+test_typing.v:6:29: error: mutable arguments are only allowed for arrays, interfaces, maps, pointers, structs or their aliases
+```
+
+### Task
+Investigate why the transpiler generates invalid V code for `test_typing.py` and fix the underlying transpiler logic.
+
+### Requirements
+- The generated V file `test_typing.v` must compile without errors
+- Do not manually edit the generated V file; fix the transpiler source code
+
+---cut---
+##title: Fix compilation error in tests/translator/test_main_block.v
+##descr: The transpiler generates invalid V code for `tests/translator/test_main_block.v`. When compiling, V reports the following errors:
+
+```text
+test_main_block.v:6:29: error: mutable arguments are only allowed for arrays, interfaces, maps, pointers, structs or their aliases
+```
+
+### Task
+Investigate why the transpiler generates invalid V code for `test_main_block.py` and fix the underlying transpiler logic.
+
+### Requirements
+- The generated V file `test_main_block.v` must compile without errors
+- Do not manually edit the generated V file; fix the transpiler source code
+
+---cut---
+##title: Fix compilation error in tests/translator/test_shutil.v
+##descr: The transpiler generates invalid V code for `tests/translator/test_shutil.v`. When compiling, V reports the following errors:
+
+```text
+test_shutil.v:6:29: error: mutable arguments are only allowed for arrays, interfaces, maps, pointers, structs or their aliases
+```
+
+### Task
+Investigate why the transpiler generates invalid V code for `test_shutil.py` and fix the underlying transpiler logic.
+
+### Requirements
+- The generated V file `test_shutil.v` must compile without errors
+- Do not manually edit the generated V file; fix the transpiler source code
+
+---cut---
+##title: Fix compilation error in tests/translator/test_dict_unpacking.v
+##descr: The transpiler generates invalid V code for `tests/translator/test_dict_unpacking.v`. When compiling, V reports the following errors:
+
+```text
+test_dict_unpacking.v:10:8: error: function names cannot contain uppercase letters, use snake_case instead
+```
+
+### Task
+Investigate why the transpiler generates invalid V code for `test_dict_unpacking.py` and fix the underlying transpiler logic.
+
+### Requirements
+- The generated V file `test_dict_unpacking.v` must compile without errors
+- Do not manually edit the generated V file; fix the transpiler source code
+
+---cut---
+##title: Fix compilation error in tests/translator/test_dict_inference.v
+##descr: The transpiler generates invalid V code for `tests/translator/test_dict_inference.v`. When compiling, V reports the following errors:
+
+```text
+test_dict_inference.v:3:1: builder error: cannot import module "ast" (not found)
+```
+
+### Task
+Investigate why the transpiler generates invalid V code for `test_dict_inference.py` and fix the underlying transpiler logic.
+
+### Requirements
+- The generated V file `test_dict_inference.v` must compile without errors
+- Do not manually edit the generated V file; fix the transpiler source code
+
+---cut---
+##title: Fix compilation error in tests/translator/test_zlib_gzip.v
+##descr: The transpiler generates invalid V code for `tests/translator/test_zlib_gzip.v`. When compiling, V reports the following errors:
+
+```text
+test_zlib_gzip.v:6:29: error: mutable arguments are only allowed for arrays, interfaces, maps, pointers, structs or their aliases
+```
+
+### Task
+Investigate why the transpiler generates invalid V code for `test_zlib_gzip.py` and fix the underlying transpiler logic.
+
+### Requirements
+- The generated V file `test_zlib_gzip.v` must compile without errors
+- Do not manually edit the generated V file; fix the transpiler source code
+
+---cut---
+##title: Fix compilation error in tests/translator/test_global_constants.v
+##descr: The transpiler generates invalid V code for `tests/translator/test_global_constants.v`. When compiling, V reports the following errors:
+
+```text
+test_global_constants.v:6:29: error: mutable arguments are only allowed for arrays, interfaces, maps, pointers, structs or their aliases
+```
+
+### Task
+Investigate why the transpiler generates invalid V code for `test_global_constants.py` and fix the underlying transpiler logic.
+
+### Requirements
+- The generated V file `test_global_constants.v` must compile without errors
+- Do not manually edit the generated V file; fix the transpiler source code
+
+---cut---
+##title: Fix compilation error in tests/translator/test_union_types.v
+##descr: The transpiler generates invalid V code for `tests/translator/test_union_types.v`. When compiling, V reports the following errors:
+
+```text
+test_union_types.v:10:8: error: function names cannot contain uppercase letters, use snake_case instead
+```
+
+### Task
+Investigate why the transpiler generates invalid V code for `test_union_types.py` and fix the underlying transpiler logic.
+
+### Requirements
+- The generated V file `test_union_types.v` must compile without errors
+- Do not manually edit the generated V file; fix the transpiler source code
+
+---cut---
+##title: Fix compilation error in tests/translator/test_imports.v
+##descr: The transpiler generates invalid V code for `tests/translator/test_imports.v`. When compiling, V reports the following errors:
+
+```text
+test_imports.v:3:1: builder error: cannot import module "ast" (not found)
+```
+
+### Task
+Investigate why the transpiler generates invalid V code for `test_imports.py` and fix the underlying transpiler logic.
+
+### Requirements
+- The generated V file `test_imports.v` must compile without errors
+- Do not manually edit the generated V file; fix the transpiler source code
+
+---cut---
+##title: Fix compilation error in tests/translator/test_statistics.v
+##descr: The transpiler generates invalid V code for `tests/translator/test_statistics.v`. When compiling, V reports the following errors:
+
+```text
+test_statistics.v:6:29: error: mutable arguments are only allowed for arrays, interfaces, maps, pointers, structs or their aliases
+```
+
+### Task
+Investigate why the transpiler generates invalid V code for `test_statistics.py` and fix the underlying transpiler logic.
+
+### Requirements
+- The generated V file `test_statistics.v` must compile without errors
+- Do not manually edit the generated V file; fix the transpiler source code
+
+---cut---
+##title: Fix compilation error in tests/translator/test_csv.v
+##descr: The transpiler generates invalid V code for `tests/translator/test_csv.v`. When compiling, V reports the following errors:
+
+```text
+test_csv.v:7:29: error: mutable arguments are only allowed for arrays, interfaces, maps, pointers, structs or their aliases
+```
+
+### Task
+Investigate why the transpiler generates invalid V code for `test_csv.py` and fix the underlying transpiler logic.
+
+### Requirements
+- The generated V file `test_csv.v` must compile without errors
+- Do not manually edit the generated V file; fix the transpiler source code
+
+---cut---
+##title: Fix compilation error in tests/translator/test_six.v
+##descr: The transpiler generates invalid V code for `tests/translator/test_six.v`. When compiling, V reports the following errors:
+
+```text
+test_six.v:3:1: builder error: cannot import module "ast" (not found)
+```
+
+### Task
+Investigate why the transpiler generates invalid V code for `test_six.py` and fix the underlying transpiler logic.
+
+### Requirements
+- The generated V file `test_six.v` must compile without errors
+- Do not manually edit the generated V file; fix the transpiler source code
+
+---cut---
+##title: Fix compilation error in tests/translator/test_uuid.v
+##descr: The transpiler generates invalid V code for `tests/translator/test_uuid.v`. When compiling, V reports the following errors:
+
+```text
+test_uuid.v:6:29: error: mutable arguments are only allowed for arrays, interfaces, maps, pointers, structs or their aliases
+```
+
+### Task
+Investigate why the transpiler generates invalid V code for `test_uuid.py` and fix the underlying transpiler logic.
+
+### Requirements
+- The generated V file `test_uuid.v` must compile without errors
+- Do not manually edit the generated V file; fix the transpiler source code
+
+---cut---
+##title: Fix compilation error in tests/translator/test_decorators.v
+##descr: The transpiler generates invalid V code for `tests/translator/test_decorators.v`. When compiling, V reports the following errors:
+
+```text
+test_decorators.v:97:5: error: expression evaluated but not used
+```
+
+### Task
+Investigate why the transpiler generates invalid V code for `test_decorators.py` and fix the underlying transpiler logic.
+
+### Requirements
+- The generated V file `test_decorators.v` must compile without errors
+- Do not manually edit the generated V file; fix the transpiler source code
+
+---cut---
+##title: Fix compilation error in tests/translator/test_loop_else.v
+##descr: The transpiler generates invalid V code for `tests/translator/test_loop_else.v`. When compiling, V reports the following errors:
+
+```text
+test_loop_else.v:10:8: error: function names cannot contain uppercase letters, use snake_case instead
+```
+
+### Task
+Investigate why the transpiler generates invalid V code for `test_loop_else.py` and fix the underlying transpiler logic.
+
+### Requirements
+- The generated V file `test_loop_else.v` must compile without errors
+- Do not manually edit the generated V file; fix the transpiler source code
+
+---cut---
+##title: Fix compilation error in tests/translator/test_decimal.v
+##descr: The transpiler generates invalid V code for `tests/translator/test_decimal.v`. When compiling, V reports the following errors:
+
+```text
+test_decimal.v:6:29: error: mutable arguments are only allowed for arrays, interfaces, maps, pointers, structs or their aliases
+```
+
+### Task
+Investigate why the transpiler generates invalid V code for `test_decimal.py` and fix the underlying transpiler logic.
+
+### Requirements
+- The generated V file `test_decimal.v` must compile without errors
+- Do not manually edit the generated V file; fix the transpiler source code
+
+---cut---
+##title: Fix compilation error in tests/translator/test_print.v
+##descr: The transpiler generates invalid V code for `tests/translator/test_print.v`. When compiling, V reports the following errors:
+
+```text
+test_print.v:6:29: error: mutable arguments are only allowed for arrays, interfaces, maps, pointers, structs or their aliases
+```
+
+### Task
+Investigate why the transpiler generates invalid V code for `test_print.py` and fix the underlying transpiler logic.
+
+### Requirements
+- The generated V file `test_print.v` must compile without errors
+- Do not manually edit the generated V file; fix the transpiler source code
+
+---cut---
+##title: Fix compilation error in tests/translator/test_tempfile.v
+##descr: The transpiler generates invalid V code for `tests/translator/test_tempfile.v`. When compiling, V reports the following errors:
+
+```text
+test_tempfile.v:6:29: error: mutable arguments are only allowed for arrays, interfaces, maps, pointers, structs or their aliases
+```
+
+### Task
+Investigate why the transpiler generates invalid V code for `test_tempfile.py` and fix the underlying transpiler logic.
+
+### Requirements
+- The generated V file `test_tempfile.v` must compile without errors
+- Do not manually edit the generated V file; fix the transpiler source code
+
+---cut---
+##title: Fix compilation error in tests/translator/test_fstrings_312.v
+##descr: The transpiler generates invalid V code for `tests/translator/test_fstrings_312.v`. When compiling, V reports the following errors:
+
+```text
+test_fstrings_312.v:50:70: error: invalid character `\`
+```
+
+### Task
+Investigate why the transpiler generates invalid V code for `test_fstrings_312.py` and fix the underlying transpiler logic.
+
+### Requirements
+- The generated V file `test_fstrings_312.v` must compile without errors
+- Do not manually edit the generated V file; fix the transpiler source code
+
+---cut---
+##title: Fix compilation error in tests/translator/test_functions.v
+##descr: The transpiler generates invalid V code for `tests/translator/test_functions.v`. When compiling, V reports the following errors:
+
+```text
+test_functions.v:3:1: builder error: cannot import module "ast" (not found)
+```
+
+### Task
+Investigate why the transpiler generates invalid V code for `test_functions.py` and fix the underlying transpiler logic.
+
+### Requirements
+- The generated V file `test_functions.v` must compile without errors
+- Do not manually edit the generated V file; fix the transpiler source code
+
+---cut---
+##title: Fix compilation error in tests/translator/test_kwonly.v
+##descr: The transpiler generates invalid V code for `tests/translator/test_kwonly.v`. When compiling, V reports the following errors:
+
+```text
+test_kwonly.v:3:1: builder error: cannot import module "pytest" (not found)
+```
+
+### Task
+Investigate why the transpiler generates invalid V code for `test_kwonly.py` and fix the underlying transpiler logic.
+
+### Requirements
+- The generated V file `test_kwonly.v` must compile without errors
+- Do not manually edit the generated V file; fix the transpiler source code
+
+---cut---
+##title: Fix compilation error in tests/translator/test_todo_tasks.v
+##descr: The transpiler generates invalid V code for `tests/translator/test_todo_tasks.v`. When compiling, V reports the following errors:
+
+```text
+test_todo_tasks.v:9:8: error: function names cannot contain uppercase letters, use snake_case instead
+```
+
+### Task
+Investigate why the transpiler generates invalid V code for `test_todo_tasks.py` and fix the underlying transpiler logic.
+
+### Requirements
+- The generated V file `test_todo_tasks.v` must compile without errors
+- Do not manually edit the generated V file; fix the transpiler source code
+
+---cut---
+##title: Fix compilation error in tests/translator/test_any_all.v
+##descr: The transpiler generates invalid V code for `tests/translator/test_any_all.v`. When compiling, V reports the following errors:
+
+```text
+test_any_all.v:6:29: error: mutable arguments are only allowed for arrays, interfaces, maps, pointers, structs or their aliases
+```
+
+### Task
+Investigate why the transpiler generates invalid V code for `test_any_all.py` and fix the underlying transpiler logic.
+
+### Requirements
+- The generated V file `test_any_all.v` must compile without errors
+- Do not manually edit the generated V file; fix the transpiler source code
+
+---cut---
+##title: Fix compilation error in tests/translator/test_urllib_parse.v
+##descr: The transpiler generates invalid V code for `tests/translator/test_urllib_parse.v`. When compiling, V reports the following errors:
+
+```text
+test_urllib_parse.v:6:29: error: mutable arguments are only allowed for arrays, interfaces, maps, pointers, structs or their aliases
+```
+
+### Task
+Investigate why the transpiler generates invalid V code for `test_urllib_parse.py` and fix the underlying transpiler logic.
+
+### Requirements
+- The generated V file `test_urllib_parse.v` must compile without errors
+- Do not manually edit the generated V file; fix the transpiler source code
+
+---cut---
+##title: Fix compilation error in tests/translator/test_range_step.v
+##descr: The transpiler generates invalid V code for `tests/translator/test_range_step.v`. When compiling, V reports the following errors:
+
+```text
+test_range_step.v:6:29: error: mutable arguments are only allowed for arrays, interfaces, maps, pointers, structs or their aliases
+```
+
+### Task
+Investigate why the transpiler generates invalid V code for `test_range_step.py` and fix the underlying transpiler logic.
+
+### Requirements
+- The generated V file `test_range_step.v` must compile without errors
+- Do not manually edit the generated V file; fix the transpiler source code
+
+---cut---
+##title: Fix compilation error in tests/translator/test_logging.v
+##descr: The transpiler generates invalid V code for `tests/translator/test_logging.v`. When compiling, V reports the following errors:
+
+```text
+test_logging.v:6:29: error: mutable arguments are only allowed for arrays, interfaces, maps, pointers, structs or their aliases
+```
+
+### Task
+Investigate why the transpiler generates invalid V code for `test_logging.py` and fix the underlying transpiler logic.
+
+### Requirements
+- The generated V file `test_logging.v` must compile without errors
+- Do not manually edit the generated V file; fix the transpiler source code
+
+---cut---
+##title: Fix compilation error in tests/translator/test_round.v
+##descr: The transpiler generates invalid V code for `tests/translator/test_round.v`. When compiling, V reports the following errors:
+
+```text
+test_round.v:46:28: error: use assignment `=` instead of declaration `:=` when modifying struct fields
+```
+
+### Task
+Investigate why the transpiler generates invalid V code for `test_round.py` and fix the underlying transpiler logic.
+
+### Requirements
+- The generated V file `test_round.v` must compile without errors
+- Do not manually edit the generated V file; fix the transpiler source code
+
+---cut---
+##title: Fix compilation error in tests/translator/test_bytes.v
+##descr: The transpiler generates invalid V code for `tests/translator/test_bytes.v`. When compiling, V reports the following errors:
+
+```text
+test_bytes.v:3:1: builder error: cannot import module "pytest" (not found)
+```
+
+### Task
+Investigate why the transpiler generates invalid V code for `test_bytes.py` and fix the underlying transpiler logic.
+
+### Requirements
+- The generated V file `test_bytes.v` must compile without errors
+- Do not manually edit the generated V file; fix the transpiler source code
+
+---cut---
+##title: Fix compilation error in tests/translator/test_varargs.v
+##descr: The transpiler generates invalid V code for `tests/translator/test_varargs.v`. When compiling, V reports the following errors:
+
+```text
+test_varargs.v:3:1: builder error: cannot import module "pytest" (not found)
+```
+
+### Task
+Investigate why the transpiler generates invalid V code for `test_varargs.py` and fix the underlying transpiler logic.
+
+### Requirements
+- The generated V file `test_varargs.v` must compile without errors
+- Do not manually edit the generated V file; fix the transpiler source code
+
+---cut---
+##title: Fix compilation error in tests/translator/test_async_with.v
+##descr: The transpiler generates invalid V code for `tests/translator/test_async_with.v`. When compiling, V reports the following errors:
+
+```text
+test_async_with.v:10:8: error: function names cannot contain uppercase letters, use snake_case instead
+```
+
+### Task
+Investigate why the transpiler generates invalid V code for `test_async_with.py` and fix the underlying transpiler logic.
+
+### Requirements
+- The generated V file `test_async_with.v` must compile without errors
+- Do not manually edit the generated V file; fix the transpiler source code
+
+---cut---
+##title: Fix compilation error in tests/translator/test_collections.v
+##descr: The transpiler generates invalid V code for `tests/translator/test_collections.v`. When compiling, V reports the following errors:
+
+```text
+test_collections.v:52:29: error: mutable arguments are only allowed for arrays, interfaces, maps, pointers, structs or their aliases
+```
+
+### Task
+Investigate why the transpiler generates invalid V code for `test_collections.py` and fix the underlying transpiler logic.
+
+### Requirements
+- The generated V file `test_collections.v` must compile without errors
+- Do not manually edit the generated V file; fix the transpiler source code
+
+---cut---
+##title: Fix compilation error in tests/translator/test_set_comp.v
+##descr: The transpiler generates invalid V code for `tests/translator/test_set_comp.v`. When compiling, V reports the following errors:
+
+```text
+test_set_comp.v:3:1: builder error: cannot import module "pytest" (not found)
+```
+
+### Task
+Investigate why the transpiler generates invalid V code for `test_set_comp.py` and fix the underlying transpiler logic.
+
+### Requirements
+- The generated V file `test_set_comp.v` must compile without errors
+- Do not manually edit the generated V file; fix the transpiler source code
+
+---cut---
+##title: Fix compilation error in tests/translator/test_type_directed_ops.v
+##descr: The transpiler generates invalid V code for `tests/translator/test_type_directed_ops.v`. When compiling, V reports the following errors:
+
+```text
+test_type_directed_ops.v:3:1: builder error: cannot import module "ast" (not found)
+```
+
+### Task
+Investigate why the transpiler generates invalid V code for `test_type_directed_ops.py` and fix the underlying transpiler logic.
+
+### Requirements
+- The generated V file `test_type_directed_ops.v` must compile without errors
+- Do not manually edit the generated V file; fix the transpiler source code
+
+---cut---
+##title: Fix compilation error in tests/translator/test_string_predicates.v
+##descr: The transpiler generates invalid V code for `tests/translator/test_string_predicates.v`. When compiling, V reports the following errors:
+
+```text
+test_string_predicates.v:46:28: error: use assignment `=` instead of declaration `:=` when modifying struct fields
+```
+
+### Task
+Investigate why the transpiler generates invalid V code for `test_string_predicates.py` and fix the underlying transpiler logic.
+
+### Requirements
+- The generated V file `test_string_predicates.v` must compile without errors
+- Do not manually edit the generated V file; fix the transpiler source code
+
+---cut---
+##title: Fix compilation error in tests/translator/test_type_aliases.v
+##descr: The transpiler generates invalid V code for `tests/translator/test_type_aliases.v`. When compiling, V reports the following errors:
+
+```text
+test_type_aliases.v:3:1: builder error: cannot import module "ast" (not found)
+```
+
+### Task
+Investigate why the transpiler generates invalid V code for `test_type_aliases.py` and fix the underlying transpiler logic.
+
+### Requirements
+- The generated V file `test_type_aliases.v` must compile without errors
+- Do not manually edit the generated V file; fix the transpiler source code
+
+---cut---
+##title: Fix compilation error in tests/translator/test_tuples.v
+##descr: The transpiler generates invalid V code for `tests/translator/test_tuples.v`. When compiling, V reports the following errors:
+
+```text
+test_tuples.v:3:1: builder error: cannot import module "ast" (not found)
+```
+
+### Task
+Investigate why the transpiler generates invalid V code for `test_tuples.py` and fix the underlying transpiler logic.
+
+### Requirements
+- The generated V file `test_tuples.v` must compile without errors
+- Do not manually edit the generated V file; fix the transpiler source code
+
+---cut---
+##title: Fix compilation error in tests/translator/test_exceptions_context.v
+##descr: The transpiler generates invalid V code for `tests/translator/test_exceptions_context.v`. When compiling, V reports the following errors:
+
+```text
+test_exceptions_context.v:3:1: builder error: cannot import module "ast" (not found)
+```
+
+### Task
+Investigate why the transpiler generates invalid V code for `test_exceptions_context.py` and fix the underlying transpiler logic.
+
+### Requirements
+- The generated V file `test_exceptions_context.v` must compile without errors
+- Do not manually edit the generated V file; fix the transpiler source code
+
+---cut---
+##title: Fix compilation error in tests/translator/test_matmul.v
+##descr: The transpiler generates invalid V code for `tests/translator/test_matmul.v`. When compiling, V reports the following errors:
+
+```text
+test_matmul.v:3:1: builder error: cannot import module "pytest" (not found)
+```
+
+### Task
+Investigate why the transpiler generates invalid V code for `test_matmul.py` and fix the underlying transpiler logic.
+
+### Requirements
+- The generated V file `test_matmul.v` must compile without errors
+- Do not manually edit the generated V file; fix the transpiler source code
+
+---cut---
+##title: Fix compilation error in tests/translator/test_pickle.v
+##descr: The transpiler generates invalid V code for `tests/translator/test_pickle.v`. When compiling, V reports the following errors:
+
+```text
+test_pickle.v:6:29: error: mutable arguments are only allowed for arrays, interfaces, maps, pointers, structs or their aliases
+```
+
+### Task
+Investigate why the transpiler generates invalid V code for `test_pickle.py` and fix the underlying transpiler logic.
+
+### Requirements
+- The generated V file `test_pickle.v` must compile without errors
+- Do not manually edit the generated V file; fix the transpiler source code
+
+---cut---
+##title: Fix compilation error in tests/translator/test_subprocess_security.v
+##descr: The transpiler generates invalid V code for `tests/translator/test_subprocess_security.v`. When compiling, V reports the following errors:
+
+```text
+test_subprocess_security.v:7:29: error: mutable arguments are only allowed for arrays, interfaces, maps, pointers, structs or their aliases
+```
+
+### Task
+Investigate why the transpiler generates invalid V code for `test_subprocess_security.py` and fix the underlying transpiler logic.
+
+### Requirements
+- The generated V file `test_subprocess_security.v` must compile without errors
+- Do not manually edit the generated V file; fix the transpiler source code
+
+---cut---
+##title: Fix compilation error in tests/translator/test_new_features.v
+##descr: The transpiler generates invalid V code for `tests/translator/test_new_features.v`. When compiling, V reports the following errors:
+
+```text
+test_new_features.v:5:24: error: mutable arguments are only allowed for arrays, interfaces, maps, pointers, structs or their aliases
+```
+
+### Task
+Investigate why the transpiler generates invalid V code for `test_new_features.py` and fix the underlying transpiler logic.
+
+### Requirements
+- The generated V file `test_new_features.v` must compile without errors
+- Do not manually edit the generated V file; fix the transpiler source code
+
+---cut---
+##title: Fix compilation error in tests/translator/test_files.v
+##descr: The transpiler generates invalid V code for `tests/translator/test_files.v`. When compiling, V reports the following errors:
+
+```text
+test_files.v:3:1: builder error: cannot import module "ast" (not found)
+```
+
+### Task
+Investigate why the transpiler generates invalid V code for `test_files.py` and fix the underlying transpiler logic.
+
+### Requirements
+- The generated V file `test_files.v` must compile without errors
+- Do not manually edit the generated V file; fix the transpiler source code
+
+---cut---
+##title: Fix compilation error in tests/translator/test_struct.v
+##descr: The transpiler generates invalid V code for `tests/translator/test_struct.v`. When compiling, V reports the following errors:
+
+```text
+test_struct.v:6:29: error: mutable arguments are only allowed for arrays, interfaces, maps, pointers, structs or their aliases
+```
+
+### Task
+Investigate why the transpiler generates invalid V code for `test_struct.py` and fix the underlying transpiler logic.
+
+### Requirements
+- The generated V file `test_struct.v` must compile without errors
+- Do not manually edit the generated V file; fix the transpiler source code
+
+---cut---
+##title: Fix compilation error in tests/translator/test_assert_type.v
+##descr: The transpiler generates invalid V code for `tests/translator/test_assert_type.v`. When compiling, V reports the following errors:
+
+```text
+test_assert_type.v:35:28: error: invalid character `\`
+```
+
+### Task
+Investigate why the transpiler generates invalid V code for `test_assert_type.py` and fix the underlying transpiler logic.
+
+### Requirements
+- The generated V file `test_assert_type.v` must compile without errors
+- Do not manually edit the generated V file; fix the transpiler source code
+
+---cut---
+##title: Fix compilation error in tests/translator/test_list_unpacking.v
+##descr: The transpiler generates invalid V code for `tests/translator/test_list_unpacking.v`. When compiling, V reports the following errors:
+
+```text
+test_list_unpacking.v:10:8: error: function names cannot contain uppercase letters, use snake_case instead
+```
+
+### Task
+Investigate why the transpiler generates invalid V code for `test_list_unpacking.py` and fix the underlying transpiler logic.
+
+### Requirements
+- The generated V file `test_list_unpacking.v` must compile without errors
+- Do not manually edit the generated V file; fix the transpiler source code
+
+---cut---
+##title: Fix compilation error in tests/translator/test_control_flow.v
+##descr: The transpiler generates invalid V code for `tests/translator/test_control_flow.v`. When compiling, V reports the following errors:
+
+```text
+test_control_flow.v:87:57: error: unexpected token `,`, expecting `:`
+```
+
+### Task
+Investigate why the transpiler generates invalid V code for `test_control_flow.py` and fix the underlying transpiler logic.
+
+### Requirements
+- The generated V file `test_control_flow.v` must compile without errors
+- Do not manually edit the generated V file; fix the transpiler source code
+
+---cut---
+##title: Fix compilation error in tests/translator/test_nested_or_patterns_complex.v
+##descr: The transpiler generates invalid V code for `tests/translator/test_nested_or_patterns_complex.v`. When compiling, V reports the following errors:
+
+```text
+test_nested_or_patterns_complex.v:8:29: error: mutable arguments are only allowed for arrays, interfaces, maps, pointers, structs or their aliases
+```
+
+### Task
+Investigate why the transpiler generates invalid V code for `test_nested_or_patterns_complex.py` and fix the underlying transpiler logic.
+
+### Requirements
+- The generated V file `test_nested_or_patterns_complex.v` must compile without errors
+- Do not manually edit the generated V file; fix the transpiler source code
+
+---cut---
+##title: Fix compilation error in tests/translator/test_complex.v
+##descr: The transpiler generates invalid V code for `tests/translator/test_complex.v`. When compiling, V reports the following errors:
+
+```text
+test_complex.v:3:1: builder error: cannot import module "pytest" (not found)
+```
+
+### Task
+Investigate why the transpiler generates invalid V code for `test_complex.py` and fix the underlying transpiler logic.
+
+### Requirements
+- The generated V file `test_complex.v` must compile without errors
+- Do not manually edit the generated V file; fix the transpiler source code
+
+---cut---
+##title: Fix compilation error in tests/translator/test_coroutines.v
+##descr: The transpiler generates invalid V code for `tests/translator/test_coroutines.v`. When compiling, V reports the following errors:
+
+```text
+test_coroutines.v:3:1: builder error: cannot import module "ast" (not found)
+```
+
+### Task
+Investigate why the transpiler generates invalid V code for `test_coroutines.py` and fix the underlying transpiler logic.
+
+### Requirements
+- The generated V file `test_coroutines.v` must compile without errors
+- Do not manually edit the generated V file; fix the transpiler source code
+
+---cut---
+##title: Fix compilation error in tests/translator/test_subprocess.v
+##descr: The transpiler generates invalid V code for `tests/translator/test_subprocess.v`. When compiling, V reports the following errors:
+
+```text
+test_subprocess.v:7:29: error: mutable arguments are only allowed for arrays, interfaces, maps, pointers, structs or their aliases
+```
+
+### Task
+Investigate why the transpiler generates invalid V code for `test_subprocess.py` and fix the underlying transpiler logic.
+
+### Requirements
+- The generated V file `test_subprocess.v` must compile without errors
+- Do not manually edit the generated V file; fix the transpiler source code
+
+---cut---
+##title: Fix compilation error in tests/translator/test_floor_div.v
+##descr: The transpiler generates invalid V code for `tests/translator/test_floor_div.v`. When compiling, V reports the following errors:
+
+```text
+test_floor_div.v:46:28: error: use assignment `=` instead of declaration `:=` when modifying struct fields
+```
+
+### Task
+Investigate why the transpiler generates invalid V code for `test_floor_div.py` and fix the underlying transpiler logic.
+
+### Requirements
+- The generated V file `test_floor_div.v` must compile without errors
+- Do not manually edit the generated V file; fix the transpiler source code
+
+---cut---
+##title: Fix compilation error in tests/translator/test_string_bytes_fixes.v
+##descr: The transpiler generates invalid V code for `tests/translator/test_string_bytes_fixes.v`. When compiling, V reports the following errors:
+
+```text
+test_string_bytes_fixes.v:3:8: error: function names cannot contain uppercase letters, use snake_case instead
+```
+
+### Task
+Investigate why the transpiler generates invalid V code for `test_string_bytes_fixes.py` and fix the underlying transpiler logic.
+
+### Requirements
+- The generated V file `test_string_bytes_fixes.v` must compile without errors
+- Do not manually edit the generated V file; fix the transpiler source code
+
+---cut---
+##title: Fix compilation error in tests/translator/test_contextlib.v
+##descr: The transpiler generates invalid V code for `tests/translator/test_contextlib.v`. When compiling, V reports the following errors:
+
+```text
+test_contextlib.v:6:29: error: mutable arguments are only allowed for arrays, interfaces, maps, pointers, structs or their aliases
+```
+
+### Task
+Investigate why the transpiler generates invalid V code for `test_contextlib.py` and fix the underlying transpiler logic.
+
+### Requirements
+- The generated V file `test_contextlib.v` must compile without errors
+- Do not manually edit the generated V file; fix the transpiler source code
+
+---cut---
+##title: Fix compilation error in tests/translator/test_base64.v
+##descr: The transpiler generates invalid V code for `tests/translator/test_base64.v`. When compiling, V reports the following errors:
+
+```text
+test_base64.v:6:29: error: mutable arguments are only allowed for arrays, interfaces, maps, pointers, structs or their aliases
+```
+
+### Task
+Investigate why the transpiler generates invalid V code for `test_base64.py` and fix the underlying transpiler logic.
+
+### Requirements
+- The generated V file `test_base64.v` must compile without errors
+- Do not manually edit the generated V file; fix the transpiler source code
+
+---cut---
+##title: Fix compilation error in tests/translator/test_buffer_protocol.v
+##descr: The transpiler generates invalid V code for `tests/translator/test_buffer_protocol.v`. When compiling, V reports the following errors:
+
+```text
+test_buffer_protocol.v:50:28: error: use assignment `=` instead of declaration `:=` when modifying struct fields
+```
+
+### Task
+Investigate why the transpiler generates invalid V code for `test_buffer_protocol.py` and fix the underlying transpiler logic.
+
+### Requirements
+- The generated V file `test_buffer_protocol.v` must compile without errors
+- Do not manually edit the generated V file; fix the transpiler source code
+
+---cut---
+##title: Fix compilation error in tests/translator/test_init_inference.v
+##descr: The transpiler generates invalid V code for `tests/translator/test_init_inference.v`. When compiling, V reports the following errors:
+
+```text
+test_init_inference.v:3:1: builder error: cannot import module "ast" (not found)
+```
+
+### Task
+Investigate why the transpiler generates invalid V code for `test_init_inference.py` and fix the underlying transpiler logic.
+
+### Requirements
+- The generated V file `test_init_inference.v` must compile without errors
+- Do not manually edit the generated V file; fix the transpiler source code
+
+---cut---
+##title: Fix compilation error in tests/translator/test_enumerate.v
+##descr: The transpiler generates invalid V code for `tests/translator/test_enumerate.v`. When compiling, V reports the following errors:
+
+```text
+test_enumerate.v:6:29: error: mutable arguments are only allowed for arrays, interfaces, maps, pointers, structs or their aliases
+```
+
+### Task
+Investigate why the transpiler generates invalid V code for `test_enumerate.py` and fix the underlying transpiler logic.
+
+### Requirements
+- The generated V file `test_enumerate.v` must compile without errors
+- Do not manually edit the generated V file; fix the transpiler source code
+
+---cut---
+##title: Fix compilation error in tests/translator/test_none_initialization.v
+##descr: The transpiler generates invalid V code for `tests/translator/test_none_initialization.v`. When compiling, V reports the following errors:
+
+```text
+test_none_initialization.v:6:27: error: mutable arguments are only allowed for arrays, interfaces, maps, pointers, structs or their aliases
+```
+
+### Task
+Investigate why the transpiler generates invalid V code for `test_none_initialization.py` and fix the underlying transpiler logic.
+
+### Requirements
+- The generated V file `test_none_initialization.v` must compile without errors
+- Do not manually edit the generated V file; fix the transpiler source code
+
+---cut---
+##title: Fix compilation error in tests/translator/test_literals_underscores.v
+##descr: The transpiler generates invalid V code for `tests/translator/test_literals_underscores.v`. When compiling, V reports the following errors:
+
+```text
+test_literals_underscores.v:10:8: error: function names cannot contain uppercase letters, use snake_case instead
+```
+
+### Task
+Investigate why the transpiler generates invalid V code for `test_literals_underscores.py` and fix the underlying transpiler logic.
+
+### Requirements
+- The generated V file `test_literals_underscores.v` must compile without errors
+- Do not manually edit the generated V file; fix the transpiler source code
+
+---cut---
+##title: Fix compilation error in tests/translator/test_hashlib.v
+##descr: The transpiler generates invalid V code for `tests/translator/test_hashlib.v`. When compiling, V reports the following errors:
+
+```text
+test_hashlib.v:7:29: error: mutable arguments are only allowed for arrays, interfaces, maps, pointers, structs or their aliases
+```
+
+### Task
+Investigate why the transpiler generates invalid V code for `test_hashlib.py` and fix the underlying transpiler logic.
+
+### Requirements
+- The generated V file `test_hashlib.v` must compile without errors
+- Do not manually edit the generated V file; fix the transpiler source code
+
+---cut---
+##title: Fix compilation error in tests/translator/test_basics.v
+##descr: The transpiler generates invalid V code for `tests/translator/test_basics.v`. When compiling, V reports the following errors:
+
+```text
+test_basics.v:3:1: builder error: cannot import module "ast" (not found)
+```
+
+### Task
+Investigate why the transpiler generates invalid V code for `test_basics.py` and fix the underlying transpiler logic.
+
+### Requirements
+- The generated V file `test_basics.v` must compile without errors
+- Do not manually edit the generated V file; fix the transpiler source code
+
+---cut---
+##title: Fix compilation error in tests/translator/test_mixins.v
+##descr: The transpiler generates invalid V code for `tests/translator/test_mixins.v`. When compiling, V reports the following errors:
+
+```text
+test_mixins.v:3:1: builder error: cannot import module "pytest" (not found)
+```
+
+### Task
+Investigate why the transpiler generates invalid V code for `test_mixins.py` and fix the underlying transpiler logic.
+
+### Requirements
+- The generated V file `test_mixins.v` must compile without errors
+- Do not manually edit the generated V file; fix the transpiler source code
+
+---cut---
+##title: Fix compilation error in tests/translator/test_statements.v
+##descr: The transpiler generates invalid V code for `tests/translator/test_statements.v`. When compiling, V reports the following errors:
+
+```text
+test_statements.v:3:1: builder error: cannot import module "ast" (not found)
+```
+
+### Task
+Investigate why the transpiler generates invalid V code for `test_statements.py` and fix the underlying transpiler logic.
+
+### Requirements
+- The generated V file `test_statements.v` must compile without errors
+- Do not manually edit the generated V file; fix the transpiler source code
+
+---cut---
+##title: Fix compilation error in tests/translator/test_overload_operators.v
+##descr: The transpiler generates invalid V code for `tests/translator/test_overload_operators.v`. When compiling, V reports the following errors:
+
+```text
+test_overload_operators.v:3:1: builder error: cannot import module "ast" (not found)
+```
+
+### Task
+Investigate why the transpiler generates invalid V code for `test_overload_operators.py` and fix the underlying transpiler logic.
+
+### Requirements
+- The generated V file `test_overload_operators.v` must compile without errors
+- Do not manually edit the generated V file; fix the transpiler source code
+
+---cut---
+##title: Fix compilation error in tests/translator/test_literal_string_new.v
+##descr: The transpiler generates invalid V code for `tests/translator/test_literal_string_new.v`. When compiling, V reports the following errors:
+
+```text
+test_literal_string_new.v:3:1: builder error: cannot import module "ast" (not found)
+```
+
+### Task
+Investigate why the transpiler generates invalid V code for `test_literal_string_new.py` and fix the underlying transpiler logic.
+
+### Requirements
+- The generated V file `test_literal_string_new.v` must compile without errors
+- Do not manually edit the generated V file; fix the transpiler source code
+
+---cut---
+##title: Fix compilation error in tests/translator/test_helpers_injection.v
+##descr: The transpiler generates invalid V code for `tests/translator/test_helpers_injection.v`. When compiling, V reports the following errors:
+
+```text
+test_helpers_injection.v:11:8: error: function names cannot contain uppercase letters, use snake_case instead
+```
+
+### Task
+Investigate why the transpiler generates invalid V code for `test_helpers_injection.py` and fix the underlying transpiler logic.
+
+### Requirements
+- The generated V file `test_helpers_injection.v` must compile without errors
+- Do not manually edit the generated V file; fix the transpiler source code
+
+---cut---
+##title: Fix compilation error in tests/translator/test_issue_optional_chan.v
+##descr: The transpiler generates invalid V code for `tests/translator/test_issue_optional_chan.v`. When compiling, V reports the following errors:
+
+```text
+test_issue_optional_chan.v:3:1: builder error: cannot import module "ast" (not found)
+```
+
+### Task
+Investigate why the transpiler generates invalid V code for `test_issue_optional_chan.py` and fix the underlying transpiler logic.
+
+### Requirements
+- The generated V file `test_issue_optional_chan.v` must compile without errors
+- Do not manually edit the generated V file; fix the transpiler source code
+
+---cut---
+##title: Fix compilation error in tests/translator/test_set_operations.v
+##descr: The transpiler generates invalid V code for `tests/translator/test_set_operations.v`. When compiling, V reports the following errors:
+
+```text
+test_set_operations.v:10:8: error: function names cannot contain uppercase letters, use snake_case instead
+```
+
+### Task
+Investigate why the transpiler generates invalid V code for `test_set_operations.py` and fix the underlying transpiler logic.
+
+### Requirements
+- The generated V file `test_set_operations.v` must compile without errors
+- Do not manually edit the generated V file; fix the transpiler source code
+
+---cut---
+##title: Fix compilation error in tests/translator/test_property_mismatched_types.v
+##descr: The transpiler generates invalid V code for `tests/translator/test_property_mismatched_types.v`. When compiling, V reports the following errors:
+
+```text
+test_property_mismatched_types.v:3:1: builder error: cannot import module "ast" (not found)
+```
+
+### Task
+Investigate why the transpiler generates invalid V code for `test_property_mismatched_types.py` and fix the underlying transpiler logic.
+
+### Requirements
+- The generated V file `test_property_mismatched_types.v` must compile without errors
+- Do not manually edit the generated V file; fix the transpiler source code
+
+---cut---
+##title: Fix compilation error in tests/translator/test_indirect_abc.v
+##descr: The transpiler generates invalid V code for `tests/translator/test_indirect_abc.v`. When compiling, V reports the following errors:
+
+```text
+test_indirect_abc.v:3:1: builder error: cannot import module "ast" (not found)
+```
+
+### Task
+Investigate why the transpiler generates invalid V code for `test_indirect_abc.py` and fix the underlying transpiler logic.
+
+### Requirements
+- The generated V file `test_indirect_abc.v` must compile without errors
+- Do not manually edit the generated V file; fix the transpiler source code
+
+---cut---
+##title: Fix compilation error in tests/translator/test_pathlib.v
+##descr: The transpiler generates invalid V code for `tests/translator/test_pathlib.v`. When compiling, V reports the following errors:
+
+```text
+test_pathlib.v:7:29: error: mutable arguments are only allowed for arrays, interfaces, maps, pointers, structs or their aliases
+```
+
+### Task
+Investigate why the transpiler generates invalid V code for `test_pathlib.py` and fix the underlying transpiler logic.
+
+### Requirements
+- The generated V file `test_pathlib.v` must compile without errors
+- Do not manually edit the generated V file; fix the transpiler source code
+
+---cut---
+##title: Fix compilation error in tests/translator/test_polymorphism.v
+##descr: The transpiler generates invalid V code for `tests/translator/test_polymorphism.v`. When compiling, V reports the following errors:
+
+```text
+test_polymorphism.v:3:1: builder error: cannot import module "ast" (not found)
+```
+
+### Task
+Investigate why the transpiler generates invalid V code for `test_polymorphism.py` and fix the underlying transpiler logic.
+
+### Requirements
+- The generated V file `test_polymorphism.v` must compile without errors
+- Do not manually edit the generated V file; fix the transpiler source code
+
+---cut---
+##title: Fix compilation error in tests/translator/test_async_lambda.v
+##descr: The transpiler generates invalid V code for `tests/translator/test_async_lambda.v`. When compiling, V reports the following errors:
+
+```text
+test_async_lambda.v:3:1: builder error: cannot import module "ast" (not found)
+```
+
+### Task
+Investigate why the transpiler generates invalid V code for `test_async_lambda.py` and fix the underlying transpiler logic.
+
+### Requirements
+- The generated V file `test_async_lambda.v` must compile without errors
+- Do not manually edit the generated V file; fix the transpiler source code
+
+---cut---
+##title: Fix compilation error in tests/translator/test_percent_format.v
+##descr: The transpiler generates invalid V code for `tests/translator/test_percent_format.v`. When compiling, V reports the following errors:
+
+```text
+test_percent_format.v:47:28: error: use assignment `=` instead of declaration `:=` when modifying struct fields
+```
+
+### Task
+Investigate why the transpiler generates invalid V code for `test_percent_format.py` and fix the underlying transpiler logic.
+
+### Requirements
+- The generated V file `test_percent_format.v` must compile without errors
+- Do not manually edit the generated V file; fix the transpiler source code
+
+---cut---
+##title: Fix compilation error in tests/translator/test_keyword_collision.v
+##descr: The transpiler generates invalid V code for `tests/translator/test_keyword_collision.v`. When compiling, V reports the following errors:
+
+```text
+test_keyword_collision.v:3:1: builder error: cannot import module "ast" (not found)
+```
+
+### Task
+Investigate why the transpiler generates invalid V code for `test_keyword_collision.py` and fix the underlying transpiler logic.
+
+### Requirements
+- The generated V file `test_keyword_collision.v` must compile without errors
+- Do not manually edit the generated V file; fix the transpiler source code
+
+---cut---
+##title: Fix compilation error in tests/translator/test_dict_comp.v
+##descr: The transpiler generates invalid V code for `tests/translator/test_dict_comp.v`. When compiling, V reports the following errors:
+
+```text
+test_dict_comp.v:3:1: builder error: cannot import module "pytest" (not found)
+```
+
+### Task
+Investigate why the transpiler generates invalid V code for `test_dict_comp.py` and fix the underlying transpiler logic.
+
+### Requirements
+- The generated V file `test_dict_comp.v` must compile without errors
+- Do not manually edit the generated V file; fix the transpiler source code
+
+---cut---
+##title: Fix compilation error in tests/translator/test_dataclasses.v
+##descr: The transpiler generates invalid V code for `tests/translator/test_dataclasses.v`. When compiling, V reports the following errors:
+
+```text
+test_dataclasses.v:30:99: error: `}` expected; explicit `map` initialization does not support parameters
+```
+
+### Task
+Investigate why the transpiler generates invalid V code for `test_dataclasses.py` and fix the underlying transpiler logic.
+
+### Requirements
+- The generated V file `test_dataclasses.v` must compile without errors
+- Do not manually edit the generated V file; fix the transpiler source code
+
+---cut---
+##title: Fix compilation error in tests/translator/test_match_pattern.v
+##descr: The transpiler generates invalid V code for `tests/translator/test_match_pattern.v`. When compiling, V reports the following errors:
+
+```text
+test_match_pattern.v:6:29: error: mutable arguments are only allowed for arrays, interfaces, maps, pointers, structs or their aliases
+```
+
+### Task
+Investigate why the transpiler generates invalid V code for `test_match_pattern.py` and fix the underlying transpiler logic.
+
+### Requirements
+- The generated V file `test_match_pattern.v` must compile without errors
+- Do not manually edit the generated V file; fix the transpiler source code
+
+---cut---
+##title: Fix compilation error in tests/translator/test_argparse.v
+##descr: The transpiler generates invalid V code for `tests/translator/test_argparse.v`. When compiling, V reports the following errors:
+
+```text
+test_argparse.v:6:29: error: mutable arguments are only allowed for arrays, interfaces, maps, pointers, structs or their aliases
+```
+
+### Task
+Investigate why the transpiler generates invalid V code for `test_argparse.py` and fix the underlying transpiler logic.
+
+### Requirements
+- The generated V file `test_argparse.v` must compile without errors
+- Do not manually edit the generated V file; fix the transpiler source code
+
+---cut---
+##title: Fix compilation error in tests/translator/test_generic_match.v
+##descr: The transpiler generates invalid V code for `tests/translator/test_generic_match.v`. When compiling, V reports the following errors:
+
+```text
+test_generic_match.v:6:29: error: mutable arguments are only allowed for arrays, interfaces, maps, pointers, structs or their aliases
+```
+
+### Task
+Investigate why the transpiler generates invalid V code for `test_generic_match.py` and fix the underlying transpiler logic.
+
+### Requirements
+- The generated V file `test_generic_match.v` must compile without errors
+- Do not manually edit the generated V file; fix the transpiler source code
+
+---cut---
+##title: Fix compilation error in tests/translator/test_exceptions_vexc.v
+##descr: The transpiler generates invalid V code for `tests/translator/test_exceptions_vexc.v`. When compiling, V reports the following errors:
+
+```text
+test_exceptions_vexc.v:148:8: error: invalid expression: unexpected keyword `in`
+```
+
+### Task
+Investigate why the transpiler generates invalid V code for `test_exceptions_vexc.py` and fix the underlying transpiler logic.
+
+### Requirements
+- The generated V file `test_exceptions_vexc.v` must compile without errors
+- Do not manually edit the generated V file; fix the transpiler source code
+
+---cut---
+##title: Fix compilation error in tests/translator/test_copy.v
+##descr: The transpiler generates invalid V code for `tests/translator/test_copy.v`. When compiling, V reports the following errors:
+
+```text
+test_copy.v:6:29: error: mutable arguments are only allowed for arrays, interfaces, maps, pointers, structs or their aliases
+```
+
+### Task
+Investigate why the transpiler generates invalid V code for `test_copy.py` and fix the underlying transpiler logic.
+
+### Requirements
+- The generated V file `test_copy.v` must compile without errors
+- Do not manually edit the generated V file; fix the transpiler source code
+
+---cut---
+##title: Fix compilation error in tests/translator/test_typing_features.v
+##descr: The transpiler generates invalid V code for `tests/translator/test_typing_features.v`. When compiling, V reports the following errors:
+
+```text
+test_typing_features.v:7:29: error: mutable arguments are only allowed for arrays, interfaces, maps, pointers, structs or their aliases
+```
+
+### Task
+Investigate why the transpiler generates invalid V code for `test_typing_features.py` and fix the underlying transpiler logic.
+
+### Requirements
+- The generated V file `test_typing_features.v` must compile without errors
+- Do not manually edit the generated V file; fix the transpiler source code
+
+---cut---
+##title: Fix compilation error in tests/translator/test_super_noarg.v
+##descr: The transpiler generates invalid V code for `tests/translator/test_super_noarg.v`. When compiling, V reports the following errors:
+
+```text
+test_super_noarg.v:10:8: error: function names cannot contain uppercase letters, use snake_case instead
+```
+
+### Task
+Investigate why the transpiler generates invalid V code for `test_super_noarg.py` and fix the underlying transpiler logic.
+
+### Requirements
+- The generated V file `test_super_noarg.v` must compile without errors
+- Do not manually edit the generated V file; fix the transpiler source code
+
+---cut---
+##title: Fix compilation error in tests/translator/test_isinstance.v
+##descr: The transpiler generates invalid V code for `tests/translator/test_isinstance.v`. When compiling, V reports the following errors:
+
+```text
+test_isinstance.v:3:1: builder error: cannot import module "ast" (not found)
+```
+
+### Task
+Investigate why the transpiler generates invalid V code for `test_isinstance.py` and fix the underlying transpiler logic.
+
+### Requirements
+- The generated V file `test_isinstance.v` must compile without errors
+- Do not manually edit the generated V file; fix the transpiler source code
+
+---cut---
+##title: Fix compilation error in tests/translator/test_while_collection.v
+##descr: The transpiler generates invalid V code for `tests/translator/test_while_collection.v`. When compiling, V reports the following errors:
+
+```text
+test_while_collection.v:22:9: error: redefinition of `node`
+```
+
+### Task
+Investigate why the transpiler generates invalid V code for `test_while_collection.py` and fix the underlying transpiler logic.
+
+### Requirements
+- The generated V file `test_while_collection.v` must compile without errors
+- Do not manually edit the generated V file; fix the transpiler source code
+
+---cut---
+##title: Fix compilation error in tests/translator/test_gen_exp.v
+##descr: The transpiler generates invalid V code for `tests/translator/test_gen_exp.v`. When compiling, V reports the following errors:
+
+```text
+test_gen_exp.v:3:1: builder error: cannot import module "pytest" (not found)
+```
+
+### Task
+Investigate why the transpiler generates invalid V code for `test_gen_exp.py` and fix the underlying transpiler logic.
+
+### Requirements
+- The generated V file `test_gen_exp.v` must compile without errors
+- Do not manually edit the generated V file; fix the transpiler source code
+
+---cut---
+##title: Fix compilation error in tests/translator/test_constructors.v
+##descr: The transpiler generates invalid V code for `tests/translator/test_constructors.v`. When compiling, V reports the following errors:
+
+```text
+test_constructors.v:10:8: error: function names cannot contain uppercase letters, use snake_case instead
+```
+
+### Task
+Investigate why the transpiler generates invalid V code for `test_constructors.py` and fix the underlying transpiler logic.
+
+### Requirements
+- The generated V file `test_constructors.v` must compile without errors
+- Do not manually edit the generated V file; fix the transpiler source code
+
+---cut---
+##title: Fix compilation error in tests/translator/test_zip.v
+##descr: The transpiler generates invalid V code for `tests/translator/test_zip.v`. When compiling, V reports the following errors:
+
+```text
+test_zip.v:6:29: error: mutable arguments are only allowed for arrays, interfaces, maps, pointers, structs or their aliases
+```
+
+### Task
+Investigate why the transpiler generates invalid V code for `test_zip.py` and fix the underlying transpiler logic.
+
+### Requirements
+- The generated V file `test_zip.v` must compile without errors
+- Do not manually edit the generated V file; fix the transpiler source code
+
+---cut---
+##title: Fix compilation error in tests/translator/test_typed_dict.v
+##descr: The transpiler generates invalid V code for `tests/translator/test_typed_dict.v`. When compiling, V reports the following errors:
+
+```text
+test_typed_dict.v:50:9: error: redefinition of `node`
+```
+
+### Task
+Investigate why the transpiler generates invalid V code for `test_typed_dict.py` and fix the underlying transpiler logic.
+
+### Requirements
+- The generated V file `test_typed_dict.v` must compile without errors
+- Do not manually edit the generated V file; fix the transpiler source code
+
+---cut---
+##title: Fix compilation error in tests/translator/test_pydantic.v
+##descr: The transpiler generates invalid V code for `tests/translator/test_pydantic.v`. When compiling, V reports the following errors:
+
+```text
+test_pydantic.v:5:54: error: mutable arguments are only allowed for arrays, interfaces, maps, pointers, structs or their aliases
+```
+
+### Task
+Investigate why the transpiler generates invalid V code for `test_pydantic.py` and fix the underlying transpiler logic.
+
+### Requirements
+- The generated V file `test_pydantic.v` must compile without errors
+- Do not manually edit the generated V file; fix the transpiler source code
+
+---cut---
+##title: Fix compilation error in tests/translator/test_unittest.v
+##descr: The transpiler generates invalid V code for `tests/translator/test_unittest.v`. When compiling, V reports the following errors:
+
+```text
+test_unittest.v:6:29: error: mutable arguments are only allowed for arrays, interfaces, maps, pointers, structs or their aliases
+```
+
+### Task
+Investigate why the transpiler generates invalid V code for `test_unittest.py` and fix the underlying transpiler logic.
+
+### Requirements
+- The generated V file `test_unittest.v` must compile without errors
+- Do not manually edit the generated V file; fix the transpiler source code
+
+---cut---
+##title: Fix compilation error in tests/translator/test_pow_negative.v
+##descr: The transpiler generates invalid V code for `tests/translator/test_pow_negative.v`. When compiling, V reports the following errors:
+
+```text
+test_pow_negative.v:46:28: error: use assignment `=` instead of declaration `:=` when modifying struct fields
+```
+
+### Task
+Investigate why the transpiler generates invalid V code for `test_pow_negative.py` and fix the underlying transpiler logic.
+
+### Requirements
+- The generated V file `test_pow_negative.v` must compile without errors
+- Do not manually edit the generated V file; fix the transpiler source code
+
+---cut---
+##title: Fix compilation error in tests/translator/test_enum_members.v
+##descr: The transpiler generates invalid V code for `tests/translator/test_enum_members.v`. When compiling, V reports the following errors:
+
+```text
+test_enum_members.v:3:1: builder error: cannot import module "ast" (not found)
+```
+
+### Task
+Investigate why the transpiler generates invalid V code for `test_enum_members.py` and fix the underlying transpiler logic.
+
+### Requirements
+- The generated V file `test_enum_members.v` must compile without errors
+- Do not manually edit the generated V file; fix the transpiler source code
+
+---cut---
+##title: Fix compilation error in tests/translator/test_walrus.v
+##descr: The transpiler generates invalid V code for `tests/translator/test_walrus.v`. When compiling, V reports the following errors:
+
+```text
+test_walrus.v:3:1: builder error: cannot import module "ast" (not found)
+```
+
+### Task
+Investigate why the transpiler generates invalid V code for `test_walrus.py` and fix the underlying transpiler logic.
+
+### Requirements
+- The generated V file `test_walrus.v` must compile without errors
+- Do not manually edit the generated V file; fix the transpiler source code
+
+---cut---
+##title: Fix compilation error in tests/translator/test_star_call.v
+##descr: The transpiler generates invalid V code for `tests/translator/test_star_call.v`. When compiling, V reports the following errors:
+
+```text
+test_star_call.v:3:1: builder error: cannot import module "pytest" (not found)
+```
+
+### Task
+Investigate why the transpiler generates invalid V code for `test_star_call.py` and fix the underlying transpiler logic.
+
+### Requirements
+- The generated V file `test_star_call.v` must compile without errors
+- Do not manually edit the generated V file; fix the transpiler source code
+
+---cut---
+##title: Fix compilation error in tests/translator/test_chained_compare.v
+##descr: The transpiler generates invalid V code for `tests/translator/test_chained_compare.v`. When compiling, V reports the following errors:
+
+```text
+test_chained_compare.v:3:1: builder error: cannot import module "pytest" (not found)
+```
+
+### Task
+Investigate why the transpiler generates invalid V code for `test_chained_compare.py` and fix the underlying transpiler logic.
+
+### Requirements
+- The generated V file `test_chained_compare.v` must compile without errors
+- Do not manually edit the generated V file; fix the transpiler source code
+
+---cut---
+##title: Fix compilation error in tests/translator/test_destructuring.v
+##descr: The transpiler generates invalid V code for `tests/translator/test_destructuring.v`. When compiling, V reports the following errors:
+
+```text
+test_destructuring.v:3:1: builder error: cannot import module "pytest" (not found)
+```
+
+### Task
+Investigate why the transpiler generates invalid V code for `test_destructuring.py` and fix the underlying transpiler logic.
+
+### Requirements
+- The generated V file `test_destructuring.v` must compile without errors
+- Do not manually edit the generated V file; fix the transpiler source code
+
+---cut---
+##title: Fix compilation error in tests/translator/test_itertools.v
+##descr: The transpiler generates invalid V code for `tests/translator/test_itertools.v`. When compiling, V reports the following errors:
+
+```text
+test_itertools.v:7:29: error: mutable arguments are only allowed for arrays, interfaces, maps, pointers, structs or their aliases
+```
+
+### Task
+Investigate why the transpiler generates invalid V code for `test_itertools.py` and fix the underlying transpiler logic.
+
+### Requirements
+- The generated V file `test_itertools.v` must compile without errors
+- Do not manually edit the generated V file; fix the transpiler source code
+
+---cut---
+##title: Fix compilation error in tests/translator/test_kwargs_def.v
+##descr: The transpiler generates invalid V code for `tests/translator/test_kwargs_def.v`. When compiling, V reports the following errors:
+
+```text
+test_kwargs_def.v:3:1: builder error: cannot import module "pytest" (not found)
+```
+
+### Task
+Investigate why the transpiler generates invalid V code for `test_kwargs_def.py` and fix the underlying transpiler logic.
+
+### Requirements
+- The generated V file `test_kwargs_def.v` must compile without errors
+- Do not manually edit the generated V file; fix the transpiler source code
+
+---cut---
+##title: Fix compilation error in tests/translator/test_type_alias_infer.v
+##descr: The transpiler generates invalid V code for `tests/translator/test_type_alias_infer.v`. When compiling, V reports the following errors:
+
+```text
+test_type_alias_infer.v:3:1: builder error: cannot import module "ast" (not found)
+```
+
+### Task
+Investigate why the transpiler generates invalid V code for `test_type_alias_infer.py` and fix the underlying transpiler logic.
+
+### Requirements
+- The generated V file `test_type_alias_infer.v` must compile without errors
+- Do not manually edit the generated V file; fix the transpiler source code
+
+---cut---
+##title: Fix compilation error in tests/translator/test_dynamic.v
+##descr: The transpiler generates invalid V code for `tests/translator/test_dynamic.v`. When compiling, V reports the following errors:
+
+```text
+test_dynamic.v:24:36: error: invalid character `\`
+```
+
+### Task
+Investigate why the transpiler generates invalid V code for `test_dynamic.py` and fix the underlying transpiler logic.
+
+### Requirements
+- The generated V file `test_dynamic.v` must compile without errors
+- Do not manually edit the generated V file; fix the transpiler source code
+
+---cut---
+##title: Fix compilation error in tests/translator/test_generators_slices.v
+##descr: The transpiler generates invalid V code for `tests/translator/test_generators_slices.v`. When compiling, V reports the following errors:
+
+```text
+test_generators_slices.v:3:1: builder error: cannot import module "ast" (not found)
+```
+
+### Task
+Investigate why the transpiler generates invalid V code for `test_generators_slices.py` and fix the underlying transpiler logic.
+
+### Requirements
+- The generated V file `test_generators_slices.v` must compile without errors
+- Do not manually edit the generated V file; fix the transpiler source code
+
+---cut---
+##title: Fix compilation error in tests/translator/test_pos_only.v
+##descr: The transpiler generates invalid V code for `tests/translator/test_pos_only.v`. When compiling, V reports the following errors:
+
+```text
+test_pos_only.v:3:1: builder error: cannot import module "pytest" (not found)
+```
+
+### Task
+Investigate why the transpiler generates invalid V code for `test_pos_only.py` and fix the underlying transpiler logic.
+
+### Requirements
+- The generated V file `test_pos_only.v` must compile without errors
+- Do not manually edit the generated V file; fix the transpiler source code
+
+---cut---
+##title: Fix compilation error in tests/translator/utils.v
+##descr: The transpiler generates invalid V code for `tests/translator/utils.v`. When compiling, V reports the following errors:
+
+```text
+utils.v:3:1: builder error: cannot import module "textwrap" (not found)
+```
+
+### Task
+Investigate why the transpiler generates invalid V code for `utils.py` and fix the underlying transpiler logic.
+
+### Requirements
+- The generated V file `utils.v` must compile without errors
+- Do not manually edit the generated V file; fix the transpiler source code
+
+---cut---
+##title: Fix compilation error in tests/translator/test_del.v
+##descr: The transpiler generates invalid V code for `tests/translator/test_del.v`. When compiling, V reports the following errors:
+
+```text
+test_del.v:6:29: error: mutable arguments are only allowed for arrays, interfaces, maps, pointers, structs or their aliases
+```
+
+### Task
+Investigate why the transpiler generates invalid V code for `test_del.py` and fix the underlying transpiler logic.
+
+### Requirements
+- The generated V file `test_del.v` must compile without errors
+- Do not manually edit the generated V file; fix the transpiler source code
+
+---cut---
+##title: Fix compilation error in tests/translator/test_fstrings_312_extra.v
+##descr: The transpiler generates invalid V code for `tests/translator/test_fstrings_312_extra.v`. When compiling, V reports the following errors:
+
+```text
+test_fstrings_312_extra.v:33:62: error: invalid character `\`
+```
+
+### Task
+Investigate why the transpiler generates invalid V code for `test_fstrings_312_extra.py` and fix the underlying transpiler logic.
+
+### Requirements
+- The generated V file `test_fstrings_312_extra.v` must compile without errors
+- Do not manually edit the generated V file; fix the transpiler source code
+
+---cut---
+##title: Fix compilation error in tests/translator/test_magic_methods.v
+##descr: The transpiler generates invalid V code for `tests/translator/test_magic_methods.v`. When compiling, V reports the following errors:
+
+```text
+test_magic_methods.v:3:1: builder error: cannot import module "ast" (not found)
+```
+
+### Task
+Investigate why the transpiler generates invalid V code for `test_magic_methods.py` and fix the underlying transpiler logic.
+
+### Requirements
+- The generated V file `test_magic_methods.v` must compile without errors
+- Do not manually edit the generated V file; fix the transpiler source code
+
+---cut---
+##title: Fix compilation error in tests/translator/test_inheritance.v
+##descr: The transpiler generates invalid V code for `tests/translator/test_inheritance.v`. When compiling, V reports the following errors:
+
+```text
+test_inheritance.v:3:1: builder error: cannot import module "ast" (not found)
+```
+
+### Task
+Investigate why the transpiler generates invalid V code for `test_inheritance.py` and fix the underlying transpiler logic.
+
+### Requirements
+- The generated V file `test_inheritance.v` must compile without errors
+- Do not manually edit the generated V file; fix the transpiler source code
+
+---cut---
+##title: Fix compilation error in tests/translator/test_functools.v
+##descr: The transpiler generates invalid V code for `tests/translator/test_functools.v`. When compiling, V reports the following errors:
+
+```text
+test_functools.v:7:29: error: mutable arguments are only allowed for arrays, interfaces, maps, pointers, structs or their aliases
+```
+
+### Task
+Investigate why the transpiler generates invalid V code for `test_functools.py` and fix the underlying transpiler logic.
+
+### Requirements
+- The generated V file `test_functools.v` must compile without errors
+- Do not manually edit the generated V file; fix the transpiler source code
+
+---cut---
+##title: Fix compilation error in tests/translator/test_array.v
+##descr: The transpiler generates invalid V code for `tests/translator/test_array.v`. When compiling, V reports the following errors:
+
+```text
+test_array.v:6:29: error: mutable arguments are only allowed for arrays, interfaces, maps, pointers, structs or their aliases
+```
+
+### Task
+Investigate why the transpiler generates invalid V code for `test_array.py` and fix the underlying transpiler logic.
+
+### Requirements
+- The generated V file `test_array.v` must compile without errors
+- Do not manually edit the generated V file; fix the transpiler source code
+
+---cut---
+##title: Fix compilation error in tests/translator/test_aug_assign.v
+##descr: The transpiler generates invalid V code for `tests/translator/test_aug_assign.v`. When compiling, V reports the following errors:
+
+```text
+test_aug_assign.v:5:29: error: mutable arguments are only allowed for arrays, interfaces, maps, pointers, structs or their aliases
+```
+
+### Task
+Investigate why the transpiler generates invalid V code for `test_aug_assign.py` and fix the underlying transpiler logic.
+
+### Requirements
+- The generated V file `test_aug_assign.v` must compile without errors
+- Do not manually edit the generated V file; fix the transpiler source code
+
+---cut---
+##title: Fix compilation error in tests/translator/test_kwargs_call.v
+##descr: The transpiler generates invalid V code for `tests/translator/test_kwargs_call.v`. When compiling, V reports the following errors:
+
+```text
+test_kwargs_call.v:3:1: builder error: cannot import module "pytest" (not found)
+```
+
+### Task
+Investigate why the transpiler generates invalid V code for `test_kwargs_call.py` and fix the underlying transpiler logic.
+
+### Requirements
+- The generated V file `test_kwargs_call.v` must compile without errors
+- Do not manually edit the generated V file; fix the transpiler source code
+
+---cut---
+##title: Fix compilation error in tests/translator/test_async_for.v
+##descr: The transpiler generates invalid V code for `tests/translator/test_async_for.v`. When compiling, V reports the following errors:
+
+```text
+test_async_for.v:10:8: error: function names cannot contain uppercase letters, use snake_case instead
+```
+
+### Task
+Investigate why the transpiler generates invalid V code for `test_async_for.py` and fix the underlying transpiler logic.
+
+### Requirements
+- The generated V file `test_async_for.v` must compile without errors
+- Do not manually edit the generated V file; fix the transpiler source code
+
+---cut---
+##title: Fix compilation error in tests/translator/test_type_alias_312.v
+##descr: The transpiler generates invalid V code for `tests/translator/test_type_alias_312.v`. When compiling, V reports the following errors:
+
+```text
+test_type_alias_312.v:11:8: error: function names cannot contain uppercase letters, use snake_case instead
+```
+
+### Task
+Investigate why the transpiler generates invalid V code for `test_type_alias_312.py` and fix the underlying transpiler logic.
+
+### Requirements
+- The generated V file `test_type_alias_312.v` must compile without errors
+- Do not manually edit the generated V file; fix the transpiler source code
+
+---cut---
+##title: Fix compilation error in tests/translator/test_socket.v
+##descr: The transpiler generates invalid V code for `tests/translator/test_socket.v`. When compiling, V reports the following errors:
+
+```text
+test_socket.v:7:29: error: mutable arguments are only allowed for arrays, interfaces, maps, pointers, structs or their aliases
+```
+
+### Task
+Investigate why the transpiler generates invalid V code for `test_socket.py` and fix the underlying transpiler logic.
+
+### Requirements
+- The generated V file `test_socket.v` must compile without errors
+- Do not manually edit the generated V file; fix the transpiler source code
+
+---cut---
+##title: Fix compilation error in tests/translator/test_builtins.v
+##descr: The transpiler generates invalid V code for `tests/translator/test_builtins.v`. When compiling, V reports the following errors:
+
+```text
+test_builtins.v:6:29: error: mutable arguments are only allowed for arrays, interfaces, maps, pointers, structs or their aliases
+```
+
+### Task
+Investigate why the transpiler generates invalid V code for `test_builtins.py` and fix the underlying transpiler logic.
+
+### Requirements
+- The generated V file `test_builtins.v` must compile without errors
+- Do not manually edit the generated V file; fix the transpiler source code
+
+---cut---
+##title: Fix compilation error in tests/translator/test_property_setter.v
+##descr: The transpiler generates invalid V code for `tests/translator/test_property_setter.v`. When compiling, V reports the following errors:
+
+```text
+test_property_setter.v:3:1: builder error: cannot import module "ast" (not found)
+```
+
+### Task
+Investigate why the transpiler generates invalid V code for `test_property_setter.py` and fix the underlying transpiler logic.
+
+### Requirements
+- The generated V file `test_property_setter.v` must compile without errors
+- Do not manually edit the generated V file; fix the transpiler source code
+
+---cut---
+##title: Fix compilation error in tests/translator/test_sort.v
+##descr: The transpiler generates invalid V code for `tests/translator/test_sort.v`. When compiling, V reports the following errors:
+
+```text
+test_sort.v:46:28: error: use assignment `=` instead of declaration `:=` when modifying struct fields
+```
+
+### Task
+Investigate why the transpiler generates invalid V code for `test_sort.py` and fix the underlying transpiler logic.
+
+### Requirements
+- The generated V file `test_sort.v` must compile without errors
+- Do not manually edit the generated V file; fix the transpiler source code
+
+---cut---
+##title: Fix compilation error in tests/translator/test_pow.v
+##descr: The transpiler generates invalid V code for `tests/translator/test_pow.v`. When compiling, V reports the following errors:
+
+```text
+test_pow.v:3:8: error: function names cannot contain uppercase letters, use snake_case instead
+```
+
+### Task
+Investigate why the transpiler generates invalid V code for `test_pow.py` and fix the underlying transpiler logic.
+
+### Requirements
+- The generated V file `test_pow.v` must compile without errors
+- Do not manually edit the generated V file; fix the transpiler source code
+
+---cut---
