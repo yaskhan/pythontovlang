@@ -1144,6 +1144,53 @@ mut:
     return res
 }""")
 
+        if "py_set_union" in self.used_builtins:
+             self.emitter.add_helper_function("""fn py_set_union[K](a map[K]bool, b map[K]bool) map[K]bool {
+    mut res := a.clone()
+    for k, v in b {
+        res[k] = v
+    }
+    return res
+}""")
+
+        if "py_set_intersection" in self.used_builtins:
+             self.emitter.add_helper_function("""fn py_set_intersection[K](a map[K]bool, b map[K]bool) map[K]bool {
+    mut res := map[K]bool{}
+    for k, _ in a {
+        if k in b {
+            res[k] = true
+        }
+    }
+    return res
+}""")
+
+        if "py_set_difference" in self.used_builtins:
+             self.emitter.add_helper_function("""fn py_set_difference[K](a map[K]bool, b map[K]bool) map[K]bool {
+    mut res := map[K]bool{}
+    for k, _ in a {
+        if k !in b {
+            res[k] = true
+        }
+    }
+    return res
+}""")
+
+        if "py_set_xor" in self.used_builtins:
+             self.emitter.add_helper_function("""fn py_set_xor[K](a map[K]bool, b map[K]bool) map[K]bool {
+    mut res := map[K]bool{}
+    for k, _ in a {
+        if k !in b {
+            res[k] = true
+        }
+    }
+    for k, _ in b {
+        if k !in a {
+            res[k] = true
+        }
+    }
+    return res
+}""")
+
         if "py_dict_residual" in self.used_builtins:
             self.emitter.add_helper_function("""fn py_dict_residual[K, V](m map[K]V, exclude []K) map[K]Any {
     mut res := map[K]Any{}
