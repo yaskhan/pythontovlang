@@ -103,13 +103,23 @@ class PydanticModelProcessor:
         struct_def.append("}")
 
         # Register the class in translator so it knows it exists
-        self.visitor.defined_classes[struct_name] = {"has_init": False, "has_new": False}
+        has_manual_init = any(isinstance(m, ast.FunctionDef) and m.name == "__init__" for m in methods)
+        self.visitor.defined_classes[struct_name] = {
+            "has_init": has_manual_init,
+            "has_new": False,
+            "is_pydantic": True
+        }
         self.visitor.emitter.add_struct("\n".join(struct_def))
 
         # Generate Validation Method
         validation_code = self._generate_validate_method(struct_name, fields, validators, export, config)
         if validation_code:
             self.visitor.emitter.add_function(validation_code)
+
+        # Generate Factory Method if no manual __init__
+        if not has_manual_init:
+            factory_code = self._generate_factory_method(struct_name, fields, export)
+            self.visitor.emitter.add_function(factory_code)
 
         # We also need to visit methods, if any. We let the normal visitor handle methods,
         # but we pretend we are in this class.
@@ -187,5 +197,36 @@ class PydanticModelProcessor:
         if not has_validation and not (config and config.validate_all):
             return ""
 
+        code.append("}")
+        return "\n".join(code)
+
+    def _generate_factory_method(self, struct_name: str, fields: List[PydanticFieldInfo], export: str) -> str:
+        """Generates a new_StructName factory function."""
+        factory_name = self.visitor._get_factory_name(struct_name)
+        required = [f for f in fields if not f.default_val]
+        optional = [f for f in fields if f.default_val]
+
+        args = []
+        for f in required:
+            args.append(f"{f.name} {f.type_str}")
+
+        # Modern V supports default values in function signatures.
+        for f in optional:
+            dv = f.default_val if f.default_val else "none"
+            args.append(f"{f.name} {f.type_str} = {dv}")
+
+        args_str = ", ".join(args)
+        code = [
+            f"// {factory_name} creates a new {struct_name} and validates it.",
+            f"{export}fn {factory_name}({args_str}) !{struct_name} {{",
+            f"    mut self := {struct_name}{{",
+        ]
+
+        for f in fields:
+            code.append(f"        {f.name}: {f.name}")
+
+        code.append("    }")
+        code.append('    self.validate() or { return error("Validation failed: ${err}") }')
+        code.append("    return self")
         code.append("}")
         return "\n".join(code)
