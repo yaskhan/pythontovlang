@@ -128,7 +128,19 @@ class ExceptionsMixin(TranslatorBase):
                  if handler_opened_block:
                       self._indent_level += 1
                  if handler.name:
-                      self.output.append(f"{self._indent()}{handler.name} := {exc_var}")
+                      # Try to narrow type for exception variable using mypy data
+                      narrowed_type = None
+                      if hasattr(handler, 'lineno'):
+                           # Mypy plugin stores narrowed types with @line:* suffix for blocks
+                           loc_key = f"{handler.name}@{handler.lineno}:*"
+                           narrowed_type = self.type_inference.type_map.get(loc_key)
+
+                      if narrowed_type and narrowed_type not in ("Exception", "Any", "vexc.Exception", "none"):
+                           # Ensure the type is correctly mapped to V
+                           v_type = self._map_type(narrowed_type)
+                           self.output.append(f"{self._indent()}{handler.name} := {exc_var} as {v_type}")
+                      else:
+                           self.output.append(f"{self._indent()}{handler.name} := {exc_var}")
 
                  for stmt in handler.body:
                       self.visit(stmt)
