@@ -71,3 +71,19 @@ print(z)
     assert "fn main() {" in result
     assert "x := 1" in result
     assert "z := add(x, y)" in result
+
+def test_translator_function_with_args_and_kwargs():
+    parser = PyASTParser()
+    analyzer = TypeInference()
+    translator = VNodeVisitor(analyzer)
+
+    code = """
+def wrapper(*args, **kwargs):
+    pass
+"""
+    tree = parser.parse(code)
+    analyzer.analyze(tree)
+    result = translator.visit_Module(tree)
+
+    assert "//##LLM@@ Function `wrapper` has both *args and **kwargs. V requires the variadic parameter (...args) to be the final parameter. Please reorder the parameters so that the variadic parameter is last, and update all calls to this function accordingly." in result
+    assert "fn wrapper(args ...int, kwargs map[string]string)" in result

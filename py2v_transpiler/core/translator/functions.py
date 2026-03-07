@@ -464,6 +464,10 @@ class FunctionsMixin(TranslatorBase):
             args_str_list.append(f"{arg_name} ...{arg_type}")
             args_names.append(arg_name)
 
+        if getattr(node, "args", None) and getattr(node.args, "vararg", None) and getattr(node.args, "kwarg", None):
+            llm_comment = f"//##LLM@@ Function `{original_node_name}` has both *args and **kwargs. V requires the variadic parameter (...args) to be the final parameter. Please reorder the parameters so that the variadic parameter is last, and update all calls to this function accordingly."
+            self.output.append(llm_comment)
+
         if node.args.kwarg:
             arg_name = self._sanitize_name(node.args.kwarg.arg)
             arg_type = "map[string]string"
