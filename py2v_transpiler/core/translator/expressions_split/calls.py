@@ -698,6 +698,23 @@ class CallsMixin(TranslatorBase):
             elif func_node.attr == "clear":
                 obj = self.visit(func_node.value)
                 return f"/* {obj}.clear() */ {obj} = {{}}"
+            elif func_node.attr in ("read", "write", "close"):
+                obj_type = self._guess_type(func_node.value)
+                if obj_type == "os.File" or obj_type == "Any":
+                    obj = self.visit(func_node.value)
+                    if func_node.attr == "read":
+                        return f"{obj}.read() or {{ panic(err) }}"
+                    elif func_node.attr == "write":
+                        if len(args) >= 1:
+                            arg_type = self._guess_type(node.args[0])
+                            write_arg = args[0]
+                            if arg_type == "string":
+                                write_arg = f"{write_arg}.bytes()"
+                            return f"{obj}.write({write_arg}) or {{ panic(err) }}"
+                        return f"{obj}.write() or {{ panic(err) }}"
+                    else:
+                        # close
+                        return f"{obj}.close() or {{ panic(err) }}"
 
         # Handle list.sort(reverse=True)
         if isinstance(func_node, ast.Attribute) and func_node.attr == "sort":

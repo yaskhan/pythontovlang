@@ -602,6 +602,7 @@ class TranslatorBase(ast.NodeVisitor):
                 if fid == "bool": return "bool"
                 if fid == "len": return "int"
                 if fid == "input": return "string"
+                if fid == "open": return "os.File"
                 if fid in ("bytearray", "memoryview", "bytes"): return "[]u8"
                 if fid in ("isinstance", "hasattr", "getattr", "setattr"): return "bool"
                 if fid in ("bytes", "bytearray", "memoryview"): return "[]u8"
@@ -619,6 +620,8 @@ class TranslatorBase(ast.NodeVisitor):
 
             elif isinstance(node.func, ast.Attribute) and node.func.attr == "bytes":
                 return "[]u8"
+            elif isinstance(node.func, ast.Attribute) and node.func.attr == "open" and isinstance(node.func.value, ast.Name) and node.func.value.id == "os":
+                return "os.File"
         elif isinstance(node, (ast.List, ast.Tuple)):
             if not node.elts:
                 return "[]Any"
