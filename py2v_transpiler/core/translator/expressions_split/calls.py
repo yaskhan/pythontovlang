@@ -249,10 +249,11 @@ class CallsMixin(TranslatorBase):
                 method_name = func_node.attr
                 if self.current_class_bases:
                     parent = self.current_class_bases[0]
+                    field_name = parent.lower() if parent in self.current_class_generic_bases else parent
                     if method_name == "__init__":
                         factory_name = self._get_factory_name(parent)
-                        return f"self.{parent} = {factory_name}({', '.join(args)})"
-                    return f"self.{parent}.{method_name}({', '.join(args)})"
+                        return f"self.{field_name} = {factory_name}({', '.join(args)})"
+                    return f"self.{field_name}.{method_name}({', '.join(args)})"
                 else:
                     return f"/* super().{method_name} call without known parent */"
 
@@ -264,7 +265,8 @@ class CallsMixin(TranslatorBase):
                     if len(args) >= 1 and args[0] == "self":
                         base_args = args[1:]
                         factory_name = self._get_factory_name(class_name)
-                        return f"self.{class_name} = {factory_name}({', '.join(base_args)})"
+                        field_name = class_name.lower() if class_name in self.current_class_generic_bases else class_name
+                        return f"self.{field_name} = {factory_name}({', '.join(base_args)})"
 
         # Handle unittest assertions
         # Strictly check for self.assertX if possible to avoid regressions

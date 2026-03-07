@@ -53,3 +53,30 @@ p.move(3, 4)
 
     assert "p := Point(1, 2)" in result
     assert "p.move(3, 4)" in result
+
+def test_translator_inheritance():
+    parser = PyASTParser()
+    analyzer = TypeInference()
+    translator = VNodeVisitor(analyzer)
+
+    code = """
+class Base:
+    def __init__(self, x: int):
+        self.x = x
+
+class Derived(Base):
+    def __init__(self, x: int, y: int):
+        super().__init__(x)
+        self.y = y
+"""
+    tree = parser.parse(code)
+    analyzer.analyze(tree)
+    result = translator.visit_Module(tree)
+
+    # Check anonymous embedding
+    assert "struct Derived {" in result
+    assert "    Base" in result
+    assert "    y int" in result
+
+    # Check super().__init__ calls anonymous Base
+    assert "self.Base = new_base(x)" in result
