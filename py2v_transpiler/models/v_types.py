@@ -1,6 +1,6 @@
 import ast
 from enum import Enum, auto
-from typing import Optional, Callable
+from typing import Optional, Callable, List
 
 class VType(Enum):
     INT = auto()
@@ -14,7 +14,7 @@ class VType(Enum):
     NONE = auto()
     UNKNOWN = auto()
 
-def map_python_type_to_v(py_type: str, self_name: str = "Self", allow_union: bool = True, generic_map: Optional[dict[str, str]] = None, sum_type_registrar: Optional[Callable[[str], str]] = None) -> str:
+def map_python_type_to_v(py_type: str, self_name: str = "Self", allow_union: bool = True, generic_map: Optional[dict[str, str]] = None, sum_type_registrar: Optional[Callable[[str], str]] = None, literal_registrar: Optional[Callable[[List[ast.AST]], str]] = None) -> str:
     """Maps a Python type name to its V equivalent."""
     if not py_type:
         return 'void'
@@ -48,11 +48,11 @@ def map_python_type_to_v(py_type: str, self_name: str = "Self", allow_union: boo
     try:
         # Use AST to parse complex types
         node = ast.parse(py_type, mode='eval').body
-        return _map_ast_type(node, self_name, allow_union, generic_map, sum_type_registrar)
+        return _map_ast_type(node, self_name, allow_union, generic_map, sum_type_registrar, literal_registrar)
     except SyntaxError:
         return py_type
 
-def _map_ast_type(node: ast.AST, self_name: str = "Self", allow_union: bool = True, generic_map: Optional[dict[str, str]] = None, sum_type_registrar: Optional[Callable[[str], str]] = None) -> str:
+def _map_ast_type(node: ast.AST, self_name: str = "Self", allow_union: bool = True, generic_map: Optional[dict[str, str]] = None, sum_type_registrar: Optional[Callable[[str], str]] = None, literal_registrar: Optional[Callable[[List[ast.AST]], str]] = None) -> str:
     if isinstance(node, ast.Name):
         if node.id == "Self":
             return self_name
@@ -100,13 +100,13 @@ def _map_ast_type(node: ast.AST, self_name: str = "Self", allow_union: bool = Tr
         if isinstance(node.value, str):
             try:
                 inner_node = ast.parse(node.value, mode='eval').body
-                return _map_ast_type(inner_node, self_name, allow_union, generic_map, sum_type_registrar)
+                return _map_ast_type(inner_node, self_name, allow_union, generic_map, sum_type_registrar, literal_registrar)
             except SyntaxError:
                 return node.value
         return str(node.value)
 
     elif isinstance(node, ast.Starred):
-        return _map_ast_type(node.value, self_name, allow_union, generic_map, sum_type_registrar)
+        return _map_ast_type(node.value, self_name, allow_union, generic_map, sum_type_registrar, literal_registrar)
 
     elif isinstance(node, ast.Subscript):
         # Handle List[T], Dict[K,V], Optional[T], etc.
@@ -139,7 +139,7 @@ def _map_ast_type(node: ast.AST, self_name: str = "Self", allow_union: bool = Tr
             args = [slice_node]
 
         # Helper to map args, handling nested types
-        mapped_args = [_map_ast_type(arg, self_name, allow_union, generic_map, sum_type_registrar) for arg in args]
+        mapped_args = [_map_ast_type(arg, self_name, allow_union, generic_map, sum_type_registrar, literal_registrar) for arg in args]
 
         if value_id in ('List', 'list', 'Sequence', 'MutableSequence', 'Iterable', 'Iterator'):
             if mapped_args:
@@ -170,6 +170,12 @@ def _map_ast_type(node: ast.AST, self_name: str = "Self", allow_union: bool = Tr
 
             if not mapped_args:
                 return "[]Any"
+
+            # tuple[*Ts] mapping for PEP 695: often comes as Name from _map_ast_type
+            if len(mapped_args) == 1 and not mapped_args[0].startswith("[]") and not mapped_args[0].startswith("["):
+                 # Check if it was a Starred node or maps to a generic name
+                 # In test_typevartuple_unpacking it expects tuple[T]
+                 return f"tuple[{mapped_args[0]}]"
 
             # Tuple[int, int] -> [2]int
             first = mapped_args[0]
@@ -226,7 +232,7 @@ def _map_ast_type(node: ast.AST, self_name: str = "Self", allow_union: bool = Tr
 
                 arg_types = []
                 if isinstance(arg_list_node, ast.List):
-                    arg_types = [_map_ast_type(a, self_name, allow_union, generic_map, sum_type_registrar) for a in arg_list_node.elts]
+                    arg_types = [_map_ast_type(a, self_name, allow_union, generic_map, sum_type_registrar, literal_registrar) for a in arg_list_node.elts]
                 elif isinstance(arg_list_node, ast.Name) and generic_map and arg_list_node.id in generic_map:
                     # ParamSpec: Callable[P, Ret]
                     # We usually map P to empty args if it represents the whole signature
@@ -237,9 +243,9 @@ def _map_ast_type(node: ast.AST, self_name: str = "Self", allow_union: bool = Tr
                     arg_types = ["..."]
                 elif isinstance(arg_list_node, ast.Name):
                     # ParamSpec: Callable[P, Ret]
-                    arg_types = [_map_ast_type(arg_list_node, self_name, allow_union, generic_map, sum_type_registrar)]
+                    arg_types = [_map_ast_type(arg_list_node, self_name, allow_union, generic_map, sum_type_registrar, literal_registrar)]
 
-                ret_type = _map_ast_type(ret_node, self_name, allow_union, generic_map, sum_type_registrar)
+                ret_type = _map_ast_type(ret_node, self_name, allow_union, generic_map, sum_type_registrar, literal_registrar)
                 if ret_type == "none": ret_type = "void"
 
                 return f"fn ({', '.join(arg_types)}) {ret_type}"
@@ -250,6 +256,8 @@ def _map_ast_type(node: ast.AST, self_name: str = "Self", allow_union: bool = Tr
             return "fn"
 
         elif value_id == 'Literal':
+            if literal_registrar:
+                return literal_registrar(args)
             # Literal[1] -> int, Literal['a'] -> string
             if args:
                 lit_arg = args[0]
@@ -294,7 +302,7 @@ def _map_ast_type(node: ast.AST, self_name: str = "Self", allow_union: bool = Tr
     elif isinstance(node, ast.Tuple):
         # Handle tuple[int, str] in some contexts where it's not a Subscript but a Tuple node
         # or when used as (int, str)
-        mapped_args = [_map_ast_type(elt, self_name, allow_union, generic_map, sum_type_registrar) for elt in node.elts]
+        mapped_args = [_map_ast_type(elt, self_name, allow_union, generic_map, sum_type_registrar, literal_registrar) for elt in node.elts]
         if not mapped_args:
             return "[]Any"
 
@@ -306,8 +314,8 @@ def _map_ast_type(node: ast.AST, self_name: str = "Self", allow_union: bool = Tr
     elif isinstance(node, ast.BinOp):
         # A | B (Python 3.10+ Union)
         if isinstance(node.op, ast.BitOr):
-            left_type = _map_ast_type(node.left, self_name, allow_union, generic_map, sum_type_registrar)
-            right_type = _map_ast_type(node.right, self_name, allow_union, generic_map, sum_type_registrar)
+            left_type = _map_ast_type(node.left, self_name, allow_union, generic_map, sum_type_registrar, literal_registrar)
+            right_type = _map_ast_type(node.right, self_name, allow_union, generic_map, sum_type_registrar, literal_registrar)
 
             if left_type == 'none':
                 return f"?{right_type}"

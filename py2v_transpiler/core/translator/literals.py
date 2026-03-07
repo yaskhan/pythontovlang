@@ -5,6 +5,14 @@ from .base import TranslatorBase
 class LiteralsMixin(TranslatorBase):
     def visit_Constant(self, node: ast.Constant) -> str:
         val = node.value
+
+        # Check if we are assigning to a LiteralEnum
+        target_type = getattr(self, "current_assignment_type", None)
+        if target_type and target_type in self._literal_enum_values:
+            val_map = self._literal_enum_values[target_type]
+            if val in val_map:
+                return f".{val_map[val]}"
+
         if isinstance(val, str):
             # Check for backslashes to decide if raw string is beneficial
             # Python AST usually resolves escape sequences in string literals.
