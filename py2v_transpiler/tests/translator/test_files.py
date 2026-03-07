@@ -20,10 +20,7 @@ f.close()
 
     assert 'import os' in result
     assert "f := os.open('test.txt')" in result.replace('"', "'")
-    # Method call remains as is because we don't map methods yet
-    # But V os.File has read_bytes not read().
-    # However, for now we map function calls. Method calls are left as is mostly.
-    assert "content := f.read()" in result
+    assert "content := py_file_read_all(mut f)" in result
 
 def test_with_open():
     parser = PyASTParser()
@@ -41,4 +38,4 @@ with open('data.json') as f:
     assert 'import os' in result
     assert "f := os.open('data.json')" in result.replace('"', "'")
     assert "defer { f.close() }" in result
-    assert "data := f.read()" in result
+    assert "data := py_file_read_all(mut f)" in result

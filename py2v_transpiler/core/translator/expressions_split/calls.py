@@ -104,9 +104,23 @@ class CallsMixin(TranslatorBase):
              # Handle open() -> os.open()
              self.emitter.add_import("os")
              if len(args) >= 1:
-                 # In V: os.open(path) returns ?File, so we unwrap it.
-                 # Assuming read mode for simplicity as mapped from open(path)
-                 return f"os.open({args[0]}) or {{ panic(err) }}"
+                 path = args[0]
+                 mode = ""
+                 if len(node.args) > 1:
+                     mode_node = node.args[1]
+                     if isinstance(mode_node, ast.Constant) and isinstance(mode_node.value, str):
+                         mode = mode_node.value
+                 elif len(node.keywords) > 0:
+                     for kw in node.keywords:
+                         if kw.arg == "mode" and isinstance(kw.value, ast.Constant) and isinstance(kw.value.value, str):
+                             mode = kw.value.value
+
+                 if "w" in mode:
+                     return f"os.create({path}) or {{ panic(err) }}"
+                 elif "a" in mode:
+                     return f"os.open_append({path}) or {{ panic(err) }}"
+                 else:
+                     return f"os.open({path}) or {{ panic(err) }}"
 
         if module_name == "builtins":
             if func_name == "hasattr":
@@ -740,21 +754,40 @@ class CallsMixin(TranslatorBase):
                 return f"/* {obj}.clear() */ {obj} = {{}}"
             elif func_node.attr in ("read", "write", "close"):
                 obj_type = self._guess_type(func_node.value)
-                if obj_type == "os.File" or obj_type == "Any":
+                # Optimization: open(path).read() -> os.read_file(path)
+                if isinstance(func_node.value, ast.Call):
+                    inner = func_node.value
+                    if isinstance(inner.func, ast.Name) and inner.func.id == "open" and len(inner.args) >= 1:
+                        path_expr = self.visit(inner.args[0])
+                        if func_node.attr == "read" and len(args) == 0:
+                            return f"os.read_file({path_expr}) or {{ panic(err) }}"
+                        elif func_node.attr == "write" and len(args) == 1:
+                            return f"os.write_file({path_expr}, {args[0]}) or {{ panic(err) }}"
+
+                # Heuristic for os.File
+                is_file = obj_type == "os.File" or (isinstance(func_node.value, ast.Name) and func_node.value.id in ("f", "fp", "file"))
+
+                if is_file:
                     obj = self.visit(func_node.value)
                     if func_node.attr == "read":
-                        return f"{obj}.read() or {{ panic(err) }}"
+                        if len(args) == 1:
+                            # Python f.read(size) -> V f.read_bytes(size).bytestr()
+                            return f"{obj}.read_bytes({args[0]}).bytestr()"
+                        else:
+                            # Python f.read() -> py_file_read_all(mut f)
+                            self.used_builtins.add("py_file_read_all")
+                            return f"py_file_read_all(mut {obj})"
                     elif func_node.attr == "write":
                         if len(args) >= 1:
                             arg_type = self._guess_type(node.args[0])
                             write_arg = args[0]
                             if arg_type == "string":
-                                write_arg = f"{write_arg}.bytes()"
+                                return f"{obj}.write_string({write_arg}) or {{ panic(err) }}"
                             return f"{obj}.write({write_arg}) or {{ panic(err) }}"
-                        return f"{obj}.write() or {{ panic(err) }}"
+                        return f"0"
                     else:
                         # close
-                        return f"{obj}.close() or {{ panic(err) }}"
+                        return f"{obj}.close()"
 
         # Handle list.sort(reverse=True)
         if isinstance(func_node, ast.Attribute) and func_node.attr == "sort":
