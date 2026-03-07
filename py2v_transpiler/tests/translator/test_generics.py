@@ -1,4 +1,6 @@
 import ast
+import sys
+import pytest
 from py2v_transpiler.core.parser import PyASTParser
 from py2v_transpiler.core.analyzer import TypeInference
 from py2v_transpiler.core.translator import VNodeVisitor
@@ -61,6 +63,7 @@ class Derived(Base):
     # Non-generic should use anonymous embedding (indented name on its own line)
     assert "    Base" in v_code
 
+@pytest.mark.skipif(sys.version_info < (3, 12), reason="Modern generic syntax [T] requires Python 3.12+")
 def test_modern_generic_syntax():
     source = """
 class Base[T]:
