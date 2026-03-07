@@ -522,7 +522,7 @@ class FunctionsMixin(TranslatorBase):
                 pass
 
         if not is_unittest_method:
-            func_name = self._sanitize_name(node.name)
+            func_name = node.name
             if original_node_name == "__new__":
                 func_name = self._get_factory_name(struct_name)
 
@@ -554,8 +554,6 @@ class FunctionsMixin(TranslatorBase):
                     node, struct_name, is_method, dec_info, is_generator
                 )
                 return
-
-            self.function_names.add(func_name)
 
             # Descriptor protocol renaming
             if func_name == "__get__":
@@ -687,6 +685,12 @@ class FunctionsMixin(TranslatorBase):
             # For now, let's use 'iter'
             func_name = "iter"
             decl = f"{noreturn_attr}{deprecated_attr}fn {receiver_str}{func_name}{func_generics_str}({args_str}) {ret_type} {{"
+
+        if not is_unittest_method and not func_name in ("+", "-", "*", "/", "%", "<", "<=", "==", "!=", "str", "repr", "iter", "next", "enter", "exit"):
+             func_name = self._sanitize_name(func_name)
+
+        if not is_unittest_method:
+             self.function_names.add(func_name)
 
         # PEP 702: Add [deprecated] attribute for @warnings.deprecated decorator
         deprecated_attr = ""

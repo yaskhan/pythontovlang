@@ -175,7 +175,9 @@ def _map_ast_type(node: ast.AST, self_name: str = "Self", allow_union: bool = Tr
             if len(mapped_args) == 1 and not mapped_args[0].startswith("[]") and not mapped_args[0].startswith("["):
                  # Check if it was a Starred node or maps to a generic name
                  # In test_typevartuple_unpacking it expects tuple[T]
-                 return f"tuple[{mapped_args[0]}]"
+                 if mapped_args[0] in ('T', 'U', 'S', 'P', 'R', 'K', 'V'):
+                      return f"[1]{mapped_args[0]}"
+                 return f"[1]{mapped_args[0]}"
 
             # Tuple[int, int] -> [2]int
             first = mapped_args[0]
