@@ -1,6 +1,8 @@
 
 import unittest
 import ast
+import sys
+import pytest
 from py2v_transpiler.core.translator import VNodeVisitor
 from py2v_transpiler.core.analyzer import TypeInference
 
@@ -17,6 +19,7 @@ class TestTypeParamsRuntime(unittest.TestCase):
         self.translator.visit(tree)
         return self.translator.emitter.emit()
 
+    @pytest.mark.skipif(sys.version_info < (3, 12), reason="PEP 695 requires Python 3.12+")
     def test_class_type_params(self):
         source = """
 class MyGeneric[T, U]:
@@ -27,6 +30,7 @@ print(MyGeneric.__type_params__)
         result = self.transpile(source)
         self.assertIn("['T', 'U']", result)
 
+    @pytest.mark.skipif(sys.version_info < (3, 12), reason="PEP 695 requires Python 3.12+")
     def test_function_type_params(self):
         source = """
 def my_func[T](x: T):
@@ -37,6 +41,7 @@ print(my_func.__type_params__)
         result = self.transpile(source)
         self.assertIn("['T']", result)
 
+    @pytest.mark.skipif(sys.version_info < (3, 12), reason="PEP 695 requires Python 3.12+")
     def test_specialized_class_type_params(self):
         source = """
 class G[T]:
@@ -47,6 +52,7 @@ print(G[int].__type_params__)
         result = self.transpile(source)
         self.assertIn("['T']", result)
 
+    @pytest.mark.skipif(sys.version_info < (3, 12), reason="PEP 695 requires Python 3.12+")
     def test_type_alias_type_params(self):
         source = """
 type MyAlias[T] = list[T]
