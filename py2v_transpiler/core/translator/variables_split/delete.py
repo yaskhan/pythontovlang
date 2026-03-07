@@ -14,9 +14,9 @@ class DeleteMixin(TranslatorBase):
                 index = self.visit(target.slice)
                 self.output.append(f"{self._indent()}{value}.delete({index})")
             elif isinstance(target, ast.Name):
-                self.output.append(f"{self._indent()}/* del {target.id} */")
+                self.output.append(f"{self._indent()}//##LLM@@ 'del {target.id}' statement ignored. V does not support deleting variables from scope. Please refactor if this deletion is semantically important.")
             elif isinstance(target, ast.Attribute):
                 value = self.visit(target.value)
-                self.output.append(f"{self._indent()}/* del {value}.{target.attr} */")
+                self.output.append(f"{self._indent()}//##LLM@@ 'del {value}.{target.attr}' statement ignored. V does not support deleting struct attributes. Please refactor.")
             else:
-                self.output.append(f"{self._indent()}// del statement with unsupported target type")
+                self.output.append(f"{self._indent()}//##LLM@@ 'del' statement with unsupported target type. Please manually implement the required deletion logic.")

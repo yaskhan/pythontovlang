@@ -36,7 +36,7 @@ x = 1
 del x
 """
     v_code = translate(source)
-    assert "/* del x */" in v_code
+    assert "//##LLM@@ 'del x' statement ignored" in v_code
 
 def test_del_attribute():
     source = """
@@ -44,4 +44,4 @@ obj.attr = 1
 del obj.attr
 """
     v_code = translate(source)
-    assert "/* del obj.attr */" in v_code
+    assert "//##LLM@@ 'del obj.attr' statement ignored" in v_code

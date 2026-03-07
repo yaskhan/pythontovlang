@@ -73,7 +73,7 @@ from typing import LiteralString
 s: LiteralString = input("Enter SQL: ")
 """
     v_code = transpile(code)
-    assert "WARNING: LiteralString variable 's' receives value from input()" in v_code
+    assert "//##LLM@@ LiteralString variable 's' receives value from input()" in v_code
 
 def test_literal_string_complex_concatenation():
     code = """

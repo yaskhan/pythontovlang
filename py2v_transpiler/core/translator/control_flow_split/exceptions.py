@@ -65,7 +65,7 @@ class ExceptionsMixin(TranslatorBase):
                 if has_continue: break
 
             if has_continue:
-                self.output.append(f"{self._indent()}// Warning: 'continue' in 'finally' detected. 'defer' cannot be used.")
+                self.output.append(f"{self._indent()}//##LLM@@ 'continue' inside 'finally' block detected. V's 'defer' cannot be used here. The 'finally' logic has been inlined, but please review to ensure correct control flow.")
             else:
                 self.output.append(f"{self._indent()}{{")
                 self.output.append(f"{self._indent()}    defer {{")
