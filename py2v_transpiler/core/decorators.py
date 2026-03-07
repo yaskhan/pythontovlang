@@ -8,7 +8,6 @@ class DecoratorInfo:
     is_property: bool = False
     is_setter: bool = False
     is_classmethod: bool = False
-    is_abstract: bool = False
     decorators_to_handle: List[str] = field(default_factory=list)
     cache_wrapper_needed: bool = False
     cache_map_name: Optional[str] = None
@@ -35,10 +34,10 @@ class DecoratorProcessor:
             if PydanticDetector.is_validator_decorator(decorator):
                 # We can handle or flag validator decorators here
                 # For now, just mark it so it doesn't get ignored
-                info.decorators_to_handle.append(self._get_decorator_name(decorator))
+                info.decorators_to_handle.append(self.get_decorator_name(decorator))
                 continue
 
-            dec_name = self._get_decorator_name(decorator)
+            dec_name = self.get_decorator_name(decorator)
 
             if dec_name == "computed_field":
                 if self.visitor and hasattr(self.visitor, "output"):
@@ -46,22 +45,12 @@ class DecoratorProcessor:
                 info.decorators_to_handle.append(dec_name)
                 continue
 
-            if dec_name == "staticmethod":
+            if dec_name in ("staticmethod", "abstractstaticmethod"):
                 info.is_static = True
                 info.decorators_to_handle.append(dec_name)
-            elif dec_name == "classmethod":
+            elif dec_name in ("classmethod", "abstractclassmethod"):
                 info.is_classmethod = True
                 info.is_static = True # Treat as static method in V (no receiver)
-                info.decorators_to_handle.append(dec_name)
-            elif dec_name in ("abstractmethod", "abstractclassmethod", "abstractstaticmethod", "abstractproperty") or (dec_name.startswith("abc.") and dec_name.split(".")[-1] in ("abstractmethod", "abstractclassmethod", "abstractstaticmethod", "abstractproperty")):
-                info.is_abstract = True
-                if "classmethod" in dec_name:
-                    info.is_classmethod = True
-                    info.is_static = True
-                elif "staticmethod" in dec_name:
-                    info.is_static = True
-                elif "property" in dec_name:
-                    info.is_property = True
                 info.decorators_to_handle.append(dec_name)
             elif dec_name == "property":
                 info.is_property = True
@@ -110,11 +99,11 @@ class DecoratorProcessor:
 
         return info
 
-    def _get_decorator_name(self, node: ast.AST) -> str:
+    def get_decorator_name(self, node: ast.AST) -> str:
         if isinstance(node, ast.Name):
             return node.id
         elif isinstance(node, ast.Call):
-            return self._get_decorator_name(node.func)
+            return self.get_decorator_name(node.func)
         elif isinstance(node, ast.Attribute):
             return node.attr
         return ""
