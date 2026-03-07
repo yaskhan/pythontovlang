@@ -103,9 +103,9 @@ def test(x: str | int):
         v_code = translator.emitter.emit()
 
         # First print should have cast or narrowing
-        assert "(x as string).upper()" in v_code
+        assert "(narrowed_x as string).upper()" in v_code
         # Second print should NOT have string cast
-        assert "(x as string) + 1" not in v_code
+        assert "(narrowed_x as string) + 1" not in v_code
         assert "x + 1" in v_code
 
 if __name__ == '__main__':
