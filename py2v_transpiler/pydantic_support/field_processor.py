@@ -98,6 +98,8 @@ class PydanticFieldProcessor:
             elif keyword.arg == "default":
                 if val != "none": # none in V is usually no default or optional
                     info.default_val = val
+            elif keyword.arg == "default_factory":
+                self.visitor.output.append(f"//##LLM@@ Pydantic 'Field(default_factory=...)' detected on field '{info.name}'. This is not fully supported by the transpiler. Please manually initialize the default value in the V struct or factory.")
             elif keyword.arg == "gt":
                 info.gt = val
             elif keyword.arg == "lt":

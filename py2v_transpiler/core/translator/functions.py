@@ -464,6 +464,10 @@ class FunctionsMixin(TranslatorBase):
             args_str_list.append(f"{arg_name} ...{arg_type}")
             args_names.append(arg_name)
 
+        if getattr(node, "args", None) and getattr(node.args, "vararg", None) and getattr(node.args, "kwarg", None):
+            llm_comment = f"//##LLM@@ Function `{original_node_name}` has both *args and **kwargs. V requires the variadic parameter (...args) to be the final parameter. Please reorder the parameters so that the variadic parameter is last, and update all calls to this function accordingly."
+            self.output.append(llm_comment)
+
         if node.args.kwarg:
             arg_name = self._sanitize_name(node.args.kwarg.arg)
             arg_type = "map[string]string"
@@ -1007,6 +1011,11 @@ class FunctionsMixin(TranslatorBase):
                 func_name = op_str
 
             self.function_names.add(func_name)
+
+            if type_suffix_parts:
+                self.output.append(f"//##LLM@@ This function is an overloaded variant. The generated name `{func_name}` might be long or unidiomatic. Please review and refactor to use a simpler name, or consolidate using a single function with sum type arguments where appropriate.")
+            elif len(func_name) > 30:
+                self.output.append(f"//##LLM@@ The generated function name `{func_name}` is unusually long. Please review and refactor to use a simpler, more idiomatic V name if possible.")
 
             pub_prefix = ""
             is_nested = len(self._scope_stack) > 0

@@ -240,7 +240,7 @@ class LoopsMixin(TranslatorBase):
                          if target.startswith("[") and target.endswith("]"):
                              target = target[1:-1]
                      else:
-                         self.output.append(f"{self._indent()}// TODO: handle enumerate with single target variable")
+                         self.output.append(f"{self._indent()}//##LLM@@ Enumerate used with a single target variable instead of unpacking. Please rewrite to unpack the index and value properly.")
 
         # Determine helper flags from both branches
         is_enumerate = isinstance(node.iter, ast.Call) and getattr(node.iter.func, "id", "") == "enumerate"

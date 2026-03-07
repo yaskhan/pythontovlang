@@ -12,7 +12,7 @@ class ComprehensionsMixin(TranslatorBase):
         rest = generators[1:]
 
         if getattr(gen, 'is_async', False):
-             self.output.append(f"{self._indent()}// TODO: Async comprehension - Verify iterator semantics")
+             self.output.append(f"{self._indent()}//##LLM@@ Async comprehension used. Please verify and properly implement the async iterator semantics in V.")
 
         is_zip = False
         if isinstance(gen.iter, ast.Call):
@@ -136,7 +136,7 @@ class ComprehensionsMixin(TranslatorBase):
                          if target.startswith("[") and target.endswith("]"):
                              target = target[1:-1]
                      else:
-                         self.output.append(f"{self._indent()}// TODO: handle enumerate with single target variable")
+                         self.output.append(f"{self._indent()}//##LLM@@ Enumerate used with a single target variable instead of unpacking. Please rewrite to unpack the index and value properly.")
 
         self.output.append(f"{self._indent()}for {target} in {iter_expr} {{")
         self._indent_level += 1

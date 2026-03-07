@@ -31,7 +31,7 @@ for x in enumerate(items):
     pass
 """
     v_code = translate(source)
-    assert "// TODO: handle enumerate with single target variable" in v_code
+    assert "//##LLM@@ Enumerate used with a single target variable instead of unpacking. Please rewrite to unpack the index and value properly." in v_code
     assert "for x in items {" in v_code
 
 def test_enumerate_list_comp():

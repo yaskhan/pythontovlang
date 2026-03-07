@@ -157,8 +157,7 @@ def outer():
     assert "py_success_0 = true" in v_code
     assert "vexc.end_try()" in v_code
     # Ensure no redundant 'else {' after 'py_exc_1 := vexc.get_curr_exc()' for bare except
-    assert "} else {\n        py_exc_1 := vexc.get_curr_exc()\n        println('except')\n    }" in v_code or \
-           "} else {\n        py_exc_1 := vexc.get_curr_exc()\n        println('except')\n    }" in v_code.replace("    ", "    ")
+    assert "} else {\n        py_exc_1 := vexc.get_curr_exc()\n        //##LLM@@ Bare 'except:' block detected. This is generally bad practice and may inadvertently catch unexpected V panics/errors. Please review and restrict the caught exception types if possible.\n        println('except')\n    }" in v_code
 
     # Check for correct orelse handling
     assert "if py_success_0 {" in v_code

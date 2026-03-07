@@ -302,25 +302,25 @@ class AssignmentsMixin(TranslatorBase):
             if hasattr(self, 'visit_ListComp'):
                  self.visit_ListComp(node.value, target_var=lhs) # type: ignore
             else:
-                 self.output.append(f"{self._indent()}// Error: List comprehension support missing")
+                 self.output.append(f"{self._indent()}//##LLM@@ List comprehension support is missing in the transpiler. Please manually transpile this list comprehension.")
         elif isinstance(node.value, ast.SetComp):
             # visit_SetComp is defined in ExpressionsMixin, but available on self at runtime
             if hasattr(self, 'visit_SetComp'):
                  self.visit_SetComp(node.value, target_var=lhs) # type: ignore
             else:
-                 self.output.append(f"{self._indent()}// Error: Set comprehension support missing")
+                 self.output.append(f"{self._indent()}//##LLM@@ Set comprehension support is missing in the transpiler. Please manually transpile this set comprehension.")
         elif isinstance(node.value, ast.DictComp):
             # visit_DictComp is defined in ExpressionsMixin, but available on self at runtime
             if hasattr(self, 'visit_DictComp'):
                  self.visit_DictComp(node.value, target_var=lhs) # type: ignore
             else:
-                 self.output.append(f"{self._indent()}// Error: Dict comprehension support missing")
+                 self.output.append(f"{self._indent()}//##LLM@@ Dict comprehension support is missing in the transpiler. Please manually transpile this dict comprehension.")
         elif isinstance(node.value, ast.GeneratorExp):
             # Treat generator expression as list comprehension (eager evaluation)
             if hasattr(self, 'visit_ListComp'):
                  self.visit_ListComp(node.value, target_var=lhs) # type: ignore
             else:
-                 self.output.append(f"{self._indent()}// Error: Generator expression support missing")
+                 self.output.append(f"{self._indent()}//##LLM@@ Generator expression support is missing in the transpiler. Please manually transpile this generator expression.")
         else:
             # Check for pre-allocated capacity for typed collections
             # Context: assignments like `arr = [x, y, z]`
@@ -350,7 +350,7 @@ class AssignmentsMixin(TranslatorBase):
             if v_type == "LiteralString":
                 is_literal_string = True
                 if not self._is_literal_string_expr(node.value):
-                    self.output.append(f"{self._indent()}// WARNING: LiteralString variable '{lhs}' receives non-literal value")
+                    self.output.append(f"{self._indent()}//##LLM@@ LiteralString variable '{lhs}' receives non-literal value. Please review the security implications.")
 
             # Check for implicit LiteralString (constant strings, concatenation, f-strings without vars)
             # If so, we track it as string and potentially as a constant
@@ -584,7 +584,7 @@ class AssignmentsMixin(TranslatorBase):
              self.output.append(f"{self._indent()}{lhs} = {source_expr}")
 
         else:
-             self.output.append(f"{self._indent()}// Unsupported destructuring target: {type(target)}")
+             self.output.append(f"{self._indent()}//##LLM@@ Unsupported destructuring target: {type(target)}. Please manually implement this unpacking logic in V.")
 
     def visit_NamedExpr(self, node: ast.NamedExpr) -> str:
         # (target := value)

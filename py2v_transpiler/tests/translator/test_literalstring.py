@@ -24,7 +24,7 @@ class TestLiteralString(TranspilerTest):
         """
         expected = """
         fn foo() {
-            // WARNING: LiteralString variable 'a' receives value from input() (loss of guarantee)
+            //##LLM@@ LiteralString variable 'a' receives value from input() (loss of guarantee). Please review the security implications.
             a := os.input('')
         }
         """

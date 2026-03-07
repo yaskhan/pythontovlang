@@ -39,6 +39,12 @@ class DecoratorProcessor:
 
             dec_name = self._get_decorator_name(decorator)
 
+            if dec_name == "computed_field":
+                if self.visitor and hasattr(self.visitor, "output"):
+                    self.visitor.output.append("//##LLM@@ Pydantic '@computed_field' detected. This is generated as a regular method without caching. Please implement caching manually if required.")
+                info.decorators_to_handle.append(dec_name)
+                continue
+
             if dec_name == "staticmethod":
                 info.is_static = True
                 info.decorators_to_handle.append(dec_name)

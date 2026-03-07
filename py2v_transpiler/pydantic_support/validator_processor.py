@@ -66,6 +66,9 @@ class PydanticValidatorProcessor:
                     if isinstance(val, ast.Constant) and val.value is True:
                         mode = "before"
 
+        if mode == "wrap":
+            self.visitor.output.append(f"//##LLM@@ Pydantic validator '{node.name}' with mode='wrap' detected. The transpiler does not fully support 'wrap' mode and treats it as 'before' or 'after'. Please manually refactor the validation logic.")
+
         if is_field_validator:
             return PydanticValidatorInfo(name=node.name, fields=fields, node=node, mode=mode, is_model_validator=False)
         if is_model_validator:

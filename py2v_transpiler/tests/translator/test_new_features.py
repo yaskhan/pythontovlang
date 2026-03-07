@@ -16,8 +16,8 @@ def _transpile(code: str) -> str:
 def test_del_multiple():
     code = "del a, b"
     v_code = _transpile(code)
-    assert "/* del a */" in v_code
-    assert "/* del b */" in v_code
+    assert "//##LLM@@ 'del a' statement ignored" in v_code
+    assert "//##LLM@@ 'del b' statement ignored" in v_code
 
 def test_bitwise_ops():
     code = "c = a & b | d ^ e"
