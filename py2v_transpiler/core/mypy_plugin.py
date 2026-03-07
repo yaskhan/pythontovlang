@@ -103,8 +103,8 @@ class VlangPlugin(Plugin):
                         # We want to record this instantiation
                         if isinstance(typ, Instance):
                             type_info = typ.type
-                            fullname = type_info.fullname
-                            short_name = type_info.name
+                            fullname_cls = type_info.fullname
+                            short_name_cls = type_info.name
 
                             sig_data = {
                                 "args": [], # difficult to recover from type_map easily
@@ -112,33 +112,33 @@ class VlangPlugin(Plugin):
                                 "is_class": True, # heuristic: if return type is Instance and we are at CallExpr, it's likely a class call
                                 "has_init": '__init__' in type_info.names
                             }
-                            self.collected_sigs[fullname][key] = json.dumps(sig_data)
-                            self.collected_sigs[short_name][key] = json.dumps(sig_data)
+                            self.collected_sigs[fullname_cls][key] = json.dumps(sig_data)
+                            self.collected_sigs[short_name_cls][key] = json.dumps(sig_data)
                             self.collected_sigs[key][key] = json.dumps(sig_data)
 
-                    name = None
-                    fullname = None
+                    name: Optional[str] = None
+                    fullname_node: Optional[str] = None
                     if isinstance(expr, NameExpr):
                         name = expr.name
-                        fullname = expr.fullname
+                        fullname_node = expr.fullname
                     elif isinstance(expr, MemberExpr):
                         name = expr.name
-                        fullname = expr.fullname
+                        fullname_node = expr.fullname
                     elif isinstance(expr, Var):
                         name = expr.name
-                        fullname = expr.fullname
+                        fullname_node = expr.fullname
                     elif hasattr(expr, 'name'):
                         name = getattr(expr, 'name')
-                        fullname = getattr(expr, 'fullname', None)
+                        fullname_node = getattr(expr, 'fullname', None)
 
                     if name:
                         # Store by multiple keys to increase hit rate
                         self.collected_types[name][key] = str(typ)
                         # Also store by line only for block-start heuristic
                         self.collected_types[name][f"{expr.line}:*"] = str(typ)
-                        if fullname:
-                            self.collected_types[fullname][key] = str(typ)
-                            self.collected_types[fullname][f"{expr.line}:*"] = str(typ)
+                        if fullname_node:
+                            self.collected_types[fullname_node][key] = str(typ)
+                            self.collected_types[fullname_node][f"{expr.line}:*"] = str(typ)
 
         # Collect mutability info from processed files
         from mypy.nodes import Var, FuncDef, Block, AssignmentStmt, NameExpr, MypyFile
