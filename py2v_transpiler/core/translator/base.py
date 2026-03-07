@@ -622,6 +622,24 @@ class TranslatorBase(ast.NodeVisitor):
                 return "[]u8"
             elif isinstance(node.func, ast.Attribute) and node.func.attr == "open" and isinstance(node.func.value, ast.Name) and node.func.value.id == "os":
                 return "os.File"
+            elif isinstance(node.func, ast.Attribute) and node.func.attr in ("exists", "isfile", "isdir"):
+                # Handle os.path.exists or from os import path; path.exists
+                curr = node.func.value
+                parts = [node.func.attr]
+                while isinstance(curr, ast.Attribute):
+                    parts.append(curr.attr)
+                    curr = curr.value
+                if isinstance(curr, ast.Name):
+                    parts.append(curr.id)
+
+                parts.reverse()
+                full_name = ".".join(parts)
+                if full_name in ("os.path.exists", "os.path.isfile", "os.path.isdir"):
+                    return "bool"
+
+                # Check for path.exists if 'from os import path' was used
+                if len(parts) >= 2 and parts[-2] == "path" and parts[-1] in ("exists", "isfile", "isdir"):
+                    return "bool"
         elif isinstance(node, (ast.List, ast.Tuple)):
             if not node.elts:
                 return "[]Any"
