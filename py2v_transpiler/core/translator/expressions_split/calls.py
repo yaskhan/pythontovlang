@@ -2,7 +2,6 @@ import ast
 import re
 from typing import List, Any
 from ..base import TranslatorBase
-from py2v_transpiler.models.v_types import map_python_type_to_v
 
 class CallsMixin(TranslatorBase):
     def visit_Call(self, node: ast.Call) -> str:
@@ -160,8 +159,7 @@ class CallsMixin(TranslatorBase):
                     if len(args) == 2:
                         try:
                             type_str = ast.unparse(node.args[0])
-                            from py2v_transpiler.models.v_types import map_python_type_to_v
-                            v_type = map_python_type_to_v(type_str)
+                            v_type = self._map_type(type_str)
                         except Exception:
                             v_type = str(self.visit(node.args[0]))
                         val = args[1]
@@ -398,7 +396,7 @@ class CallsMixin(TranslatorBase):
                         else:
                             norm_typ = "int"
                     try:
-                        v_type = map_python_type_to_v(norm_typ)
+                        v_type = self._map_type(norm_typ)
                     except Exception:
                         v_type = "Any"
                     # Ensure we map mypy's builtins correctly, even if mapping failed
@@ -499,12 +497,10 @@ class CallsMixin(TranslatorBase):
                 expr_type = self._guess_type(expr_node)
                 try:
                     type_str = ast.unparse(type_node)
-                    from py2v_transpiler.models.v_types import map_python_type_to_v as local_map_fn
-                    expected_type = local_map_fn(type_str)
+                    expected_type = self._map_type(type_str)
                 except Exception:
                     type_str = str(self.visit(type_node))
-                    from py2v_transpiler.models.v_types import map_python_type_to_v as local_map_fn
-                    expected_type = local_map_fn(type_str)
+                    expected_type = self._map_type(type_str)
 
                 if expr_type == expected_type:
                     return f"// assert_type({args[0]}, {expected_type}) passed statically"
@@ -520,7 +516,31 @@ class CallsMixin(TranslatorBase):
             return "// assert_never requires 1 argument"
 
         # Handle primitive type "casting" or conversions (priority over class instantiation)
-        if func_name_str == "int" or (original_id == "int" and func_name_str == "py_int"):
+        if func_name_str == "dict" or (original_id == "dict" and func_name_str == "py_dict"):
+            v_type = getattr(self, "current_assignment_type", "map[string]Any")
+            if not v_type.startswith("map["): v_type = "map[string]Any"
+            if len(args) == 0:
+                return f"{v_type}{{}}"
+            return f"{v_type}({', '.join(args)})"
+        elif func_name_str == "list" or (original_id == "list" and func_name_str == "py_list"):
+            v_type = getattr(self, "current_assignment_type", "[]Any")
+            if not v_type.startswith("[]"): v_type = "[]Any"
+            if len(args) == 0:
+                return f"{v_type}{{}}"
+            return f"{v_type}({', '.join(args)})"
+        elif func_name_str == "tuple" or (original_id == "tuple" and func_name_str == "py_tuple"):
+            v_type = getattr(self, "current_assignment_type", "[]Any")
+            if not v_type.startswith("["): v_type = "[]Any"
+            if len(args) == 0:
+                return f"{v_type}{{}}"
+            return f"{v_type}({', '.join(args)})"
+        elif func_name_str == "set" or (original_id == "set" and func_name_str == "py_set"):
+            v_type = getattr(self, "current_assignment_type", "map[Any]bool")
+            if not v_type.startswith("map["): v_type = "map[Any]bool"
+            if len(args) == 0:
+                return f"{v_type}{{}}"
+            return f"{v_type}({', '.join(args)})"
+        elif func_name_str == "int" or (original_id == "int" and func_name_str == "py_int"):
             if len(args) == 0:
                 return "0"
             elif len(args) == 1:
@@ -865,13 +885,11 @@ class CallsMixin(TranslatorBase):
                     type_str = ast.unparse(type_node)
                     # For assert_type error messages, it might be better to compare original mapped type names
                     # but map_python_type_to_v converts float to f64, so test expects f64.
-                    from py2v_transpiler.models.v_types import map_python_type_to_v as local_map_fn
-                    expected_type = local_map_fn(type_str)
+                    expected_type = self._map_type(type_str)
                 except Exception:
                     # Fallback if unparse fails
                     type_str = str(self.visit(type_node))
-                    from py2v_transpiler.models.v_types import map_python_type_to_v as local_map_fn
-                    expected_type = local_map_fn(type_str)
+                    expected_type = self._map_type(type_str)
 
                 if expr_type == expected_type:
                     return f"// assert_type({args[0]}, {expected_type}) passed statically"

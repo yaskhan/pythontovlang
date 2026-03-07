@@ -172,6 +172,8 @@ class LiteralsMixin(TranslatorBase):
             # Empty dict
             v_type = getattr(self, "current_assignment_type", "map[string]Any")
             if not v_type.startswith("map["):
+                # If current_assignment_type is e.g. a struct or union,
+                # we should fallback to map[string]Any only if it's truly a dict literal.
                 v_type = "map[string]Any"
             return f"{v_type}{{}}"
 
@@ -180,10 +182,15 @@ class LiteralsMixin(TranslatorBase):
             if k:
                 key_str = self.visit(k)
                 val_str = self.visit(v)
+                if "Any" in v_type and not v_type.startswith("SumType"):
+                     val_str = f"({val_str} as Any)"
                 pairs.append(f"{key_str}: {val_str}")
 
-        if "Any" in v_type:
-            return f"{v_type}{{{', '.join(pairs)}}}"
+        # In modern V, map literals with elements should NOT have the type prefix
+        # unless it is ambiguous, but usually {key: val} is enough if context type is known.
+        # However, map[string]Any requires explicit casts for values.
+        if "Any" in v_type and not v_type.startswith("SumType"):
+             return f"{v_type}{{{', '.join(pairs)}}}"
 
         return f"{{{', '.join(pairs)}}}"
 
@@ -216,7 +223,7 @@ class LiteralsMixin(TranslatorBase):
             elements.append(f"{val}: true")
 
         v_type = self._guess_type(node)
-        if "Any" in v_type:
+        if "Any" in v_type and not v_type.startswith("SumType"):
             return f"{v_type}{{{', '.join(elements)}}}"
 
         return f"{{{', '.join(elements)}}}"
@@ -243,6 +250,12 @@ class LiteralsMixin(TranslatorBase):
             return f"py_list_concat({', '.join(chunks)})"
 
         elements = [str(self.visit(elt)) for elt in node.elts]
+
+        # Use fixed-size array literal if type is known to be fixed-size array
+        v_type = getattr(self, "current_assignment_type", "")
+        if v_type.startswith("[") and "]" in v_type and not v_type.startswith("[]"):
+             return f"{v_type}{{{', '.join(elements)}}}"
+
         return f"[{', '.join(elements)}]"
 
     def visit_JoinedStr(self, node: ast.JoinedStr) -> str:

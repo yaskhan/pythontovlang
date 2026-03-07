@@ -1,6 +1,5 @@
 import ast
 from typing import Any, List, Optional, Dict
-from py2v_transpiler.models.v_types import map_python_type_to_v
 from .base import TranslatorBase
 
 
@@ -141,7 +140,7 @@ class FunctionsMixin(TranslatorBase):
                         if decorator.args:
                             try:
                                 type_str = ast.unparse(decorator.args[0])
-                                register_type = map_python_type_to_v(type_str)
+                                register_type = self._map_type(type_str)
                             except:
                                 pass
 
@@ -467,6 +466,7 @@ class FunctionsMixin(TranslatorBase):
 
         args_str = ", ".join(args_str_list)
 
+        # Handle return types for sum types
         ret_type = "void"
         if not is_generator and node.returns:
             try:
@@ -1075,7 +1075,7 @@ class FunctionsMixin(TranslatorBase):
         capture_str = f"[{', '.join(captures)}] " if captures else ""
 
         body = self.visit(node.body)
-        body_type = self._guess_type(node.body)
+        body_type = self._map_type(self._guess_type(node.body))
 
         return f"fn {capture_str}({args_str}) {body_type} {{ return {body} }}"
 
