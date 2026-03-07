@@ -30,6 +30,8 @@ class VlangPlugin(Plugin):
             self.checker = ctx.api
             if hasattr(ctx.context, 'line'):
                 key = f"{ctx.context.line}:{ctx.context.column}"
+                # Store under both fullname and short name for flexibility
+                short_name = fullname.split('.')[-1]
                 self.collected_types[fullname][key] = str(ctx.default_return_type)
 
                 # Also store call signature
@@ -86,6 +88,7 @@ class VlangPlugin(Plugin):
                     sig_data["dataclass_metadata"] = dataclass_metadata
 
                 self.collected_sigs[fullname][key] = json.dumps(sig_data)
+                self.collected_sigs[short_name][key] = json.dumps(sig_data)
 
             return ctx.default_return_type
         return hook

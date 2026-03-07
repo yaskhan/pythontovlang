@@ -592,13 +592,14 @@ class TypeInference(ast.NodeVisitor):
             if fullname in self.mutability_map:
                  self.mutability_map[arg.arg] = self.mutability_map[fullname]
 
-            v_type = "Any"
+            py_type = "Any"
             if arg.annotation:
                 try:
-                    type_str = ast.unparse(arg.annotation)
-                    v_type = map_python_type_to_v(type_str)
+                    py_type = ast.unparse(arg.annotation)
                 except Exception:
                     pass
+
+            v_type = map_python_type_to_v(py_type)
 
             # Map LiteralString to string for V compatibility
             if v_type == "LiteralString": v_type = "string"
@@ -609,12 +610,14 @@ class TypeInference(ast.NodeVisitor):
                 self.type_map[f"{arg.arg}@{arg.lineno}:{arg.col_offset}"] = v_type
 
         # Handle return type
+        v_type_ret = "void"
+        py_type_ret = "void"
         if node.returns:
             try:
-                type_str = ast.unparse(node.returns)
-                v_type = map_python_type_to_v(type_str)
-                if v_type == "LiteralString": v_type = "string"
-                self.type_map[f"{node.name}@return"] = v_type
+                py_type_ret = ast.unparse(node.returns)
+                v_type_ret = map_python_type_to_v(py_type_ret)
+                if v_type_ret == "LiteralString": v_type_ret = "string"
+                self.type_map[f"{node.name}@return"] = v_type_ret
             except:
                 pass
         elif node.name not in ("__init__", "__post_init__", "setUp", "tearDown"):
@@ -637,13 +640,25 @@ class TypeInference(ast.NodeVisitor):
             find_returns(node)
 
             if len(found_types) == 1:
-                res_type = list(found_types)[0]
-                if res_type != "void":
-                    self.type_map[f"{node.name}@return"] = res_type
+                v_type_ret = list(found_types)[0]
+                if v_type_ret != "void":
+                    self.type_map[f"{node.name}@return"] = v_type_ret
             elif len(found_types) > 1:
+                v_type_ret = "Any"
                 self.type_map[f"{node.name}@return"] = "Any"
             elif has_return_value:
+                v_type_ret = "Any"
                 self.type_map[f"{node.name}@return"] = "Any"
+
+        # Collect call signature for local functions
+        # Use Python type strings for args so Translator can map them with registrar
+        sig_data = {
+            "args": [ast.unparse(arg.annotation) if arg.annotation else "Any" for arg in node.args.args],
+            "return": py_type_ret,
+            "is_class": False,
+            "has_init": False
+        }
+        self.call_signatures[node.name] = sig_data
 
         self.generic_visit(node)
 

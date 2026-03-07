@@ -6,13 +6,58 @@ from ..base import TranslatorBase
 class CallsMixin(TranslatorBase):
     def visit_Call(self, node: ast.Call) -> str:
         # Check if we can resolve the call via mapper
+
+        # Extract mypy plugin signature if available for this call
+        # We need to do this BEFORE visiting arguments to set current_assignment_type
+        # Extract func_name_str (pre-sanitized) for lookup
+        func_name_str_lookup = ""
+        if isinstance(node.func, ast.Name):
+            func_name_str_lookup = node.func.id
+        elif isinstance(node.func, ast.Attribute):
+            func_name_str_lookup = node.func.attr
+
+        loc_key = f"{getattr(node, 'lineno', 0)}:{getattr(node, 'col_offset', 0)}"
+        call_sig = None
+        if hasattr(self.type_inference, "call_signatures"):
+            for k, v in self.type_inference.call_signatures.items():
+                if k.endswith(f".{func_name_str_lookup}@{loc_key}"):
+                    call_sig = v
+                    break
+            if not call_sig:
+                for k, v in self.type_inference.call_signatures.items():
+                    if k.endswith(f"@{loc_key}"):
+                        if func_name_str_lookup in k:
+                            call_sig = v
+                            break
+            if not call_sig:
+                for k, v in self.type_inference.call_signatures.items():
+                    if k == loc_key:
+                        call_sig = v
+                        break
+            if not call_sig:
+                call_sig = self.type_inference.call_signatures.get(func_name_str_lookup)
+
         args = []
-        for arg in node.args:
+        for i, arg in enumerate(node.args):
+            # Set current_assignment_type if we have signature info
+            old_type = self.current_assignment_type
+            if call_sig and "args" in call_sig and i < len(call_sig["args"]):
+                arg_typ_str = call_sig["args"][i]
+                # Normalize mypy type to V type
+                norm_typ = arg_typ_str.replace("builtins.", "")
+                try:
+                    v_arg_type = self._map_type(norm_typ)
+                    self.current_assignment_type = v_arg_type
+                except:
+                    pass
+
             val = self.visit(arg)
             if val is not None:
                 args.append(str(val))
             else:
                 args.append("/* unknown */")
+
+            self.current_assignment_type = old_type
 
         for keyword in node.keywords:
             if keyword.arg is None:
@@ -351,25 +396,6 @@ class CallsMixin(TranslatorBase):
                 default = args[1] if len(args) == 2 else "none"
                 return f"{obj}[{key}] or {{ {default} }}"
 
-        # Extract mypy plugin signature if available for this call
-        loc_key = f"{getattr(node, 'lineno', 0)}:{getattr(node, 'col_offset', 0)}"
-        call_sig = None
-        if hasattr(self.type_inference, "call_signatures"):
-            for k, v in self.type_inference.call_signatures.items():
-                if k.endswith(f".{func_name_str}@{loc_key}"):
-                    call_sig = v
-                    break
-            if not call_sig:
-                for k, v in self.type_inference.call_signatures.items():
-                    if k.endswith(f"@{loc_key}"):
-                        if func_name_str in k:
-                            call_sig = v
-                            break
-            if not call_sig:
-                for k, v in self.type_inference.call_signatures.items():
-                    if k == loc_key:
-                        call_sig = v
-                        break
 
         # Handle overloaded functions
         lookup_name = func_name_str or ""
@@ -531,25 +557,25 @@ class CallsMixin(TranslatorBase):
 
         # Handle primitive type "casting" or conversions (priority over class instantiation)
         if func_name_str == "dict" or (original_id == "dict" and func_name_str == "py_dict"):
-            v_type = getattr(self, "current_assignment_type", "map[string]Any")
+            v_type = self.current_assignment_type or "map[string]Any"
             if not v_type.startswith("map["): v_type = "map[string]Any"
             if len(args) == 0:
                 return f"{v_type}{{}}"
             return f"{v_type}({', '.join(args)})"
         elif func_name_str == "list" or (original_id == "list" and func_name_str == "py_list"):
-            v_type = getattr(self, "current_assignment_type", "[]Any")
+            v_type = self.current_assignment_type or "[]Any"
             if not v_type.startswith("[]"): v_type = "[]Any"
             if len(args) == 0:
                 return f"{v_type}{{}}"
             return f"{v_type}({', '.join(args)})"
         elif func_name_str == "tuple" or (original_id == "tuple" and func_name_str == "py_tuple"):
-            v_type = getattr(self, "current_assignment_type", "[]Any")
+            v_type = self.current_assignment_type or "[]Any"
             if not v_type.startswith("["): v_type = "[]Any"
             if len(args) == 0:
                 return f"{v_type}{{}}"
             return f"{v_type}({', '.join(args)})"
         elif func_name_str == "set" or (original_id == "set" and func_name_str == "py_set"):
-            v_type = getattr(self, "current_assignment_type", "map[Any]bool")
+            v_type = self.current_assignment_type or "map[Any]bool"
             if not v_type.startswith("map["): v_type = "map[Any]bool"
             if len(args) == 0:
                 return f"{v_type}{{}}"
@@ -1070,6 +1096,12 @@ class CallsMixin(TranslatorBase):
             mutated_indices = self.type_inference.func_param_mutability[func_name_str]
 
         for i, arg_str in enumerate(args):
+            # If the argument is a Literal constant (starts with .), it might need to be converted to enum member
+            # BUT we already did that in the loop above where we set current_assignment_type before visiting.
+            # So if it's already .member, we don't need to do anything.
+            # If it's still a string literal like 'write', and we have signature info, we might have missed it
+            # if the signature was resolved later.
+
             if i in mutated_indices:
                 # If the argument is a variable, add 'mut '
                 # Note: Literals cannot be passed as mut.
@@ -1083,6 +1115,23 @@ class CallsMixin(TranslatorBase):
                 else:
                     final_args_list.append(arg_str)
             else:
+                # Re-check for string literals that should be enum members
+                # Support both 'val' and "val"
+                if (arg_str.startswith("'") and arg_str.endswith("'")) or (arg_str.startswith('"') and arg_str.endswith('"')):
+                    if call_sig and "args" in call_sig and i < len(call_sig["args"]):
+                        arg_typ_str = call_sig["args"][i]
+                        norm_typ = arg_typ_str.replace("builtins.", "")
+                        try:
+                            v_arg_type = self._map_type(norm_typ)
+                            if v_arg_type in self._literal_enum_values:
+                                val_map = self._literal_enum_values[v_arg_type]
+                                # Strip quotes
+                                val = arg_str[1:-1]
+                                if val in val_map:
+                                    final_args_list.append(f".{val_map[val]}")
+                                    continue
+                        except:
+                            pass
                 final_args_list.append(arg_str)
 
         return f"{func_name_str}({', '.join(final_args_list)})"
