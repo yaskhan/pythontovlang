@@ -3,6 +3,9 @@ from .base import TranslatorBase
 
 class ImportsMixin(TranslatorBase):
     def visit_Import(self, node: ast.Import) -> None:
+        if getattr(self, 'in_main', False) and getattr(self.config, 'source_mapping', False):
+             self.output.append(f"// @line: {self._get_source_info(node)}")
+
         for alias in node.names:
             module_name = alias.name
 
@@ -35,6 +38,9 @@ class ImportsMixin(TranslatorBase):
                 self.emitter.add_import(module_name)
 
     def visit_ImportFrom(self, node: ast.ImportFrom) -> None:
+        if getattr(self, 'in_main', False) and getattr(self.config, 'source_mapping', False):
+             self.output.append(f"// @line: {self._get_source_info(node)}")
+
         if node.module:
             module_name = node.module
 

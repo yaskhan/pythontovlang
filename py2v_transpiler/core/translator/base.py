@@ -141,6 +141,17 @@ class TranslatorBase(ast.NodeVisitor):
         self.current_function_return_type: Optional[str] = None
         self.in_pydantic_validator: bool = False
         self.current_assignment_type: Optional[str] = None
+        self.current_node: Optional[ast.AST] = None
+
+    def _get_source_info(self, node: Optional[ast.AST] = None) -> str:
+        """Returns formatted source information for the given node or current_node."""
+        n = node or self.current_node
+        if n is None:
+            return f"{self.current_file_name}:?:?"
+
+        lineno = getattr(n, 'lineno', '?')
+        col = getattr(n, 'col_offset', '?')
+        return f"{self.current_file_name}:{lineno}:{col}"
 
     def _is_literal_string_expr(self, node: ast.AST) -> bool:
         """

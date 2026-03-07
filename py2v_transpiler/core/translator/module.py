@@ -69,6 +69,7 @@ class ModuleMixin(TranslatorBase):
             # Check if statement is top-level expression or assignment
             if isinstance(stmt, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef, ast.Import, ast.ImportFrom)):
                 self.in_main = False
+                # Line comment for Functions and Classes is handled inside their visitors
                 self.visit(stmt)
                 self.in_main = True
             else:
@@ -79,6 +80,9 @@ class ModuleMixin(TranslatorBase):
 
                 # Clear output buffer
                 self.output = []
+                # For top-level expressions and assignments, we add the line comment here
+                if getattr(self.config, 'source_mapping', False):
+                    self.output.append(f"// @line: {self._get_source_info(stmt)}")
                 self.visit(stmt)
                 # Append buffer to main
                 for line in self.output:

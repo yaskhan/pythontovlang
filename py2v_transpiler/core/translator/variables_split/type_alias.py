@@ -28,6 +28,9 @@ class TypeAliasMixin(TranslatorBase):
         v_generics = self._get_all_active_v_generics()
         type_params_str = f"[{', '.join(v_generics)}]" if v_generics else ""
 
+        if getattr(self.config, 'source_mapping', False):
+            self.emitter.add_struct(f"// @line: {self._get_source_info(node)}")
+
         if hasattr(ast, 'unparse'):
             val_str = ast.unparse(node.value)
             v_type = self._map_type(val_str, allow_union=True, register_sum_types=False)

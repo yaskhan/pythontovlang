@@ -30,9 +30,27 @@ class VNodeVisitor(
 ):
     def visit(self, node: ast.AST) -> Any:
         self.parent_stack.append(node)
+        prev_node = self.current_node
+        self.current_node = node
         try:
             return super().visit(node)
+        except Exception as e:
+            # Error recovery: log and continue if it's not a fatal error
+            source_info = self._get_source_info(node)
+            msg = f"Transpilation error at {source_info}: {e}"
+            if not isinstance(e, (KeyboardInterrupt, SystemExit)):
+                self.warnings.append(msg)
+                # Ensure the error comment is actually emitted to the output buffer
+                # if we are in a context that uses it.
+                err_comment = f"/* Error transpiling node at {source_info}: {e} */"
+                if isinstance(node, ast.stmt):
+                    self.output.append(f"{self._indent()}{err_comment}")
+                    return None
+                elif isinstance(node, ast.expr):
+                    return err_comment
+            raise
         finally:
+            self.current_node = prev_node
             self.parent_stack.pop()
 
     def __init__(self, type_inference, config=None):
