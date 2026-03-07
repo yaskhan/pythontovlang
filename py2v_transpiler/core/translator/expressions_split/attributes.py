@@ -20,6 +20,22 @@ class AttributesMixin(TranslatorBase):
              obj = self.visit(node.value)
              return f"typeof({obj})"
 
+        if node.attr == "__type_params__":
+            obj = self.visit(node.value)
+            # obj could be ClassName, ClassName[int], or a function name.
+            # We strip generic arguments if any to get the base name.
+            base_name = obj
+            if "[" in obj:
+                base_name = obj[:obj.find("[")]
+
+            if base_name in self.type_params_map:
+                params = self.type_params_map[base_name]
+                if not params:
+                    return "[]string{}"
+                params_v = ", ".join([f"'{p}'" for p in params])
+                return f"[{params_v}]"
+            return "[]string{}"
+
         if node.attr == "real":
              if self._guess_type(node.value) == "PyComplex":
                  obj = self.visit(node.value)

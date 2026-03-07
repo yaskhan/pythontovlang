@@ -119,6 +119,7 @@ class TranslatorBase(ast.NodeVisitor):
         self.property_setters: Set[Tuple[str, str]] = set() # (class_name, property_name)
         self.function_names: Set[str] = set()
         self.overloaded_signatures: Dict[str, List[Dict[str, Any]]] = {} # func_name -> list of overload signatures
+        self.type_params_map: Dict[str, List[str]] = {} # name -> list of type parameter names
         self.finally_stack: List[ast.Try] = [] # Stack of active try-finally blocks
         self.loop_stack: List[Dict[str, Any]] = [] # Stack of active loops for break/continue tracking
         self.generic_scopes: List[Dict[str, str]] = [] # Stack of PEP 695 generic mappings

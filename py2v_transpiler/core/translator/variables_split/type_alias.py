@@ -20,6 +20,7 @@ class TypeAliasMixin(TranslatorBase):
                         py_generics.append(name_attr)
                     elif hasattr(name_attr, 'id'):
                         py_generics.append(name_attr.id)
+            self.type_params_map[name] = list(py_generics)
 
         generic_map = self._get_generic_map(py_generics)
         self.generic_scopes.append(generic_map)
