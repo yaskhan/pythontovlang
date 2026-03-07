@@ -154,6 +154,8 @@ def _map_ast_type(node: ast.AST, self_name: str = "Self", allow_union: bool = Tr
         elif value_id in ('Dict', 'dict', 'Mapping', 'MutableMapping'):
             if len(mapped_args) >= 2:
                 return f"map[{mapped_args[0]}]{mapped_args[1]}"
+            elif len(mapped_args) == 1:
+                 return f"map[{mapped_args[0]}]Any"
             return "map[string]int" # fallback
 
         elif value_id in ('IO', 'TextIO'):
@@ -161,18 +163,21 @@ def _map_ast_type(node: ast.AST, self_name: str = "Self", allow_union: bool = Tr
                 return "&strings.Builder"
             return "os.File"
 
-        elif value_id == 'Tuple':
+        elif value_id in ('Tuple', 'tuple'):
             # Tuple[int, ...] -> []int
             if len(mapped_args) == 2 and mapped_args[1] == '...':
                 return f"[]{mapped_args[0]}"
 
-            # Tuple[int, int] -> []int (if all same)
-            first = mapped_args[0] if mapped_args else 'Any'
-            if all(arg == first for arg in mapped_args):
-                return f"[]{first}"
+            if not mapped_args:
+                return "[]Any"
 
-            # Tuple[int, str] -> []Any
-            return "[]Any"
+            # Tuple[int, int] -> [2]int
+            first = mapped_args[0]
+            if all(arg == first for arg in mapped_args):
+                return f"[{len(mapped_args)}]{first}"
+
+            # Tuple[int, str] -> [2]Any
+            return f"[{len(mapped_args)}]Any"
 
         elif value_id == 'Optional':
             if mapped_args:
@@ -196,18 +201,19 @@ def _map_ast_type(node: ast.AST, self_name: str = "Self", allow_union: bool = Tr
             if len(non_none) == 1 and len(mapped_args) > 1:
                 return f"?{non_none[0]}"
 
-            if allow_union:
-                # Deduplicate while preserving order
-                unique_args = []
-                for arg in mapped_args:
-                    if arg not in unique_args:
-                        unique_args.append(arg)
+            # Deduplicate while preserving order
+            unique_args = []
+            for arg in mapped_args:
+                if arg not in unique_args:
+                    unique_args.append(arg)
 
-                union_str = " | ".join(unique_args)
-                if sum_type_registrar:
-                    if len(non_none) < len(mapped_args): # had none
-                        return f"?{sum_type_registrar(' | '.join(non_none))}"
-                    return sum_type_registrar(union_str)
+            union_str = " | ".join(unique_args)
+            if sum_type_registrar:
+                if len(non_none) < len(mapped_args): # had none
+                    return f"?{sum_type_registrar(' | '.join(non_none))}"
+                return sum_type_registrar(union_str)
+
+            if allow_union:
                 return union_str
             return "Any"
 
@@ -285,6 +291,18 @@ def _map_ast_type(node: ast.AST, self_name: str = "Self", allow_union: bool = Tr
         # Default generic mapping: Name[T]
         return f"{value_id}[{', '.join(mapped_args)}]"
 
+    elif isinstance(node, ast.Tuple):
+        # Handle tuple[int, str] in some contexts where it's not a Subscript but a Tuple node
+        # or when used as (int, str)
+        mapped_args = [_map_ast_type(elt, self_name, allow_union, generic_map, sum_type_registrar) for elt in node.elts]
+        if not mapped_args:
+            return "[]Any"
+
+        first = mapped_args[0]
+        if all(arg == first for arg in mapped_args):
+            return f"[{len(mapped_args)}]{first}"
+        return f"[{len(mapped_args)}]Any"
+
     elif isinstance(node, ast.BinOp):
         # A | B (Python 3.10+ Union)
         if isinstance(node.op, ast.BitOr):
@@ -296,10 +314,11 @@ def _map_ast_type(node: ast.AST, self_name: str = "Self", allow_union: bool = Tr
             if right_type == 'none':
                 return f"?{left_type}"
 
+            union_str = f"{left_type} | {right_type}"
+            if sum_type_registrar:
+                return sum_type_registrar(union_str)
+
             if allow_union:
-                union_str = f"{left_type} | {right_type}"
-                if sum_type_registrar:
-                    return sum_type_registrar(union_str)
                 return union_str
             return "Any"
 

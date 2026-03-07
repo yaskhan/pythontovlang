@@ -1,6 +1,5 @@
 import ast
 from typing import List, Optional, Set
-from py2v_transpiler.models.v_types import map_python_type_to_v
 from .base import TranslatorBase
 
 

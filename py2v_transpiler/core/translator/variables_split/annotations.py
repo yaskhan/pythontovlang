@@ -1,7 +1,6 @@
 import ast
 from typing import Any
 from ..base import TranslatorBase
-from py2v_transpiler.models.v_types import map_python_type_to_v
 
 
 class AnnotationsMixin(TranslatorBase):
@@ -91,6 +90,11 @@ class AnnotationsMixin(TranslatorBase):
                 for elt in value_node.elts:
                     val = self.visit(elt)
                     self.output.append(f"{self._indent()}{target} << {val}")
+            elif v_type.startswith("[") and "]" in v_type and not v_type.startswith("[]") and isinstance(node.value, (ast.List, ast.Tuple)):
+                self.current_assignment_type = v_type
+                rhs = self.visit(node.value)
+                del self.current_assignment_type
+                self.output.append(f"{self._indent()}mut {target} := {rhs}")
             elif hasattr(self, 'dataclasses') and v_type in self.dataclasses and isinstance(node.value, ast.Dict):
                 # TypedDict assignment
                 pairs = []
