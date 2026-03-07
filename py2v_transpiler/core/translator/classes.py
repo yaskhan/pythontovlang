@@ -49,9 +49,9 @@ class ClassesMixin(TranslatorBase):
                     elif isinstance(decorator, ast.Attribute):
                         dec_name = decorator.attr
 
-                    if dec_name == "staticmethod":
+                    if dec_name in ("staticmethod", "abstractstaticmethod"):
                         static_methods.add(child.name)
-                    elif dec_name == "classmethod":
+                    elif dec_name in ("classmethod", "abstractclassmethod"):
                         class_methods.add(child.name)
 
         if not hasattr(self, "defined_classes"):
@@ -766,9 +766,20 @@ class ClassesMixin(TranslatorBase):
                     m_name = "str"
                 elif m_name == "__repr__":
                     m_name = "str" if not has_str else "repr"
+
+                is_m_classmethod = False
+                for dec in method.decorator_list:
+                    d_name = self.decorator_processor.get_decorator_name(dec)
+                    if d_name in ("classmethod", "abstractclassmethod"):
+                        is_m_classmethod = True
+                        break
+
                 m_args = []
-                for arg in method.args.args:
+                all_args = getattr(method.args, 'posonlyargs', []) + method.args.args
+                for arg in all_args:
                     if arg.arg == "self":
+                        continue
+                    if is_m_classmethod and arg.arg == "cls":
                         continue
                     a_name = self._sanitize_name(arg.arg)
                     a_type = "int"

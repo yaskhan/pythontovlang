@@ -34,10 +34,10 @@ class DecoratorProcessor:
             if PydanticDetector.is_validator_decorator(decorator):
                 # We can handle or flag validator decorators here
                 # For now, just mark it so it doesn't get ignored
-                info.decorators_to_handle.append(self._get_decorator_name(decorator))
+                info.decorators_to_handle.append(self.get_decorator_name(decorator))
                 continue
 
-            dec_name = self._get_decorator_name(decorator)
+            dec_name = self.get_decorator_name(decorator)
 
             if dec_name == "computed_field":
                 if self.visitor and hasattr(self.visitor, "output"):
@@ -45,10 +45,10 @@ class DecoratorProcessor:
                 info.decorators_to_handle.append(dec_name)
                 continue
 
-            if dec_name == "staticmethod":
+            if dec_name in ("staticmethod", "abstractstaticmethod"):
                 info.is_static = True
                 info.decorators_to_handle.append(dec_name)
-            elif dec_name == "classmethod":
+            elif dec_name in ("classmethod", "abstractclassmethod"):
                 info.is_classmethod = True
                 info.is_static = True # Treat as static method in V (no receiver)
                 info.decorators_to_handle.append(dec_name)
@@ -99,11 +99,11 @@ class DecoratorProcessor:
 
         return info
 
-    def _get_decorator_name(self, node: ast.AST) -> str:
+    def get_decorator_name(self, node: ast.AST) -> str:
         if isinstance(node, ast.Name):
             return node.id
         elif isinstance(node, ast.Call):
-            return self._get_decorator_name(node.func)
+            return self.get_decorator_name(node.func)
         elif isinstance(node, ast.Attribute):
             return node.attr
         return ""

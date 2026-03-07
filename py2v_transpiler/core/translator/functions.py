@@ -69,10 +69,8 @@ class FunctionsMixin(TranslatorBase):
             is_method = self.current_class is not None
             is_cls_method = False
             for decorator in node.decorator_list:
-                if isinstance(decorator, ast.Name) and decorator.id == "classmethod":
-                    is_cls_method = True
-                    break
-                if isinstance(decorator, ast.Attribute) and decorator.attr == "classmethod":
+                dec_name = self.decorator_processor.get_decorator_name(decorator)
+                if dec_name in ("classmethod", "abstractclassmethod"):
                     is_cls_method = True
                     break
 
@@ -1056,10 +1054,8 @@ class FunctionsMixin(TranslatorBase):
             # Handle classmethod for overloads: map 'cls' in scope
             is_cls_method = False
             for decorator in node.decorator_list:
-                if isinstance(decorator, ast.Name) and decorator.id == "classmethod":
-                    is_cls_method = True
-                    break
-                if isinstance(decorator, ast.Attribute) and decorator.attr == "classmethod":
+                dec_name = self.decorator_processor.get_decorator_name(decorator)
+                if dec_name in ("classmethod", "abstractclassmethod"):
                     is_cls_method = True
                     break
 
