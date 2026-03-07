@@ -65,10 +65,8 @@ def main():
         print(f"[{i+1}/{total_files}] Processing {py_file}...")
 
         # 1. Transpile
-        # We use --no-mypy to speed up and avoid mypy dependency issues in CI for now
-        # but the prompt didn't specify. Standard is with mypy.
-        # Let's try with mypy if available.
-        transpile_cmd = [sys.executable, '-m', 'py2v_transpiler.main', str(py_file)]
+        # Use --no-mypy to speed up and avoid mypy dependency issues in CI
+        transpile_cmd = [sys.executable, '-m', 'py2v_transpiler.main', str(py_file), '--no-mypy']
 
         transpile_res = subprocess.run(
             transpile_cmd,
