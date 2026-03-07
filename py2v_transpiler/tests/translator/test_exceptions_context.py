@@ -40,4 +40,4 @@ with open("file.txt") as f:
     assert 'os.open("file.txt")' in result.replace("'", '"')
     assert "defer { f.close() }" in result
     assert "f := os.open" in result.replace("'", '"')
-    assert "println('${f.read()}')" in result
+    assert "println('${py_file_read_all(mut f)}')" in result
