@@ -18,6 +18,7 @@ class TestUnionTypes(unittest.TestCase):
         source = "def f(x: int | str): pass"
         result = self.transpile(source)
         # Should be 'x SumType_IntString'
+        self.assertIn("//##LLM@@ Please review this generated sum type. If a semantically identical sum type already exists, replace this definition and its usages with the existing one, and give it a more meaningful name.", result)
         self.assertIn("type SumType_IntString = int | string", result)
         self.assertIn("x SumType_IntString", result)
 
