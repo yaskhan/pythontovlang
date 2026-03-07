@@ -169,24 +169,14 @@ class FunctionsMixin(TranslatorBase):
             setattr(node, "original_name", node.name)
             node.name = impl_name
 
-        is_abstract = False
-        for decorator in node.decorator_list:
-            if (
-                isinstance(decorator, ast.Name) and decorator.id == "abstractmethod"
-            ) or (
-                isinstance(decorator, ast.Attribute)
-                and decorator.attr == "abstractmethod"
-            ):
-                is_abstract = True
-                break
+        # Analyze decorators
+        dec_info = self.decorator_processor.analyze(node, self.current_class)
+        is_abstract = dec_info.is_abstract
 
         if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
             # Use getattr for original_name as it's only present for singledispatch
             func_lookup_name = getattr(node, "original_name", node.name)
             is_generator = self.coroutine_handler.is_generator(func_lookup_name)
-
-        # Analyze decorators
-        dec_info = self.decorator_processor.analyze(node, self.current_class)
 
         is_method = self.current_class is not None
         # Ensure struct_name is always a string
@@ -464,6 +454,10 @@ class FunctionsMixin(TranslatorBase):
             args_str_list.append(f"{arg_name} ...{arg_type}")
             args_names.append(arg_name)
 
+        if getattr(node, "args", None) and getattr(node.args, "vararg", None) and getattr(node.args, "kwarg", None):
+            llm_comment = f"//##LLM@@ Function `{original_node_name}` has both *args and **kwargs. V requires the variadic parameter (...args) to be the final parameter. Please reorder the parameters so that the variadic parameter is last, and update all calls to this function accordingly."
+            self.output.append(llm_comment)
+
         if node.args.kwarg:
             arg_name = self._sanitize_name(node.args.kwarg.arg)
             arg_type = "map[string]string"
@@ -722,6 +716,13 @@ class FunctionsMixin(TranslatorBase):
 
         self.output.append(f"{decl}")
         self._indent_level += 1
+
+        if is_abstract:
+            # Add __isabstractmethod__ attribute support via a field in the method's own "namespace"
+            # In V we don't have function attributes, but we can emit a comment for now
+            # or handle it via a wrapper struct if it were a function pointer.
+            # For methods, Python's __isabstractmethod__ is usually checked on the function object itself.
+            self.output.append(f"{self._indent()}// __isabstractmethod__ = true")
 
         for line in dec_info.injected_start:
             self.output.append(f"{self._indent()}{line}")
@@ -1007,6 +1008,11 @@ class FunctionsMixin(TranslatorBase):
                 func_name = op_str
 
             self.function_names.add(func_name)
+
+            if type_suffix_parts:
+                self.output.append(f"//##LLM@@ This function is an overloaded variant. The generated name `{func_name}` might be long or unidiomatic. Please review and refactor to use a simpler name, or consolidate using a single function with sum type arguments where appropriate.")
+            elif len(func_name) > 30:
+                self.output.append(f"//##LLM@@ The generated function name `{func_name}` is unusually long. Please review and refactor to use a simpler, more idiomatic V name if possible.")
 
             pub_prefix = ""
             is_nested = len(self._scope_stack) > 0

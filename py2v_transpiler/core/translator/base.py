@@ -119,6 +119,7 @@ class TranslatorBase(ast.NodeVisitor):
         self.imported_symbols: Dict[str, str] = {}
         self.single_dispatch_functions: Dict[str, Dict[str, str]] = {} # dispatcher_name -> {type_name -> impl_func_name}
         self.known_interfaces: Set[str] = set()
+        self.emitted_definitions: Set[str] = set()
         self.class_hierarchy: Dict[str, List[str]] = {} # class_name -> list of direct base names
         self.property_setters: Set[Tuple[str, str]] = set() # (class_name, property_name)
         self.function_names: Set[str] = set()
@@ -559,7 +560,9 @@ class TranslatorBase(ast.NodeVisitor):
         gen_args = f"[{', '.join(used_generics)}]" if used_generics else ""
 
         pub = "pub " if self.config and getattr(self.config, 'include_all_symbols', False) else ""
-        self.emitter.add_struct(f"{pub}type {type_name}{gen_decl} = {normalized}")
+
+        llm_comment = "//##LLM@@ Please review this generated sum type. If a semantically identical sum type already exists, replace this definition and its usages with the existing one, and give it a more meaningful name."
+        self.emitter.add_struct(f"{llm_comment}\n{pub}type {type_name}{gen_decl} = {normalized}")
 
         result = f"{type_name}{gen_args}"
         self._generated_sum_types[normalized] = result

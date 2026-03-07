@@ -46,6 +46,7 @@ class ExceptionsMixin(TranslatorBase):
             self.output.append(f"{self._indent()}if vexc.get_curr_exc().name != '' {{")
             self.output.append(f"{self._indent()}    vexc.raise(vexc.get_curr_exc().name, vexc.get_curr_exc().msg)")
             self.output.append(f"{self._indent()}}} else {{")
+            self.output.append(f"{self._indent()}    //##LLM@@ Bare 'raise' detected outside an active exception block. V cannot re-raise here. Please refactor or handle the error appropriately.")
             self.output.append(f"{self._indent()}    panic('reraise not supported outside except block')")
             self.output.append(f"{self._indent()}}}")
 
@@ -65,7 +66,7 @@ class ExceptionsMixin(TranslatorBase):
                 if has_continue: break
 
             if has_continue:
-                self.output.append(f"{self._indent()}// Warning: 'continue' in 'finally' detected. 'defer' cannot be used.")
+                self.output.append(f"{self._indent()}//##LLM@@ 'continue' inside 'finally' block detected. V's 'defer' cannot be used here. The 'finally' logic has been inlined, but please review to ensure correct control flow.")
             else:
                 self.output.append(f"{self._indent()}{{")
                 self.output.append(f"{self._indent()}    defer {{")
@@ -116,6 +117,7 @@ class ExceptionsMixin(TranslatorBase):
 
                  handler_opened_block = True
                  if has_default:
+                      self.output.append(f"{self._indent()}//##LLM@@ Bare 'except:' block detected. This is generally bad practice and may inadvertently catch unexpected V panics/errors. Please review and restrict the caught exception types if possible.")
                       prefix = "else" if not is_first else ""
                       if prefix:
                            self.output.append(f"{self._indent()}{prefix} {{")
@@ -189,4 +191,5 @@ class ExceptionsMixin(TranslatorBase):
     # Note: ast.TryStar is only available in Python 3.11+.
     # We use Any to avoid AttributeError on older versions during class definition.
     def visit_TryStar(self, node: Any) -> None:
+        self.output.append(f"{self._indent()}//##LLM@@ Python 'except*' (ExceptionGroup) detected. V does not support catching multiple exceptions in a group simultaneously. The block has been transpiled as a standard 'except' block. Please review the logic.")
         return self.visit_Try(node)  # type: ignore[arg-type]

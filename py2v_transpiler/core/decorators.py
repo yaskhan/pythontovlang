@@ -8,6 +8,7 @@ class DecoratorInfo:
     is_property: bool = False
     is_setter: bool = False
     is_classmethod: bool = False
+    is_abstract: bool = False
     decorators_to_handle: List[str] = field(default_factory=list)
     cache_wrapper_needed: bool = False
     cache_map_name: Optional[str] = None
@@ -39,12 +40,28 @@ class DecoratorProcessor:
 
             dec_name = self._get_decorator_name(decorator)
 
+            if dec_name == "computed_field":
+                if self.visitor and hasattr(self.visitor, "output"):
+                    self.visitor.output.append("//##LLM@@ Pydantic '@computed_field' detected. This is generated as a regular method without caching. Please implement caching manually if required.")
+                info.decorators_to_handle.append(dec_name)
+                continue
+
             if dec_name == "staticmethod":
                 info.is_static = True
                 info.decorators_to_handle.append(dec_name)
             elif dec_name == "classmethod":
                 info.is_classmethod = True
                 info.is_static = True # Treat as static method in V (no receiver)
+                info.decorators_to_handle.append(dec_name)
+            elif dec_name in ("abstractmethod", "abstractclassmethod", "abstractstaticmethod", "abstractproperty") or (dec_name.startswith("abc.") and dec_name.split(".")[-1] in ("abstractmethod", "abstractclassmethod", "abstractstaticmethod", "abstractproperty")):
+                info.is_abstract = True
+                if "classmethod" in dec_name:
+                    info.is_classmethod = True
+                    info.is_static = True
+                elif "staticmethod" in dec_name:
+                    info.is_static = True
+                elif "property" in dec_name:
+                    info.is_property = True
                 info.decorators_to_handle.append(dec_name)
             elif dec_name == "property":
                 info.is_property = True

@@ -334,7 +334,7 @@ class ModuleMixin(TranslatorBase):
             # `fn (mut t PyThread) start(f fn()) { t.handle = spawn f() }`
             # `fn (t PyThread) join() { t.handle.wait() }`
 
-            self.emitter.add_helper_struct("struct PyThread {\nmut:\n    handle thread int\n    // task fn() // V function types in structs?\n}")
+            self.emitter.add_helper_struct("//##LLM@@ PyThread implementation is a placeholder. Please implement proper threading using V's 'spawn' and thread handles.\nstruct PyThread {\nmut:\n    handle thread int\n    // task fn() // V function types in structs?\n}")
             self.emitter.add_helper_function("fn (mut t PyThread) start() {\n    // Implementation requires generic task storage or closures\n    println('PyThread.start() called. Note: V spawns immediately on `spawn`. This requires manual adjustment.')\n}")
             self.emitter.add_helper_function("fn (mut t PyThread) join() {\n    t.handle.wait()\n}")
 
@@ -671,10 +671,11 @@ class ModuleMixin(TranslatorBase):
         if struct_used:
              # Stub for generic pack/unpack
              self.emitter.add_helper_import("encoding.binary")
-             self.emitter.add_helper_function("fn py_struct_pack(fmt string, args ...Any) []u8 {\n    panic('struct.pack with dynamic format not implemented')\n    return []u8{}\n}")
+             llm_comment = "//##LLM@@ 'struct' module methods are stubbed because dynamic format strings are not supported natively in V. Please implement specific packing/unpacking."
+             self.emitter.add_helper_function(f"{llm_comment}\nfn py_struct_pack(fmt string, args ...Any) []u8 {{\n    panic('struct.pack with dynamic format not implemented')\n    return []u8{{}}\n}}")
              # Return []Any is hard in V without sum types for all primitives. For now, stub return empty.
-             self.emitter.add_helper_function("fn py_struct_unpack(fmt string, data []u8) []int {\n    panic('struct.unpack with dynamic format not implemented')\n    return []int{}\n}")
-             self.emitter.add_helper_function("fn py_struct_calcsize(fmt string) int {\n    panic('struct.calcsize with dynamic format not implemented')\n    return 0\n}")
+             self.emitter.add_helper_function(f"{llm_comment}\nfn py_struct_unpack(fmt string, data []u8) []int {{\n    panic('struct.unpack with dynamic format not implemented')\n    return []int{{}}\n}}")
+             self.emitter.add_helper_function(f"{llm_comment}\nfn py_struct_calcsize(fmt string) int {{\n    panic('struct.calcsize with dynamic format not implemented')\n    return 0\n}}")
 
              # Little Endian Helpers
              self.emitter.add_helper_import("encoding.binary")
@@ -771,7 +772,7 @@ class ModuleMixin(TranslatorBase):
              # Parsing string requires custom logic or libc atof?
              # For now, simplistic implementation for int/float/string
              self.emitter.add_helper_import("math.fractions")
-             self.emitter.add_helper_function("fn py_fraction(val Any) fractions.Fraction {\n    $if val is $int {\n        return fractions.fraction(i64(val), 1)\n    } $else $if val is $float {\n        return fractions.from_f64(f64(val))\n    } $else $if val is string {\n        // Simplistic string parsing not implemented in helper yet\n        return fractions.fraction(0, 1)\n    }\n    return fractions.fraction(0, 1)\n}")
+             self.emitter.add_helper_function("//##LLM@@ `py_fraction` parsing from string is incomplete. Please implement logic to parse string fractions into math.fractions.Fraction.\nfn py_fraction(val Any) fractions.Fraction {\n    $if val is $int {\n        return fractions.fraction(i64(val), 1)\n    } $else $if val is $float {\n        return fractions.from_f64(f64(val))\n    } $else $if val is string {\n        // Simplistic string parsing not implemented in helper yet\n        return fractions.fraction(0, 1)\n    }\n    return fractions.fraction(0, 1)\n}")
 
         statistics_used = "statistics" in self.imported_modules.values()
         if not statistics_used:
@@ -840,17 +841,18 @@ fn (mut ctx PyDecimalContext) close() {
                      break
 
         if pickle_used:
+             llm_comment = "//##LLM@@ Pickle operations are partially mapped to JSON serialization. This may not handle complex objects or exact pickle semantics. Please review and manually implement correct binary serialization if required."
              # py_pickle_dumps
              self.emitter.add_helper_import("json")
              self.emitter.add_helper_import("os")
-             self.emitter.add_helper_function("fn py_pickle_dumps[T](obj T) string {\n    // Warning: Mapped to JSON serialization as partial replacement for pickle\n    return json.encode(obj)\n}")
+             self.emitter.add_helper_function(f"{llm_comment}\nfn py_pickle_dumps[T](obj T) string {{\n    // Warning: Mapped to JSON serialization as partial replacement for pickle\n    return json.encode(obj)\n}}")
              # py_pickle_loads
-             self.emitter.add_helper_function("fn py_pickle_loads[T](s string) T {\n    // Warning: Mapped to JSON deserialization as partial replacement for pickle\n    return json.decode(T, s) or { panic(err) }\n}")
+             self.emitter.add_helper_function(f"{llm_comment}\nfn py_pickle_loads[T](s string) T {{\n    // Warning: Mapped to JSON deserialization as partial replacement for pickle\n    return json.decode(T, s) or {{ panic(err) }}\n}}")
              # py_pickle_dump (to file)
-             self.emitter.add_helper_function("fn py_pickle_dump[T](obj T, f os.File) {\n    // Warning: Mapped to JSON serialization\n    s := json.encode(obj)\n    f.write_string(s) or { panic(err) }\n}")
+             self.emitter.add_helper_function(f"{llm_comment}\nfn py_pickle_dump[T](obj T, f os.File) {{\n    // Warning: Mapped to JSON serialization\n    s := json.encode(obj)\n    f.write_string(s) or {{ panic(err) }}\n}}")
              # py_pickle_load (from file) - hard because we need to read everything?
              # Or assume file content is valid json.
-             self.emitter.add_helper_function("fn py_pickle_load[T](f os.File) T {\n    // Warning: Mapped to JSON deserialization\n    // This assumes the file contains one JSON object\n    // We need to read whole file? or stream?\n    // V json.decode takes string.\n    // We can't easily read from file inside generic func without reading all.\n    // Assuming small file for now, but we don't have read_all on File struct easily exposed in standard way? \n    // actually os.read_file(path) exists. But here we have File object.\n    // Let's panic for now or return zero.\n    panic('pickle.load not fully implemented')\n    return T{}\n}")
+             self.emitter.add_helper_function(f"{llm_comment}\nfn py_pickle_load[T](f os.File) T {{\n    // Warning: Mapped to JSON deserialization\n    // This assumes the file contains one JSON object\n    // We need to read whole file? or stream?\n    // V json.decode takes string.\n    // We can't easily read from file inside generic func without reading all.\n    // Assuming small file for now, but we don't have read_all on File struct easily exposed in standard way? \n    // actually os.read_file(path) exists. But here we have File object.\n    // Let's panic for now or return zero.\n    panic('pickle.load not fully implemented')\n    return T{{}}\n}}")
 
         # Helper for dynamic format specifiers
         if "py_format" in self.used_builtins:
@@ -994,7 +996,7 @@ mut:
 }""")
 
         # Helper for bytes formatting
-        self.emitter.add_helper_function("fn py_bytes_format(fmt []u8, args Any) []u8 {\n    // Simplistic implementation for b'%s' % b'val'\n    // Converts bytes to string, formats, and converts back.\n    // This is not efficient or correct for non-ASCII bytes but works for simple cases.\n    fmt_str := fmt.bytestr()\n    // TODO: handle args properly. V's string interpolation/formatting expects distinct args.\n    // If args is []u8, treat as string.\n    arg_str := if args is []u8 { args.bytestr() } else { '${args}' }\n    \n    // Manual substitution of %s\n    // V does not have sprintf for runtime strings easily available in core without C interop.\n    // Simple replace for %s\n    res := fmt_str.replace('%s', arg_str)\n    return res.bytes()\n}")
+        self.emitter.add_helper_function("//##LLM@@ String formatting for bytes is stubbed and might be incorrect. Please implement proper bytes formatting or use V string interpolation.\nfn py_bytes_format(fmt []u8, args Any) []u8 {\n    // Simplistic implementation for b'%s' % b'val'\n    // Converts bytes to string, formats, and converts back.\n    // This is not efficient or correct for non-ASCII bytes but works for simple cases.\n    fmt_str := fmt.bytestr()\n    // TODO: handle args properly. V's string interpolation/formatting expects distinct args.\n    // If args is []u8, treat as string.\n    arg_str := if args is []u8 { args.bytestr() } else { '${args}' }\n    \n    // Manual substitution of %s\n    // V does not have sprintf for runtime strings easily available in core without C interop.\n    // Simple replace for %s\n    res := fmt_str.replace('%s', arg_str)\n    return res.bytes()\n}")
         # String formatting helper
         if self.used_string_format:
             self.emitter.add_helper_import("strings")

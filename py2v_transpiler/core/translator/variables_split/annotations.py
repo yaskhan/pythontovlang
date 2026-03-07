@@ -76,9 +76,9 @@ class AnnotationsMixin(TranslatorBase):
             # Check if this is a LiteralString being assigned a non-literal value
             if is_literal_string_type:
                 if isinstance(node.value, ast.Call) and isinstance(node.value.func, ast.Name) and node.value.func.id == "input":
-                    self.output.append(f"{self._indent()}// WARNING: LiteralString variable '{target}' receives value from input() (loss of guarantee)")
+                    self.output.append(f"{self._indent()}//##LLM@@ LiteralString variable '{target}' receives value from input() (loss of guarantee). Please review the security implications.")
                 elif not self._is_literal_string_expr(node.value):
-                    self.output.append(f"{self._indent()}// WARNING: LiteralString variable '{target}' receives non-literal value")
+                    self.output.append(f"{self._indent()}//##LLM@@ LiteralString variable '{target}' receives non-literal value. Please review the security implications.")
 
             if self.in_main and isinstance(node.target, ast.Name):
                 if is_literal_string_type and not self._is_literal_string_expr(node.value) and not self._is_compile_time_evaluable(node.value):
@@ -234,4 +234,4 @@ class AnnotationsMixin(TranslatorBase):
 
                 self.output.append(f"{self._indent()}{target} := {default_val}")
             except:
-                self.output.append(f"{self._indent()}// {target} declared (annotation processing failed)")
+                self.output.append(f"{self._indent()}//##LLM@@ {target} declared (annotation processing failed). Please manually infer the correct type and initialize it.")
