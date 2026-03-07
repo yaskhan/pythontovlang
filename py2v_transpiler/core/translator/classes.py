@@ -69,12 +69,14 @@ class ClassesMixin(TranslatorBase):
         prev_generics = self.current_class_generics
         prev_generic_map = getattr(self, "current_class_generic_map", {})
         prev_bases = self.current_class_bases
+        prev_generic_bases = self.current_class_generic_bases
         prev_is_unittest = self.current_class_is_unittest
 
         self.current_class = struct_name
         self.current_class_generics = []
         self.current_class_generic_map = {}
         self.current_class_bases = []
+        self.current_class_generic_bases = set()
         self.current_class_is_unittest = False
 
         py_generics = []
@@ -447,18 +449,12 @@ class ClassesMixin(TranslatorBase):
                         v_type = self._map_type(type_str)
                         # V only allows anonymous embedding of structs/interfaces. Skip if it maps to array/map.
                         if not (v_type.startswith("[]") or v_type.startswith("map[")):
-                            # Use named field for generic bases ONLY if they have multiple parameters
-                            # to avoid V syntax errors with commas in anonymous embedding.
-                            # Single parameter generics can remain anonymous for automatic delegation.
-                            num_params = 1
-                            if isinstance(base.slice, ast.Tuple):
-                                num_params = len(base.slice.elts)
+                            # Use named field for ALL parameterized generic bases (ast.Subscript)
+                            # to avoid V syntax errors and ensure correct delegation control.
+                            field_name = base_name.lower()
+                            fields.append(f"pub mut:\n    {field_name} {v_type}")
+                            self.current_class_generic_bases.add(base_name)
 
-                            if num_params > 1:
-                                field_name = f"_{base_name.lower()}"
-                                fields.append(f"pub mut:\n    {field_name} {v_type}")
-                            else:
-                                fields.append(f"    {v_type}")
                     self.current_class_bases.append(base_name)
 
             elif isinstance(base, ast.Name):
@@ -998,6 +994,7 @@ class ClassesMixin(TranslatorBase):
         self.current_class_generics = prev_generics
         self.current_class_generic_map = prev_generic_map
         self.current_class_bases = prev_bases
+        self.current_class_generic_bases = prev_generic_bases
         self.current_class_is_unittest = prev_is_unittest
 
         # Ensure we output the nested struct definition at the top level

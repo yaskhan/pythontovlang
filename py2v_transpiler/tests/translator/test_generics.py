@@ -29,7 +29,8 @@ class Derived(Base[K, V]):
     v_code = transpile_source(source)
     assert "struct Base[K, V]" in v_code
     assert "struct Derived[K, V]" in v_code
-    assert "_base Base[K, V]" in v_code
+    # ALL parameterized generic bases (ast.Subscript) now use named field
+    assert "base Base[K, V]" in v_code
 
 def test_generic_inheritance_single_param():
     source = """
@@ -46,8 +47,30 @@ class Derived(Base[T]):
     v_code = transpile_source(source)
     assert "struct Base[T]" in v_code
     assert "struct Derived[T]" in v_code
-    # Single parameter generic should use anonymous embedding
-    assert "    Base[T]" in v_code
+    # ALL parameterized generic bases (ast.Subscript) now use named field
+    assert "base Base[T]" in v_code
+    # ALL parameterized generic bases (ast.Subscript) now use named field
+    assert "base Base[T]" in v_code
+
+def test_generic_inheritance_super_init():
+    source = """
+from typing import Generic, TypeVar
+
+T = TypeVar('T')
+
+class Base(Generic[T]):
+    def __init__(self, x: T):
+        self.x = x
+
+class Derived(Base[int]):
+    def __init__(self, x: int, y: int):
+        super().__init__(x)
+        self.y = y
+"""
+    v_code = transpile_source(source)
+    assert "struct Derived {" in v_code
+    assert "base Base[int]" in v_code
+    assert "self.base = new_base(x)" in v_code
 
 def test_non_generic_inheritance():
     source = """
@@ -75,5 +98,5 @@ class Derived[T](Base[T]):
     v_code = transpile_source(source)
     assert "struct Base[T]" in v_code
     assert "struct Derived[T]" in v_code
-    # Single parameter generic should use anonymous embedding
-    assert "    Base[T]" in v_code
+    # ALL parameterized generic bases (ast.Subscript) now use named field
+    assert "base Base[T]" in v_code
