@@ -353,7 +353,29 @@ class CallsMixin(TranslatorBase):
                         break
 
         # Handle overloaded functions
-        if func_name_str in getattr(self, "overloaded_signatures", {}):
+        lookup_name = func_name_str or ""
+        is_class = False
+        if lookup_name.startswith("py_"):
+            for orig_id in ("int", "float", "bool", "str", "map", "filter"):
+                if f"py_{orig_id}" == lookup_name:
+                    lookup_name = orig_id
+                    break
+
+        if call_sig and "is_class" in call_sig:
+            is_class = call_sig["is_class"]
+        elif hasattr(self, 'defined_classes') and lookup_name in self.defined_classes:
+            is_class = True
+
+        ov_key = lookup_name
+        receiver_type = None
+        if is_class:
+            ov_key = f"{lookup_name}.__init__"
+        elif isinstance(node.func, ast.Attribute):
+            receiver_type = self._guess_type(node.func.value)
+            if receiver_type != "Any" and not receiver_type.startswith("[]") and not receiver_type.startswith("map["):
+                ov_key = f"{receiver_type}.{node.func.attr}"
+
+        if ov_key in getattr(self, "overloaded_signatures", {}):
             # We need to find the correct overload variant
 
             type_suffix_parts = []
@@ -388,10 +410,10 @@ class CallsMixin(TranslatorBase):
 
             # We want to match against the *defined* overload variants, because mypy might infer
             # slightly different types than what was declared in the overload (e.g. `int` instead of `Any`).
-            # Find the best match among `self.overloaded_signatures[func_name_str]`.
+            # Find the best match among `self.overloaded_signatures[ov_key]`.
             best_match_suffix = None
-            if func_name_str in self.overloaded_signatures:
-                for sig in self.overloaded_signatures[func_name_str]:
+            if ov_key in self.overloaded_signatures:
+                for sig in self.overloaded_signatures[ov_key]:
                     sig_suffix_parts = []
                     for arg in sig["args"]:
                         sig_type = arg["type"]
@@ -425,15 +447,24 @@ class CallsMixin(TranslatorBase):
                 pass
 
             if best_match_suffix:
-                func_name_str = f"{func_name_str}_{best_match_suffix}"
+                if is_class:
+                    func_name_str = f"{self._get_factory_name(lookup_name)}_{best_match_suffix}"
+                else:
+                    func_name_str = f"{func_name_str}_{best_match_suffix}"
             elif type_suffix_parts:
                 # If no exact match, we use the inferred types to build the name.
                 # This guarantees we call the specific overloaded variant matching the static types.
                 # If mypy successfully inferred the types but the call doesn't match an overload,
                 # the V compiler will correctly throw an error indicating a missing function.
-                func_name_str = f"{func_name_str}_{'_'.join(type_suffix_parts)}"
+                if is_class:
+                    func_name_str = f"{self._get_factory_name(lookup_name)}_{'_'.join(type_suffix_parts)}"
+                else:
+                    func_name_str = f"{func_name_str}_{'_'.join(type_suffix_parts)}"
             else:
-                func_name_str = f"{func_name_str}_noargs"
+                if is_class:
+                    func_name_str = f"{self._get_factory_name(lookup_name)}_noargs"
+                else:
+                    func_name_str = f"{func_name_str}_noargs"
 
         # Resolve SCC Attribute calls (module.Func)
         if isinstance(node.func, ast.Attribute) and isinstance(node.func.value, ast.Name):
