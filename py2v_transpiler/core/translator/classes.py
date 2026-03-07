@@ -89,6 +89,38 @@ class ClassesMixin(TranslatorBase):
                     elif hasattr(name, "id"):
                         py_generics.append(name.id)
 
+        # Extract type vars from bases (Legacy Generic[T] or Parent[T])
+        for base in node.bases:
+            if isinstance(base, ast.Subscript):
+                # Check for Generic[T] or Parent[T, U]
+                py_gen = []
+                if isinstance(base.slice, ast.Tuple):
+                    for elt in base.slice.elts:
+                        if isinstance(elt, ast.Name):
+                            py_gen.append(elt.id)
+                        elif isinstance(elt, ast.Starred) and isinstance(
+                            elt.value, ast.Name
+                        ):
+                            py_gen.append(elt.value.id)
+                elif isinstance(base.slice, ast.Name):
+                    py_gen.append(base.slice.id)
+                elif isinstance(base.slice, ast.Starred) and isinstance(
+                    base.slice.value, ast.Name
+                ):
+                    py_gen.append(base.slice.value.id)
+
+                # Only add if it's a known TypeVar (to avoid literals or other types)
+                # Or if it's a Generic[...] base which explicitly defines them
+                is_generic_base = False
+                if isinstance(base.value, ast.Name) and base.value.id == "Generic":
+                    is_generic_base = True
+                elif isinstance(base.value, ast.Attribute) and base.value.attr == "Generic":
+                    is_generic_base = True
+
+                for g in py_gen:
+                    if (is_generic_base or g in self.type_vars) and g not in py_generics:
+                        py_generics.append(g)
+
         if py_generics:
             self.current_class_generic_map.update(self._get_generic_map(py_generics))
 
@@ -402,35 +434,10 @@ class ClassesMixin(TranslatorBase):
                     base_name = base.value.attr
 
                 if base_name == "Generic":
-                    # Extract type vars: Generic[T, U]
-                    py_gen = []
-                    if isinstance(base.slice, ast.Tuple):
-                        for elt in base.slice.elts:
-                            if isinstance(elt, ast.Name):
-                                py_gen.append(elt.id)
-                            elif isinstance(elt, ast.Starred) and isinstance(
-                                elt.value, ast.Name
-                            ):
-                                py_gen.append(elt.value.id)
-                    elif isinstance(base.slice, ast.Name):
-                        py_gen.append(base.slice.id)
-                    elif isinstance(base.slice, ast.Starred) and isinstance(
-                        base.slice.value, ast.Name
-                    ):
-                        py_gen.append(base.slice.value.id)
-
-                    if py_gen:
-                        self.current_class_generic_map.update(
-                            self._get_generic_map(py_gen)
-                        )
-                        self.current_class_generics = list(
-                            self.current_class_generic_map.values()
-                        )
-                    # Don't add Generic to fields
+                    # Generic parameters are already handled at the beginning of visit_ClassDef
                     continue
                 else:
                     # Regular generic base: Parent[T]
-                    # Add to fields as embedded struct if not an interface
                     if (
                         base_name not in self.known_interfaces
                         and base_name
@@ -440,7 +447,18 @@ class ClassesMixin(TranslatorBase):
                         v_type = self._map_type(type_str)
                         # V only allows anonymous embedding of structs/interfaces. Skip if it maps to array/map.
                         if not (v_type.startswith("[]") or v_type.startswith("map[")):
-                            fields.append(f"    {v_type}")
+                            # Use named field for generic bases ONLY if they have multiple parameters
+                            # to avoid V syntax errors with commas in anonymous embedding.
+                            # Single parameter generics can remain anonymous for automatic delegation.
+                            num_params = 1
+                            if isinstance(base.slice, ast.Tuple):
+                                num_params = len(base.slice.elts)
+
+                            if num_params > 1:
+                                field_name = f"_{base_name.lower()}"
+                                fields.append(f"pub mut:\n    {field_name} {v_type}")
+                            else:
+                                fields.append(f"    {v_type}")
                     self.current_class_bases.append(base_name)
 
             elif isinstance(base, ast.Name):
