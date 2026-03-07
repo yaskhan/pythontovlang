@@ -67,7 +67,16 @@ class FunctionsMixin(TranslatorBase):
 
             # Handle self/cls
             is_method = self.current_class is not None
-            if is_method and args and (args[0].arg == "self" or (node.name == "__new__" and args[0].arg == "cls")):
+            is_cls_method = False
+            for decorator in node.decorator_list:
+                if isinstance(decorator, ast.Name) and decorator.id == "classmethod":
+                    is_cls_method = True
+                    break
+                if isinstance(decorator, ast.Attribute) and decorator.attr == "classmethod":
+                    is_cls_method = True
+                    break
+
+            if is_method and args and (args[0].arg == "self" or is_cls_method or (node.name == "__new__" and args[0].arg == "cls")):
                 args = args[1:]
 
             for arg in args:
@@ -391,6 +400,9 @@ class FunctionsMixin(TranslatorBase):
                         receiver_str = f"({mut_receiver}{args[0].arg} {struct_name}{gen_str}) "
                     else:
                         receiver_str = f"({mut_receiver}{args[0].arg} {struct_name}) "
+            elif dec_info.is_classmethod:
+                # Class methods are static in V (no receiver)
+                receiver_str = ""
 
             args = args[1:]  # Remove self/cls from arguments list
         elif is_unittest_method and args and args[0].arg == "self":
@@ -748,7 +760,7 @@ class FunctionsMixin(TranslatorBase):
         # Handle classmethod: map 'cls' to struct name in scope
         if dec_info.is_classmethod and orig_args and orig_args[0].arg == "cls":
             # Map 'cls' to the struct name within the function body
-            self.name_remap[orig_args[0].arg] = struct_name
+            self.name_remap[orig_args[0].arg] = self._get_full_self_type(struct_name)
             current_scope.add(orig_args[0].arg)
 
         self._scope_stack.append(current_scope)
@@ -904,23 +916,27 @@ class FunctionsMixin(TranslatorBase):
                 args = node.args.args
                 if hasattr(node.args, "posonlyargs"):
                     args = node.args.posonlyargs + args
-                if args and args[0].arg == "self":
-                    # For overloads, we use the method name (node.name) or ov_key to decide mutability.
-                    # If any overload implementation needs mutability, we should probably emit it.
-                    # Heuristic: constructors (new/init) always need mut, setters need mut.
-                    # General methods: check analyzer's mutability map.
-                    is_mutated = False
-                    if hasattr(self, 'type_inference') and hasattr(self.type_inference, 'mutability_map'):
-                         mut_info = self.type_inference.mutability_map.get("self")
-                         if mut_info:
-                             is_mutated = mut_info.get("is_mutated", False)
+                if args and (args[0].arg == "self" or args[0].arg == "cls"):
+                    if args[0].arg == "self":
+                        # For overloads, we use the method name (node.name) or ov_key to decide mutability.
+                        # If any overload implementation needs mutability, we should probably emit it.
+                        # Heuristic: constructors (new/init) always need mut, setters need mut.
+                        # General methods: check analyzer's mutability map.
+                        is_mutated = False
+                        if hasattr(self, 'type_inference') and hasattr(self.type_inference, 'mutability_map'):
+                             mut_info = self.type_inference.mutability_map.get("self")
+                             if mut_info:
+                                 is_mutated = mut_info.get("is_mutated", False)
 
-                    mut_receiver = "mut " if getattr(dec_info, 'is_setter', False) or is_init or node.name == "__init__" or is_mutated else ""
-                    if self.current_class_generics:
-                        gen_str = f"[{', '.join(self.current_class_generics)}]"
-                        receiver_str = f"({mut_receiver}{args[0].arg} {struct_name}{gen_str}) "
+                        mut_receiver = "mut " if getattr(dec_info, 'is_setter', False) or is_init or node.name == "__init__" or is_mutated else ""
+                        if self.current_class_generics:
+                            gen_str = f"[{', '.join(self.current_class_generics)}]"
+                            receiver_str = f"({mut_receiver}{args[0].arg} {struct_name}{gen_str}) "
+                        else:
+                            receiver_str = f"({mut_receiver}{args[0].arg} {struct_name}) "
                     else:
-                        receiver_str = f"({mut_receiver}{args[0].arg} {struct_name}) "
+                        # 'cls' is handled as static, no receiver_str
+                        pass
 
             # Generate mangled name based on argument types
             type_suffix_parts = []
@@ -950,17 +966,19 @@ class FunctionsMixin(TranslatorBase):
 
             if is_init or is_new_factory:
                 base_func_name = self._get_factory_name(struct_name)
-                ret_type = struct_name
-                if self.current_class_generics:
-                    gen_str = f"[{', '.join(self.current_class_generics)}]"
-                    ret_type += gen_str
+                ret_type = self._get_full_self_type(struct_name)
                 if is_pydantic:
                     ret_type = "!" + ret_type
             else:
                 base_func_name = self._sanitize_name(node.name)
+
+                # Static/Class methods naming for overloads: Prefix with struct name
+                if (dec_info.is_static or dec_info.is_classmethod):
+                    base_func_name = f"{struct_name}_{base_func_name}"
+
                 if node.name == "__init__":
                     base_func_name = "init"
-                elif self.current_class:
+                elif self.current_class and not (dec_info.is_static or dec_info.is_classmethod):
                     base_func_name = self._sanitize_name(
                         self._mangle_name(base_func_name, self.current_class)
                     )
@@ -1026,6 +1044,19 @@ class FunctionsMixin(TranslatorBase):
                 else:
                     self.output.append(f"{self._indent()}mut self := {ret_type}{{}}")
 
+            # Handle classmethod for overloads: map 'cls' in scope
+            is_cls_method = False
+            for decorator in node.decorator_list:
+                if isinstance(decorator, ast.Name) and decorator.id == "classmethod":
+                    is_cls_method = True
+                    break
+                if isinstance(decorator, ast.Attribute) and decorator.attr == "classmethod":
+                    is_cls_method = True
+                    break
+
+            if is_cls_method:
+                self.name_remap["cls"] = self._get_full_self_type(struct_name)
+
             try:
                 # Note: We are using the implementation body, but its local types might need casts
                 # However, the V compiler handles explicit interfaces or generic returns if valid.
@@ -1049,6 +1080,8 @@ class FunctionsMixin(TranslatorBase):
                 for stmt in body:
                     self.visit(stmt)
             finally:
+                if is_cls_method:
+                    del self.name_remap["cls"]
                 self.current_function_return_type = prev_ret_type
                 if is_init:
                     class_info = self.defined_classes.get(struct_name, {})
