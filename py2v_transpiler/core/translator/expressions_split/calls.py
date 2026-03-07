@@ -885,15 +885,16 @@ class CallsMixin(TranslatorBase):
                 return f"os.input({args[0]})"
             return "os.input('')"
 
-        # String predicates
-        # isdigit, isalpha, isalnum, isspace, islower, isupper, istitle, startswith, endswith
+        # String predicates and methods
+        # isdigit, isalpha, isalnum, isspace, islower, isupper, istitle, startswith, endswith, splitlines, join
         # These are usually called as methods on strings: "s.isdigit()"
         # But visit_Call handles method calls too.
         # Check if the function name matches a known string predicate.
         # And implicitly assume the receiver is a string (or we rely on V compiler error if not).
         # We handle them if func_node is Attribute.
         elif isinstance(func_node, ast.Attribute) and func_node.attr in (
-            "isdigit", "isalpha", "isalnum", "isspace", "islower", "isupper", "istitle", "startswith", "endswith"
+            "isdigit", "isalpha", "isalnum", "isspace", "islower", "isupper", "istitle", "startswith", "endswith",
+            "splitlines", "join"
         ) and not module_name:
              attr = func_node.attr
              obj = self.visit(func_node.value)
@@ -911,6 +912,11 @@ class CallsMixin(TranslatorBase):
                  return f"{obj}.is_upper()"
              elif attr == "istitle":
                  return f"{obj}.is_title()"
+             elif attr == "splitlines":
+                 return f"{obj}.split_into_lines()"
+             elif attr == "join":
+                 if len(args) == 1:
+                     return f"{args[0]}.join({obj})"
              elif attr in ("startswith", "endswith"):
                  v_method = "starts_with" if attr == "startswith" else "ends_with"
                  if len(node.args) == 1 and isinstance(node.args[0], ast.Tuple):
