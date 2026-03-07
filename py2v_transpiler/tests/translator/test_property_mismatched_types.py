@@ -27,7 +27,7 @@ class Config:
 """
     expected_fragments = [
         "fn (self Config) value() int {",
-        "return self._value",
+        "return self.py_value",
         "}",
         # Union type is now preserved in setter
         "fn (mut self Config) set_value(new_value SumType_IntString) {",

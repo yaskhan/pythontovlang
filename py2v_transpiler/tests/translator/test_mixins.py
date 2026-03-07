@@ -17,11 +17,12 @@ class User(AuthMixin):
 """
     expected_v_code = """
 struct User {
+mut:
     is_authenticated bool = false
     username string
 }
 
-fn (self User) login() {
+fn (mut self User) login() {
     self.is_authenticated = true
 }
 
@@ -49,10 +50,12 @@ class ServiceB(BaseMixin):
 """
     expected_v_code = """
 struct ServiceA {
+mut:
     base_id int = 42
 }
 
 struct ServiceB {
+mut:
     base_id int = 42
 }
 
@@ -84,6 +87,7 @@ class SystemUser(AuthMixin, LogMixin):
 """
     expected_v_code = """
 struct SystemUser {
+mut:
     is_authenticated bool = false
     log_level int = 0
     username string

@@ -30,3 +30,12 @@ class TranspilerTest:
     def _normalize(self, code: str) -> str:
         lines = [line.strip() for line in code.splitlines() if line.strip()]
         return "\n".join(lines)
+
+    def transpile_to_str(self, python_code: str) -> str:
+        python_code = textwrap.dedent(python_code).strip()
+        parser = PyASTParser()
+        analyzer = TypeInference()
+        tree = parser.parse(python_code)
+        analyzer.analyze(tree)
+        translator = VNodeVisitor(analyzer)
+        return translator.visit_Module(cast(ast.Module, tree))

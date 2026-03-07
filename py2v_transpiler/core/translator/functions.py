@@ -393,7 +393,19 @@ class FunctionsMixin(TranslatorBase):
             if not dec_info.is_static and not dec_info.is_classmethod:
                 if args[0].arg == "self":
                     # fn (mut s Struct) method()
-                    mut_receiver = "mut " if getattr(dec_info, 'is_setter', False) else ""
+                    is_mutated = False
+                    if hasattr(self, 'type_inference'):
+                        if hasattr(self.type_inference, 'mutability_map'):
+                            mut_info = self.type_inference.mutability_map.get(f"{node.name}.self")
+                            if mut_info:
+                                is_mutated = mut_info.get("is_mutated", False)
+
+                        if not is_mutated and hasattr(self.type_inference, 'func_param_mutability'):
+                            if node.name in self.type_inference.func_param_mutability:
+                                if 0 in self.type_inference.func_param_mutability[node.name]:
+                                    is_mutated = True
+
+                    mut_receiver = "mut " if getattr(dec_info, 'is_setter', False) or is_mutated else ""
                     if self.current_class_generics:
                         # fn (mut s Struct[T]) method()
                         gen_str = f"[{', '.join(self.current_class_generics)}]"
@@ -927,10 +939,18 @@ class FunctionsMixin(TranslatorBase):
                         # Heuristic: constructors (new/init) always need mut, setters need mut.
                         # General methods: check analyzer's mutability map.
                         is_mutated = False
-                        if hasattr(self, 'type_inference') and hasattr(self.type_inference, 'mutability_map'):
-                             mut_info = self.type_inference.mutability_map.get("self")
-                             if mut_info:
-                                 is_mutated = mut_info.get("is_mutated", False)
+                        if hasattr(self, 'type_inference'):
+                            if hasattr(self.type_inference, 'mutability_map'):
+                                 mut_info = self.type_inference.mutability_map.get(f"{node.name}.self")
+                                 if not mut_info:
+                                     mut_info = self.type_inference.mutability_map.get("self")
+                                 if mut_info:
+                                     is_mutated = mut_info.get("is_mutated", False)
+
+                            if not is_mutated and hasattr(self.type_inference, 'func_param_mutability'):
+                                if node.name in self.type_inference.func_param_mutability:
+                                    if 0 in self.type_inference.func_param_mutability[node.name]:
+                                        is_mutated = True
 
                         mut_receiver = "mut " if getattr(dec_info, 'is_setter', False) or is_init or node.name == "__init__" or is_mutated else ""
                         if self.current_class_generics:

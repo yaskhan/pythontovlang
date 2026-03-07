@@ -206,7 +206,7 @@ class ClassesMixin(TranslatorBase):
                         if isinstance(stmt, ast.AnnAssign) and isinstance(
                             stmt.target, ast.Name
                         ):
-                            field_name = self._sanitize_name(stmt.target.id)
+                            field_name = self._get_attribute_name(stmt.target.id)
                             if field_name not in added_fields:
                                 added_fields.add(field_name)
                                 field_type = "int"
@@ -230,7 +230,7 @@ class ClassesMixin(TranslatorBase):
                                     isinstance(target, ast.Name)
                                     and target.id != "__slots__"
                                 ):
-                                    field_name = self._sanitize_name(target.id)
+                                    field_name = self._get_attribute_name(target.id)
                                     if field_name not in added_fields:
                                         added_fields.add(field_name)
                                         # Infer type from value
@@ -529,7 +529,7 @@ class ClassesMixin(TranslatorBase):
                 self.visit(stmt)
             elif isinstance(stmt, ast.AnnAssign) and isinstance(stmt.target, ast.Name):
                 # Class attribute with annotation -> struct field
-                field_name = self._sanitize_name(stmt.target.id)
+                field_name = self._get_attribute_name(stmt.target.id)
 
                 if field_name in added_fields:
                     continue
@@ -834,7 +834,7 @@ class ClassesMixin(TranslatorBase):
                                 for target in sub_node.targets:
                                     for t in ast.walk(target):
                                         if isinstance(t, ast.Attribute) and isinstance(t.value, ast.Name) and t.value.id == init_self_name:
-                                            field_name = self._sanitize_name(t.attr)
+                                            field_name = self._get_attribute_name(t.attr, t.value)
                                             if field_name not in added_fields:
                                                 added_fields.add(field_name)
                                                 # Try to guess type from value
@@ -844,7 +844,7 @@ class ClassesMixin(TranslatorBase):
                                                 fields.append(f"    {field_name} {f_type}")
                             elif isinstance(sub_node, ast.AnnAssign):
                                 if isinstance(sub_node.target, ast.Attribute) and isinstance(sub_node.target.value, ast.Name) and sub_node.target.value.id == init_self_name:
-                                    field_name = self._sanitize_name(sub_node.target.attr)
+                                    field_name = self._get_attribute_name(sub_node.target.attr, sub_node.target.value)
                                     if field_name not in added_fields:
                                         added_fields.add(field_name)
                                         f_type = "Any"
@@ -972,6 +972,7 @@ class ClassesMixin(TranslatorBase):
 
             struct_parts.append(f"{pub}struct {struct_name}{generics_str} {{\n")
             if fields:
+                struct_parts.append("mut:\n")
                 struct_parts.append("\n".join(fields))
                 struct_parts.append("\n")
             struct_parts.append("}")

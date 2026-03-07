@@ -178,10 +178,11 @@ class AssignmentsMixin(TranslatorBase):
 
             # Check for function attribute assignment
             obj_name = self.visit(target.value)
+            attr_name = self._get_attribute_name(target.attr, target.value)
             if obj_name in self.function_names:
-                 lhs = f"{obj_name}__{target.attr}"
+                 lhs = f"{obj_name}__{attr_name}"
             else:
-                 lhs = f"{obj_name}.{target.attr}"
+                 lhs = f"{obj_name}.{attr_name}"
         elif isinstance(target, ast.Subscript):
             # dict["key"] = value (TypedDict)
             obj_type = getattr(self, "_guess_type", lambda x: "unknown")(target.value)

@@ -21,6 +21,13 @@ class NamesMixin(TranslatorBase):
         if name in self._local_vars_in_scope:
             res = self._sanitize_name(name)
 
+        # Sanitize V's blank identifier if it is used in Load context
+        # V's _ is strictly write-only, so any read (Load) must be sanitized.
+        # We also sanitize in Store context if it is NOT a simple assignment (e.g. in a list)
+        # but for now let's focus on Load.
+        if node.id == "_" and isinstance(node.ctx, ast.Load):
+            res = "py_"
+
         # Apply narrowing if mypy type differs from base type
         if isinstance(node.ctx, ast.Load):
             # Check for location-based narrowing first

@@ -259,11 +259,11 @@ class TranslatorBase(ast.NodeVisitor):
 
     def _to_snake_case(self, name: str) -> str:
         """Converts CamelCase or UPPER_CASE to snake_case."""
-        if not name: return name
+        if not name or name == "_": return name
 
         # Handle already separated names
         if '_' in name:
-            return "_".join(self._to_snake_case(p) for p in name.split('_') if p)
+            return "_".join(self._to_snake_case(p) for p in name.split('_') if p) or "_"
 
         if name.isupper():
             return name.lower()
@@ -364,6 +364,11 @@ class TranslatorBase(ast.NodeVisitor):
         Sanitizes Python identifiers that collide with V lang reserved keywords
         or other files in the same SCC cluster.
         """
+        # V lang doesn't allow names starting with _ (except for _)
+        # Also V's _ is write-only, so we prefix it if it's used as a variable.
+        if not is_type and name.startswith("_"):
+            name = f"py{name}"
+
         # Ensure robustness against test classes and mock translators that do not fully initialize the base class.
         compatibility = getattr(self, 'compatibility', None)
         if compatibility and compatibility.is_v_reserved(name):
@@ -400,7 +405,8 @@ class TranslatorBase(ast.NodeVisitor):
         """
         if class_name and name.startswith("__") and not name.endswith("__"):
             # Strip leading underscores from class name for cleaner mangling if needed
-            stripped_cls = class_name.lstrip('_')
+            # Lowercase the class name to ensure valid V field names (snake_case)
+            stripped_cls = class_name.lstrip('_').lower()
             return f"__{stripped_cls}_{name.lstrip('_')}"
         return name
 
@@ -428,6 +434,21 @@ class TranslatorBase(ast.NodeVisitor):
             gen_str = f"[{', '.join(self.current_class_generics)}]"
             return f"{name}{gen_str}"
         return name
+
+    def _get_attribute_name(self, attr: str, value_node: Optional[ast.AST] = None) -> str:
+        """Translates Python attribute name to V attribute name, handling mangling and reserved names."""
+        res = attr
+        if res == "__next__":
+            res = "next"
+        elif res == "__await__":
+            res = "await_"
+        elif res == "__iter__":
+            res = "iter"
+
+        if self.current_class and res.startswith("__") and not res.endswith("__"):
+            res = self._mangle_name(res, self.current_class)
+
+        return self._sanitize_name(res)
 
     def _register_literal_enum(self, nodes: Sequence[ast.AST]) -> str:
         """

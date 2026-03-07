@@ -234,7 +234,7 @@ class MatchMixin(TranslatorBase):
 
              for i, sub_pat in enumerate(pattern.patterns):
                  if i < len(match_args):
-                     attr = match_args[i]
+                     attr = self._get_attribute_name(match_args[i])
                  else:
                      # Fallback to positional index if unknown
                      # Python usually requires __match_args__ but we can try to be helpful
@@ -246,7 +246,8 @@ class MatchMixin(TranslatorBase):
                  cond += f" && ({sub_cond})"
                  bindings.extend(sub_bindings)
 
-             for attr, sub_pat in zip(pattern.kwd_attrs, pattern.kwd_patterns):
+             for raw_attr, sub_pat in zip(pattern.kwd_attrs, pattern.kwd_patterns):
+                 attr = self._get_attribute_name(raw_attr)
                  cast_expr = f"({subject_expr} as {cls_name})"
                  # Need to wrap in Any() for recursive generic check?
                  # _compile_pattern expects subject_expr to be Any if it does type checks.
