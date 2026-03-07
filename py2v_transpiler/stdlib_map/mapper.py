@@ -5,28 +5,28 @@ class StdLibMapper:
         # Maps Python module -> { Python function -> V function or transformation }
         self.mappings: Dict[str, Dict[str, Union[str, Callable[[List[str]], str]]]] = {
             "math": {
-                "sqrt": "math.sqrt",
-                "sin": "math.sin",
-                "cos": "math.cos",
-                "tan": "math.tan",
-                "asin": "math.asin",
-                "acos": "math.acos",
-                "atan": "math.atan",
-                "atan2": "math.atan2",
-                "sinh": "math.sinh",
-                "cosh": "math.cosh",
-                "tanh": "math.tanh",
-                "exp": "math.exp",
-                "log": "math.log",
-                "log10": "math.log10",
-                "pow": "math.pow",
-                "ceil": "math.ceil",
-                "floor": "math.floor",
-                "fabs": "math.abs",
+                "sqrt": self._math_unary_f64("math.sqrt"),
+                "sin": self._math_unary_f64("math.sin"),
+                "cos": self._math_unary_f64("math.cos"),
+                "tan": self._math_unary_f64("math.tan"),
+                "asin": self._math_unary_f64("math.asin"),
+                "acos": self._math_unary_f64("math.acos"),
+                "atan": self._math_unary_f64("math.atan"),
+                "atan2": self._math_atan2,
+                "sinh": self._math_unary_f64("math.sinh"),
+                "cosh": self._math_unary_f64("math.cosh"),
+                "tanh": self._math_unary_f64("math.tanh"),
+                "exp": self._math_unary_f64("math.exp"),
+                "log": self._math_log,
+                "log10": self._math_unary_f64("math.log10"),
+                "pow": self._math_pow,
+                "ceil": self._math_unary_f64("math.ceil"),
+                "floor": self._math_unary_f64("math.floor"),
+                "fabs": self._math_unary_f64("math.abs"),
                 "pi": "math.pi",
                 "e": "math.e",
-                "degrees": "math.degrees",
-                "radians": "math.radians",
+                "degrees": self._math_unary_f64("math.degrees"),
+                "radians": self._math_unary_f64("math.radians"),
             },
             "random": {
                 "randint": self._random_randint,
@@ -355,6 +355,30 @@ class StdLibMapper:
         return self.v_imports.get(module)
 
     # specialized handlers
+
+    def _math_unary_f64(self, v_func: str) -> Callable[[List[str]], str]:
+        def handler(args: List[str]) -> str:
+            if len(args) == 1:
+                return f"{v_func}(f64({args[0]}))"
+            return f"/* {v_func} args error */"
+        return handler
+
+    def _math_log(self, args: List[str]) -> str:
+        if len(args) == 1:
+            return f"math.log(f64({args[0]}))"
+        elif len(args) == 2:
+            return f"math.log_n(f64({args[0]}), f64({args[1]}))"
+        return "/* math.log args error */"
+
+    def _math_pow(self, args: List[str]) -> str:
+        if len(args) == 2:
+            return f"math.pow(f64({args[0]}), f64({args[1]}))"
+        return "/* math.pow args error */"
+
+    def _math_atan2(self, args: List[str]) -> str:
+        if len(args) == 2:
+            return f"math.atan2(f64({args[0]}), f64({args[1]}))"
+        return "/* math.atan2 args error */"
 
     def _io_stringio(self, args: List[str]) -> str:
         if len(args) == 0:
