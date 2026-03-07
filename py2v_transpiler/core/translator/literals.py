@@ -100,6 +100,12 @@ class LiteralsMixin(TranslatorBase):
              return f"{v_type}{{}}"
 
         v_type = self._guess_type(node)
+
+        # Optimization: Use idiomatic V literal [1, 2, 3] if possible.
+        # But for nested mutability tracking, we might need explicit initialization if it's assigned to a 'mut'.
+        # However, visit_Assign handles .clone() which requires explicit type sometimes or not?
+        # Actually, V's `mut a := [1, 2]` is fine.
+
         if v_type == "[]Any" or not hasattr(self, "current_assignment_type"):
              # Special case for py_array helper used in tests
              is_py_array = False
@@ -208,6 +214,10 @@ class LiteralsMixin(TranslatorBase):
         for elt in node.elts:
             val = self.visit(elt)
             elements.append(f"{val}: true")
+
+        v_type = self._guess_type(node)
+        if "Any" in v_type:
+            return f"{v_type}{{{', '.join(elements)}}}"
 
         return f"{{{', '.join(elements)}}}"
 

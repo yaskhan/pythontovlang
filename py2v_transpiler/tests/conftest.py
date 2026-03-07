@@ -13,12 +13,12 @@ def pytest_collection_modifyitems(config, items):
     # Filter out tests from input directory (cpython, transpile, tr)
     items[:] = [
         item for item in items
-        if "input" not in str(item.fspath)
+        if f"{os.sep}input{os.sep}" not in str(item.fspath)
     ]
 
 
 def pytest_ignore_collect(collection_path, config):
     """Ignore the input directory during test collection."""
-    if "input" in str(collection_path):
+    if f"{os.sep}input{os.sep}" in str(collection_path):
         return True
     return None
