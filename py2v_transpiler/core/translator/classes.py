@@ -668,6 +668,12 @@ class ClassesMixin(TranslatorBase):
         if inherits_abc:
             fields.append("mut:\n    __abstractmethods__ map[string]bool")
 
+        # Dynamic attributes dictionary (Python __dict__)
+        if not is_enum and not is_int_enum and not is_flag and not is_unittest:
+            # Add __dict__ equivalent (py_dict) to all normal structs
+            # We use pub mut to allow runtime attribute manipulation as in Python
+            fields.append("pub mut:\n    py_dict map[string]Any")
+
         # Generate factory function for dataclasses if __post_init__ exists
         if is_dataclass and has_post_init and dataclass_metadata:
             init_fields = [attr for attr in dataclass_metadata.get("attributes", []) if attr.get("is_in_init")]

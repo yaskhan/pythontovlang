@@ -262,6 +262,19 @@ class StdLibMapper:
                 "abstractclassmethod": "abc.abstractclassmethod",
                 "abstractstaticmethod": "abc.abstractstaticmethod",
                 "abstractproperty": "abc.abstractproperty",
+            },
+            "types": {
+                "NotImplemented": "none",
+            },
+            "inspect": {
+                "isabstract": "inspect.isabstract",
+            },
+            "builtins": {
+                "list": "builtins.list",
+                "dict": "builtins.dict",
+                "object": "builtins.object",
+                "hasattr": "builtins.hasattr",
+                "getattr": "builtins.getattr",
             }
         }
 
@@ -320,7 +333,10 @@ class StdLibMapper:
             "mock": [],
             "abc": ["abc"],
             "unittest": [],
-            "types": [],
+            "types": ["types"],
+            "inspect": ["inspect"],
+            "builtins": ["builtins"],
+            "ast": [],
             "enum": [],
             "string": ["strings"],
         }

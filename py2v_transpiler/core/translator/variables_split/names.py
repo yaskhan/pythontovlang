@@ -6,6 +6,9 @@ class NamesMixin(TranslatorBase):
     """Обработка имен: visit_Name"""
     
     def visit_Name(self, node: ast.Name) -> str:
+        if node.id == "NotImplemented":
+            return "none"
+
         if node.id in self.name_remap:
             return self.name_remap[node.id]
 

@@ -70,6 +70,9 @@ class VCodeEmitter:
         """Generates the full V source code."""
         lines = [f"module {self.module_name}\n"]
 
+        # Define custom Any type if not in SCC pkg where it might be defined globally
+        lines.append("pub type Any = bool | char | i8 | i16 | int | i64 | u8 | u16 | u32 | u64 | f32 | f64 | string | []u8 | none\n")
+
         if self.imports:
             for imp in self.imports:
                 lines.append(f"import {imp}")
@@ -124,7 +127,7 @@ class VCodeEmitter:
         lines = [f"module {module_name}\n"]
 
         # Define custom Any type
-        lines.append("pub type Any = bool | int | i64 | f64 | string | []u8 | none\n")
+        lines.append("pub type Any = bool | char | i8 | i16 | int | i64 | u8 | u16 | u32 | u64 | f32 | f64 | string | []u8 | none\n")
 
         # Sort and deduplicate imports
         unique_imports = sorted(list(set(imports)))

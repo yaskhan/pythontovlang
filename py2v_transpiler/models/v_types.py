@@ -41,6 +41,7 @@ def map_python_type_to_v(py_type: str, self_name: str = "Self", allow_union: boo
     if py_type == 'builtins.float': return 'f64'
     if py_type == 'builtins.str': return 'string'
     if py_type == 'builtins.bool': return 'bool'
+    if py_type == 'types.NotImplementedType': return 'Any'
 
     if generic_map and py_type in generic_map:
         return generic_map[py_type]
@@ -123,7 +124,10 @@ def _map_ast_type(node: ast.AST, self_name: str = "Self", allow_union: bool = Tr
             if isinstance(curr_val, ast.Name):
                 parts.append(curr_val.id)
                 full_name = ".".join(reversed(parts))
-                if full_name.startswith("typing.") or full_name.startswith("typing_extensions."):
+                if full_name.startswith("typing.") or \
+                   full_name.startswith("typing_extensions.") or \
+                   full_name.startswith("builtins.") or \
+                   full_name.startswith("types."):
                     value_id = node.value.attr
                 else:
                     value_id = full_name
@@ -333,11 +337,18 @@ def _map_ast_type(node: ast.AST, self_name: str = "Self", allow_union: bool = Tr
     return "void"
 
 def _map_basic_type(name: str) -> str:
-    # Strip typing. prefix
+    # Strip prefixes
     if name.startswith('typing.'):
         name = name[7:]
-    if name.startswith('typing_extensions.'):
+    elif name.startswith('typing_extensions.'):
         name = name[18:]
+    elif name.startswith('builtins.'):
+        name = name[9:]
+    elif name.startswith('types.'):
+        name = name[6:]
+    elif name.startswith('ast.'):
+        # Map all ast nodes to Any in V for now
+        return 'Any'
 
     mapping = {
         'int': 'int',
@@ -403,5 +414,10 @@ def _map_basic_type(name: str) -> str:
         'typing.Final': 'Any',
         'ClassVar': 'Any',
         'typing.ClassVar': 'Any',
+        'NotImplementedType': 'Any',
+        'LambdaType': 'Any',
+        'CodeType': 'Any',
+        'FrameType': 'Any',
+        'TracebackType': 'Any',
     }
     return mapping.get(name, name)

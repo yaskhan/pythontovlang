@@ -20,6 +20,10 @@ class AttributesMixin(TranslatorBase):
              obj = self.visit(node.value)
              return f"typeof({obj})"
 
+        if node.attr == "__dict__":
+             obj = self.visit(node.value)
+             return f"{obj}.py_dict"
+
         if node.attr == "__type_params__":
             obj = self.visit(node.value)
             # obj could be ClassName, ClassName[int], or a function name.

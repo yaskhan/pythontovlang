@@ -1,136 +1,89 @@
 # V Compilation Failure Report
 
-**Total files processed:** 181
+**Total files processed:** 189
 **Passed (V -check):** 2
-**Failed (V -check):** 179
+**Failed (V -check):** 187
 **Transpilation Errors:** 0
 
 | Category | Count |
 | :--- | :--- |
 | deprecated_sum | 1 |
-| missing_import | 66 |
-| mutable_args | 52 |
-| redefinition | 9 |
-| unexpected_token | 6 |
-| unknown | 45 |
+| missing_import | 16 |
+| mutable_args | 55 |
+| redefinition | 1 |
+| unexpected_token | 8 |
+| unknown | 106 |
 
 ### deprecated_sum: 1 files
-- `py2v_transpiler/tests/input/transpile/test_bitwise_ops.py`: py2v_transpiler/tests/input/transpile/test_bitwise_ops.v:54:24: error: inline sum types have been deprecated and will be removed on January 1, 2023 due to complicating the language and the compiler too much; define named sum types with `type Foo = Bar | Baz` instead
+- `py2v_transpiler/tests/input/transpile/test_bitwise_ops.py`: py2v_transpiler/tests/input/transpile/test_bitwise_ops.v:62:24: error: inline sum types have been deprecated and will be removed on January 1, 2023 due to complicating the language and the compiler too much; define named sum types with `type Foo = Bar | Baz` instead
 
-### missing_import: 66 files
-- `py2v_transpiler/tests/input/transpile/test_advenced.py`: py2v_transpiler/tests/input/transpile/test_advenced.v:3:1: error: cannot import module "div72.vexc" (not found)
-- `py2v_transpiler/tests/input/transpile/test_context_managers.py`: py2v_transpiler/tests/input/transpile/test_context_managers.v:33:23: error: use assignment `=` instead of declaration `:=` when modifying struct fields
-- `py2v_transpiler/tests/input/transpile/test_decorators.py`: py2v_transpiler/tests/input/transpile/test_decorators.v:30:35: error: cannot use ...(variadic) with non-final parameter args
+### missing_import: 16 files
+- `py2v_transpiler/tests/input/transpile/test_context_managers.py`: py2v_transpiler/tests/input/transpile/test_context_managers.v:62:23: error: use assignment `=` instead of declaration `:=` when modifying struct fields
+- `py2v_transpiler/tests/input/transpile/test_decorators.py`: py2v_transpiler/tests/input/transpile/test_decorators.v:44:35: error: cannot use ...(variadic) with non-final parameter args
 - `py2v_transpiler/tests/input/transpile/test_exceptions.py`: py2v_transpiler/tests/input/transpile/test_exceptions.v:3:1: error: cannot import module "div72.vexc" (not found)
-- `py2v_transpiler/tests/input/transpile/test_iterators.py`: py2v_transpiler/tests/input/transpile/test_iterators.v:30:16: error: unexpected token `(` after anonymous function signature, expecting `{`
-- `py2v_transpiler/tests/input/transpile/test_more_features.py`: py2v_transpiler/tests/input/transpile/test_more_features.v:6:31: error: cannot use ...(variadic) with non-final parameter args
-- `py2v_transpiler/tests/translator/test_assert_type.py`: py2v_transpiler/tests/translator/test_assert_type.v:35:27: error: unexpected eof, expecting `)`
-- `py2v_transpiler/tests/translator/test_async_lambda.py`: py2v_transpiler/tests/translator/test_async_lambda.v:3:1: error: cannot import module "ast" (not found)
-- `py2v_transpiler/tests/translator/test_basics.py`: py2v_transpiler/tests/translator/test_basics.v:3:1: error: cannot import module "ast" (not found)
-- `py2v_transpiler/tests/translator/test_buffer_protocol.py`: py2v_transpiler/tests/translator/test_buffer_protocol.v:50:28: error: use assignment `=` instead of declaration `:=` when modifying struct fields
-- `py2v_transpiler/tests/translator/test_bytes.py`: py2v_transpiler/tests/translator/test_bytes.v:3:1: error: cannot import module "pytest" (not found)
-- `py2v_transpiler/tests/translator/test_chained_compare.py`: py2v_transpiler/tests/translator/test_chained_compare.v:3:1: error: cannot import module "pytest" (not found)
-- `py2v_transpiler/tests/translator/test_classes.py`: py2v_transpiler/tests/translator/test_classes.v:3:1: error: cannot import module "ast" (not found)
-- `py2v_transpiler/tests/translator/test_complex.py`: py2v_transpiler/tests/translator/test_complex.v:3:1: error: cannot import module "pytest" (not found)
-- `py2v_transpiler/tests/translator/test_control_flow.py`: py2v_transpiler/tests/translator/test_control_flow.v:87:57: error: unexpected token `,`, expecting `:`
-- `py2v_transpiler/tests/translator/test_coroutines.py`: py2v_transpiler/tests/translator/test_coroutines.v:3:1: error: cannot import module "ast" (not found)
-- `py2v_transpiler/tests/translator/test_dataclasses.py`: py2v_transpiler/tests/translator/test_dataclasses.v:30:99: error: `}` expected; explicit `map` initialization does not support parameters
-- `py2v_transpiler/tests/translator/test_decimal_fractions.py`: py2v_transpiler/tests/translator/test_decimal_fractions.v:3:1: error: cannot import module "ast" (not found)
-- `py2v_transpiler/tests/translator/test_decorators.py`: py2v_transpiler/tests/translator/test_decorators.v:97:5: error: expression evaluated but not used
-- `py2v_transpiler/tests/translator/test_destructuring.py`: py2v_transpiler/tests/translator/test_destructuring.v:3:1: error: cannot import module "pytest" (not found)
-- `py2v_transpiler/tests/translator/test_dict_comp.py`: py2v_transpiler/tests/translator/test_dict_comp.v:3:1: error: cannot import module "pytest" (not found)
-- `py2v_transpiler/tests/translator/test_dict_inference.py`: py2v_transpiler/tests/translator/test_dict_inference.v:3:1: error: cannot import module "ast" (not found)
-- `py2v_transpiler/tests/translator/test_disjoint_base.py`: py2v_transpiler/tests/translator/test_disjoint_base.v:3:1: error: cannot import module "ast" (not found)
-- `py2v_transpiler/tests/translator/test_dynamic.py`: py2v_transpiler/tests/translator/test_dynamic.v:25:2846: error: unexpected eof, expecting `)`
-- `py2v_transpiler/tests/translator/test_enum_members.py`: py2v_transpiler/tests/translator/test_enum_members.v:3:1: error: cannot import module "ast" (not found)
-- `py2v_transpiler/tests/translator/test_exceptions_context.py`: py2v_transpiler/tests/translator/test_exceptions_context.v:3:1: error: cannot import module "ast" (not found)
-- `py2v_transpiler/tests/translator/test_exceptions_vexc.py`: py2v_transpiler/tests/translator/test_exceptions_vexc.v:148:8: error: invalid expression: unexpected keyword `in`
-- `py2v_transpiler/tests/translator/test_files.py`: py2v_transpiler/tests/translator/test_files.v:3:1: error: cannot import module "ast" (not found)
-- `py2v_transpiler/tests/translator/test_flow_narrowing.py`: py2v_transpiler/tests/translator/test_flow_narrowing.v:3:1: error: cannot import module "ast" (not found)
-- `py2v_transpiler/tests/translator/test_fstrings_312.py`: py2v_transpiler/tests/translator/test_fstrings_312.v:50:68: error: unexpected eof, expecting `)`
-- `py2v_transpiler/tests/translator/test_fstrings_312_extra.py`: py2v_transpiler/tests/translator/test_fstrings_312_extra.v:34:713: error: unexpected eof, expecting `)`
-- `py2v_transpiler/tests/translator/test_functions.py`: py2v_transpiler/tests/translator/test_functions.v:3:1: error: cannot import module "ast" (not found)
-- `py2v_transpiler/tests/translator/test_gen_exp.py`: py2v_transpiler/tests/translator/test_gen_exp.v:3:1: error: cannot import module "pytest" (not found)
-- `py2v_transpiler/tests/translator/test_generators_slices.py`: py2v_transpiler/tests/translator/test_generators_slices.v:3:1: error: cannot import module "ast" (not found)
-- `py2v_transpiler/tests/translator/test_imports.py`: py2v_transpiler/tests/translator/test_imports.v:3:1: error: cannot import module "ast" (not found)
-- `py2v_transpiler/tests/translator/test_indirect_abc.py`: py2v_transpiler/tests/translator/test_indirect_abc.v:3:1: error: cannot import module "ast" (not found)
-- `py2v_transpiler/tests/translator/test_inheritance.py`: py2v_transpiler/tests/translator/test_inheritance.v:3:1: error: cannot import module "ast" (not found)
-- `py2v_transpiler/tests/translator/test_init_inference.py`: py2v_transpiler/tests/translator/test_init_inference.v:3:1: error: cannot import module "ast" (not found)
-- `py2v_transpiler/tests/translator/test_isinstance.py`: py2v_transpiler/tests/translator/test_isinstance.v:3:1: error: cannot import module "ast" (not found)
-- `py2v_transpiler/tests/translator/test_issue_optional_chan.py`: py2v_transpiler/tests/translator/test_issue_optional_chan.v:3:1: error: cannot import module "ast" (not found)
-- `py2v_transpiler/tests/translator/test_keyword_collision.py`: py2v_transpiler/tests/translator/test_keyword_collision.v:3:1: error: cannot import module "ast" (not found)
-- `py2v_transpiler/tests/translator/test_kwargs_call.py`: py2v_transpiler/tests/translator/test_kwargs_call.v:3:1: error: cannot import module "pytest" (not found)
-- `py2v_transpiler/tests/translator/test_kwargs_def.py`: py2v_transpiler/tests/translator/test_kwargs_def.v:3:1: error: cannot import module "pytest" (not found)
-- `py2v_transpiler/tests/translator/test_kwonly.py`: py2v_transpiler/tests/translator/test_kwonly.v:3:1: error: cannot import module "pytest" (not found)
-- `py2v_transpiler/tests/translator/test_literal_string_new.py`: py2v_transpiler/tests/translator/test_literal_string_new.v:3:1: error: cannot import module "ast" (not found)
-- `py2v_transpiler/tests/translator/test_literalstring.py`: py2v_transpiler/tests/translator/test_literalstring.v:3:1: error: cannot import module "ast" (not found)
-- `py2v_transpiler/tests/translator/test_magic_methods.py`: py2v_transpiler/tests/translator/test_magic_methods.v:3:1: error: cannot import module "ast" (not found)
-- `py2v_transpiler/tests/translator/test_matmul.py`: py2v_transpiler/tests/translator/test_matmul.v:3:1: error: cannot import module "pytest" (not found)
-- `py2v_transpiler/tests/translator/test_mixins.py`: py2v_transpiler/tests/translator/test_mixins.v:3:1: error: cannot import module "pytest" (not found)
-- `py2v_transpiler/tests/translator/test_overload_operators.py`: py2v_transpiler/tests/translator/test_overload_operators.v:3:1: error: cannot import module "ast" (not found)
-- `py2v_transpiler/tests/translator/test_polymorphism.py`: py2v_transpiler/tests/translator/test_polymorphism.v:3:1: error: cannot import module "ast" (not found)
-- `py2v_transpiler/tests/translator/test_pos_only.py`: py2v_transpiler/tests/translator/test_pos_only.v:3:1: error: cannot import module "pytest" (not found)
-- `py2v_transpiler/tests/translator/test_property_mismatched_types.py`: py2v_transpiler/tests/translator/test_property_mismatched_types.v:3:1: error: cannot import module "ast" (not found)
-- `py2v_transpiler/tests/translator/test_property_setter.py`: py2v_transpiler/tests/translator/test_property_setter.v:3:1: error: cannot import module "ast" (not found)
-- `py2v_transpiler/tests/translator/test_repr.py`: py2v_transpiler/tests/translator/test_repr.v:30:28: error: use assignment `=` instead of declaration `:=` when modifying struct fields
-- `py2v_transpiler/tests/translator/test_set_comp.py`: py2v_transpiler/tests/translator/test_set_comp.v:3:1: error: cannot import module "pytest" (not found)
-- `py2v_transpiler/tests/translator/test_six.py`: py2v_transpiler/tests/translator/test_six.v:3:1: error: cannot import module "ast" (not found)
-- `py2v_transpiler/tests/translator/test_star_call.py`: py2v_transpiler/tests/translator/test_star_call.v:3:1: error: cannot import module "pytest" (not found)
-- `py2v_transpiler/tests/translator/test_statements.py`: py2v_transpiler/tests/translator/test_statements.v:3:1: error: cannot import module "ast" (not found)
-- `py2v_transpiler/tests/translator/test_strings.py`: py2v_transpiler/tests/translator/test_strings.v:3:1: error: cannot import module "ast" (not found)
-- `py2v_transpiler/tests/translator/test_tuples.py`: py2v_transpiler/tests/translator/test_tuples.v:3:1: error: cannot import module "ast" (not found)
-- `py2v_transpiler/tests/translator/test_type_alias_infer.py`: py2v_transpiler/tests/translator/test_type_alias_infer.v:3:1: error: cannot import module "ast" (not found)
-- `py2v_transpiler/tests/translator/test_type_aliases.py`: py2v_transpiler/tests/translator/test_type_aliases.v:3:1: error: cannot import module "ast" (not found)
-- `py2v_transpiler/tests/translator/test_type_directed_ops.py`: py2v_transpiler/tests/translator/test_type_directed_ops.v:3:1: error: cannot import module "ast" (not found)
-- `py2v_transpiler/tests/translator/test_varargs.py`: py2v_transpiler/tests/translator/test_varargs.v:3:1: error: cannot import module "pytest" (not found)
-- `py2v_transpiler/tests/translator/test_walrus.py`: py2v_transpiler/tests/translator/test_walrus.v:3:1: error: cannot import module "ast" (not found)
+- `py2v_transpiler/tests/input/transpile/test_iterators.py`: py2v_transpiler/tests/input/transpile/test_iterators.v:37:16: error: unexpected token `(` after anonymous function signature, expecting `{`
+- `py2v_transpiler/tests/input/transpile/test_more_features.py`: py2v_transpiler/tests/input/transpile/test_more_features.v:9:31: error: cannot use ...(variadic) with non-final parameter args
+- `py2v_transpiler/tests/translator/test_abc.py`: py2v_transpiler/tests/translator/test_abc.v:3:1: error: cannot import module "py2v_transpiler.models.v_types" (not found)
+- `py2v_transpiler/tests/translator/test_coroutines.py`: py2v_transpiler/tests/translator/test_coroutines.v:8:17: error: unknown module `ast`
+- `py2v_transpiler/tests/translator/test_decimal_fractions.py`: py2v_transpiler/tests/translator/test_decimal_fractions.v:9:17: error: unknown module `ast`
+- `py2v_transpiler/tests/translator/test_disjoint_base.py`: py2v_transpiler/tests/translator/test_disjoint_base.v:9:17: error: unknown module `ast`
+- `py2v_transpiler/tests/translator/test_fstrings_312.py`: py2v_transpiler/tests/translator/test_fstrings_312.v:56:68: error: unexpected eof, expecting `)`
+- `py2v_transpiler/tests/translator/test_fstrings_312_extra.py`: py2v_transpiler/tests/translator/test_fstrings_312_extra.v:39:755: error: unexpected eof, expecting `)`
+- `py2v_transpiler/tests/translator/test_indirect_abc.py`: py2v_transpiler/tests/translator/test_indirect_abc.v:59:20: error: unknown module `ast`
+- `py2v_transpiler/tests/translator/test_keyword_collision.py`: py2v_transpiler/tests/translator/test_keyword_collision.v:9:17: error: unknown module `ast`
+- `py2v_transpiler/tests/translator/test_overload_operators.py`: py2v_transpiler/tests/translator/test_overload_operators.v:9:17: error: unknown module `ast`
+- `py2v_transpiler/tests/translator/test_polymorphism.py`: py2v_transpiler/tests/translator/test_polymorphism.v:53:20: error: unknown module `ast`
+- `py2v_transpiler/tests/translator/test_type_directed_ops.py`: py2v_transpiler/tests/translator/test_type_directed_ops.v:4:1: error: cannot import module "div72.vexc" (not found)
 
-### mutable_args: 52 files
+### mutable_args: 55 files
 - `py2v_transpiler/tests/translator/test_any_all.py`: py2v_transpiler/tests/translator/test_any_all.v:6:29: error: mutable arguments are only allowed for arrays, interfaces, maps, pointers, structs or their aliases
 - `py2v_transpiler/tests/translator/test_argparse.py`: py2v_transpiler/tests/translator/test_argparse.v:6:29: error: mutable arguments are only allowed for arrays, interfaces, maps, pointers, structs or their aliases
 - `py2v_transpiler/tests/translator/test_array.py`: py2v_transpiler/tests/translator/test_array.v:6:29: error: mutable arguments are only allowed for arrays, interfaces, maps, pointers, structs or their aliases
-- `py2v_transpiler/tests/translator/test_aug_assign.py`: py2v_transpiler/tests/translator/test_aug_assign.v:5:29: error: mutable arguments are only allowed for arrays, interfaces, maps, pointers, structs or their aliases
+- `py2v_transpiler/tests/translator/test_aug_assign.py`: py2v_transpiler/tests/translator/test_aug_assign.v:4:29: error: mutable arguments are only allowed for arrays, interfaces, maps, pointers, structs or their aliases
 - `py2v_transpiler/tests/translator/test_base64.py`: py2v_transpiler/tests/translator/test_base64.v:6:29: error: mutable arguments are only allowed for arrays, interfaces, maps, pointers, structs or their aliases
 - `py2v_transpiler/tests/translator/test_builtins.py`: py2v_transpiler/tests/translator/test_builtins.v:6:29: error: mutable arguments are only allowed for arrays, interfaces, maps, pointers, structs or their aliases
-- `py2v_transpiler/tests/translator/test_collections.py`: py2v_transpiler/tests/translator/test_collections.v:52:29: error: mutable arguments are only allowed for arrays, interfaces, maps, pointers, structs or their aliases
+- `py2v_transpiler/tests/translator/test_collections.py`: py2v_transpiler/tests/translator/test_collections.v:55:29: error: mutable arguments are only allowed for arrays, interfaces, maps, pointers, structs or their aliases
 - `py2v_transpiler/tests/translator/test_contextlib.py`: py2v_transpiler/tests/translator/test_contextlib.v:6:29: error: mutable arguments are only allowed for arrays, interfaces, maps, pointers, structs or their aliases
 - `py2v_transpiler/tests/translator/test_copy.py`: py2v_transpiler/tests/translator/test_copy.v:6:29: error: mutable arguments are only allowed for arrays, interfaces, maps, pointers, structs or their aliases
-- `py2v_transpiler/tests/translator/test_csv.py`: py2v_transpiler/tests/translator/test_csv.v:7:29: error: mutable arguments are only allowed for arrays, interfaces, maps, pointers, structs or their aliases
+- `py2v_transpiler/tests/translator/test_csv.py`: py2v_transpiler/tests/translator/test_csv.v:6:29: error: mutable arguments are only allowed for arrays, interfaces, maps, pointers, structs or their aliases
 - `py2v_transpiler/tests/translator/test_decimal.py`: py2v_transpiler/tests/translator/test_decimal.v:6:29: error: mutable arguments are only allowed for arrays, interfaces, maps, pointers, structs or their aliases
 - `py2v_transpiler/tests/translator/test_del.py`: py2v_transpiler/tests/translator/test_del.v:6:29: error: mutable arguments are only allowed for arrays, interfaces, maps, pointers, structs or their aliases
 - `py2v_transpiler/tests/translator/test_enumerate.py`: py2v_transpiler/tests/translator/test_enumerate.v:6:29: error: mutable arguments are only allowed for arrays, interfaces, maps, pointers, structs or their aliases
-- `py2v_transpiler/tests/translator/test_functools.py`: py2v_transpiler/tests/translator/test_functools.v:7:29: error: mutable arguments are only allowed for arrays, interfaces, maps, pointers, structs or their aliases
+- `py2v_transpiler/tests/translator/test_functools.py`: py2v_transpiler/tests/translator/test_functools.v:6:29: error: mutable arguments are only allowed for arrays, interfaces, maps, pointers, structs or their aliases
 - `py2v_transpiler/tests/translator/test_generic_match.py`: py2v_transpiler/tests/translator/test_generic_match.v:6:29: error: mutable arguments are only allowed for arrays, interfaces, maps, pointers, structs or their aliases
 - `py2v_transpiler/tests/translator/test_global_constants.py`: py2v_transpiler/tests/translator/test_global_constants.v:6:29: error: mutable arguments are only allowed for arrays, interfaces, maps, pointers, structs or their aliases
-- `py2v_transpiler/tests/translator/test_hashlib.py`: py2v_transpiler/tests/translator/test_hashlib.v:7:29: error: mutable arguments are only allowed for arrays, interfaces, maps, pointers, structs or their aliases
-- `py2v_transpiler/tests/translator/test_http.py`: py2v_transpiler/tests/translator/test_http.v:7:29: error: mutable arguments are only allowed for arrays, interfaces, maps, pointers, structs or their aliases
+- `py2v_transpiler/tests/translator/test_hashlib.py`: py2v_transpiler/tests/translator/test_hashlib.v:6:29: error: mutable arguments are only allowed for arrays, interfaces, maps, pointers, structs or their aliases
+- `py2v_transpiler/tests/translator/test_http.py`: py2v_transpiler/tests/translator/test_http.v:6:29: error: mutable arguments are only allowed for arrays, interfaces, maps, pointers, structs or their aliases
 - `py2v_transpiler/tests/translator/test_input.py`: py2v_transpiler/tests/translator/test_input.v:6:29: error: mutable arguments are only allowed for arrays, interfaces, maps, pointers, structs or their aliases
-- `py2v_transpiler/tests/translator/test_itertools.py`: py2v_transpiler/tests/translator/test_itertools.v:7:29: error: mutable arguments are only allowed for arrays, interfaces, maps, pointers, structs or their aliases
+- `py2v_transpiler/tests/translator/test_itertools.py`: py2v_transpiler/tests/translator/test_itertools.v:6:29: error: mutable arguments are only allowed for arrays, interfaces, maps, pointers, structs or their aliases
 - `py2v_transpiler/tests/translator/test_logging.py`: py2v_transpiler/tests/translator/test_logging.v:6:29: error: mutable arguments are only allowed for arrays, interfaces, maps, pointers, structs or their aliases
 - `py2v_transpiler/tests/translator/test_main_block.py`: py2v_transpiler/tests/translator/test_main_block.v:6:29: error: mutable arguments are only allowed for arrays, interfaces, maps, pointers, structs or their aliases
 - `py2v_transpiler/tests/translator/test_map_filter.py`: py2v_transpiler/tests/translator/test_map_filter.v:6:29: error: mutable arguments are only allowed for arrays, interfaces, maps, pointers, structs or their aliases
 - `py2v_transpiler/tests/translator/test_match_pattern.py`: py2v_transpiler/tests/translator/test_match_pattern.v:6:29: error: mutable arguments are only allowed for arrays, interfaces, maps, pointers, structs or their aliases
-- `py2v_transpiler/tests/translator/test_nested_or_patterns_complex.py`: py2v_transpiler/tests/translator/test_nested_or_patterns_complex.v:8:29: error: mutable arguments are only allowed for arrays, interfaces, maps, pointers, structs or their aliases
-- `py2v_transpiler/tests/translator/test_new_features.py`: py2v_transpiler/tests/translator/test_new_features.v:5:24: error: mutable arguments are only allowed for arrays, interfaces, maps, pointers, structs or their aliases
-- `py2v_transpiler/tests/translator/test_none_initialization.py`: py2v_transpiler/tests/translator/test_none_initialization.v:6:27: error: mutable arguments are only allowed for arrays, interfaces, maps, pointers, structs or their aliases
+- `py2v_transpiler/tests/translator/test_mutation_regression.py`: py2v_transpiler/tests/translator/test_mutation_regression.v:6:29: error: mutable arguments are only allowed for arrays, interfaces, maps, pointers, structs or their aliases
+- `py2v_transpiler/tests/translator/test_nested_or_patterns_complex.py`: py2v_transpiler/tests/translator/test_nested_or_patterns_complex.v:7:29: error: mutable arguments are only allowed for arrays, interfaces, maps, pointers, structs or their aliases
+- `py2v_transpiler/tests/translator/test_new_features.py`: py2v_transpiler/tests/translator/test_new_features.v:4:24: error: mutable arguments are only allowed for arrays, interfaces, maps, pointers, structs or their aliases
+- `py2v_transpiler/tests/translator/test_none_initialization.py`: py2v_transpiler/tests/translator/test_none_initialization.v:4:27: error: mutable arguments are only allowed for arrays, interfaces, maps, pointers, structs or their aliases
 - `py2v_transpiler/tests/translator/test_operator_overloading.py`: py2v_transpiler/tests/translator/test_operator_overloading.v:6:29: error: mutable arguments are only allowed for arrays, interfaces, maps, pointers, structs or their aliases
-- `py2v_transpiler/tests/translator/test_pathlib.py`: py2v_transpiler/tests/translator/test_pathlib.v:7:29: error: mutable arguments are only allowed for arrays, interfaces, maps, pointers, structs or their aliases
+- `py2v_transpiler/tests/translator/test_overload.py`: py2v_transpiler/tests/translator/test_overload.v:4:29: error: mutable arguments are only allowed for arrays, interfaces, maps, pointers, structs or their aliases
+- `py2v_transpiler/tests/translator/test_pathlib.py`: py2v_transpiler/tests/translator/test_pathlib.v:6:29: error: mutable arguments are only allowed for arrays, interfaces, maps, pointers, structs or their aliases
 - `py2v_transpiler/tests/translator/test_pickle.py`: py2v_transpiler/tests/translator/test_pickle.v:6:29: error: mutable arguments are only allowed for arrays, interfaces, maps, pointers, structs or their aliases
-- `py2v_transpiler/tests/translator/test_platform.py`: py2v_transpiler/tests/translator/test_platform.v:7:29: error: mutable arguments are only allowed for arrays, interfaces, maps, pointers, structs or their aliases
+- `py2v_transpiler/tests/translator/test_platform.py`: py2v_transpiler/tests/translator/test_platform.v:6:29: error: mutable arguments are only allowed for arrays, interfaces, maps, pointers, structs or their aliases
 - `py2v_transpiler/tests/translator/test_print.py`: py2v_transpiler/tests/translator/test_print.v:6:29: error: mutable arguments are only allowed for arrays, interfaces, maps, pointers, structs or their aliases
-- `py2v_transpiler/tests/translator/test_pydantic.py`: py2v_transpiler/tests/translator/test_pydantic.v:5:54: error: mutable arguments are only allowed for arrays, interfaces, maps, pointers, structs or their aliases
-- `py2v_transpiler/tests/translator/test_pydantic_v2.py`: py2v_transpiler/tests/translator/test_pydantic_v2.v:5:56: error: mutable arguments are only allowed for arrays, interfaces, maps, pointers, structs or their aliases
-- `py2v_transpiler/tests/translator/test_pydantic_validators.py`: py2v_transpiler/tests/translator/test_pydantic_validators.v:3:57: error: mutable arguments are only allowed for arrays, interfaces, maps, pointers, structs or their aliases
+- `py2v_transpiler/tests/translator/test_pydantic.py`: py2v_transpiler/tests/translator/test_pydantic.v:4:54: error: mutable arguments are only allowed for arrays, interfaces, maps, pointers, structs or their aliases
+- `py2v_transpiler/tests/translator/test_pydantic_v2.py`: py2v_transpiler/tests/translator/test_pydantic_v2.v:4:56: error: mutable arguments are only allowed for arrays, interfaces, maps, pointers, structs or their aliases
+- `py2v_transpiler/tests/translator/test_pydantic_validators.py`: py2v_transpiler/tests/translator/test_pydantic_validators.v:4:57: error: mutable arguments are only allowed for arrays, interfaces, maps, pointers, structs or their aliases
 - `py2v_transpiler/tests/translator/test_range_step.py`: py2v_transpiler/tests/translator/test_range_step.v:6:29: error: mutable arguments are only allowed for arrays, interfaces, maps, pointers, structs or their aliases
 - `py2v_transpiler/tests/translator/test_shutil.py`: py2v_transpiler/tests/translator/test_shutil.v:6:29: error: mutable arguments are only allowed for arrays, interfaces, maps, pointers, structs or their aliases
-- `py2v_transpiler/tests/translator/test_socket.py`: py2v_transpiler/tests/translator/test_socket.v:7:29: error: mutable arguments are only allowed for arrays, interfaces, maps, pointers, structs or their aliases
-- `py2v_transpiler/tests/translator/test_sqlite3.py`: py2v_transpiler/tests/translator/test_sqlite3.v:7:29: error: mutable arguments are only allowed for arrays, interfaces, maps, pointers, structs or their aliases
+- `py2v_transpiler/tests/translator/test_socket.py`: py2v_transpiler/tests/translator/test_socket.v:6:29: error: mutable arguments are only allowed for arrays, interfaces, maps, pointers, structs or their aliases
+- `py2v_transpiler/tests/translator/test_sqlite3.py`: py2v_transpiler/tests/translator/test_sqlite3.v:6:29: error: mutable arguments are only allowed for arrays, interfaces, maps, pointers, structs or their aliases
 - `py2v_transpiler/tests/translator/test_statistics.py`: py2v_transpiler/tests/translator/test_statistics.v:6:29: error: mutable arguments are only allowed for arrays, interfaces, maps, pointers, structs or their aliases
 - `py2v_transpiler/tests/translator/test_struct.py`: py2v_transpiler/tests/translator/test_struct.v:6:29: error: mutable arguments are only allowed for arrays, interfaces, maps, pointers, structs or their aliases
-- `py2v_transpiler/tests/translator/test_subprocess.py`: py2v_transpiler/tests/translator/test_subprocess.v:7:29: error: mutable arguments are only allowed for arrays, interfaces, maps, pointers, structs or their aliases
-- `py2v_transpiler/tests/translator/test_subprocess_security.py`: py2v_transpiler/tests/translator/test_subprocess_security.v:7:29: error: mutable arguments are only allowed for arrays, interfaces, maps, pointers, structs or their aliases
+- `py2v_transpiler/tests/translator/test_subprocess.py`: py2v_transpiler/tests/translator/test_subprocess.v:6:29: error: mutable arguments are only allowed for arrays, interfaces, maps, pointers, structs or their aliases
+- `py2v_transpiler/tests/translator/test_subprocess_security.py`: py2v_transpiler/tests/translator/test_subprocess_security.v:6:29: error: mutable arguments are only allowed for arrays, interfaces, maps, pointers, structs or their aliases
 - `py2v_transpiler/tests/translator/test_tempfile.py`: py2v_transpiler/tests/translator/test_tempfile.v:6:29: error: mutable arguments are only allowed for arrays, interfaces, maps, pointers, structs or their aliases
-- `py2v_transpiler/tests/translator/test_threading.py`: py2v_transpiler/tests/translator/test_threading.v:7:29: error: mutable arguments are only allowed for arrays, interfaces, maps, pointers, structs or their aliases
+- `py2v_transpiler/tests/translator/test_threading.py`: py2v_transpiler/tests/translator/test_threading.v:6:29: error: mutable arguments are only allowed for arrays, interfaces, maps, pointers, structs or their aliases
+- `py2v_transpiler/tests/translator/test_type_syntax_fixes.py`: py2v_transpiler/tests/translator/test_type_syntax_fixes.v:4:30: error: mutable arguments are only allowed for arrays, interfaces, maps, pointers, structs or their aliases
 - `py2v_transpiler/tests/translator/test_typing.py`: py2v_transpiler/tests/translator/test_typing.v:6:29: error: mutable arguments are only allowed for arrays, interfaces, maps, pointers, structs or their aliases
 - `py2v_transpiler/tests/translator/test_typing_features.py`: py2v_transpiler/tests/translator/test_typing_features.v:7:29: error: mutable arguments are only allowed for arrays, interfaces, maps, pointers, structs or their aliases
 - `py2v_transpiler/tests/translator/test_unittest.py`: py2v_transpiler/tests/translator/test_unittest.v:6:29: error: mutable arguments are only allowed for arrays, interfaces, maps, pointers, structs or their aliases
@@ -139,68 +92,123 @@
 - `py2v_transpiler/tests/translator/test_zip.py`: py2v_transpiler/tests/translator/test_zip.v:6:29: error: mutable arguments are only allowed for arrays, interfaces, maps, pointers, structs or their aliases
 - `py2v_transpiler/tests/translator/test_zlib_gzip.py`: py2v_transpiler/tests/translator/test_zlib_gzip.v:6:29: error: mutable arguments are only allowed for arrays, interfaces, maps, pointers, structs or their aliases
 
-### redefinition: 9 files
-- `py2v_transpiler/tests/input/transpile/test_function_annotations.py`: py2v_transpiler/tests/input/transpile/test_function_annotations.v:30:13: error: redefinition of `value`
-- `py2v_transpiler/tests/input/transpile/test_none_type.py`: py2v_transpiler/tests/input/transpile/test_none_type.v:43:9: error: redefinition of `y`
-- `py2v_transpiler/tests/input/transpile/test_slice_ops.py`: py2v_transpiler/tests/input/transpile/test_slice_ops.v:78:9: error: redefinition of `lst`
-- `py2v_transpiler/tests/input/transpile/test_type_annotations.py`: py2v_transpiler/tests/input/transpile/test_type_annotations.v:18:9: error: redefinition of `x`
-- `py2v_transpiler/tests/translator/test_floor_div.py`: py2v_transpiler/tests/translator/test_floor_div.v:46:28: error: use assignment `=` instead of declaration `:=` when modifying struct fields
-- `py2v_transpiler/tests/translator/test_list_comp_prealloc.py`: py2v_transpiler/tests/translator/test_list_comp_prealloc.v:27:9: error: redefinition of `node`
-- `py2v_transpiler/tests/translator/test_pow_negative.py`: py2v_transpiler/tests/translator/test_pow_negative.v:46:28: error: use assignment `=` instead of declaration `:=` when modifying struct fields
-- `py2v_transpiler/tests/translator/test_typed_dict.py`: py2v_transpiler/tests/translator/test_typed_dict.v:50:9: error: redefinition of `node`
-- `py2v_transpiler/tests/translator/test_while_collection.py`: py2v_transpiler/tests/translator/test_while_collection.v:22:9: error: redefinition of `node`
+### redefinition: 1 files
+- `py2v_transpiler/tests/input/transpile/test_advenced.py`: py2v_transpiler/tests/input/transpile/test_advenced.v:19:17: error: redefinition of `num`
 
-### unexpected_token: 6 files
-- `py2v_transpiler/tests/input/transpile/test_dict_operations.py`: py2v_transpiler/tests/input/transpile/test_dict_operations.v:8:24: error: unexpected token `[`, expecting name
-- `py2v_transpiler/tests/input/transpile/test_function_defs.py`: py2v_transpiler/tests/input/transpile/test_function_defs.v:56:28: error: cannot use ...(variadic) with non-final parameter args
-- `py2v_transpiler/tests/input/transpile/test_global_nonlocal.py`: py2v_transpiler/tests/input/transpile/test_global_nonlocal.v:60:27: error: use `_` to name an unused parameter
-- `py2v_transpiler/tests/input/transpile/test_set_operations.py`: py2v_transpiler/tests/input/transpile/test_set_operations.v:8:21: error: unexpected number `1`, expecting name
-- `py2v_transpiler/tests/input/transpile/test_string_literals.py`: py2v_transpiler/tests/input/transpile/test_string_literals.v:88:28: error: `}` expected; explicit `map` initialization does not support parameters
-- `py2v_transpiler/tests/input/transpile/test_tuple_type.py`: py2v_transpiler/tests/input/transpile/test_tuple_type.v:8:27: error: unexpected number `1`, expecting name
+### unexpected_token: 8 files
+- `py2v_transpiler/tests/input/transpile/test_function_defs.py`: py2v_transpiler/tests/input/transpile/test_function_defs.v:73:28: error: cannot use ...(variadic) with non-final parameter args
+- `py2v_transpiler/tests/input/transpile/test_global_nonlocal.py`: py2v_transpiler/tests/input/transpile/test_global_nonlocal.v:73:27: error: use `_` to name an unused parameter
+- `py2v_transpiler/tests/input/transpile/test_none_type.py`: py2v_transpiler/tests/input/transpile/test_none_type.v:55:25: error: `}` expected; explicit `map` initialization does not support parameters
+- `py2v_transpiler/tests/input/transpile/test_string_literals.py`: py2v_transpiler/tests/input/transpile/test_string_literals.v:102:28: error: `}` expected; explicit `map` initialization does not support parameters
+- `py2v_transpiler/tests/translator/test_buffer_protocol.py`: py2v_transpiler/tests/translator/test_buffer_protocol.v:57:28: error: use assignment `=` instead of declaration `:=` when modifying struct fields
+- `py2v_transpiler/tests/translator/test_control_flow.py`: py2v_transpiler/tests/translator/test_control_flow.v:90:57: error: unexpected token `,`, expecting `:`
+- `py2v_transpiler/tests/translator/test_dataclasses.py`: py2v_transpiler/tests/translator/test_dataclasses.v:32:99: error: `}` expected; explicit `map` initialization does not support parameters
+- `py2v_transpiler/tests/translator/test_decorators.py`: py2v_transpiler/tests/translator/test_decorators.v:101:5: error: expression evaluated but not used
 
-### unknown: 45 files
-- `py2v_transpiler/tests/input/transpile/test_args_kwargs.py`: py2v_transpiler/tests/input/transpile/test_args_kwargs.v:22:21: error: cannot use ...(variadic) with non-final parameter args
-- `py2v_transpiler/tests/input/transpile/test_boolean_ops.py`: py2v_transpiler/tests/input/transpile/test_boolean_ops.v:4:19: error: unknown method or field: `bool.clone`.
-- `py2v_transpiler/tests/input/transpile/test_builtin_modules.py`: py2v_transpiler/tests/input/transpile/test_builtin_modules.v:14:25: error: unknown function: abs
-- `py2v_transpiler/tests/input/transpile/test_classes_inheritance.py`: py2v_transpiler/tests/input/transpile/test_classes_inheritance.v:24:10: error: field `name` of struct `Animal` is immutable
+### unknown: 106 files
+- `py2v_transpiler/tests/input/transpile/test_args_kwargs.py`: py2v_transpiler/tests/input/transpile/test_args_kwargs.v:29:21: error: cannot use ...(variadic) with non-final parameter args
+- `py2v_transpiler/tests/input/transpile/test_boolean_ops.py`: py2v_transpiler/tests/input/transpile/test_boolean_ops.v:5:19: error: unknown method or field: `bool.clone`.
+- `py2v_transpiler/tests/input/transpile/test_builtin_modules.py`: py2v_transpiler/tests/input/transpile/test_builtin_modules.v:15:25: error: unknown function: abs
+- `py2v_transpiler/tests/input/transpile/test_classes_inheritance.py`: py2v_transpiler/tests/input/transpile/test_classes_inheritance.v:6:13: error: unknown type `Any`.
+- `py2v_transpiler/tests/input/transpile/test_dict_operations.py`: V panic: table.sym: invalid type (typ=ast.Type(0x0 = 0) idx=0). Compiler bug. This should never happen. Please report the bug using `v bug file.v`.
 - `py2v_transpiler/tests/input/transpile/test_even_more_features.py`: V panic: table.sym: invalid type (typ=ast.Type(0x0 = 0) idx=0). Compiler bug. This should never happen. Please report the bug using `v bug file.v`.
-- `py2v_transpiler/tests/input/transpile/test_features.py`: py2v_transpiler/tests/input/transpile/test_features.v:12:47: error: unknown type `PyGeneratorInput`.
-- `py2v_transpiler/tests/input/transpile/test_final_features.py`: py2v_transpiler/tests/input/transpile/test_final_features.v:7:1: error: use `v -enable-globals ...` to enable globals
-- `py2v_transpiler/tests/input/transpile/test_for_loop.py`: py2v_transpiler/tests/input/transpile/test_for_loop.v:15:9: error: invalid use of reserved type `char` as a variable name
-- `py2v_transpiler/tests/input/transpile/test_if_statement.py`: py2v_transpiler/tests/input/transpile/test_if_statement.v:70:20: error: cannot cast non-sum type `none` using `as`
-- `py2v_transpiler/tests/input/transpile/test_lambda_functions.py`: py2v_transpiler/tests/input/transpile/test_lambda_functions.v:12:50: error: cannot use `i64` as type `int` in return argument
-- `py2v_transpiler/tests/input/transpile/test_list_operations.py`: py2v_transpiler/tests/input/transpile/test_list_operations.v:10:9: error: unknown method or field: `[]int.extend`
-- `py2v_transpiler/tests/input/transpile/test_range_type.py`: py2v_transpiler/tests/input/transpile/test_range_type.v:4:14: error: unknown function: range
-- `py2v_transpiler/tests/input/transpile/test_string_methods.py`: py2v_transpiler/tests/input/transpile/test_string_methods.v:5:18: error: unknown method or field: `string.strip`.
-- `py2v_transpiler/tests/input/transpile/test_transpile.py`: py2v_transpiler/tests/input/transpile/test_transpile.v:10:10: error: field `value` of struct `Data` is immutable
-- `py2v_transpiler/tests/input/transpile/test_while_loop.py`: py2v_transpiler/tests/input/transpile/test_while_loop.v:102:9: error: `a` is immutable, declare it with `mut` to make it mutable
+- `py2v_transpiler/tests/input/transpile/test_features.py`: py2v_transpiler/tests/input/transpile/test_features.v:6:13: error: unknown type `Any`
+- `py2v_transpiler/tests/input/transpile/test_final_features.py`: py2v_transpiler/tests/input/transpile/test_final_features.v:10:1: error: use `v -enable-globals ...` to enable globals
+- `py2v_transpiler/tests/input/transpile/test_for_loop.py`: py2v_transpiler/tests/input/transpile/test_for_loop.v:18:9: error: invalid use of reserved type `char` as a variable name
+- `py2v_transpiler/tests/input/transpile/test_function_annotations.py`: V panic: table.sym: invalid type (typ=ast.Type(0x0 = 0) idx=0). Compiler bug. This should never happen. Please report the bug using `v bug file.v`.
+- `py2v_transpiler/tests/input/transpile/test_if_statement.py`: py2v_transpiler/tests/input/transpile/test_if_statement.v:79:20: error: cannot cast non-sum type `none` using `as`
+- `py2v_transpiler/tests/input/transpile/test_lambda_functions.py`: py2v_transpiler/tests/input/transpile/test_lambda_functions.v:14:50: error: cannot use `i64` as type `int` in return argument
+- `py2v_transpiler/tests/input/transpile/test_list_operations.py`: py2v_transpiler/tests/input/transpile/test_list_operations.v:11:9: error: unknown method or field: `[]int.extend`
+- `py2v_transpiler/tests/input/transpile/test_range_type.py`: py2v_transpiler/tests/input/transpile/test_range_type.v:5:14: error: unknown function: range
+- `py2v_transpiler/tests/input/transpile/test_set_operations.py`: V panic: table.sym: invalid type (typ=ast.Type(0x0 = 0) idx=0). Compiler bug. This should never happen. Please report the bug using `v bug file.v`.
+- `py2v_transpiler/tests/input/transpile/test_slice_ops.py`: py2v_transpiler/tests/input/transpile/test_slice_ops.v:34:30: error: negative index `-3`
+- `py2v_transpiler/tests/input/transpile/test_string_methods.py`: py2v_transpiler/tests/input/transpile/test_string_methods.v:6:18: error: unknown method or field: `string.strip`.
+- `py2v_transpiler/tests/input/transpile/test_transpile.py`: py2v_transpiler/tests/input/transpile/test_transpile.v:8:13: error: unknown type `Any`.
+- `py2v_transpiler/tests/input/transpile/test_tuple_type.py`: V panic: table.sym: invalid type (typ=ast.Type(0x0 = 0) idx=0). Compiler bug. This should never happen. Please report the bug using `v bug file.v`.
+- `py2v_transpiler/tests/input/transpile/test_type_annotations.py`: V panic: table.sym: invalid type (typ=ast.Type(0x0 = 0) idx=0). Compiler bug. This should never happen. Please report the bug using `v bug file.v`.
+- `py2v_transpiler/tests/input/transpile/test_while_loop.py`: py2v_transpiler/tests/input/transpile/test_while_loop.v:112:9: error: `a` is immutable, declare it with `mut` to make it mutable
+- `py2v_transpiler/tests/translator/test_assert_type.py`: py2v_transpiler/tests/translator/test_assert_type.v:34:27: error: unexpected eof, expecting `)`
 - `py2v_transpiler/tests/translator/test_async_for.py`: V panic: table.sym: invalid type (typ=ast.Type(0x0 = 0) idx=0). Compiler bug. This should never happen. Please report the bug using `v bug file.v`.
+- `py2v_transpiler/tests/translator/test_async_lambda.py`: py2v_transpiler/tests/translator/test_async_lambda.v:5:19: error: undefined ident: `py2v_transpiler`
 - `py2v_transpiler/tests/translator/test_async_with.py`: V panic: table.sym: invalid type (typ=ast.Type(0x0 = 0) idx=0). Compiler bug. This should never happen. Please report the bug using `v bug file.v`.
+- `py2v_transpiler/tests/translator/test_basics.py`: py2v_transpiler/tests/translator/test_basics.v:5:19: error: undefined ident: `py2v_transpiler`
+- `py2v_transpiler/tests/translator/test_bytes.py`: py2v_transpiler/tests/translator/test_bytes.v:4:27: error: unknown type `Any`
 - `py2v_transpiler/tests/translator/test_chained_assign.py`: V panic: table.sym: invalid type (typ=ast.Type(0x0 = 0) idx=0). Compiler bug. This should never happen. Please report the bug using `v bug file.v`.
+- `py2v_transpiler/tests/translator/test_chained_compare.py`: py2v_transpiler/tests/translator/test_chained_compare.v:4:27: error: unknown type `Any`
+- `py2v_transpiler/tests/translator/test_classes.py`: py2v_transpiler/tests/translator/test_classes.v:5:19: error: undefined ident: `py2v_transpiler`
+- `py2v_transpiler/tests/translator/test_classmethods.py`: py2v_transpiler/tests/translator/test_classmethods.v:5:19: error: undefined ident: `py2v_transpiler`
+- `py2v_transpiler/tests/translator/test_complex.py`: py2v_transpiler/tests/translator/test_complex.v:4:27: error: unknown type `Any`
 - `py2v_transpiler/tests/translator/test_complex_comprehensions.py`: V panic: table.sym: invalid type (typ=ast.Type(0x0 = 0) idx=0). Compiler bug. This should never happen. Please report the bug using `v bug file.v`.
 - `py2v_transpiler/tests/translator/test_constructors.py`: V panic: table.sym: invalid type (typ=ast.Type(0x0 = 0) idx=0). Compiler bug. This should never happen. Please report the bug using `v bug file.v`.
+- `py2v_transpiler/tests/translator/test_destructuring.py`: py2v_transpiler/tests/translator/test_destructuring.v:6:27: error: unknown type `Any`
+- `py2v_transpiler/tests/translator/test_dict_comp.py`: py2v_transpiler/tests/translator/test_dict_comp.v:4:27: error: unknown type `Any`
+- `py2v_transpiler/tests/translator/test_dict_inference.py`: py2v_transpiler/tests/translator/test_dict_inference.v:18:13: error: undefined ident: `ast`
 - `py2v_transpiler/tests/translator/test_dict_unpacking.py`: V panic: table.sym: invalid type (typ=ast.Type(0x0 = 0) idx=0). Compiler bug. This should never happen. Please report the bug using `v bug file.v`.
-- `py2v_transpiler/tests/translator/test_elif.py`: py2v_transpiler/tests/translator/test_elif.v:4:15: error: undefined ident: `py2v_transpiler`
-- `py2v_transpiler/tests/translator/test_generator_methods.py`: py2v_transpiler/tests/translator/test_generator_methods.v:3:47: error: unknown type `PyGeneratorInput`.
+- `py2v_transpiler/tests/translator/test_dynamic.py`: py2v_transpiler/tests/translator/test_dynamic.v:24:3032: error: unexpected eof, expecting `)`
+- `py2v_transpiler/tests/translator/test_elif.py`: py2v_transpiler/tests/translator/test_elif.v:5:15: error: undefined ident: `py2v_transpiler`
+- `py2v_transpiler/tests/translator/test_enum_members.py`: py2v_transpiler/tests/translator/test_enum_members.v:14:20: error: undefined ident: `py2v_transpiler`
+- `py2v_transpiler/tests/translator/test_exceptions_context.py`: py2v_transpiler/tests/translator/test_exceptions_context.v:5:19: error: undefined ident: `py2v_transpiler`
+- `py2v_transpiler/tests/translator/test_exceptions_vexc.py`: py2v_transpiler/tests/translator/test_exceptions_vexc.v:153:8: error: invalid expression: unexpected keyword `in`
+- `py2v_transpiler/tests/translator/test_files.py`: py2v_transpiler/tests/translator/test_files.v:5:19: error: undefined ident: `py2v_transpiler`
+- `py2v_transpiler/tests/translator/test_floor_div.py`: V panic: table.sym: invalid type (typ=ast.Type(0x0 = 0) idx=0). Compiler bug. This should never happen. Please report the bug using `v bug file.v`.
+- `py2v_transpiler/tests/translator/test_flow_narrowing.py`: py2v_transpiler/tests/translator/test_flow_narrowing.v:12:17: error: undefined ident: `ast`
+- `py2v_transpiler/tests/translator/test_functions.py`: py2v_transpiler/tests/translator/test_functions.v:5:19: error: undefined ident: `py2v_transpiler`
+- `py2v_transpiler/tests/translator/test_gen_exp.py`: py2v_transpiler/tests/translator/test_gen_exp.v:4:27: error: unknown type `Any`
+- `py2v_transpiler/tests/translator/test_generator_methods.py`: py2v_transpiler/tests/translator/test_generator_methods.v:4:47: error: unknown type `PyGeneratorInput`.
+- `py2v_transpiler/tests/translator/test_generators_slices.py`: py2v_transpiler/tests/translator/test_generators_slices.v:5:19: error: undefined ident: `py2v_transpiler`
+- `py2v_transpiler/tests/translator/test_generics.py`: py2v_transpiler/tests/translator/test_generics.v:7:15: error: undefined ident: `py2v_transpiler`
 - `py2v_transpiler/tests/translator/test_helpers_injection.py`: V panic: table.sym: invalid type (typ=ast.Type(0x0 = 0) idx=0). Compiler bug. This should never happen. Please report the bug using `v bug file.v`.
-- `py2v_transpiler/tests/translator/test_inline_comprehensions.py`: py2v_transpiler/tests/translator/test_inline_comprehensions.v:4:5: error: `TranspilerTest` is not a struct
-- `py2v_transpiler/tests/translator/test_int_casting_bug.py`: py2v_transpiler/tests/translator/test_int_casting_bug.v:4:5: error: `TranspilerTest` is not a struct
+- `py2v_transpiler/tests/translator/test_imports.py`: py2v_transpiler/tests/translator/test_imports.v:5:19: error: undefined ident: `py2v_transpiler`
+- `py2v_transpiler/tests/translator/test_inheritance.py`: py2v_transpiler/tests/translator/test_inheritance.v:24:16: error: undefined ident: `py2v_transpiler`
+- `py2v_transpiler/tests/translator/test_init_inference.py`: py2v_transpiler/tests/translator/test_init_inference.v:5:19: error: undefined ident: `py2v_transpiler`
+- `py2v_transpiler/tests/translator/test_inline_comprehensions.py`: py2v_transpiler/tests/translator/test_inline_comprehensions.v:5:5: error: `TranspilerTest` is not a struct
+- `py2v_transpiler/tests/translator/test_int_casting_bug.py`: py2v_transpiler/tests/translator/test_int_casting_bug.v:5:5: error: `TranspilerTest` is not a struct
+- `py2v_transpiler/tests/translator/test_isinstance.py`: py2v_transpiler/tests/translator/test_isinstance.v:14:16: error: undefined ident: `py2v_transpiler`
+- `py2v_transpiler/tests/translator/test_issue_optional_chan.py`: py2v_transpiler/tests/translator/test_issue_optional_chan.v:5:15: error: undefined ident: `py2v_transpiler`
+- `py2v_transpiler/tests/translator/test_kwargs_call.py`: py2v_transpiler/tests/translator/test_kwargs_call.v:4:27: error: unknown type `Any`
+- `py2v_transpiler/tests/translator/test_kwargs_def.py`: py2v_transpiler/tests/translator/test_kwargs_def.v:4:27: error: unknown type `Any`
+- `py2v_transpiler/tests/translator/test_kwonly.py`: py2v_transpiler/tests/translator/test_kwonly.v:4:27: error: unknown type `Any`
+- `py2v_transpiler/tests/translator/test_list_comp_prealloc.py`: py2v_transpiler/tests/translator/test_list_comp_prealloc.v:28:16: error: unknown module `ast`
 - `py2v_transpiler/tests/translator/test_list_unpacking.py`: V panic: table.sym: invalid type (typ=ast.Type(0x0 = 0) idx=0). Compiler bug. This should never happen. Please report the bug using `v bug file.v`.
+- `py2v_transpiler/tests/translator/test_literal_string_new.py`: py2v_transpiler/tests/translator/test_literal_string_new.v:4:27: error: unknown type `Any`
 - `py2v_transpiler/tests/translator/test_literals_underscores.py`: V panic: table.sym: invalid type (typ=ast.Type(0x0 = 0) idx=0). Compiler bug. This should never happen. Please report the bug using `v bug file.v`.
+- `py2v_transpiler/tests/translator/test_literalstring.py`: py2v_transpiler/tests/translator/test_literalstring.v:5:5: error: `TranspilerTest` is not a struct
 - `py2v_transpiler/tests/translator/test_loop_else.py`: V panic: table.sym: invalid type (typ=ast.Type(0x0 = 0) idx=0). Compiler bug. This should never happen. Please report the bug using `v bug file.v`.
+- `py2v_transpiler/tests/translator/test_magic_methods.py`: py2v_transpiler/tests/translator/test_magic_methods.v:5:15: error: undefined ident: `py2v_transpiler`
+- `py2v_transpiler/tests/translator/test_math_mapper.py`: py2v_transpiler/tests/translator/test_math_mapper.v:7:19: error: undefined ident: `py2v_transpiler`
+- `py2v_transpiler/tests/translator/test_matmul.py`: py2v_transpiler/tests/translator/test_matmul.v:4:27: error: unknown type `Any`
+- `py2v_transpiler/tests/translator/test_mixins.py`: py2v_transpiler/tests/translator/test_mixins.v:5:17: error: undefined ident: `py2v_transpiler`
 - `py2v_transpiler/tests/translator/test_percent_format.py`: V panic: table.sym: invalid type (typ=ast.Type(0x0 = 0) idx=0). Compiler bug. This should never happen. Please report the bug using `v bug file.v`.
+- `py2v_transpiler/tests/translator/test_pos_only.py`: py2v_transpiler/tests/translator/test_pos_only.v:4:27: error: unknown type `Any`
 - `py2v_transpiler/tests/translator/test_pow.py`: V panic: table.sym: invalid type (typ=ast.Type(0x0 = 0) idx=0). Compiler bug. This should never happen. Please report the bug using `v bug file.v`.
-- `py2v_transpiler/tests/translator/test_pre_allocated_collections.py`: py2v_transpiler/tests/translator/test_pre_allocated_collections.v:8:19: error: undefined ident: `py2v_transpiler`
+- `py2v_transpiler/tests/translator/test_pow_negative.py`: V panic: table.sym: invalid type (typ=ast.Type(0x0 = 0) idx=0). Compiler bug. This should never happen. Please report the bug using `v bug file.v`.
+- `py2v_transpiler/tests/translator/test_pre_allocated_collections.py`: py2v_transpiler/tests/translator/test_pre_allocated_collections.v:9:19: error: undefined ident: `py2v_transpiler`
+- `py2v_transpiler/tests/translator/test_property_mismatched_types.py`: py2v_transpiler/tests/translator/test_property_mismatched_types.v:32:20: error: undefined ident: `py2v_transpiler`
+- `py2v_transpiler/tests/translator/test_property_setter.py`: py2v_transpiler/tests/translator/test_property_setter.v:26:16: error: undefined ident: `py2v_transpiler`
 - `py2v_transpiler/tests/translator/test_raise_from.py`: V panic: table.sym: invalid type (typ=ast.Type(0x0 = 0) idx=0). Compiler bug. This should never happen. Please report the bug using `v bug file.v`.
+- `py2v_transpiler/tests/translator/test_repr.py`: py2v_transpiler/tests/translator/test_repr.v:32:28: error: use assignment `=` instead of declaration `:=` when modifying struct fields
 - `py2v_transpiler/tests/translator/test_round.py`: V panic: table.sym: invalid type (typ=ast.Type(0x0 = 0) idx=0). Compiler bug. This should never happen. Please report the bug using `v bug file.v`.
+- `py2v_transpiler/tests/translator/test_set_comp.py`: py2v_transpiler/tests/translator/test_set_comp.v:4:27: error: unknown type `Any`
 - `py2v_transpiler/tests/translator/test_set_operations.py`: V panic: table.sym: invalid type (typ=ast.Type(0x0 = 0) idx=0). Compiler bug. This should never happen. Please report the bug using `v bug file.v`.
+- `py2v_transpiler/tests/translator/test_six.py`: py2v_transpiler/tests/translator/test_six.v:6:13: error: unknown type `Any`
 - `py2v_transpiler/tests/translator/test_sort.py`: V panic: table.sym: invalid type (typ=ast.Type(0x0 = 0) idx=0). Compiler bug. This should never happen. Please report the bug using `v bug file.v`.
+- `py2v_transpiler/tests/translator/test_star_call.py`: py2v_transpiler/tests/translator/test_star_call.v:4:27: error: unknown type `Any`
+- `py2v_transpiler/tests/translator/test_statements.py`: py2v_transpiler/tests/translator/test_statements.v:5:19: error: undefined ident: `py2v_transpiler`
 - `py2v_transpiler/tests/translator/test_string_bytes_fixes.py`: V panic: table.sym: invalid type (typ=ast.Type(0x0 = 0) idx=0). Compiler bug. This should never happen. Please report the bug using `v bug file.v`.
 - `py2v_transpiler/tests/translator/test_string_predicates.py`: V panic: table.sym: invalid type (typ=ast.Type(0x0 = 0) idx=0). Compiler bug. This should never happen. Please report the bug using `v bug file.v`.
+- `py2v_transpiler/tests/translator/test_strings.py`: py2v_transpiler/tests/translator/test_strings.v:5:19: error: undefined ident: `py2v_transpiler`
 - `py2v_transpiler/tests/translator/test_super_noarg.py`: V panic: table.sym: invalid type (typ=ast.Type(0x0 = 0) idx=0). Compiler bug. This should never happen. Please report the bug using `v bug file.v`.
-- `py2v_transpiler/tests/translator/test_todo_features.py`: py2v_transpiler/tests/translator/test_todo_features.v:4:5: error: `TranspilerTest` is not a struct
+- `py2v_transpiler/tests/translator/test_todo_features.py`: py2v_transpiler/tests/translator/test_todo_features.v:5:5: error: `TranspilerTest` is not a struct
 - `py2v_transpiler/tests/translator/test_todo_tasks.py`: V panic: table.sym: invalid type (typ=ast.Type(0x0 = 0) idx=0). Compiler bug. This should never happen. Please report the bug using `v bug file.v`.
 - `py2v_transpiler/tests/translator/test_try_else.py`: V panic: table.sym: invalid type (typ=ast.Type(0x0 = 0) idx=0). Compiler bug. This should never happen. Please report the bug using `v bug file.v`.
+- `py2v_transpiler/tests/translator/test_tuples.py`: py2v_transpiler/tests/translator/test_tuples.v:5:19: error: undefined ident: `py2v_transpiler`
 - `py2v_transpiler/tests/translator/test_type_alias_312.py`: V panic: table.sym: invalid type (typ=ast.Type(0x0 = 0) idx=0). Compiler bug. This should never happen. Please report the bug using `v bug file.v`.
+- `py2v_transpiler/tests/translator/test_type_alias_infer.py`: py2v_transpiler/tests/translator/test_type_alias_infer.v:5:13: error: undefined ident: `ast`
+- `py2v_transpiler/tests/translator/test_type_aliases.py`: py2v_transpiler/tests/translator/test_type_aliases.v:16:16: error: undefined ident: `py2v_transpiler`
+- `py2v_transpiler/tests/translator/test_type_params_runtime.py`: V panic: table.sym: invalid type (typ=ast.Type(0x0 = 0) idx=0). Compiler bug. This should never happen. Please report the bug using `v bug file.v`.
+- `py2v_transpiler/tests/translator/test_typed_dict.py`: py2v_transpiler/tests/translator/test_typed_dict.v:55:16: error: unknown module `ast`
 - `py2v_transpiler/tests/translator/test_union_types.py`: V panic: table.sym: invalid type (typ=ast.Type(0x0 = 0) idx=0). Compiler bug. This should never happen. Please report the bug using `v bug file.v`.
+- `py2v_transpiler/tests/translator/test_varargs.py`: py2v_transpiler/tests/translator/test_varargs.v:4:27: error: unknown type `Any`
+- `py2v_transpiler/tests/translator/test_walrus.py`: py2v_transpiler/tests/translator/test_walrus.v:12:40: error: undefined ident: `x`
+- `py2v_transpiler/tests/translator/test_while_collection.py`: py2v_transpiler/tests/translator/test_while_collection.v:27:16: error: unknown module `ast`
 - `py2v_transpiler/tests/translator/test_yield_from.py`: V panic: table.sym: invalid type (typ=ast.Type(0x0 = 0) idx=0). Compiler bug. This should never happen. Please report the bug using `v bug file.v`.
