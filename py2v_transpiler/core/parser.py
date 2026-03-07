@@ -16,7 +16,11 @@ class PyASTParser:
             processed_source = self.compatibility.preprocess_source(source)
             return ast.parse(processed_source)
         except SyntaxError as e:
-            logger.error(f"Syntax error: {e}")
+            # Enhanced syntax error reporting
+            msg = f"Syntax error at {e.filename}:{e.lineno}:{e.offset}: {e.msg}"
+            logger.error(msg)
+            # Re-raise with better message
+            e.msg = f"{e.msg} (at {e.lineno}:{e.offset})"
             raise
 
     def parse_file(self, file_path: str) -> ast.AST:

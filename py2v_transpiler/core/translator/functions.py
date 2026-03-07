@@ -620,6 +620,9 @@ class FunctionsMixin(TranslatorBase):
 
         noreturn_attr = "[noreturn]\n" if is_noreturn else ""
 
+        if getattr(self.config, 'source_mapping', False):
+            self.output.append(f"// @line: {self._get_source_info(node)}")
+
         # PEP 702: Add [deprecated] attribute for @warnings.deprecated decorator
         deprecated_attr = ""
         if is_deprecated:

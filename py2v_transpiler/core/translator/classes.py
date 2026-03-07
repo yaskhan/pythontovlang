@@ -733,6 +733,8 @@ class ClassesMixin(TranslatorBase):
         elif is_protocol:
             # Emit interface
             interface_parts = []
+            if getattr(self.config, 'source_mapping', False):
+                interface_parts.append(f"// @line: {self._get_source_info(node)}\n")
             if doc_comment:
                 interface_parts.append(doc_comment)
             if decorators:
@@ -859,6 +861,9 @@ class ClassesMixin(TranslatorBase):
                 struct_parts.append(doc_comment)
 
             # PEP 702: Add [deprecated] attribute for @warnings.deprecated decorator
+            if getattr(self.config, 'source_mapping', False):
+                struct_parts.append(f"// @line: {self._get_source_info(node)}\n")
+
             if is_deprecated:
                 if deprecated_message:
                     struct_parts.append(f"[deprecated: '{deprecated_message}']\n")
