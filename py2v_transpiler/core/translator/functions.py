@@ -167,24 +167,14 @@ class FunctionsMixin(TranslatorBase):
             setattr(node, "original_name", node.name)
             node.name = impl_name
 
-        is_abstract = False
-        for decorator in node.decorator_list:
-            if (
-                isinstance(decorator, ast.Name) and decorator.id == "abstractmethod"
-            ) or (
-                isinstance(decorator, ast.Attribute)
-                and decorator.attr == "abstractmethod"
-            ):
-                is_abstract = True
-                break
+        # Analyze decorators
+        dec_info = self.decorator_processor.analyze(node, self.current_class)
+        is_abstract = dec_info.is_abstract
 
         if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
             # Use getattr for original_name as it's only present for singledispatch
             func_lookup_name = getattr(node, "original_name", node.name)
             is_generator = self.coroutine_handler.is_generator(func_lookup_name)
-
-        # Analyze decorators
-        dec_info = self.decorator_processor.analyze(node, self.current_class)
 
         is_method = self.current_class is not None
         # Ensure struct_name is always a string
@@ -724,6 +714,13 @@ class FunctionsMixin(TranslatorBase):
 
         self.output.append(f"{decl}")
         self._indent_level += 1
+
+        if is_abstract:
+            # Add __isabstractmethod__ attribute support via a field in the method's own "namespace"
+            # In V we don't have function attributes, but we can emit a comment for now
+            # or handle it via a wrapper struct if it were a function pointer.
+            # For methods, Python's __isabstractmethod__ is usually checked on the function object itself.
+            self.output.append(f"{self._indent()}// __isabstractmethod__ = true")
 
         for line in dec_info.injected_start:
             self.output.append(f"{self._indent()}{line}")

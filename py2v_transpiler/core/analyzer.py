@@ -87,6 +87,7 @@ class MixinInferer(ast.NodeVisitor):
         self.mixin_nodes: Dict[str, ast.ClassDef] = {}
         self.class_hierarchy: Dict[str, list[str]] = {}
         self.is_abc: Dict[str, bool] = {}
+        self.abstract_methods: Dict[str, Set[str]] = {}
         self.static_methods: Dict[str, set[str]] = {}
         self.class_methods: Dict[str, set[str]] = {}
 
@@ -131,38 +132,63 @@ class MixinInferer(ast.NodeVisitor):
                             elif dec_name == "classmethod":
                                 self.class_methods[node.name].add(child.name)
 
-                bases = []
-                for base in node.bases:
-                    if isinstance(base, ast.Name):
-                        bases.append(base.id)
-                    elif isinstance(base, ast.Attribute):
-                        bases.append(base.attr)
-                self.class_hierarchy[node.name] = bases
+                bases_names = []
+                for base_node in node.bases:
+                    if isinstance(base_node, ast.Name):
+                        bases_names.append(base_node.id)
+                    elif isinstance(base_node, ast.Attribute):
+                        bases_names.append(base_node.attr)
+                self.class_hierarchy[node.name] = bases_names
 
         explicit_abcs = set()
         mixin_templates = set()
 
+        abstract_decorators = {
+            "abstractmethod", "abstractclassmethod", "abstractstaticmethod", "abstractproperty"
+        }
+
         for cls_name, node in self.mixin_nodes.items():
-            has_abstract = False
+            self.abstract_methods[cls_name] = set()
             has_concrete = False
+
+            # Detect metaclass=abc.ABCMeta
+            is_explicit_abc = False
+            for keyword in node.keywords:
+                if keyword.arg == "metaclass":
+                    meta_name = ""
+                    if isinstance(keyword.value, ast.Name):
+                        meta_name = keyword.value.id
+                    elif isinstance(keyword.value, ast.Attribute):
+                        meta_name = keyword.value.attr
+
+                    if meta_name in ("ABCMeta", "abc.ABCMeta"):
+                        is_explicit_abc = True
+                        break
+
             for stmt in node.body:
                 if isinstance(stmt, (ast.FunctionDef, ast.AsyncFunctionDef)):
                     is_abstract_stmt = False
                     for dec in stmt.decorator_list:
-                        if (
-                            isinstance(dec, ast.Name) and dec.id == "abstractmethod"
-                        ) or (
-                            isinstance(dec, ast.Attribute)
-                            and dec.attr == "abstractmethod"
-                        ):
-                            has_abstract = True
+                        dec_name = ""
+                        if isinstance(dec, ast.Name):
+                            dec_name = dec.id
+                        elif isinstance(dec, ast.Attribute):
+                            dec_name = dec.attr
+                        elif isinstance(dec, ast.Call):
+                            if isinstance(dec.func, ast.Name):
+                                dec_name = dec.func.id
+                            elif isinstance(dec.func, ast.Attribute):
+                                dec_name = dec.func.attr
+
+                        if dec_name in abstract_decorators or (dec_name.startswith("abc.") and dec_name.split(".")[-1] in abstract_decorators):
+                            self.abstract_methods[cls_name].add(stmt.name)
                             is_abstract_stmt = True
                             break
                     if not is_abstract_stmt:
                         has_concrete = True
 
             # Initial ABC marking
-            if has_abstract or "ABC" in self.class_hierarchy.get(cls_name, []):
+            if self.abstract_methods[cls_name] or "ABC" in self.class_hierarchy.get(cls_name, []) or is_explicit_abc:
                 explicit_abcs.add(cls_name)
 
             if cls_name.endswith("Mixin"):
@@ -198,6 +224,26 @@ class MixinInferer(ast.NodeVisitor):
 
         for cls_name in self.class_hierarchy:
             self.is_abc[cls_name] = cls_name in explicit_abcs
+
+        # Propagate abstract methods and resolve them in subclasses
+        changed = True
+        while changed:
+            changed = False
+            for cls_name, bases_list in self.class_hierarchy.items():
+                node = self.mixin_nodes[cls_name]
+                # Concrete methods in this class
+                concrete_methods: Set[str] = {
+                    stmt.name for stmt in node.body
+                    if isinstance(stmt, (ast.FunctionDef, ast.AsyncFunctionDef))
+                    and stmt.name not in self.abstract_methods[cls_name]
+                }
+
+                for base_name in bases_list:
+                    if base_name in self.abstract_methods:
+                        for meth_name in self.abstract_methods[base_name]:
+                            if meth_name not in concrete_methods and meth_name not in self.abstract_methods[cls_name]:
+                                self.abstract_methods[cls_name].add(meth_name)
+                                changed = True
 
         # Pass 2: Method distribution from templates to concrete descendants
         templates = explicit_abcs | mixin_templates
@@ -343,6 +389,7 @@ class TypeInference(ast.NodeVisitor):
         self.main_to_mixins = mixin_inferer.main_to_mixins
         self.mixin_nodes = mixin_inferer.mixin_nodes
         self.is_abc = mixin_inferer.is_abc
+        self.abstract_methods = mixin_inferer.abstract_methods
         self.static_methods = mixin_inferer.static_methods
         self.class_methods = mixin_inferer.class_methods
 
