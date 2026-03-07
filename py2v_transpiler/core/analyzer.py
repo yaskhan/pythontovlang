@@ -132,13 +132,13 @@ class MixinInferer(ast.NodeVisitor):
                             elif dec_name == "classmethod":
                                 self.class_methods[node.name].add(child.name)
 
-                bases = []
-                for base in node.bases:
-                    if isinstance(base, ast.Name):
-                        bases.append(base.id)
-                    elif isinstance(base, ast.Attribute):
-                        bases.append(base.attr)
-                self.class_hierarchy[node.name] = bases
+                bases_names = []
+                for base_node in node.bases:
+                    if isinstance(base_node, ast.Name):
+                        bases_names.append(base_node.id)
+                    elif isinstance(base_node, ast.Attribute):
+                        bases_names.append(base_node.attr)
+                self.class_hierarchy[node.name] = bases_names
 
         explicit_abcs = set()
         mixin_templates = set()
@@ -229,20 +229,20 @@ class MixinInferer(ast.NodeVisitor):
         changed = True
         while changed:
             changed = False
-            for cls_name, bases in self.class_hierarchy.items():
+            for cls_name, bases_list in self.class_hierarchy.items():
                 node = self.mixin_nodes[cls_name]
                 # Concrete methods in this class
-                concrete_methods = {
+                concrete_methods: Set[str] = {
                     stmt.name for stmt in node.body
                     if isinstance(stmt, (ast.FunctionDef, ast.AsyncFunctionDef))
                     and stmt.name not in self.abstract_methods[cls_name]
                 }
 
-                for base in bases:
-                    if base in self.abstract_methods:
-                        for meth in self.abstract_methods[base]:
-                            if meth not in concrete_methods and meth not in self.abstract_methods[cls_name]:
-                                self.abstract_methods[cls_name].add(meth)
+                for base_name in bases_list:
+                    if base_name in self.abstract_methods:
+                        for meth_name in self.abstract_methods[base_name]:
+                            if meth_name not in concrete_methods and meth_name not in self.abstract_methods[cls_name]:
+                                self.abstract_methods[cls_name].add(meth_name)
                                 changed = True
 
         # Pass 2: Method distribution from templates to concrete descendants
