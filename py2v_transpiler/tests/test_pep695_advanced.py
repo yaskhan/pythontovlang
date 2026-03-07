@@ -41,8 +41,8 @@ def process_tuple[*Ts](args: tuple[*Ts]) -> int:
 """
         v_code = transpile_code(code)
         self.assertIn("fn process_tuple[", v_code)
-        # tuple[*Ts] -> tuple[T] (Generic name mapped to T)
-        self.assertIn("args tuple[", v_code)
+        # tuple[*Ts] -> [1]T (Generic name mapped to T, single starred elt maps to fixed size array in V model)
+        self.assertIn("args [1]T", v_code)
 
     def test_callable_with_unpacking(self):
         code = """

@@ -89,6 +89,7 @@ class ClassesMixin(TranslatorBase):
                         py_generics.append(name)
                     elif hasattr(name, "id"):
                         py_generics.append(name.id)
+            self.type_params_map[struct_name] = list(py_generics)
 
         # Extract type vars from bases (Legacy Generic[T] or Parent[T])
         for base in node.bases:

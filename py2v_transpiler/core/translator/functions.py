@@ -323,6 +323,11 @@ class FunctionsMixin(TranslatorBase):
                     elif hasattr(name, "id"):
                         py_func_generics.append(name.id)
 
+            # Record type params for runtime introspection
+            # Handle class-qualified name for methods
+            full_func_name = f"{struct_name}_{self._sanitize_name(node.name)}" if is_method and struct_name else self._sanitize_name(node.name)
+            self.type_params_map[full_func_name] = list(py_func_generics)
+
         func_generic_map = self._get_generic_map(py_func_generics)
         # We don't need to manually merge here anymore, as we'll push it to generic_scopes
         self.generic_scopes.append(func_generic_map)
@@ -832,6 +837,10 @@ class FunctionsMixin(TranslatorBase):
                         py_func_generics.append(name)
                     elif hasattr(name, "id"):
                         py_func_generics.append(name.id)
+
+            # Record type params for runtime introspection
+            full_func_name = f"{struct_name}_{self._sanitize_name(node.name)}" if is_method and struct_name else self._sanitize_name(node.name)
+            self.type_params_map[full_func_name] = list(py_func_generics)
 
         func_generic_map = self._get_generic_map(py_func_generics)
         self.generic_scopes.append(func_generic_map)
