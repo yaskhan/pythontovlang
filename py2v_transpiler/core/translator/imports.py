@@ -27,6 +27,7 @@ class ImportsMixin(TranslatorBase):
             # Add V imports via mapper
             v_imports = self.mapper.get_imports(module_name)
             if v_imports is not None:
+                # If mapped to [], skip import (ignore module)
                 for imp in v_imports:
                     self.emitter.add_import(imp)
             else:
@@ -55,6 +56,7 @@ class ImportsMixin(TranslatorBase):
             # Add V imports
             v_imports = self.mapper.get_imports(module_name)
             if v_imports is not None:
+                # If mapped to [], skip import
                 for imp in v_imports:
                     self.emitter.add_import(imp)
             # Else? For ImportFrom, we don't necessarily import the module if not mapped,
