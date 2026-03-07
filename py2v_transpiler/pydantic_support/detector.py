@@ -10,6 +10,11 @@ class PydanticDetector:
                 return True
             if isinstance(base, ast.Attribute) and base.attr == "BaseModel" and getattr(base.value, "id", "") == "pydantic":
                 return True
+            if isinstance(base, ast.Subscript):
+                if isinstance(base.value, ast.Name) and base.value.id == "BaseModel":
+                    return True
+                if isinstance(base.value, ast.Attribute) and base.value.attr == "BaseModel" and getattr(base.value.value, "id", "") == "pydantic":
+                    return True
         return False
 
     @staticmethod

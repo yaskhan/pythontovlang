@@ -16,6 +16,12 @@ class PydanticModelProcessor:
     def process_model(self, node: ast.ClassDef) -> str:
         """Generates a Vlang struct from a Pydantic BaseModel."""
         struct_name = self.visitor._sanitize_name(node.name)
+
+        # Check for BaseModel[T]
+        for base in node.bases:
+            if isinstance(base, ast.Subscript) and (getattr(base.value, "id", "") == "BaseModel" or getattr(base.value, "attr", "") == "BaseModel"):
+                self.visitor.output.append(f"//##LLM@@ Pydantic Generic model (BaseModel[T]) detected in '{struct_name}'. This requires manual type annotation and adjustments in V. Please review the generated struct.")
+                break
         fields: List[PydanticFieldInfo] = []
         methods = []
         validators: List[PydanticValidatorInfo] = []
@@ -180,6 +186,22 @@ class PydanticModelProcessor:
 
         # 3. Built-in field constraints
         for field_info in fields:
+            # Check for Nested models
+            # If the type is in defined_classes and is a pydantic model, flag it
+            # Since we can't be 100% sure just by type_str if it's imported, we do a basic check
+            # if type_str starts with uppercase and isn't a basic type
+            is_potential_nested = False
+            if field_info.type_str and field_info.type_str[0].isupper() and field_info.type_str not in ("Any", "String", "Int", "Bool", "Float"):
+                info_class = self.visitor.defined_classes.get(field_info.type_str, {})
+                if info_class.get("is_pydantic", False) or not info_class: # If not in defined_classes it might be imported
+                     # To avoid spamming on every uppercase type, let's strictly check if it's known as pydantic
+                     if info_class.get("is_pydantic", False):
+                         is_potential_nested = True
+
+            if is_potential_nested:
+                code.append(f"    //##LLM@@ Pydantic Nested model field '{field_info.name}' detected. The generated validation is flattened and does not automatically call `.validate()` on nested models. Please implement recursive validation manually.")
+                has_validation = True
+
             vcode = self.field_processor.generate_validation_code(field_info, "m")
             if vcode:
                 has_validation = True
