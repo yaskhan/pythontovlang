@@ -170,6 +170,11 @@ class CallsMixin(TranslatorBase):
 
             mapped = self.mapper.get_mapping(module_name, func_name, args)
             if mapped:
+                # Add automatic V imports for the module
+                v_imports = self.mapper.get_imports(module_name)
+                if v_imports:
+                    for imp in v_imports:
+                        self.emitter.add_import(imp)
                 return mapped
 
         # Try finding os.path.X by concatenating if attribute access

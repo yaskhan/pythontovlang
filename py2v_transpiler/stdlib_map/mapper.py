@@ -293,6 +293,10 @@ class StdLibMapper:
             "zlib": ["compress.zlib"],
             "gzip": ["compress.gzip"],
             "copy": [],
+            "collections": [],
+            "itertools": [],
+            "functools": [],
+            "operator": [],
             "struct": ["encoding.binary"],
             "array": [],
             "fractions": ["math.fractions"],
@@ -301,6 +305,15 @@ class StdLibMapper:
             "pickle": ["json"],
             "contextlib": [],
             "typing": [],
+            "ast": [],
+            "pytest": [],
+            "pytest_mock": [],
+            "mock": [],
+            "abc": [],
+            "unittest": [],
+            "types": [],
+            "enum": [],
+            "string": ["strings"],
         }
 
     def get_mapping(self, module: str, func: str, args: List[str]) -> Optional[str]:

@@ -9,6 +9,11 @@ class AttributesMixin(TranslatorBase):
              const_name = node.attr
              mapped = self.mapper.get_constant_mapping(module_name, const_name)
              if mapped:
+                 # Add automatic V imports for the module
+                 v_imports = self.mapper.get_imports(module_name)
+                 if v_imports:
+                     for imp in v_imports:
+                         self.emitter.add_import(imp)
                  return mapped
 
         if node.attr == "__class__":
