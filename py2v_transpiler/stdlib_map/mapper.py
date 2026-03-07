@@ -253,15 +253,6 @@ class StdLibMapper:
             },
             "typing": {
                 "cast": self._typing_cast,
-            },
-            "abc": {
-                "ABC": "abc.ABC",
-                "ABCMeta": "abc.ABCMeta",
-                "update_abstractmethods": "abc.update_abstractmethods",
-                "abstractmethod": "abc.abstractmethod",
-                "abstractclassmethod": "abc.abstractclassmethod",
-                "abstractstaticmethod": "abc.abstractstaticmethod",
-                "abstractproperty": "abc.abstractproperty",
             }
         }
 
@@ -318,7 +309,7 @@ class StdLibMapper:
             "pytest": [],
             "pytest_mock": [],
             "mock": [],
-            "abc": ["abc"],
+            "abc": [],
             "unittest": [],
             "types": [],
             "enum": [],
