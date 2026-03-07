@@ -197,6 +197,9 @@ class TranslatorBase(ast.NodeVisitor):
                 dummy_not = ast.UnaryOp(op=ast.Not(), operand=node)
                 child_str = self._visit_with_parens(dummy_not, node, is_right_operand=True)
                 return f"!{child_str}"
+            if isinstance(node, (ast.Call, ast.Name, ast.Attribute)):
+                 # Ensure bool result for complex types that might map to 0/1 in V if incorrectly handled
+                 return f"{expr}"
             return expr
 
         if invert:
@@ -608,6 +611,12 @@ class TranslatorBase(ast.NodeVisitor):
                         if arg_type.startswith("[]"):
                             return f"map[{arg_type[2:]}]bool"
                     return "map[Any]bool"
+
+                # Check inferred return type
+                inferred_ret = self.type_inference.type_map.get(f"{fid}@return")
+                if isinstance(inferred_ret, str):
+                    return inferred_ret
+
             elif isinstance(node.func, ast.Attribute) and node.func.attr == "bytes":
                 return "[]u8"
         elif isinstance(node, (ast.List, ast.Tuple)):

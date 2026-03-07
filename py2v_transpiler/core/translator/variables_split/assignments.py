@@ -31,6 +31,9 @@ class AssignmentsMixin(TranslatorBase):
         if isinstance(target, ast.Name):
             lhs = self._sanitize_name(target.id)
 
+            if target.id in self.name_remap:
+                del self.name_remap[target.id]
+
             if self.in_main:
                  self.defined_top_level_symbols.add(target.id)
 
@@ -370,11 +373,17 @@ class AssignmentsMixin(TranslatorBase):
                 # We emit:
                 # mut arr := []T{cap: N}
                 # arr << x ...
-                self.output.append(f"{self._indent()}mut {lhs} := {v_type}{{cap: {cap}}}")
+                v_lhs = self._to_snake_case(lhs) if (isinstance(target, ast.Name) and not lhs.islower()) else lhs
+                if not self.in_main and v_lhs in self._local_vars_in_scope:
+                    self.output.append(f"{self._indent()}{v_lhs} = {v_type}{{cap: {cap}}}")
+                else:
+                    self.output.append(f"{self._indent()}mut {v_lhs} := {v_type}{{cap: {cap}}}")
+                    if not self.in_main: self._local_vars_in_scope.add(v_lhs)
+
                 value_node: Any = node.value
                 for elt in value_node.elts:
                     val = self.visit(elt)
-                    self.output.append(f"{self._indent()}{lhs} << {val}")
+                    self.output.append(f"{self._indent()}{v_lhs} << {val}")
             elif hasattr(self, 'dataclasses') and v_type in self.dataclasses and isinstance(node.value, ast.Dict):
                 # TypedDict assignment
                 pairs = []
@@ -385,7 +394,12 @@ class AssignmentsMixin(TranslatorBase):
                         pairs.append(f"{key_str}: {val_str}")
 
                 rhs = f"{v_type}{{{', '.join(pairs)}}}"
-                self.output.append(f"{self._indent()}{lhs} := {rhs}")
+                v_lhs = self._to_snake_case(lhs) if (isinstance(target, ast.Name) and not lhs.islower()) else lhs
+                if not self.in_main and v_lhs in self._local_vars_in_scope:
+                    self.output.append(f"{self._indent()}{v_lhs} = {rhs}")
+                else:
+                    self.output.append(f"{self._indent()}{v_lhs} := {rhs}")
+                    if not self.in_main: self._local_vars_in_scope.add(v_lhs)
 
             else:
                 if isinstance(node.value, ast.Dict) and not node.value.keys and v_type.startswith("map["):
@@ -440,13 +454,16 @@ class AssignmentsMixin(TranslatorBase):
                     # v_type might be defined above if we were checking is_simple_list, but let's be safe
                     local_v_type = getattr(self, "_guess_type", lambda x: "unknown")(target)
                     v_lhs = self._to_snake_case(lhs) if (isinstance(target, ast.Name) and not lhs.islower()) else lhs
-                    if local_v_type and local_v_type != "unknown":
-                        if not local_v_type.startswith("?"):
-                            local_v_type = f"?{local_v_type}"
-                        emit_fn(f"{self._indent()}mut {v_lhs} := (none as {local_v_type})")
+                    if not self.in_main and v_lhs in self._local_vars_in_scope:
+                        emit_fn(f"{self._indent()}{v_lhs} = none")
                     else:
-                        emit_fn(f"{self._indent()}mut {v_lhs} := (none as ?Any)")
-                    if not self.in_main: self._local_vars_in_scope.add(v_lhs)
+                        if local_v_type and local_v_type != "unknown":
+                            if not local_v_type.startswith("?"):
+                                local_v_type = f"?{local_v_type}"
+                            emit_fn(f"{self._indent()}mut {v_lhs} := (none as {local_v_type})")
+                        else:
+                            emit_fn(f"{self._indent()}mut {v_lhs} := (none as ?Any)")
+                        if not self.in_main: self._local_vars_in_scope.add(v_lhs)
                 else:
                     v_lhs = self._to_snake_case(lhs) if (isinstance(target, ast.Name) and not lhs.islower()) else lhs
                     if isinstance(target, ast.Attribute) or isinstance(target, ast.Subscript):
