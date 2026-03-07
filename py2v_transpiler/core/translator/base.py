@@ -1,6 +1,6 @@
 import ast
 import os
-from typing import Any, List, Optional, Dict, Set, Tuple
+from typing import Any, List, Optional, Dict, Set, Tuple, Sequence
 from py2v_transpiler.core.compatibility import CompatibilityLayer
 from py2v_transpiler.core.generator import VCodeEmitter
 from py2v_transpiler.stdlib_map.mapper import StdLibMapper
@@ -12,6 +12,8 @@ class TranslatorBase(ast.NodeVisitor):
     Base class for VNodeVisitor and its mixins.
     Defines shared state and helper methods.
     """
+    current_assignment_type: Optional[str] = None
+
     def _get_precedence(self, node: ast.AST) -> int:
         """
         Returns the standard Python operator precedence for AST nodes.
@@ -137,6 +139,7 @@ class TranslatorBase(ast.NodeVisitor):
         self.type_vars: Set[str] = set()
         self.current_function_return_type: Optional[str] = None
         self.in_pydantic_validator: bool = False
+        self.current_assignment_type: Optional[str] = None
 
     def _is_literal_string_expr(self, node: ast.AST) -> bool:
         """
@@ -414,26 +417,31 @@ class TranslatorBase(ast.NodeVisitor):
             return f"{name}{gen_str}"
         return name
 
-    def _register_literal_enum(self, nodes: List[ast.AST]) -> str:
+    def _register_literal_enum(self, nodes: Sequence[ast.AST]) -> str:
         """
         Registers a V enum for a Python Literal type.
         Returns the name of the generated enum.
         """
-        values = []
+        values: List[Any] = []
         for node in nodes:
             if isinstance(node, ast.Constant):
                 values.append(node.value)
-            elif isinstance(node, ast.UnaryOp) and isinstance(node.op, ast.USub) and isinstance(node.operand, ast.Constant):
-                values.append(-node.operand.value)
+            elif (isinstance(node, ast.UnaryOp) and
+                  isinstance(node.op, ast.USub) and
+                  isinstance(node.operand, ast.Constant) and
+                  isinstance(node.operand.value, (int, float))):
+                # We know it's int or float here
+                val = node.operand.value
+                values.append(-val)
             else:
                 # Fallback to string if not a simple constant
                 values.append(str(node))
 
         # Check if all values are of the same basic type
-        types = {type(v) for v in values}
+        val_types = {type(v) for v in values}
         base_v_type = "string"
-        if len(types) == 1:
-            t = list(types)[0]
+        if len(val_types) == 1:
+            t = list(val_types)[0]
             if t == int: base_v_type = "int"
             elif t == float: base_v_type = "f64"
             elif t == bool: base_v_type = "bool"
@@ -452,7 +460,8 @@ class TranslatorBase(ast.NodeVisitor):
 
         # Build enum body and value mapping
         enum_lines = [f"pub enum {enum_name} {{"]
-        val_map = {}
+        val_map: Dict[Any, str] = {}
+        used_member_names: Set[str] = set()
 
         for i, val in enumerate(values):
             # Sanitize member name
@@ -463,10 +472,11 @@ class TranslatorBase(ast.NodeVisitor):
             # Avoid duplicate member names in enum
             base_member = member_name
             counter = 1
-            while member_name in val_map.values():
+            while member_name in used_member_names:
                 member_name = f"{base_member}_{counter}"
                 counter += 1
 
+            used_member_names.add(member_name)
             enum_lines.append(f"    {member_name}")
             val_map[val] = member_name
 
@@ -476,7 +486,16 @@ class TranslatorBase(ast.NodeVisitor):
         # Add .str() method to the enum to get back the original value
         str_lines = [f"pub fn (e {enum_name}) str() string {{", "    match e {"]
         for val, member in val_map.items():
-            str_lines.append(f"        .{member} {{ return '{val}' }}")
+            if isinstance(val, bytes):
+                hex_val = val.hex()
+                str_lines.append(f"        .{member} {{ return '{hex_val}' }}")
+            elif isinstance(val, (int, float, bool, str)):
+                str_val = str(val)
+                str_lines.append(f"        .{member} {{ return '{str_val}' }}")
+            else:
+                # Fallback for complex/None/etc
+                str_val = str(val)
+                str_lines.append(f"        .{member} {{ return '{str_val}' }}")
         str_lines.append("    }")
         str_lines.append("}")
         self.emitter.add_struct("\n".join(str_lines))

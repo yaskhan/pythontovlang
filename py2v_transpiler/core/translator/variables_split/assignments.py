@@ -405,10 +405,10 @@ class AssignmentsMixin(TranslatorBase):
                 if isinstance(node.value, ast.Dict) and not node.value.keys and v_type.startswith("map["):
                     rhs = f"{v_type}{{}}"
                 else:
+                    prev_type = self.current_assignment_type
                     self.current_assignment_type = v_type
                     rhs = self.visit(node.value)
-                    if hasattr(self, "current_assignment_type"):
-                        del self.current_assignment_type
+                    self.current_assignment_type = prev_type
 
                 emit_fn = self.output.append
                 if self.in_main:

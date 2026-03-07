@@ -40,7 +40,7 @@ class CallsMixin(TranslatorBase):
         args = []
         for i, arg in enumerate(node.args):
             # Set current_assignment_type if we have signature info
-            old_type = getattr(self, "current_assignment_type", None)
+            old_type = self.current_assignment_type
             if call_sig and "args" in call_sig and i < len(call_sig["args"]):
                 arg_typ_str = call_sig["args"][i]
                 # Normalize mypy type to V type
@@ -57,10 +57,7 @@ class CallsMixin(TranslatorBase):
             else:
                 args.append("/* unknown */")
 
-            if old_type:
-                self.current_assignment_type = old_type
-            elif hasattr(self, "current_assignment_type"):
-                del self.current_assignment_type
+            self.current_assignment_type = old_type
 
         for keyword in node.keywords:
             if keyword.arg is None:
@@ -560,25 +557,25 @@ class CallsMixin(TranslatorBase):
 
         # Handle primitive type "casting" or conversions (priority over class instantiation)
         if func_name_str == "dict" or (original_id == "dict" and func_name_str == "py_dict"):
-            v_type = getattr(self, "current_assignment_type", "map[string]Any")
+            v_type = self.current_assignment_type or "map[string]Any"
             if not v_type.startswith("map["): v_type = "map[string]Any"
             if len(args) == 0:
                 return f"{v_type}{{}}"
             return f"{v_type}({', '.join(args)})"
         elif func_name_str == "list" or (original_id == "list" and func_name_str == "py_list"):
-            v_type = getattr(self, "current_assignment_type", "[]Any")
+            v_type = self.current_assignment_type or "[]Any"
             if not v_type.startswith("[]"): v_type = "[]Any"
             if len(args) == 0:
                 return f"{v_type}{{}}"
             return f"{v_type}({', '.join(args)})"
         elif func_name_str == "tuple" or (original_id == "tuple" and func_name_str == "py_tuple"):
-            v_type = getattr(self, "current_assignment_type", "[]Any")
+            v_type = self.current_assignment_type or "[]Any"
             if not v_type.startswith("["): v_type = "[]Any"
             if len(args) == 0:
                 return f"{v_type}{{}}"
             return f"{v_type}({', '.join(args)})"
         elif func_name_str == "set" or (original_id == "set" and func_name_str == "py_set"):
-            v_type = getattr(self, "current_assignment_type", "map[Any]bool")
+            v_type = self.current_assignment_type or "map[Any]bool"
             if not v_type.startswith("map["): v_type = "map[Any]bool"
             if len(args) == 0:
                 return f"{v_type}{{}}"

@@ -91,9 +91,10 @@ class AnnotationsMixin(TranslatorBase):
                     val = self.visit(elt)
                     self.output.append(f"{self._indent()}{target} << {val}")
             elif v_type.startswith("[") and "]" in v_type and not v_type.startswith("[]") and isinstance(node.value, (ast.List, ast.Tuple)):
+                prev_type = self.current_assignment_type
                 self.current_assignment_type = v_type
                 rhs = self.visit(node.value)
-                del self.current_assignment_type
+                self.current_assignment_type = prev_type
                 self.output.append(f"{self._indent()}mut {target} := {rhs}")
             elif hasattr(self, 'dataclasses') and v_type in self.dataclasses and isinstance(node.value, ast.Dict):
                 # TypedDict assignment
@@ -113,10 +114,10 @@ class AnnotationsMixin(TranslatorBase):
                 elif isinstance(node.value, (ast.List, ast.Tuple)) and not node.value.elts and v_type.startswith("[]"):
                     rhs = f"{v_type}{{}}"
                 else:
+                    prev_type = self.current_assignment_type
                     self.current_assignment_type = v_type
                     rhs = self.visit(node.value)
-                    if hasattr(self, "current_assignment_type"):
-                        del self.current_assignment_type
+                    self.current_assignment_type = prev_type
 
                 emit_fn = self.output.append
                 if self.in_main:

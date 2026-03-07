@@ -7,7 +7,7 @@ class LiteralsMixin(TranslatorBase):
         val = node.value
 
         # Check if we are assigning to a LiteralEnum
-        target_type = getattr(self, "current_assignment_type", None)
+        target_type = self.current_assignment_type
         if target_type and target_type in self._literal_enum_values:
             val_map = self._literal_enum_values[target_type]
             if val in val_map:
@@ -102,7 +102,7 @@ class LiteralsMixin(TranslatorBase):
 
         elements = [str(self.visit(elt)) for elt in node.elts]
         if not elements:
-             v_type = getattr(self, "current_assignment_type", "[]Any")
+             v_type = self.current_assignment_type or "[]Any"
              if not v_type.startswith("[]"):
                  v_type = "[]Any"
              return f"{v_type}{{}}"
@@ -114,7 +114,7 @@ class LiteralsMixin(TranslatorBase):
         # However, visit_Assign handles .clone() which requires explicit type sometimes or not?
         # Actually, V's `mut a := [1, 2]` is fine.
 
-        if v_type == "[]Any" or not hasattr(self, "current_assignment_type"):
+        if v_type == "[]Any" or not self.current_assignment_type:
              # Special case for py_array helper used in tests
              is_py_array = False
              for p in getattr(self, "parent_stack", []):
@@ -178,7 +178,7 @@ class LiteralsMixin(TranslatorBase):
 
         if not node.keys:
             # Empty dict
-            v_type = getattr(self, "current_assignment_type", "map[string]Any")
+            v_type = self.current_assignment_type or "map[string]Any"
             if not v_type.startswith("map["):
                 # If current_assignment_type is e.g. a struct or union,
                 # we should fallback to map[string]Any only if it's truly a dict literal.
@@ -260,7 +260,7 @@ class LiteralsMixin(TranslatorBase):
         elements = [str(self.visit(elt)) for elt in node.elts]
 
         # Use fixed-size array literal if type is known to be fixed-size array
-        v_type = getattr(self, "current_assignment_type", "")
+        v_type = self.current_assignment_type or ""
         if v_type.startswith("[") and "]" in v_type and not v_type.startswith("[]"):
              return f"{v_type}{{{', '.join(elements)}}}"
 

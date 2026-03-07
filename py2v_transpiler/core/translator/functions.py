@@ -1137,17 +1137,13 @@ class FunctionsMixin(TranslatorBase):
             self.output.append(f"{self._indent()}return self")
         elif node.value:
             # Pass return type as contextual assignment type to help literal translation
-            prev_assign_type = getattr(self, "current_assignment_type", None)
-            if hasattr(self, "current_function_return_type"):
-                self.current_assignment_type = self.current_function_return_type
+            prev_assign_type = self.current_assignment_type
+            self.current_assignment_type = self.current_function_return_type
 
             try:
                 val = self.visit(node.value)
             finally:
-                if prev_assign_type is not None:
-                    self.current_assignment_type = prev_assign_type
-                elif hasattr(self, "current_assignment_type"):
-                    del self.current_assignment_type
+                self.current_assignment_type = prev_assign_type
 
             self.output.append(f"{self._indent()}return {val}")
         else:
