@@ -84,7 +84,6 @@ class TranslatorBase(ast.NodeVisitor):
 
     def __init__(self, type_inference: Any) -> None:
         self.type_inference = type_inference
-        self.current_file_name: str = ""
         self.compatibility = CompatibilityLayer()
         # These will be initialized in VNodeVisitor.__init__
         self.decorator_processor: DecoratorProcessor
