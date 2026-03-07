@@ -31,6 +31,9 @@ class AssignmentsMixin(TranslatorBase):
         if isinstance(target, ast.Name):
             lhs = self._sanitize_name(target.id)
 
+            if target.id in self.name_remap:
+                del self.name_remap[target.id]
+
             if self.in_main:
                  self.defined_top_level_symbols.add(target.id)
 

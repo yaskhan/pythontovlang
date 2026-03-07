@@ -611,6 +611,12 @@ class TranslatorBase(ast.NodeVisitor):
                         if arg_type.startswith("[]"):
                             return f"map[{arg_type[2:]}]bool"
                     return "map[Any]bool"
+
+                # Check inferred return type
+                inferred_ret = self.type_inference.type_map.get(f"{fid}@return")
+                if isinstance(inferred_ret, str):
+                    return inferred_ret
+
             elif isinstance(node.func, ast.Attribute) and node.func.attr == "bytes":
                 return "[]u8"
         elif isinstance(node, (ast.List, ast.Tuple)):
