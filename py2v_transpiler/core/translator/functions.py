@@ -1012,6 +1012,11 @@ class FunctionsMixin(TranslatorBase):
 
             self.function_names.add(func_name)
 
+            if type_suffix_parts:
+                self.output.append(f"//##LLM@@ This function is an overloaded variant. The generated name `{func_name}` might be long or unidiomatic. Please review and refactor to use a simpler name, or consolidate using a single function with sum type arguments where appropriate.")
+            elif len(func_name) > 30:
+                self.output.append(f"//##LLM@@ The generated function name `{func_name}` is unusually long. Please review and refactor to use a simpler, more idiomatic V name if possible.")
+
             pub_prefix = ""
             is_nested = len(self._scope_stack) > 0
             if not is_nested:
