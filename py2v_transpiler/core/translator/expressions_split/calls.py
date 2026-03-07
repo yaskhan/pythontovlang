@@ -323,6 +323,15 @@ class CallsMixin(TranslatorBase):
         elif original_id and f"py_{original_id}" == func_name_str and original_id in ("map", "filter"):
              func_name_str = original_id
 
+        # Handle dict.get(key, default) -> dict[key] or { default }
+        if isinstance(func_node, ast.Attribute) and func_node.attr == "get" and (len(args) == 1 or len(args) == 2):
+            obj_type = self._guess_type(func_node.value)
+            if obj_type.startswith("map[") or obj_type == "Any":
+                obj = self.visit(func_node.value)
+                key = args[0]
+                default = args[1] if len(args) == 2 else "none"
+                return f"{obj}[{key}] or {{ {default} }}"
+
         # Extract mypy plugin signature if available for this call
         loc_key = f"{getattr(node, 'lineno', 0)}:{getattr(node, 'col_offset', 0)}"
         call_sig = None
