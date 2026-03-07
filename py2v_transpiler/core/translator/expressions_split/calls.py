@@ -704,14 +704,18 @@ class CallsMixin(TranslatorBase):
                     lookup_name = orig_id
                     break
 
+        # Strip generics for class lookup (e.g. UserDict[T] -> UserDict)
+        base_lookup_name = re.sub(r'\[.*\]', '', lookup_name)
+
         if call_sig and "is_class" in call_sig:
             is_class = call_sig["is_class"]
             has_factory = call_sig.get("has_init", False) or call_sig.get("has_new", False)
-        elif hasattr(self, 'defined_classes') and lookup_name in self.defined_classes:
+        elif hasattr(self, 'defined_classes') and base_lookup_name in self.defined_classes:
             is_class = True
-            class_info = self.defined_classes[lookup_name]
+            class_info = self.defined_classes[base_lookup_name]
             has_factory = class_info.get("has_init", False) or class_info.get("has_new", False)
-            func_name_str = lookup_name # Use non-prefixed name for call if it is a class
+            if lookup_name in self.defined_classes:
+                func_name_str = lookup_name # Use non-prefixed name for call if it is a class
 
         if is_class:
             if has_factory:
