@@ -164,6 +164,9 @@ class ComprehensionsMixin(TranslatorBase):
 
         gen = node.generators[0] # Handle first generator
 
+        if len(node.generators) > 1 or len(gen.ifs) > 1:
+            self.output.append(f"{self._indent()}//##LLM@@ Complex nested comprehension detected. To ensure readability and idiomatic V, please unfold this into explicit 'for' loops or a clean chain of .map() and .filter() calls.")
+
         # Determine capacity for pre-allocation
         cap_str = ""
         if not gen.ifs:
@@ -232,6 +235,10 @@ class ComprehensionsMixin(TranslatorBase):
             target_var = f"py_comp_{self.unique_id_counter}"
 
         gen = node.generators[0] # Handle first generator
+
+        if len(node.generators) > 1 or len(gen.ifs) > 1:
+            self.output.append(f"{self._indent()}//##LLM@@ Complex nested comprehension detected. To ensure readability and idiomatic V, please unfold this into explicit 'for' loops or a clean chain of .map() and .filter() calls.")
+
         self._infer_generator_types(gen)
 
         key_type = self._guess_type(node.key)
@@ -257,6 +264,10 @@ class ComprehensionsMixin(TranslatorBase):
             target_var = f"py_comp_{self.unique_id_counter}"
 
         gen = node.generators[0] # Handle first generator
+
+        if len(node.generators) > 1 or len(gen.ifs) > 1:
+            self.output.append(f"{self._indent()}//##LLM@@ Complex nested comprehension detected. To ensure readability and idiomatic V, please unfold this into explicit 'for' loops or a clean chain of .map() and .filter() calls.")
+
         self._infer_generator_types(gen)
 
         key_type = self._guess_type(node.elt)

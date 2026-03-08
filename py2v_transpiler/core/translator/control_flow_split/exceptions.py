@@ -51,6 +51,8 @@ class ExceptionsMixin(TranslatorBase):
             self.output.append(f"{self._indent()}}}")
 
     def visit_Try(self, node: ast.Try) -> None:
+        self.output.append(f"{self._indent()}//##LLM@@ Python try/except/finally block detected. V uses Result/Option types for error handling. Please refactor this function to return a Result (!Type) or Option (?Type), and handle errors using V's 'or {{ ... }}' or '?' syntax.")
+
         self.emitter.add_import('div72.vexc')
 
         # Need to support finally using defer
