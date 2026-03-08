@@ -30,7 +30,7 @@ def test_hasattr_any():
     tree = parser.parse(code)
     result = translator.visit_Module(tree)
 
-    assert "x := /* ##LLM@@ Dynamic attribute access (hasattr) used here. V structs are strictly typed at compile time. Please refactor. */ $if obj.has_field('attr') { true } $else { false }" in result
+    assert "x := //##LLM@@ Dynamic attribute access (getattr/setattr/hasattr) used here. V structs are strictly typed at compile time. Please refactor using explicit struct fields, V's compile-time reflection ($for field in struct), or interfaces.\n$if obj.has_field('attr') { true } $else { false }" in result
 
 def test_hasattr_struct():
     parser = PyASTParser()
@@ -42,7 +42,7 @@ def test_hasattr_struct():
     tree = parser.parse(code)
     result = translator.visit_Module(tree)
 
-    assert "x := /* ##LLM@@ Dynamic attribute access (hasattr) used here. V structs are strictly typed at compile time. Please refactor. */ $if obj.has_field('attr') { true } $else { false }" in result
+    assert "x := //##LLM@@ Dynamic attribute access (getattr/setattr/hasattr) used here. V structs are strictly typed at compile time. Please refactor using explicit struct fields, V's compile-time reflection ($for field in struct), or interfaces.\n$if obj.has_field('attr') { true } $else { false }" in result
 
 def test_hasattr_known_dataclass():
     parser = PyASTParser()
@@ -69,7 +69,7 @@ def test_getattr_literal():
     analyzer.analyze(tree)
     result = translator.visit_Module(tree)
 
-    assert "x := /* ##LLM@@ Dynamic attribute access */ obj.attr" in result
+    assert "x := //##LLM@@ Dynamic attribute access (getattr/setattr/hasattr) used here. V structs are strictly typed at compile time. Please refactor using explicit struct fields, V's compile-time reflection ($for field in struct), or interfaces.\nobj.attr" in result
 
 def test_getattr_dynamic():
     parser = PyASTParser()
@@ -81,7 +81,7 @@ def test_getattr_dynamic():
     analyzer.analyze(tree)
     result = translator.visit_Module(tree)
 
-    assert "x := /* ##LLM@@ Dynamic attribute access (getattr) used here. V structs are strictly typed at compile time. Please refactor. */ /* getattr(obj, var) - dynamic access not supported */" in result
+    assert "x := //##LLM@@ Dynamic attribute access (getattr/setattr/hasattr) used here. V structs are strictly typed at compile time. Please refactor using explicit struct fields, V's compile-time reflection ($for field in struct), or interfaces.\n/* getattr(obj, var) - dynamic access not supported */" in result
 
 def test_setattr_literal():
     parser = PyASTParser()
@@ -105,4 +105,4 @@ def test_setattr_dynamic():
     analyzer.analyze(tree)
     result = translator.visit_Module(tree)
 
-    assert "/* setattr(obj, var, 1) - dynamic setting not supported */" in result
+    assert "//##LLM@@ Dynamic attribute access (getattr/setattr/hasattr) used here. V structs are strictly typed at compile time. Please refactor using explicit struct fields, V's compile-time reflection ($for field in struct), or interfaces.\n/* setattr(obj, var, 1) - dynamic setting not supported */" in result
