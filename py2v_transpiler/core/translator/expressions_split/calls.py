@@ -149,7 +149,7 @@ class CallsMixin(TranslatorBase):
             elif func_node.id == "open":
                 module_name = "os" # synthetic
                 func_name = "open"
-            elif func_node.id in ("hasattr", "getattr", "setattr", "type", "super"):
+            elif func_node.id in ("hasattr", "getattr", "setattr", "delattr", "eval", "exec", "compile", "type", "super"):
                  module_name = "builtins" # synthetic
                  func_name = func_node.id
 
@@ -199,12 +199,12 @@ class CallsMixin(TranslatorBase):
                                  return "true"
                              else:
                                  # We don't have all fields stored, so fallback to compile-time introspection
-                                 return f"$if {obj_expr}.has_field('{attr_name}') {{ true }} $else {{ false }}"
+                                 return f"//##LLM@@ Dynamic attribute access (getattr/setattr/hasattr) used here. V structs are strictly typed at compile time. Please refactor using explicit struct fields, V's compile-time reflection ($for field in struct), or interfaces.\n$if {obj_expr}.has_field('{attr_name}') {{ true }} $else {{ false }}"
 
                          # Unknown struct or Any/Union -> compile-time introspection fallback
-                         return f"$if {obj_expr}.has_field('{attr_name}') {{ true }} $else {{ false }}"
+                         return f"//##LLM@@ Dynamic attribute access (getattr/setattr/hasattr) used here. V structs are strictly typed at compile time. Please refactor using explicit struct fields, V's compile-time reflection ($for field in struct), or interfaces.\n$if {obj_expr}.has_field('{attr_name}') {{ true }} $else {{ false }}"
 
-                     return f"/* hasattr({', '.join(args)}) - reflection not fully supported */ false"
+                     return f"//##LLM@@ Dynamic attribute access (getattr/setattr/hasattr) used here. V structs are strictly typed at compile time. Please refactor using explicit struct fields, V's compile-time reflection ($for field in struct), or interfaces.\n/* hasattr({', '.join(args)}) - reflection not fully supported */ false"
                  return "false"
             elif func_name == "getattr":
                  if len(args) >= 2:
@@ -212,14 +212,18 @@ class CallsMixin(TranslatorBase):
                       # args[1] is already visited code, e.g. "'attr'"
                       attr_name = args[1]
                       if attr_name.startswith("'") and attr_name.endswith("'"):
-                           return f"{args[0]}.{attr_name[1:-1]}"
-                 return f"/* getattr({', '.join(args)}) - dynamic access not supported */"
+                           return f"//##LLM@@ Dynamic attribute access (getattr/setattr/hasattr) used here. V structs are strictly typed at compile time. Please refactor using explicit struct fields, V's compile-time reflection ($for field in struct), or interfaces.\n{args[0]}.{attr_name[1:-1]}"
+                 return f"//##LLM@@ Dynamic attribute access (getattr/setattr/hasattr) used here. V structs are strictly typed at compile time. Please refactor using explicit struct fields, V's compile-time reflection ($for field in struct), or interfaces.\n/* getattr({', '.join(args)}) - dynamic access not supported */"
             elif func_name == "setattr":
                  if len(args) >= 3:
                       attr_name = args[1]
                       if attr_name.startswith("'") and attr_name.endswith("'"):
-                           return f"{args[0]}.{attr_name[1:-1]} = {args[2]}"
-                 return f"/* setattr({', '.join(args)}) - dynamic setting not supported */"
+                           return f"//##LLM@@ Dynamic attribute access (getattr/setattr/hasattr) used here. V structs are strictly typed at compile time. Please refactor using explicit struct fields, V's compile-time reflection ($for field in struct), or interfaces.\n{args[0]}.{attr_name[1:-1]} = {args[2]}"
+                 return f"//##LLM@@ Dynamic attribute access (getattr/setattr/hasattr) used here. V structs are strictly typed at compile time. Please refactor using explicit struct fields, V's compile-time reflection ($for field in struct), or interfaces.\n/* setattr({', '.join(args)}) - dynamic setting not supported */"
+            elif func_name == "delattr":
+                 return f"//##LLM@@ Dynamic attribute access (getattr/setattr/hasattr) used here. V structs are strictly typed at compile time. Please refactor using explicit struct fields, V's compile-time reflection ($for field in struct), or interfaces.\n/* delattr({', '.join(args)}) - dynamic access not supported */"
+            elif func_name in ("eval", "exec", "compile"):
+                 return f"//##LLM@@ Dynamic code execution via eval() or exec() detected. This cannot be compiled in V. Please analyze the intended logic and replace it with explicit, statically compiled V code, or a custom parser if strictly necessary.\n/* {func_name}(...) - dynamic execution not supported */"
             elif func_name == "type":
                 if len(args) >= 1:
                     return f"typeof({args[0]}).name"

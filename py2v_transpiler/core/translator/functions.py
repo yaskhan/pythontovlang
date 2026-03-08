@@ -699,6 +699,9 @@ class FunctionsMixin(TranslatorBase):
                 deprecated_attr = "[deprecated]\n"
 
         if "decl" not in locals():
+            if original_node_name.startswith("__") and original_node_name.endswith("__") and func_name.startswith("__") and func_name.endswith("__"):
+                self.output.append(f"{self._indent()}//##LLM@@ Unmapped Python dunder method (e.g., __call__, __getitem__) detected. V handles object behavior and operator overloading differently. Please implement the equivalent V logic or refactor the calling code.")
+
             if is_nested:
                 captures = self._find_captured_vars(node)
                 capture_str = f"[{', '.join(captures)}] " if captures else ""
@@ -1029,6 +1032,8 @@ class FunctionsMixin(TranslatorBase):
             if is_operator:
                 decl = f"{deprecated_attr}{pub_prefix}fn {receiver_str}{op_str} ({args_str}) {ret_type} {{"
             else:
+                if node.name.startswith("__") and node.name.endswith("__") and func_name.startswith("__") and func_name.endswith("__"):
+                    self.output.append(f"{self._indent()}//##LLM@@ Unmapped Python dunder method (e.g., __call__, __getitem__) detected. V handles object behavior and operator overloading differently. Please implement the equivalent V logic or refactor the calling code.")
                 decl = f"{deprecated_attr}{pub_prefix}fn {receiver_str}{func_name}{func_generics_str}({args_str}) {ret_type} {{"
                 if ret_type == "void":
                     decl = f"{deprecated_attr}{pub_prefix}fn {receiver_str}{func_name}{func_generics_str}({args_str}) {{"
@@ -1164,10 +1169,12 @@ class FunctionsMixin(TranslatorBase):
 
     def visit_Global(self, node: ast.Global) -> None:
         names = ", ".join(node.names)
+        self.output.append(f"{self._indent()}//##LLM@@ Python 'global' or 'nonlocal' scope modification detected. V heavily discourages global state and has strict mutability rules for closures. Please refactor state management, possibly by passing mutable parameters (mut) explicitly.")
         self.output.append(f"{self._indent()}// global {names}")
 
     def visit_Nonlocal(self, node: ast.Nonlocal) -> None:
         names = ", ".join(node.names)
+        self.output.append(f"{self._indent()}//##LLM@@ Python 'global' or 'nonlocal' scope modification detected. V heavily discourages global state and has strict mutability rules for closures. Please refactor state management, possibly by passing mutable parameters (mut) explicitly.")
         self.output.append(f"{self._indent()}// nonlocal {names}")
 
     def visit_Return(self, node: ast.Return) -> None:
