@@ -282,7 +282,9 @@ class TranslatorBase(ast.NodeVisitor):
 
     def _get_factory_name(self, struct_name: str) -> str:
         """Returns a snake_case factory name for a given struct name."""
-        return f"new_{self._to_snake_case(struct_name)}"
+        # Strip generic parameters if present (e.g. Box[int] -> Box)
+        base_name = struct_name.split('[')[0]
+        return f"new_{self._to_snake_case(base_name)}"
 
     def _get_generic_map(self, generic_names: List[str]) -> Dict[str, str]:
         """
