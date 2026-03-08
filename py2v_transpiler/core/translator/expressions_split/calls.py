@@ -940,6 +940,11 @@ class CallsMixin(TranslatorBase):
             if len(args) == 2:
                 obj = args[0]
                 types = args[1]
+
+                # Specifically handle Any
+                if types == "Any":
+                    return f"{obj} is AnyValue"
+
                 # Check if second arg was a Tuple, visited as "[T1, T2]" string
                 # We need to access the original node to be sure
                 if isinstance(node.args[1], ast.Tuple):
@@ -948,7 +953,10 @@ class CallsMixin(TranslatorBase):
                     type_checks = []
                     for elt in node.args[1].elts:
                         t_name = str(self.visit(elt))
-                        type_checks.append(f"{obj} is {t_name}")
+                        if t_name == "Any":
+                            type_checks.append(f"{obj} is AnyValue")
+                        else:
+                            type_checks.append(f"{obj} is {t_name}")
                     return f"({' || '.join(type_checks)})"
 
                 if types.startswith("[") and types.endswith("]"):

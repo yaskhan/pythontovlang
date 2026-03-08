@@ -13,72 +13,55 @@ class LiteralsMixin(TranslatorBase):
             if val in val_map:
                 return f".{val_map[val]}"
 
-        if isinstance(val, str):
-            # Check for backslashes to decide if raw string is beneficial
-            # Python AST usually resolves escape sequences in string literals.
-            # e.g. "a\nb" -> 'a\nb' (length 3, \n is one char)
-            # r"a\nb" -> 'a\\nb' (length 4, \ and n)
-            # If we see actual backslashes in the string value, it means they were escaped or raw.
-            # If we output as V string, we need to escape them again if we want to preserve them.
-            # Or we can use V raw string r'...' if possible.
-            # V raw strings don't support escaping ' inside (r'\' is end of string?).
-            # V raw string: r'hello\nworld' -> prints hello\nworld.
-            # If val contains `\` (backslash char), we can use r'' to make it cleaner.
-            # V raw strings r'...' or r"..." do not support escaping of the delimiter.
-            # If string contains both ' and ", raw string might not be possible if it contains \.
-            # But standard string with manual escaping is always safe.
-            # Logic:
-            # 1. If no backslash, standard string is fine (escapes handled by visit/literal).
-            #    Wait, standard string generation `f"'{val}'"` might fail if val contains '.
-            #    We should handle escaping of ' in standard strings too.
-            # 2. If backslash exists, try raw string.
-            #    If no ', use r'...'.
-            #    If no ", use r"...".
-            #    If both, fallback to standard string with heavy escaping.
-
-            # Helper for standard string
-            def to_standard_str(s):
-                # Escape \ and '
-                s = s.replace('\\', '\\\\').replace("'", "\\'")
-                return f"'{s}'"
-
-            if '\\' in val:
-                 if "'" not in val and getattr(self, 'fstring_quote_stack', [])[-1:] != ["'"]:
-                     return f"r'{val}'"
-                 if '"' not in val and getattr(self, 'fstring_quote_stack', [])[-1:] != ['"']:
-                     return f'r"{val}"'
-                 # Fallback
-                 return to_standard_str(val)
-
-            # No backslash, standard string but check quotes
-            if getattr(self, 'fstring_quote_stack', []):
-                outer_quote = self.fstring_quote_stack[-1]
-                inner_quote = '"' if outer_quote == "'" else "'"
-                if inner_quote not in val:
-                    return f"{inner_quote}{val}{inner_quote}"
-
-            return to_standard_str(val)
+        res = ""
+        if val is None:
+            return "none"
+        elif isinstance(val, str):
+            res = self._visit_string_base(val)
         elif val is Ellipsis:
-             return "/* ... */"
+             res = "/* ... */"
         elif isinstance(val, bool):
-            return str(val).lower()
+            res = str(val).lower()
         elif isinstance(val, bytes):
             # Transpile bytes to V byte array [u8(0x..), ...]
             if not val:
-                return "[]u8{}"
-            elements = [f"u8(0x{b:02x})" for b in val]
-            return f"[{', '.join(elements)}]"
-        elif val is None:
-            return "none"
-        elif isinstance(val, bytes):
-            elements = [f"u8(0x{b:02x})" for b in val]
-            if not elements:
-                return "[]u8{}"
-            return f"[{', '.join(elements)}]"
+                res = "[]u8{}"
+            else:
+                elements = [f"u8(0x{b:02x})" for b in val]
+                res = f"[{', '.join(elements)}]"
         elif isinstance(val, complex):
             self.used_complex = True
-            return f"py_complex({val.real}, {val.imag})"
-        return str(val)
+            res = f"py_complex({val.real}, {val.imag})"
+        else:
+            res = str(val)
+
+        if target_type == "Any" and res != "none":
+             return f"AnyValue({res})"
+        return res
+
+    def _visit_string_base(self, val: str) -> str:
+        # Helper for standard string
+        def to_standard_str(s):
+            # Escape \ and '
+            s = s.replace('\\', '\\\\').replace("'", "\\'")
+            return f"'{s}'"
+
+        if '\\' in val:
+             if "'" not in val and getattr(self, 'fstring_quote_stack', [])[-1:] != ["'"]:
+                 return f"r'{val}'"
+             if '"' not in val and getattr(self, 'fstring_quote_stack', [])[-1:] != ['"']:
+                 return f'r"{val}"'
+             # Fallback
+             return to_standard_str(val)
+
+        # No backslash, standard string but check quotes
+        if getattr(self, 'fstring_quote_stack', []):
+            outer_quote = self.fstring_quote_stack[-1]
+            inner_quote = '"' if outer_quote == "'" else "'"
+            if inner_quote not in val:
+                return f"{inner_quote}{val}{inner_quote}"
+
+        return to_standard_str(val)
 
     def visit_List(self, node: ast.List) -> str:
         # Check for starred elements
@@ -101,38 +84,40 @@ class LiteralsMixin(TranslatorBase):
             return f"py_list_concat({', '.join(chunks)})"
 
         elements = [str(self.visit(elt)) for elt in node.elts]
-        if not elements:
-             v_type = self.current_assignment_type or "[]Any"
-             if not v_type.startswith("[]"):
-                 v_type = "[]Any"
-             return f"{v_type}{{}}"
-
         v_type = self._guess_type(node)
+        target_type = self.current_assignment_type
 
-        # Optimization: Use idiomatic V literal [1, 2, 3] if possible.
-        # But for nested mutability tracking, we might need explicit initialization if it's assigned to a 'mut'.
-        # However, visit_Assign handles .clone() which requires explicit type sometimes or not?
-        # Actually, V's `mut a := [1, 2]` is fine.
+        res = ""
+        if not elements:
+             actual_type = target_type or "[]Any"
+             if not actual_type.startswith("[]"):
+                 actual_type = "[]Any"
+             res = f"{actual_type}{{}}"
+        else:
+            # Optimization: Use idiomatic V literal [1, 2, 3] if possible.
+            if v_type == "[]Any" or not target_type:
+                 # Special case for py_array helper used in tests
+                 is_py_array = False
+                 for p in getattr(self, "parent_stack", []):
+                     if isinstance(p, ast.Call):
+                         if (isinstance(p.func, ast.Name) and p.func.id == "py_array") or \
+                            (isinstance(p.func, ast.Attribute) and p.func.attr == "array" and \
+                             isinstance(p.func.value, ast.Name) and p.func.value.id == "array"):
+                             is_py_array = True
+                             break
 
-        if v_type == "[]Any" or not self.current_assignment_type:
-             # Special case for py_array helper used in tests
-             is_py_array = False
-             for p in getattr(self, "parent_stack", []):
-                 if isinstance(p, ast.Call):
-                     if (isinstance(p.func, ast.Name) and p.func.id == "py_array") or \
-                        (isinstance(p.func, ast.Attribute) and p.func.attr == "array" and \
-                         isinstance(p.func.value, ast.Name) and p.func.value.id == "array"):
-                         is_py_array = True
-                         break
+                 if v_type != "[]Any" and is_py_array:
+                      res = f"{v_type}{{{', '.join(elements)}}}"
+                 else:
+                      # Optimization: If not in an assignment (e.g. in an assertion),
+                      # use V's inferred array [1, 2, 3] which is more idiomatic.
+                      res = f"[{', '.join(elements)}]"
+            else:
+                 res = f"{v_type}{{{', '.join(elements)}}}"
 
-             if v_type != "[]Any" and is_py_array:
-                  return f"{v_type}{{{', '.join(elements)}}}"
-
-             # Optimization: If not in an assignment (e.g. in an assertion),
-             # use V's inferred array [1, 2, 3] which is more idiomatic.
-             return f"[{', '.join(elements)}]"
-
-        return f"{v_type}{{{', '.join(elements)}}}"
+        if target_type == "Any" and res != "none":
+            return f"AnyValue({res})"
+        return res
 
     def visit_Dict(self, node: ast.Dict) -> str:
         # Check if the dictionary is being used as a TypedDict
@@ -176,31 +161,36 @@ class LiteralsMixin(TranslatorBase):
 
             return f"py_dict_merge({', '.join(chunks)})"
 
+        target_type = self.current_assignment_type
+        res = ""
         if not node.keys:
             # Empty dict
-            v_type = self.current_assignment_type or "map[string]Any"
-            if not v_type.startswith("map["):
-                # If current_assignment_type is e.g. a struct or union,
-                # we should fallback to map[string]Any only if it's truly a dict literal.
-                v_type = "map[string]Any"
-            return f"{v_type}{{}}"
+            actual_type = target_type or "map[string]Any"
+            if not actual_type.startswith("map["):
+                actual_type = "map[string]Any"
+            res = f"{actual_type}{{}}"
+        else:
+            pairs = []
+            for k, v in zip(node.keys, node.values):
+                if k:
+                    key_str = self.visit(k)
+                    val_str = self.visit(v)
+                    if "Any" in v_type and not v_type.startswith("SumType"):
+                         if val_str != "none":
+                            val_str = f"AnyValue({val_str})"
+                    pairs.append(f"{key_str}: {val_str}")
 
-        pairs = []
-        for k, v in zip(node.keys, node.values):
-            if k:
-                key_str = self.visit(k)
-                val_str = self.visit(v)
-                if "Any" in v_type and not v_type.startswith("SumType"):
-                     val_str = f"({val_str} as Any)"
-                pairs.append(f"{key_str}: {val_str}")
+            # In modern V, map literals with elements should NOT have the type prefix
+            # unless it is ambiguous, but usually {key: val} is enough if context type is known.
+            # However, map[string]Any requires wrapping for values.
+            if "Any" in v_type and not v_type.startswith("SumType"):
+                 res = f"{v_type}{{{', '.join(pairs)}}}"
+            else:
+                 res = f"{{{', '.join(pairs)}}}"
 
-        # In modern V, map literals with elements should NOT have the type prefix
-        # unless it is ambiguous, but usually {key: val} is enough if context type is known.
-        # However, map[string]Any requires explicit casts for values.
-        if "Any" in v_type and not v_type.startswith("SumType"):
-             return f"{v_type}{{{', '.join(pairs)}}}"
-
-        return f"{{{', '.join(pairs)}}}"
+        if target_type == "Any" and res != "none":
+            return f"AnyValue({res})"
+        return res
 
     def visit_Set(self, node: ast.Set) -> str:
         # Check for starred elements
@@ -231,10 +221,16 @@ class LiteralsMixin(TranslatorBase):
             elements.append(f"{val}: true")
 
         v_type = self._guess_type(node)
+        target_type = self.current_assignment_type
+        res = ""
         if "Any" in v_type and not v_type.startswith("SumType"):
-            return f"{v_type}{{{', '.join(elements)}}}"
+            res = f"{v_type}{{{', '.join(elements)}}}"
+        else:
+            res = f"{{{', '.join(elements)}}}"
 
-        return f"{{{', '.join(elements)}}}"
+        if target_type == "Any" and res != "none":
+            return f"AnyValue({res})"
+        return res
 
     def visit_Tuple(self, node: ast.Tuple) -> str:
         # Translate Tuple (a, b) to Array [a, b]
@@ -260,11 +256,16 @@ class LiteralsMixin(TranslatorBase):
         elements = [str(self.visit(elt)) for elt in node.elts]
 
         # Use fixed-size array literal if type is known to be fixed-size array
-        v_type = self.current_assignment_type or ""
-        if v_type.startswith("[") and "]" in v_type and not v_type.startswith("[]"):
-             return f"{v_type}{{{', '.join(elements)}}}"
+        target_type = self.current_assignment_type or ""
+        res = ""
+        if target_type.startswith("[") and "]" in target_type and not target_type.startswith("[]"):
+             res = f"{target_type}{{{', '.join(elements)}}}"
+        else:
+             res = f"[{', '.join(elements)}]"
 
-        return f"[{', '.join(elements)}]"
+        if target_type == "Any" and res != "none":
+            return f"AnyValue({res})"
+        return res
 
     def visit_JoinedStr(self, node: ast.JoinedStr) -> str:
         # Determine the delimiter based on nesting level

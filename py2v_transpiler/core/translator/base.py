@@ -524,14 +524,23 @@ class TranslatorBase(ast.NodeVisitor):
         and returns its name (including generic args if applicable).
         """
         parts = [p.strip() for p in v_union_type.split('|')]
-        if len(parts) <= 1:
-            return v_union_type
 
-        parts.sort()
-        normalized = " | ".join(parts)
+        has_none = 'none' in parts
+        non_none_parts = [p for p in parts if p != 'none']
+
+        if not non_none_parts:
+            return 'none'
+
+        if len(non_none_parts) == 1:
+            res = non_none_parts[0]
+            return f"?{res}" if has_none else res
+
+        non_none_parts.sort()
+        normalized = " | ".join(non_none_parts)
 
         if normalized in self._generated_sum_types:
-            return self._generated_sum_types[normalized]
+            cached_res = self._generated_sum_types[normalized]
+            return f"?{cached_res}" if has_none else cached_res
 
         # Generate a name: SumType_Part1Part2
         def clean(s: str) -> str:
@@ -544,18 +553,18 @@ class TranslatorBase(ast.NodeVisitor):
             res = m.get(s, s).replace('[]', 'Array').replace('map', 'Map')
             return "".join(c for c in res if c.isalnum() or c == '_')
 
-        type_name = "SumType_" + "".join(clean(p) for p in parts)
+        type_name = "SumType_" + "".join(clean(p) for p in non_none_parts)
 
         # Avoid collisions
         base_name = type_name
         counter = 1
-        while any(v == type_name for v in self._generated_sum_types.values()):
+        while any(v == type_name or (isinstance(v, str) and v.startswith(f"{type_name}[")) for v in self._generated_sum_types.values()):
             type_name = f"{base_name}_{counter}"
             counter += 1
 
         # Identify active generics used in the union
         active_v_generics = self._get_all_active_v_generics()
-        used_generics = [g for g in active_v_generics if g in parts or any(f"[{g}]" in p for p in parts) or any(f"{g} " in p for p in parts)]
+        used_generics = [g for g in active_v_generics if g in non_none_parts or any(f"[{g}]" in p for p in non_none_parts) or any(f"{g} " in p for p in non_none_parts)]
 
         gen_decl = f"[{', '.join(used_generics)}]" if used_generics else ""
         gen_args = f"[{', '.join(used_generics)}]" if used_generics else ""
@@ -567,7 +576,7 @@ class TranslatorBase(ast.NodeVisitor):
 
         result = f"{type_name}{gen_args}"
         self._generated_sum_types[normalized] = result
-        return result
+        return f"?{result}" if has_none else result
 
     def _map_type(self, type_str: str, struct_name: Optional[str] = None, allow_union: bool = True, register_sum_types: bool = True) -> str:
         """

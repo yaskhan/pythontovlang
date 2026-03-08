@@ -204,23 +204,24 @@ def _map_ast_type(node: ast.AST, self_name: str = "Self", allow_union: bool = Tr
 
             # Check for None to map to Optional
             non_none = [t for t in mapped_args if t != 'none']
-            if len(non_none) == 1 and len(mapped_args) > 1:
-                return f"?{non_none[0]}"
+            has_none = len(non_none) < len(mapped_args)
 
-            # Deduplicate while preserving order
-            unique_args = []
-            for arg in mapped_args:
-                if arg not in unique_args:
-                    unique_args.append(arg)
+            if len(non_none) == 1:
+                res = non_none[0]
+                return f"?{res}" if has_none else res
 
-            union_str = " | ".join(unique_args)
+            union_str = " | ".join(non_none)
             if sum_type_registrar:
-                if len(non_none) < len(mapped_args): # had none
-                    return f"?{sum_type_registrar(' | '.join(non_none))}"
-                return sum_type_registrar(union_str)
+                res = sum_type_registrar(union_str)
+                return f"?{res}" if has_none else res
 
             if allow_union:
-                return union_str
+                if has_none:
+                    # Anonymous optional sum types are not supported in V,
+                    # but we return it as a hint or best effort.
+                    # Usually registrar will be present for actual code generation.
+                    return f"?({' | '.join(non_none)})"
+                return " | ".join(mapped_args)
             return "Any"
 
         elif value_id in ('Callable', 'typing.Callable'):
@@ -317,17 +318,25 @@ def _map_ast_type(node: ast.AST, self_name: str = "Self", allow_union: bool = Tr
             left_type = _map_ast_type(node.left, self_name, allow_union, generic_map, sum_type_registrar, literal_registrar)
             right_type = _map_ast_type(node.right, self_name, allow_union, generic_map, sum_type_registrar, literal_registrar)
 
-            if left_type == 'none':
-                return f"?{right_type}"
-            if right_type == 'none':
-                return f"?{left_type}"
+            non_none = [t for t in [left_type, right_type] if t != 'none']
+            has_none = len(non_none) < 2
 
-            union_str = f"{left_type} | {right_type}"
+            if not non_none:
+                return 'none'
+
+            if len(non_none) == 1:
+                res = non_none[0]
+                return f"?{res}" if has_none else res
+
+            union_str = " | ".join(non_none)
             if sum_type_registrar:
-                return sum_type_registrar(union_str)
+                res = sum_type_registrar(union_str)
+                return f"?{res}" if has_none else res
 
             if allow_union:
-                return union_str
+                if has_none:
+                    return f"?({non_none[0]})" if len(non_none) == 1 else f"?({' | '.join(non_none)})"
+                return f"{left_type} | {right_type}"
             return "Any"
 
     return "void"

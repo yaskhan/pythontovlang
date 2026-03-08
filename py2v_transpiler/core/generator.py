@@ -124,7 +124,22 @@ class VCodeEmitter:
         lines = [f"module {module_name}\n"]
 
         # Define custom Any type
-        lines.append("pub type Any = bool | int | i64 | f64 | string | []u8 | none\n")
+        lines.append("// Base sum type (no none)")
+        lines.append("pub type AnyValue = bool | int | i64 | f64 | string | []u8 | map[string]Any | []Any\n")
+        lines.append("// Optional wrapper for None support")
+        lines.append("pub type Any = ?AnyValue\n")
+
+        lines.append("// Helper functions")
+        lines.append("pub fn Any_none() Any { return none }")
+        lines.append("pub fn Any_some(v AnyValue) Any { return v }\n")
+
+        lines.append("// Type check helpers")
+        lines.append("pub fn Any_is_int(x Any) bool { if v := x { return v is int } return false }")
+        lines.append("pub fn Any_is_string(x Any) bool { if v := x { return v is string } return false }\n")
+
+        lines.append("// Type extraction helpers")
+        lines.append("pub fn Any_as_int(x Any) int { if v := x { if v is int { return v } } return 0 }")
+        lines.append("pub fn Any_as_string(x Any) string { if v := x { if v is string { return v } } return '' }\n")
 
         # Sort and deduplicate imports
         unique_imports = sorted(list(set(imports)))
