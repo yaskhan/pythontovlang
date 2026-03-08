@@ -24,7 +24,7 @@ DEFAULT_HEIGHT: Final = 200
     v_code = translate(source)
     assert "const (" in v_code
     assert "default_width = 100" in v_code
-    assert "default_height = 200" in v_code
+    assert "default_height = AnyValue(200)" in v_code
     # They should not be in main
     main_body_start = v_code.find("fn main() {")
     assert "DEFAULT_WIDTH" not in v_code[main_body_start:]
@@ -41,7 +41,7 @@ Vector_ZERO: Final = Vector(0, 0, 0)
     assert "__global vector_zero Any" in v_code
 
     assert "fn init() {" in v_code
-    assert "vector_zero = Vector(0, 0, 0)" in v_code
+    assert "vector_zero = Vector(AnyValue(0), AnyValue(0), AnyValue(0))" in v_code
 
     # It should not be in main
     main_body_start = v_code.find("fn main() {")

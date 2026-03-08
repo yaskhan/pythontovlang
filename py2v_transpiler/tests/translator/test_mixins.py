@@ -22,7 +22,7 @@ struct User {
 }
 
 fn (self User) login() {
-    self.is_authenticated = true
+    self.is_authenticated = AnyValue(true)
 }
 
 fn new_user(username string) User {

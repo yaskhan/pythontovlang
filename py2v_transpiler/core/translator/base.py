@@ -839,6 +839,17 @@ class TranslatorBase(ast.NodeVisitor):
             elif isinstance(node.value, ast.Name):
                 if node.value.id == "argv": # Common if from sys import argv
                     return "string"
+
+            # Improved inference for collections
+            val_type = self._guess_type(node.value)
+            if val_type.startswith("[]"):
+                 return val_type[2:]
+            elif val_type.startswith("map["):
+                 # map[K]V -> V
+                 parts = val_type[4:-1].split("]")
+                 if len(parts) >= 2:
+                     return parts[1]
+                 return "Any"
             return "Any"
         elif isinstance(node, ast.BinOp):
             left = self._guess_type(node.left)

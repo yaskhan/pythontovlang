@@ -55,7 +55,7 @@ class TestMutability:
         # x is final
         mut_map = {"x": {"is_reassigned": False, "is_final": True}}
         result = self._transpile(code, mut_map)
-        assert "x := 1" in result
+        assert "x := AnyValue(1)" in result
         assert "mut x" not in result
 
     def test_function_argument_immutable(self):

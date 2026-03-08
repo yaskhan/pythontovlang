@@ -41,5 +41,5 @@ def calc():
     assert "ctx_mgr_0 := py_decimal_localcontext()" in v_code
     assert "ctx := ctx_mgr_0.enter()" in v_code
     assert "defer { ctx_mgr_0.exit(none, none, none) }" in v_code
-    assert "ctx.prec = 50" in v_code
-    assert "py_decimal_getcontext().prec = 50" in v_code
+    assert "ctx.prec = AnyValue(50)" in v_code
+    assert "py_decimal_getcontext().prec = AnyValue(50)" in v_code

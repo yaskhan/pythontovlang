@@ -113,7 +113,8 @@ def test_emit_global_helpers():
     code = VCodeEmitter.emit_global_helpers(imports, structs, functions)
 
     assert "module main" in code
-    assert "type Any = bool | int | i64 | f64 | string | []u8" in code
+    assert "pub type AnyValue = bool | int | i64 | f64 | string | []u8" in code
+    assert "pub type Any = ?AnyValue" in code
     # deduplicated and sorted
     assert "import math" in code
     assert "import os" in code
