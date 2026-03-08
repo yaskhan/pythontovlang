@@ -36,7 +36,8 @@ class VlangPlugin(Plugin):
         return hook
 
     def _hook(self, ctx, fullname: str):
-        self.checker = ctx.api
+        if not self.checker:
+             self.checker = ctx.api
         if hasattr(ctx.context, 'line'):
             key = f"{ctx.context.line}:{ctx.context.column}"
             # Store under both fullname and short name for flexibility
@@ -182,9 +183,22 @@ class VlangPlugin(Plugin):
                 for e in node.expr: collect_vars(e, collected, visited)
                 for b in node.body: collect_vars(b, collected, visited)
                 collect_vars(node.else_body, collected, visited)
-            elif isinstance(node, (WhileStmt, ForStmt)):
-                collect_vars(getattr(node, 'expr', None), collected, visited)
-                collect_vars(getattr(node, 'index', None), collected, visited)
+            elif isinstance(node, WhileStmt):
+                collect_vars(node.expr, collected, visited)
+                collect_vars(node.body, collected, visited)
+                collect_vars(node.else_body, collected, visited)
+            elif isinstance(node, ForStmt):
+                collect_vars(node.expr, collected, visited)
+                collect_vars(node.index, collected, visited)
+                # If the index is a NameExpr, it might have a narrowed type within the body
+                if isinstance(node.index, NameExpr):
+                    # In mypy, ForStmt.index_type can store the inferred type of the loop variable
+                    index_type = getattr(node, "index_type", None)
+                    if index_type:
+                        self.collected_types[node.index.name][f"{node.body.line}:*"] = str(index_type)
+                        if node.index.fullname:
+                            self.collected_types[node.index.fullname][f"{node.body.line}:*"] = str(index_type)
+
                 collect_vars(node.body, collected, visited)
                 collect_vars(node.else_body, collected, visited)
             elif isinstance(node, TryStmt):
