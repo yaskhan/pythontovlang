@@ -832,6 +832,11 @@ class CallsMixin(TranslatorBase):
                 if obj_type.startswith("[]") or obj_type == "Any":
                     obj = self.visit(func_node.value)
                     return f"{obj} << {args[0]}"
+            elif func_node.attr == "extend" and len(args) == 1:
+                obj_type = self._guess_type(func_node.value)
+                if obj_type.startswith("[]") or obj_type == "Any":
+                    obj = self.visit(func_node.value)
+                    return f"{obj} << ...{args[0]}"
             elif func_node.attr == "clear":
                 obj = self.visit(func_node.value)
                 return f"/* {obj}.clear() */ {obj} = {{}}"
