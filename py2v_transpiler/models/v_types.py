@@ -223,7 +223,7 @@ def _map_ast_type(node: ast.AST, self_name: str = "Self", allow_union: bool = Tr
                 return union_str
             return "Any"
 
-        elif value_id in ('Callable', 'typing.Callable'):
+        elif value_id in ('Callable', 'typing.Callable', 'callable', 'collections.abc.Callable'):
             # Callable[[Arg1, Arg2], Ret]
             # V function types: fn (Arg1, Arg2) Ret
             if len(args) == 2:
@@ -240,18 +240,19 @@ def _map_ast_type(node: ast.AST, self_name: str = "Self", allow_union: bool = Tr
                     # But the test expects `fn ()`.
                     arg_types = []
                 elif isinstance(arg_list_node, ast.Constant) and arg_list_node.value is Ellipsis:
-                    arg_types = ["..."]
+                    arg_types = ["...Any"]
                 elif isinstance(arg_list_node, ast.Name):
                     # ParamSpec: Callable[P, Ret]
                     arg_types = [_map_ast_type(arg_list_node, self_name, allow_union, generic_map, sum_type_registrar, literal_registrar)]
 
                 ret_type = _map_ast_type(ret_node, self_name, allow_union, generic_map, sum_type_registrar, literal_registrar)
-                if ret_type == "none": ret_type = "void"
+                if ret_type in ("none", "void"):
+                    return f"fn ({', '.join(arg_types)})"
 
                 return f"fn ({', '.join(arg_types)}) {ret_type}"
 
             if len(args) == 1 and isinstance(args[0], ast.Constant) and args[0].value is Ellipsis:
-                return "fn (...)"
+                return "fn (...Any) Any"
 
             return "fn"
 
@@ -368,6 +369,8 @@ def _map_basic_type(name: str) -> str:
         'Optional': '?Any',
         'Union': 'Any',
         'Callable': 'fn',
+        'callable': 'fn',
+        'collections.abc.Callable': 'fn',
         'Sequence': '[]Any',
         'Iterable': '[]Any',
         'Mapping': 'map[string]Any',
