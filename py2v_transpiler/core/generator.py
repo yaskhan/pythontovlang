@@ -125,7 +125,7 @@ class VCodeEmitter:
 
         # Define custom Any type
         lines.append("// Base sum type (no none)")
-        lines.append("pub type AnyValue = bool | int | i64 | f64 | string | []u8 | map[string]Any | []Any\n")
+        lines.append("pub type AnyValue = bool | int | i64 | f64 | string | []u8 | map[string]?AnyValue | []?AnyValue\n")
         lines.append("// Optional wrapper for None support")
         lines.append("pub type Any = ?AnyValue\n")
 
