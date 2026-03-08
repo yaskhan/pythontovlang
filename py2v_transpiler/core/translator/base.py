@@ -119,7 +119,6 @@ class TranslatorBase(ast.NodeVisitor):
         self.imported_symbols: Dict[str, str] = {}
         self.single_dispatch_functions: Dict[str, Dict[str, str]] = {} # dispatcher_name -> {type_name -> impl_func_name}
         self.known_interfaces: Set[str] = set()
-        self.emitted_definitions: Set[str] = set()
         self.class_hierarchy: Dict[str, List[str]] = {} # class_name -> list of direct base names
         self.property_setters: Set[Tuple[str, str]] = set() # (class_name, property_name)
         self.function_names: Set[str] = set()
@@ -283,7 +282,9 @@ class TranslatorBase(ast.NodeVisitor):
 
     def _get_factory_name(self, struct_name: str) -> str:
         """Returns a snake_case factory name for a given struct name."""
-        return f"new_{self._to_snake_case(struct_name)}"
+        # Strip generic parameters if present (e.g. Box[int] -> Box)
+        base_name = struct_name.split('[')[0]
+        return f"new_{self._to_snake_case(base_name)}"
 
     def _get_generic_map(self, generic_names: List[str]) -> Dict[str, str]:
         """

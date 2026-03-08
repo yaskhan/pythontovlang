@@ -48,6 +48,7 @@ fn py_yield[T](ch_out chan T, ch_in chan PyGeneratorInput, val T) Any {
     }
     return inp.val
 }
+//##LLM@@ String formatting for bytes is stubbed and might be incorrect. Please implement proper bytes formatting or use V string interpolation.
 fn py_bytes_format(fmt []u8, args Any) []u8 {
     // Simplistic implementation for b'%s' % b'val'
     // Converts bytes to string, formats, and converts back.

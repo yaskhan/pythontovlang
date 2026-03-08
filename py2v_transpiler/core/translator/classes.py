@@ -49,9 +49,9 @@ class ClassesMixin(TranslatorBase):
                     elif isinstance(decorator, ast.Attribute):
                         dec_name = decorator.attr
 
-                    if dec_name == "staticmethod":
+                    if dec_name in ("staticmethod", "abstractstaticmethod"):
                         static_methods.add(child.name)
-                    elif dec_name == "classmethod":
+                    elif dec_name in ("classmethod", "abstractclassmethod"):
                         class_methods.add(child.name)
 
         if not hasattr(self, "defined_classes"):
@@ -280,8 +280,6 @@ class ClassesMixin(TranslatorBase):
                     stack.extend(self.class_hierarchy[curr])
             return False
 
-        inherits_abc_base = is_descendant_of(struct_name, "ABC") or is_descendant_of(struct_name, "abc.ABC")
-
         # Check if the class is an abstract base class
         # (has ABC in hierarchy AND contains @abstractmethod or no concrete methods)
         has_abstract_method = False
@@ -336,7 +334,7 @@ class ClassesMixin(TranslatorBase):
                         has_concrete_method = True
 
         is_abc = False
-        if inherits_abc_base:
+        if is_descendant_of(struct_name, "ABC"):
             if has_abstract_method or not has_concrete_method:
                 is_abc = True
         elif has_abstract_method:
@@ -351,8 +349,6 @@ class ClassesMixin(TranslatorBase):
         if is_abc:
             is_protocol = True
             self.known_interfaces.add(struct_name)
-
-        inherits_abc = inherits_abc_base or is_abc
 
         # Init readonly_fields
         if not hasattr(self, "readonly_fields"):
@@ -745,123 +741,81 @@ class ClassesMixin(TranslatorBase):
             for method in methods:
                 self.visit(method)
         elif is_protocol:
-            if struct_name not in self.emitted_definitions:
-                self.emitted_definitions.add(struct_name)
-                # Emit interface
-                interface_parts = []
-                if getattr(self.config, 'source_mapping', False):
-                    interface_parts.append(f"// @line: {self._get_source_info(node)}\n")
-                if doc_comment:
-                    interface_parts.append(doc_comment)
-                if decorators:
-                    interface_parts.append("\n".join(decorators) + "\n")
+            # Emit interface
+            interface_parts = []
+            if getattr(self.config, 'source_mapping', False):
+                interface_parts.append(f"// @line: {self._get_source_info(node)}\n")
+            if doc_comment:
+                interface_parts.append(doc_comment)
+            if decorators:
+                interface_parts.append("\n".join(decorators) + "\n")
 
-                generics_str = ""
-                if self.current_class_generics:
-                    generics_str = f"[{', '.join(self.current_class_generics)}]"
+            generics_str = ""
+            if self.current_class_generics:
+                generics_str = f"[{', '.join(self.current_class_generics)}]"
 
-                pub = ""
-                if self._is_exported(node.name):
-                     pub = "pub "
+            pub = ""
+            if self._is_exported(node.name):
+                 pub = "pub "
 
-                interface_parts.append(f"{pub}interface {struct_name}{generics_str} {{")
-                # Emit method signatures
-                has_str = any(m.name == "__str__" for m in methods)
+            interface_parts.append(f"{pub}interface {struct_name}{generics_str} {{")
+            # Emit method signatures
+            has_str = any(m.name == "__str__" for m in methods)
+            for method in methods:
+                # Manual extraction:
+                m_name = self._sanitize_name(method.name)
+                if m_name == "__next__":
+                    m_name = "next"
+                elif m_name == "__post_init__":
+                    m_name = "post_init"
+                elif m_name == "__await__":
+                    m_name = "await_"
+                elif m_name == "__iter__":
+                    m_name = "iter"
+                elif m_name == "__str__":
+                    m_name = "str"
+                elif m_name == "__repr__":
+                    m_name = "str" if not has_str else "repr"
 
-                # Recursively collect abstract methods from ancestors for the interface
-                all_abstract_methods = set()
-                if hasattr(self.type_inference, "abstract_methods"):
-                    all_abstract_methods = self.type_inference.abstract_methods.get(struct_name, set())
+                is_m_classmethod = False
+                for dec in method.decorator_list:
+                    d_name = self.decorator_processor.get_decorator_name(dec)
+                    if d_name in ("classmethod", "abstractclassmethod"):
+                        is_m_classmethod = True
+                        break
 
-                for method in methods:
-                    # Manual extraction:
-                    m_name = self._sanitize_name(method.name)
-
-                    # Check for classmethod abstract methods
-                    is_cls_method = False
-                    for dec in method.decorator_list:
-                        dec_name = ""
-                        if isinstance(dec, ast.Name): dec_name = dec.id
-                        elif isinstance(dec, ast.Attribute): dec_name = dec.attr
-                        elif isinstance(dec, ast.Call) and isinstance(dec.func, ast.Name): dec_name = dec.func.id
-
-                        if "classmethod" in dec_name:
-                            is_cls_method = True
-                            break
-
-                    if m_name == "__next__":
-                        m_name = "next"
-                    elif m_name == "__post_init__":
-                        m_name = "post_init"
-                    elif m_name == "__await__":
-                        m_name = "await_"
-                    elif m_name == "__iter__":
-                        m_name = "iter"
-                    elif m_name == "__str__":
-                        m_name = "str"
-                    elif m_name == "__repr__":
-                        m_name = "str" if not has_str else "repr"
-                    m_args = []
-                    for arg in method.args.args:
-                        if arg.arg == "self" or (is_cls_method and arg.arg == "cls"):
-                            continue
-                        a_name = self._sanitize_name(arg.arg)
-                        a_type = "int"
-                        if arg.annotation:
-                            try:
-                                type_str = ast.unparse(arg.annotation)
-                                a_type = self._map_type(type_str, struct_name)
-                            except:
-                                pass
-                        m_args.append(f"{a_name} {a_type}")
-
-                    m_ret = "void"
-                    if method.returns:
+                m_args = []
+                all_args = getattr(method.args, 'posonlyargs', []) + method.args.args
+                for arg in all_args:
+                    if arg.arg == "self":
+                        continue
+                    if is_m_classmethod and arg.arg == "cls":
+                        continue
+                    a_name = self._sanitize_name(arg.arg)
+                    a_type = "int"
+                    if arg.annotation:
                         try:
-                            type_str = ast.unparse(method.returns)
-                            m_ret = self._map_type(type_str, struct_name)
+                            type_str = ast.unparse(arg.annotation)
+                            a_type = self._map_type(type_str, struct_name)
                         except:
                             pass
+                    m_args.append(f"{a_name} {a_type}")
 
-                    if m_ret == "void":
-                        interface_parts.append(f"    {m_name}({', '.join(m_args)})")
-                    else:
-                        interface_parts.append(f"    {m_name}({', '.join(m_args)}) {m_ret}")
+                m_ret = "void"
+                if method.returns:
+                    try:
+                        type_str = ast.unparse(method.returns)
+                        m_ret = self._map_type(type_str, struct_name)
+                    except:
+                        pass
 
-                interface_parts.append("}")
-                self.emitter.add_struct("\n".join(interface_parts) + "\n")
+                if m_ret == "void":
+                    interface_parts.append(f"    {m_name}({', '.join(m_args)})")
+                else:
+                    interface_parts.append(f"    {m_name}({', '.join(m_args)}) {m_ret}")
 
-                # Factory function with ABC validation
-                if is_abc:
-                    pub = "pub " if self._is_exported(node.name) else ""
-                    gen_str = f"[{', '.join(self.current_class_generics)}]" if self.current_class_generics else ""
-                    factory_name = self._get_factory_name(struct_name)
-
-                    # Find abstract methods using Python class name (node.name)
-                    # OR prefix-aware lookup if possible. Analyzer uses node.name.
-                    abs_meths = []
-                    if hasattr(self.type_inference, "abstract_methods"):
-                        abs_meths = sorted(list(self.type_inference.abstract_methods.get(node.name, set())))
-
-                    abs_meths_map = "{" + ", ".join([f"'{m}': true" for m in abs_meths]) + "}"
-
-                    error_msg = f"Can't instantiate abstract class {struct_name} with abstract methods: {', '.join(abs_meths)}"
-
-                    factory_code = [
-                        f"{pub}fn {factory_name}{gen_str}() !{struct_name}{gen_str} {{",
-                    ]
-                    if abs_meths:
-                        factory_code.append(f"    return error(\"{error_msg}\")")
-                    else:
-                        # Concrete ABC (inherits from ABC but no abstract methods)
-                        # or all abstract methods implemented.
-                        # Since it's is_protocol, we can't instantiate it as a struct.
-                        factory_code.append(f"    return error(\"Can't instantiate ABC interface {struct_name}\")")
-                    factory_code.append("}")
-                    self.emitter.add_function("\n".join(factory_code))
-                    if not hasattr(self, "defined_classes"):
-                        self.defined_classes = {}
-                    self.defined_classes[struct_name] = {"has_init": True, "has_new": True}
+            interface_parts.append("}")
+            self.emitter.add_struct("\n".join(interface_parts) + "\n")
 
             # If it's ALSO a mixin (has concrete methods distributed to others), visit them.
             if is_mixin:
@@ -891,38 +845,6 @@ class ClassesMixin(TranslatorBase):
             for method in methods:
                 self.visit(method)
         else:
-            # Concrete class (might inherit from ABC)
-            if inherits_abc:
-                if struct_name not in self.emitted_definitions:
-                    # Factory function with implementation of abstract methods check
-                    pub = "pub " if self._is_exported(node.name) else ""
-                    gen_str = f"[{', '.join(self.current_class_generics)}]" if self.current_class_generics else ""
-                    factory_name = self._get_factory_name(struct_name)
-
-                    abs_meths = []
-                    if hasattr(self.type_inference, "abstract_methods"):
-                        # Use Python class name for lookup in analyzer's map
-                        abs_meths = sorted(list(self.type_inference.abstract_methods.get(node.name, set())))
-
-                    abs_meths_map = "{" + ", ".join([f"'{m}': true" for m in abs_meths]) + "}"
-
-                    factory_code = [
-                        f"{pub}fn {factory_name}{gen_str}() !{struct_name}{gen_str} {{",
-                    ]
-                    if abs_meths:
-                        error_msg = f"Can't instantiate abstract class {struct_name} with abstract methods: {', '.join(abs_meths)}"
-                        factory_code.append(f"    return error(\"{error_msg}\")")
-                    else:
-                        factory_code.append(f"    mut self := {struct_name}{gen_str}{{}}")
-                        factory_code.append(f"    self.__abstractmethods__ = {abs_meths_map}")
-                        factory_code.append(f"    return self")
-                    factory_code.append("}")
-                    self.emitter.add_function("\n".join(factory_code))
-                    if not hasattr(self, "defined_classes"):
-                        self.defined_classes = {}
-                    self.defined_classes[struct_name] = {"has_init": True, "has_new": True}
-                    self.emitted_definitions.add(struct_name)
-
             # NEW: Collect fields from __init__ that haven't been added yet
             for stmt in node.body:
                 if isinstance(stmt, (ast.FunctionDef, ast.AsyncFunctionDef)) and stmt.name == "__init__":

@@ -331,7 +331,7 @@ class StdLibMapper:
             "pytest": [],
             "pytest_mock": [],
             "mock": [],
-            "abc": ["abc"],
+            "abc": [],
             "unittest": [],
             "types": ["types"],
             "inspect": ["inspect"],

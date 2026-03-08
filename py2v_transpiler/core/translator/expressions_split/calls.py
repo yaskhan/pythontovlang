@@ -11,29 +11,44 @@ class CallsMixin(TranslatorBase):
         # We need to do this BEFORE visiting arguments to set current_assignment_type
         # Extract func_name_str (pre-sanitized) for lookup
         func_name_str_lookup = ""
+        fullname_lookup = ""
         if isinstance(node.func, ast.Name):
             func_name_str_lookup = node.func.id
+            if func_name_str_lookup in self.imported_symbols:
+                fullname_lookup = self.imported_symbols[func_name_str_lookup]
         elif isinstance(node.func, ast.Attribute):
             func_name_str_lookup = node.func.attr
+            # Simple heuristic for attribute fullname
+            if isinstance(node.func.value, ast.Name):
+                 if node.func.value.id in self.imported_modules:
+                      fullname_lookup = f"{self.imported_modules[node.func.value.id]}.{node.func.attr}"
 
         loc_key = f"{getattr(node, 'lineno', 0)}:{getattr(node, 'col_offset', 0)}"
         call_sig = None
         if hasattr(self.type_inference, "call_signatures"):
-            for k, v in self.type_inference.call_signatures.items():
-                if k.endswith(f".{func_name_str_lookup}@{loc_key}"):
-                    call_sig = v
+            # Try specific location-based keys first
+            potential_keys = []
+            if fullname_lookup:
+                 potential_keys.append(f"{fullname_lookup}@{loc_key}")
+            potential_keys.append(f"{func_name_str_lookup}@{loc_key}")
+            potential_keys.append(loc_key)
+
+            for pk in potential_keys:
+                if pk in self.type_inference.call_signatures:
+                    call_sig = self.type_inference.call_signatures[pk]
                     break
+
+            if not call_sig:
+                for k, v in self.type_inference.call_signatures.items():
+                    if k.endswith(f".{func_name_str_lookup}@{loc_key}"):
+                        call_sig = v
+                        break
             if not call_sig:
                 for k, v in self.type_inference.call_signatures.items():
                     if k.endswith(f"@{loc_key}"):
                         if func_name_str_lookup in k:
                             call_sig = v
                             break
-            if not call_sig:
-                for k, v in self.type_inference.call_signatures.items():
-                    if k == loc_key:
-                        call_sig = v
-                        break
             if not call_sig:
                 call_sig = self.type_inference.call_signatures.get(func_name_str_lookup)
 
@@ -778,11 +793,18 @@ class CallsMixin(TranslatorBase):
                 func_name_str = lookup_name # Use non-prefixed name for call if it is a class
 
         if is_class:
+            # Handle monomorphization (explicit generic types)
+            generic_params = ""
+            if call_sig and "return" in call_sig:
+                 v_ret_type = self._map_type(call_sig["return"])
+                 if "[" in v_ret_type and v_ret_type.endswith("]"):
+                      generic_params = "[" + v_ret_type.split("[", 1)[1]
+
             if has_factory:
                 factory_name = self._get_factory_name(func_name_str)
-                return f"{factory_name}({', '.join(args)})"
+                return f"{factory_name}{generic_params}({', '.join(args)})"
             else:
-                return f"{func_name_str}{{{', '.join(args)}}}"
+                return f"{func_name_str}{generic_params}{{{', '.join(args)}}}"
 
         # Handle builtins handled by old logic (print, sorted, etc)
         # Note: 'open', 'hasattr' are handled above or fall through if not matched.

@@ -1,5 +1,5 @@
 from mypy.plugin import Plugin
-from typing import Any, Dict, Callable, Optional
+from typing import Any, Dict, Callable, Optional, Sequence
 import json
 from collections import defaultdict
 import sys
@@ -27,129 +27,52 @@ class VlangPlugin(Plugin):
 
     def get_function_hook(self, fullname: str):
         def hook(ctx):
-            self.checker = ctx.api
-            if hasattr(ctx.context, 'line'):
-                key = f"{ctx.context.line}:{ctx.context.column}"
-                # Store under both fullname and short name for flexibility
-                short_name = fullname.split('.')[-1]
-                self.collected_types[fullname][key] = str(ctx.default_return_type)
-
-                # Also store call signature
-                args = []
-                for arg_list in ctx.arg_types:
-                    for arg in arg_list:
-                        args.append(str(arg))
-
-                is_class = False
-                has_init = False
-                try:
-                    from mypy.types import Instance
-                    if isinstance(ctx.default_return_type, Instance):
-                        type_info = ctx.default_return_type.type
-                        is_class = type_info.fullname == fullname
-                        has_init = '__init__' in type_info.names
-                except Exception:
-                    pass
-
-                dataclass_metadata = None
-                try:
-                    from mypy.types import Instance
-                    if isinstance(ctx.default_return_type, Instance):
-                        type_info = ctx.default_return_type.type
-                        if 'dataclass' in type_info.metadata:
-                            dataclass_metadata = type_info.metadata['dataclass']
-                            has_post_init = '__post_init__' in type_info.names
-
-                            serializable_meta = {
-                                "attributes": [],
-                                "frozen": dataclass_metadata.get("frozen", False),
-                                "has_post_init": has_post_init
-                            }
-                            for attr in dataclass_metadata.get("attributes", []):
-                                serializable_meta["attributes"].append({
-                                    "name": attr.name,
-                                    "is_in_init": attr.is_in_init,
-                                    "is_init_var": attr.is_init_var,
-                                    "is_classvar": attr.is_classvar,
-                                    "has_default": attr.has_default,
-                                    "type": str(attr.type)
-                                })
-                            dataclass_metadata = serializable_meta
-                except Exception:
-                    pass
-
-                sig_data = {
-                    "args": args,
-                    "return": str(ctx.default_return_type),
-                    "is_class": is_class,
-                    "has_init": has_init
-                }
-                if dataclass_metadata:
-                    sig_data["dataclass_metadata"] = dataclass_metadata
-
-                self.collected_sigs[fullname][key] = json.dumps(sig_data)
-                self.collected_sigs[short_name][key] = json.dumps(sig_data)
-
-            return ctx.default_return_type
+             return self._hook(ctx, fullname)
         return hook
 
     def get_method_hook(self, fullname: str):
         def hook(ctx):
-            self.checker = ctx.api
-            if hasattr(ctx.context, 'line'):
-                key = f"{ctx.context.line}:{ctx.context.column}"
-                self.collected_types[fullname][key] = str(ctx.default_return_type)
-
-                # Also store call signature
-                args = []
-                for arg_list in ctx.arg_types:
-                    for arg in arg_list:
-                        args.append(str(arg))
-
-                is_class = False
-                has_init = False
-                dataclass_metadata = None
-                try:
-                    from mypy.types import Instance
-                    if isinstance(ctx.default_return_type, Instance):
-                        type_info = ctx.default_return_type.type
-                        is_class = type_info.fullname == fullname
-                        has_init = '__init__' in type_info.names
-                        if 'dataclass' in type_info.metadata:
-                            dataclass_metadata = type_info.metadata['dataclass']
-                            has_post_init = '__post_init__' in type_info.names
-
-                            serializable_meta = {
-                                "attributes": [],
-                                "frozen": dataclass_metadata.get("frozen", False),
-                                "has_post_init": has_post_init
-                            }
-                            for attr in dataclass_metadata.get("attributes", []):
-                                serializable_meta["attributes"].append({
-                                    "name": attr.name,
-                                    "is_in_init": attr.is_in_init,
-                                    "is_init_var": attr.is_init_var,
-                                    "is_classvar": attr.is_classvar,
-                                    "has_default": attr.has_default,
-                                    "type": str(attr.type)
-                                })
-                            dataclass_metadata = serializable_meta
-                except Exception:
-                    pass
-
-                sig_data = {
-                    "args": args,
-                    "return": str(ctx.default_return_type),
-                    "is_class": is_class,
-                    "has_init": has_init
-                }
-                if dataclass_metadata:
-                    sig_data["dataclass_metadata"] = dataclass_metadata
-
-                self.collected_sigs[fullname][key] = json.dumps(sig_data)
-
-            return ctx.default_return_type
+             return self._hook(ctx, fullname)
         return hook
+
+    def _hook(self, ctx, fullname: str):
+        self.checker = ctx.api
+        if hasattr(ctx.context, 'line'):
+            key = f"{ctx.context.line}:{ctx.context.column}"
+            # Store under both fullname and short name for flexibility
+            short_name = fullname.split('.')[-1]
+            self.collected_types[fullname][key] = str(ctx.default_return_type)
+
+            # Also store call signature
+            args = []
+            for arg_list in ctx.arg_types:
+                for arg in arg_list:
+                    args.append(str(arg))
+
+            is_class = False
+            has_init = False
+            try:
+                from mypy.types import Instance
+                if isinstance(ctx.default_return_type, Instance):
+                    type_info = ctx.default_return_type.type
+                    is_class = type_info.fullname == fullname
+                    has_init = '__init__' in type_info.names
+            except Exception:
+                pass
+
+            sig_data = {
+                "args": args,
+                "return": str(ctx.default_return_type),
+                "is_class": is_class,
+                "has_init": has_init
+            }
+
+            self.collected_sigs[fullname][key] = json.dumps(sig_data)
+            self.collected_sigs[short_name][key] = json.dumps(sig_data)
+            # Direct location-based lookup
+            self.collected_sigs[key][key] = json.dumps(sig_data)
+
+        return ctx.default_return_type
 
     def get_attribute_hook(self, fullname: str):
         def hook(ctx):
@@ -162,50 +85,60 @@ class VlangPlugin(Plugin):
     def report_config_data(self, ctx: Any) -> Any:
         global _global_collected_types, _global_collected_sigs, _global_collected_mutability
 
-        # Collect types from checker's type_map for narrowing
-        from mypy.nodes import NameExpr, MemberExpr, Var, FuncDef
+        # Collect types from checker's type_map for narrowing and calls
+        from mypy.nodes import NameExpr, MemberExpr, Var, FuncDef, CallExpr, ListExpr, DictExpr, SetExpr, TupleExpr
         if self.checker and hasattr(self.checker, 'type_map'):
             for expr, typ in self.checker.type_map.items():
                 if hasattr(expr, 'line'):
                     key = f"{expr.line}:{expr.column}"
+                    # print(f"DEBUG PLUGIN: processing expr {type(expr)} at {key} with type {typ}")
 
-                    name = None
-                    fullname = None
+                    if isinstance(expr, (CallExpr, ListExpr, DictExpr, SetExpr, TupleExpr)):
+                        # Store by location for direct lookup
+                        self.collected_types[key][key] = str(typ)
+
+                    if isinstance(expr, CallExpr):
+                        from mypy.types import Instance
+                        # For CallExpr, the type in type_map is the return type
+                        # We want to record this instantiation
+                        if isinstance(typ, Instance):
+                            type_info = typ.type
+                            fullname_cls = type_info.fullname
+                            short_name_cls = type_info.name
+
+                            sig_data = {
+                                "args": [], # difficult to recover from type_map easily
+                                "return": str(typ),
+                                "is_class": True, # heuristic: if return type is Instance and we are at CallExpr, it's likely a class call
+                                "has_init": '__init__' in type_info.names
+                            }
+                            self.collected_sigs[fullname_cls][key] = json.dumps(sig_data)
+                            self.collected_sigs[short_name_cls][key] = json.dumps(sig_data)
+                            self.collected_sigs[key][key] = json.dumps(sig_data)
+
+                    name: Optional[str] = None
+                    fullname_node: Optional[str] = None
                     if isinstance(expr, NameExpr):
                         name = expr.name
-                        fullname = expr.fullname
+                        fullname_node = expr.fullname
                     elif isinstance(expr, MemberExpr):
                         name = expr.name
-                        fullname = expr.fullname
+                        fullname_node = expr.fullname
                     elif isinstance(expr, Var):
                         name = expr.name
-                        fullname = expr.fullname
+                        fullname_node = expr.fullname
                     elif hasattr(expr, 'name'):
                         name = getattr(expr, 'name')
-                        fullname = getattr(expr, 'fullname', None)
+                        fullname_node = getattr(expr, 'fullname', None)
 
                     if name:
                         # Store by multiple keys to increase hit rate
                         self.collected_types[name][key] = str(typ)
                         # Also store by line only for block-start heuristic
                         self.collected_types[name][f"{expr.line}:*"] = str(typ)
-                        if fullname:
-                            self.collected_types[fullname][key] = str(typ)
-                            self.collected_types[fullname][f"{expr.line}:*"] = str(typ)
-
-        # Collect types from all visited expressions if possible
-        # This is more expensive but ensures we get narrowing for every variable usage
-        if self.checker and hasattr(self.checker, 'visitor'):
-             # Unfortunately mypy doesn't keep all expression types in a simple map always,
-             # except for what's in self.checker.type_map which we already collected.
-             pass
-
-        # Try to find all variables in all modules to get their types
-        for file_node in self._files_to_process:
-            for name, sym in file_node.names.items():
-                if sym.node and hasattr(sym.node, 'type') and sym.node.type:
-                    key = f"{sym.node.line}:{sym.node.column}"
-                    self.collected_types[sym.node.fullname or name][key] = str(sym.node.type)
+                        if fullname_node:
+                            self.collected_types[fullname_node][key] = str(typ)
+                            self.collected_types[fullname_node][f"{expr.line}:*"] = str(typ)
 
         # Collect mutability info from processed files
         from mypy.nodes import Var, FuncDef, Block, AssignmentStmt, NameExpr, MypyFile
