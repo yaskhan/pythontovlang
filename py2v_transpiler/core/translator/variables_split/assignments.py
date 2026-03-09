@@ -57,8 +57,10 @@ class AssignmentsMixin(TranslatorBase):
                 self.type_vars.add(target.id)
                 # Check args for constraints
                 # args[0] is name
+                is_constrained = False
                 constraints = []
                 for arg in node.value.args[1:]:
+                    is_constrained = True
                     if isinstance(arg, ast.Name):
                         constraints.append(map_python_type_to_v(arg.id, self_name=self._get_full_self_type()))
                     elif isinstance(arg, ast.Constant) and isinstance(arg.value, str):
@@ -67,15 +69,22 @@ class AssignmentsMixin(TranslatorBase):
                 # Check keyword bound
                 for kw in node.value.keywords:
                     if kw.arg == "bound":
+                        is_constrained = True
                         # bound=Union[int, str] or bound=int
                         # We can use ast.unparse and map
-                         try:
-                             bound_str = ast.unparse(kw.value)
-                             mapped = map_python_type_to_v(bound_str, self_name=self._get_full_self_type())
-                             # If mapped is "int | string", we use it
-                             constraints.append(mapped)
-                         except:
-                             pass
+                        try:
+                            bound_str = ast.unparse(kw.value)
+                            mapped = map_python_type_to_v(bound_str, self_name=self._get_full_self_type())
+                            # If mapped is "int | string", we use it
+                            if "|" in mapped:
+                                constraints.extend([s.strip() for s in mapped.split("|")])
+                            else:
+                                constraints.append(mapped)
+                        except:
+                            pass
+
+                if is_constrained:
+                    self.constrained_typevars.add(target.id)
 
                 if constraints:
                     # Emit sum type
