@@ -95,14 +95,14 @@ class FunctionsMixin(TranslatorBase):
                 try:
                     type_str = ast.unparse(node.returns)
                     self._check_experimental_type(type_str, node.returns)
-                    sig["return"] = self._map_type(type_str, ov_struct_name)
+                    sig["return"] = self._map_type(type_str, ov_struct_name, is_return=True)
                 except:
                     if isinstance(node.returns, ast.Name):
-                        sig["return"] = node.returns.id
+                        sig["return"] = self._map_type(node.returns.id, ov_struct_name, is_return=True)
                     elif isinstance(node.returns, ast.Constant) and isinstance(
                         node.returns.value, str
                     ):
-                        sig["return"] = node.returns.value
+                        sig["return"] = self._map_type(node.returns.value, ov_struct_name, is_return=True)
 
             ov_key = f"{ov_struct_name}.{node.name}" if ov_struct_name else node.name
             if ov_key not in self.overloaded_signatures:
@@ -491,14 +491,14 @@ class FunctionsMixin(TranslatorBase):
             try:
                 type_str = ast.unparse(node.returns)
                 self._check_experimental_type(type_str, node.returns)
-                ret_type = self._map_type(type_str, struct_name)
+                ret_type = self._map_type(type_str, struct_name, is_return=True)
             except:
                 if isinstance(node.returns, ast.Name):
-                    ret_type = node.returns.id
+                    ret_type = self._map_type(node.returns.id, struct_name, is_return=True)
                 elif isinstance(node.returns, ast.Constant) and isinstance(
                     node.returns.value, str
                 ):
-                    ret_type = node.returns.value
+                    ret_type = self._map_type(node.returns.value, struct_name, is_return=True)
         elif not is_generator and not node.returns:
             # Try to get inferred return type from analyzer
             inferred_ret = self.type_inference.type_map.get(f"{node.name}@return")
@@ -674,9 +674,10 @@ class FunctionsMixin(TranslatorBase):
             op = op_map.get(func_name)
             if op:
                 func_name = op
-                decl = (
-                    f"{deprecated_attr}fn {receiver_str}{op} ({args_str}) {ret_type} {{"
-                )
+                if ret_type == "void":
+                    decl = f"{deprecated_attr}fn {receiver_str}{op} ({args_str}) {{"
+                else:
+                    decl = f"{deprecated_attr}fn {receiver_str}{op} ({args_str}) {ret_type} {{"
         elif func_name in ("__str__", "__repr__"):
             func_name = "str"
             decl = f"{deprecated_attr}fn {receiver_str}{func_name}() string {{"
@@ -691,7 +692,10 @@ class FunctionsMixin(TranslatorBase):
             # Let's map __iter__ to 'iter' if it doesn't return Self, or skip?
             # For now, let's use 'iter'
             func_name = "iter"
-            decl = f"{noreturn_attr}{deprecated_attr}fn {receiver_str}{func_name}{func_generics_str}({args_str}) {ret_type} {{"
+            if ret_type == "void":
+                decl = f"{noreturn_attr}{deprecated_attr}fn {receiver_str}{func_name}{func_generics_str}({args_str}) {{"
+            else:
+                decl = f"{noreturn_attr}{deprecated_attr}fn {receiver_str}{func_name}{func_generics_str}({args_str}) {ret_type} {{"
 
         # PEP 702: Add [deprecated] attribute for @warnings.deprecated decorator
         deprecated_attr = ""
@@ -972,6 +976,8 @@ class FunctionsMixin(TranslatorBase):
 
             args_str = ", ".join(args_str_list)
             ret_type = sig["return"]
+            if ret_type == "none":
+                ret_type = "void"
 
             if is_init or is_new_factory:
                 base_func_name = self._get_factory_name(struct_name)
@@ -1034,7 +1040,10 @@ class FunctionsMixin(TranslatorBase):
                           pub_prefix = "pub "
 
             if is_operator:
-                decl = f"{deprecated_attr}{pub_prefix}fn {receiver_str}{op_str} ({args_str}) {ret_type} {{"
+                if ret_type == "void":
+                    decl = f"{deprecated_attr}{pub_prefix}fn {receiver_str}{op_str} ({args_str}) {{"
+                else:
+                    decl = f"{deprecated_attr}{pub_prefix}fn {receiver_str}{op_str} ({args_str}) {ret_type} {{"
             else:
                 if node.name.startswith("__") and node.name.endswith("__") and func_name.startswith("__") and func_name.endswith("__"):
                     self.output.append(f"{self._indent()}//##LLM@@ Unmapped Python dunder method (e.g., __call__, __getitem__) detected. V handles object behavior and operator overloading differently. Please implement the equivalent V logic or refactor the calling code.")
@@ -1122,6 +1131,18 @@ class FunctionsMixin(TranslatorBase):
 
     def visit_Lambda(self, node: ast.Lambda) -> str:
         # lambda args: expr -> fn [captures] (args) { return expr }
+        if isinstance(node.body, ast.Constant) and node.body.value is None:
+             # Force void return for lambda x: None
+             args_str_list = []
+             for arg in node.args.args:
+                 arg_name = self._sanitize_name(arg.arg)
+                 arg_type = "int"
+                 args_str_list.append(f"{arg_name} {arg_type}")
+             args_str = ", ".join(args_str_list)
+             captures = self._find_captured_vars(node)
+             capture_str = f"[{', '.join(captures)}] " if captures else ""
+             return f"fn {capture_str}({args_str}) {{}}"
+
         args_str_list = []
         for arg in node.args.args:
             arg_name = self._sanitize_name(arg.arg)
@@ -1134,7 +1155,12 @@ class FunctionsMixin(TranslatorBase):
         capture_str = f"[{', '.join(captures)}] " if captures else ""
 
         body = self.visit(node.body)
-        body_type = self._map_type(self._guess_type(node.body))
+        body_type = self._map_type(self._guess_type(node.body), is_return=True)
+
+        if body_type == "void":
+            if body == "none":
+                return f"fn {capture_str}({args_str}) {{}}"
+            return f"fn {capture_str}({args_str}) {{ {body} }}"
 
         return f"fn {capture_str}({args_str}) {body_type} {{ return {body} }}"
 
@@ -1206,6 +1232,9 @@ class FunctionsMixin(TranslatorBase):
             finally:
                 self.current_assignment_type = prev_assign_type
 
-            self.output.append(f"{self._indent()}return {val}")
+            if self.current_function_return_type == "void" and val == "none":
+                self.output.append(f"{self._indent()}return")
+            else:
+                self.output.append(f"{self._indent()}return {val}")
         else:
             self.output.append(f"{self._indent()}return")

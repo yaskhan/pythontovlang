@@ -569,7 +569,7 @@ class TranslatorBase(ast.NodeVisitor):
         self._generated_sum_types[normalized] = result
         return result
 
-    def _map_type(self, type_str: str, struct_name: Optional[str] = None, allow_union: bool = True, register_sum_types: bool = True) -> str:
+    def _map_type(self, type_str: str, struct_name: Optional[str] = None, allow_union: bool = True, register_sum_types: bool = True, is_return: bool = False) -> str:
         """
         Centralized type mapping that performs map_python_type_to_v
         followed by imported_symbols and SCC-based re-mapping.
@@ -587,6 +587,9 @@ class TranslatorBase(ast.NodeVisitor):
             sum_type_registrar=registrar,
             literal_registrar=lit_registrar
         )
+
+        if is_return and v_type == "none":
+            return "void"
 
         # Centralize LiteralString to string mapping
         if v_type == "LiteralString":
@@ -712,6 +715,7 @@ class TranslatorBase(ast.NodeVisitor):
                 if fid == "float": return "f64"
                 if fid == "bool": return "bool"
                 if fid == "len": return "int"
+                if fid == "print": return "None"
                 if fid == "input": return "string"
                 if fid == "open": return "os.File"
                 if fid in ("bytearray", "memoryview", "bytes"): return "[]u8"
