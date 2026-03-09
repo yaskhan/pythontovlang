@@ -73,16 +73,24 @@ class ConditionalsMixin(TranslatorBase):
                   res.update(self._collect_narrowing(val, False))
         return res
 
-    def _apply_flow_narrowing(self, body_nodes: list[ast.stmt], test_node: ast.AST | None = None, positive: bool = True) -> None:
+    def _apply_flow_narrowing(self, body_nodes: list[ast.stmt], test_node: ast.AST | None = None, positive: bool = True) -> dict[str, str | None]:
         """Narrows variable types based on Mypy's location-based inference AND manual patterns."""
         if not body_nodes:
-            return
+            return {}
 
         narrowed_vars: dict[str, str] = {}
+        var_base_types: dict[str, str] = {}
+        original_remaps: dict[str, str | None] = {}
 
         # 1. Manual Pattern Narrowing (high confidence)
         if test_node:
-             narrowed_vars.update(self._collect_narrowing(test_node, positive))
+             manual_narrowing = self._collect_narrowing(test_node, positive)
+             for v, t in manual_narrowing.items():
+                  narrowed_vars[v] = t
+                  # For manual narrowing, try to get base type
+                  bt = self.type_inference.type_map.get(v)
+                  if not bt: bt = self._guess_type(ast.Name(id=v, ctx=ast.Load()))
+                  var_base_types[v] = bt
 
         # 2. Mypy location-based narrowing (supplementary)
         if hasattr(self.type_inference, "type_map"):
@@ -127,6 +135,7 @@ class ConditionalsMixin(TranslatorBase):
                     if narrowed_type == "Any" or base_type == "Any":
                         continue
                     narrowed_vars[var_name] = narrowed_type
+                    var_base_types[var_name] = base_type
 
         # Emit shadowed assignments for all narrowed variables
         for var_name, narrowed_type in narrowed_vars.items():
@@ -145,6 +154,20 @@ class ConditionalsMixin(TranslatorBase):
              # To handle complex narrowing (like TypeGuard) without redeclaration,
              # we check if the variable is already in scope.
              if var_name in self._local_vars_in_scope:
+                  # If already in scope, we rely on V's auto-narrowing for simple cases.
+                  # Patterns where V can auto-narrow: T | None check, SumType is Type check.
+                  # In these cases, we do NOT want to use a `narrowed_` prefix or create a new variable.
+                  is_v_auto_narrowable = False
+                  bt = var_base_types.get(var_name)
+                  if bt and bt.startswith("?") and narrowed_type == bt[1:]:
+                       is_v_auto_narrowable = True
+                  elif bt and (bt.startswith("SumType_") or "|" in bt) and ("SumType_" not in narrowed_type and "|" not in narrowed_type):
+                       is_v_auto_narrowable = True
+
+                  if is_v_auto_narrowable:
+                       # Rely on V auto-narrowing, no remap or declaration needed
+                       continue
+
                   # If already in scope, we use a different name for the narrowed version
                   # to avoid redefinition while still allowing type-safe access.
                   # BUT only if narrowing to a specific non-Any type.
@@ -155,6 +178,7 @@ class ConditionalsMixin(TranslatorBase):
                       else:
                            self.output.append(f"{self._indent()}{narrowed_name} := ({sanitized_name} as {narrowed_type})")
                       # Map original name to narrowed name within this block
+                      original_remaps[var_name] = self.name_remap.get(var_name)
                       self.name_remap[var_name] = narrowed_name
              else:
                   # If not in scope (should not happen for parameters/locals, but maybe for globals),
@@ -165,6 +189,8 @@ class ConditionalsMixin(TranslatorBase):
                       else:
                            self.output.append(f"{self._indent()}{sanitized_name} := ({sanitized_name} as {narrowed_type})")
                       self._local_vars_in_scope.add(var_name)
+
+        return original_remaps
 
     def _visit_if(self, node: ast.If, is_elif: bool = False) -> None:
         if not is_elif:
@@ -302,21 +328,25 @@ class ConditionalsMixin(TranslatorBase):
 
         self._indent_level += 1
 
+        body_remapped: dict[str, str | None] = {}
         if narrow_if:
              self.output.append(f"{self._indent()}{narrow_if}")
              if remap_if:
+                  body_remapped[remap_if[0]] = self.name_remap.get(remap_if[0])
                   self.name_remap[remap_if[0]] = remap_if[1]
         else:
-             self._apply_flow_narrowing(node.body, node.test, positive=True)
+             body_remapped = self._apply_flow_narrowing(node.body, node.test, positive=True)
 
         for stmt in node.body:
             self.visit(stmt)
         self._indent_level -= 1
 
-        # Pop remaps after body
-        if remap_if:
-             if self.name_remap.get(remap_if[0]) == remap_if[1]:
-                  del self.name_remap[remap_if[0]]
+        # Restore remaps after body
+        for var, original_val in body_remapped.items():
+             if original_val is None:
+                  if var in self.name_remap: del self.name_remap[var]
+             else:
+                  self.name_remap[var] = original_val
 
         if node.orelse:
             if (len(node.orelse) == 1 and isinstance(node.orelse[0], ast.If) and
@@ -328,18 +358,22 @@ class ConditionalsMixin(TranslatorBase):
             else:
                 self.output.append(f"{self._indent()}}} else {{")
                 self._indent_level += 1
+                else_remapped: dict[str, str | None] = {}
                 if narrow_else:
                     self.output.append(f"{self._indent()}{narrow_else}")
                     if remap_else:
+                         else_remapped[remap_else[0]] = self.name_remap.get(remap_else[0])
                          self.name_remap[remap_else[0]] = remap_else[1]
                 else:
-                    self._apply_flow_narrowing(node.orelse, node.test, positive=False)
+                    else_remapped = self._apply_flow_narrowing(node.orelse, node.test, positive=False)
                 for stmt in node.orelse:
                     self.visit(stmt)
 
-                if remap_else:
-                     if self.name_remap.get(remap_else[0]) == remap_else[1]:
-                          del self.name_remap[remap_else[0]]
+                for var, original_val in else_remapped.items():
+                     if original_val is None:
+                          if var in self.name_remap: del self.name_remap[var]
+                     else:
+                          self.name_remap[var] = original_val
 
                 self._indent_level -= 1
                 self.output.append(f"{self._indent()}}}")

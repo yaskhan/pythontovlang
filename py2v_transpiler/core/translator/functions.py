@@ -43,6 +43,9 @@ class FunctionsMixin(TranslatorBase):
         return sorted(list(captured))
 
     def _visit_function_common(self, node: Any, is_async: bool = False) -> None:
+        # Clear name remaps at function start to avoid leakage from other functions
+        self.name_remap.clear()
+
         # Check for @overload
         is_overload = False
         for decorator in node.decorator_list:
