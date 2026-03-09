@@ -887,12 +887,12 @@ class ClassesMixin(TranslatorBase):
 
             if is_deprecated:
                 if deprecated_message:
-                    struct_parts.append(f"[deprecated: '{deprecated_message}']\n")
+                    struct_parts.append(f"@[deprecated: '{deprecated_message}']\n")
                 else:
-                    struct_parts.append("[deprecated]\n")
+                    struct_parts.append("@[deprecated]\n")
 
             if is_disjoint_base:
-                struct_parts.append("[disjoint_base]\n")
+                struct_parts.append("@[disjoint_base]\n")
 
             if decorators:
                 struct_parts.append("\n".join(decorators) + "\n")
@@ -973,7 +973,7 @@ class ClassesMixin(TranslatorBase):
                                     value = self.visit(stmt.value)
                                     enum_fields.append(f"    {member_name} = {value}")
 
-                flag_attr = "[flag]\n" if is_flag else ""
+                flag_attr = "@[flag]\n" if is_flag else ""
                 struct_parts.append(f"{flag_attr}{pub}enum {struct_name} {{\n")
                 if enum_fields:
                     struct_parts.append("\n".join(enum_fields))

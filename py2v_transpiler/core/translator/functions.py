@@ -638,7 +638,7 @@ class FunctionsMixin(TranslatorBase):
                  if self._is_exported(struct_name):
                       pub_prefix = "pub "
 
-        noreturn_attr = "[noreturn]\n" if is_noreturn else ""
+        noreturn_attr = "@[noreturn]\n" if is_noreturn else ""
 
         if getattr(self.config, 'source_mapping', False):
             self.output.append(f"// @line: {self._get_source_info(node)}")
@@ -647,9 +647,9 @@ class FunctionsMixin(TranslatorBase):
         deprecated_attr = ""
         if is_deprecated:
             if deprecated_message:
-                deprecated_attr = f"[deprecated: '{deprecated_message}']\n"
+                deprecated_attr = f"@[deprecated: '{deprecated_message}']\n"
             else:
-                deprecated_attr = "[deprecated]\n"
+                deprecated_attr = "@[deprecated]\n"
 
         elif is_method and func_name in (
             "__add__",
@@ -704,9 +704,9 @@ class FunctionsMixin(TranslatorBase):
         deprecated_attr = ""
         if dec_info.deprecated:
             if dec_info.deprecated_message:
-                deprecated_attr = f"[deprecated: '{dec_info.deprecated_message}']\n"
+                deprecated_attr = f"@[deprecated: '{dec_info.deprecated_message}']\n"
             else:
-                deprecated_attr = "[deprecated]\n"
+                deprecated_attr = "@[deprecated]\n"
 
         if "decl" not in locals():
             if original_node_name.startswith("__") and original_node_name.endswith("__") and func_name.startswith("__") and func_name.endswith("__"):
@@ -896,9 +896,9 @@ class FunctionsMixin(TranslatorBase):
                         deprecated_message = msg.strip("'\"")
 
         if is_deprecated and deprecated_message:
-            deprecated_attr = f"[deprecated: '{deprecated_message}']\n"
+            deprecated_attr = f"@[deprecated: '{deprecated_message}']\n"
         elif is_deprecated:
-            deprecated_attr = "[deprecated]\n"
+            deprecated_attr = "@[deprecated]\n"
 
         for sig in self.overloaded_signatures[ov_key]:
             old_output = self.output
