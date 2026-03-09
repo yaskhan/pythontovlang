@@ -92,15 +92,13 @@ class VCodeEmitter:
             public_constants = [c[4:] for c in self.constants if c.startswith("pub ")]
             private_constants = [c for c in self.constants if not c.startswith("pub ")]
 
-            if private_constants:
-                lines.append("const (")
-                lines.extend(["    " + c for c in private_constants])
-                lines.append(")\n")
+            for c in private_constants:
+                lines.append(f"const {c}")
 
-            if public_constants:
-                lines.append("pub const (")
-                lines.extend(["    " + c for c in public_constants])
-                lines.append(")\n")
+            for c in public_constants:
+                lines.append(f"pub const {c}")
+
+            lines.append("")
 
         if self.functions:
             lines.extend(self.functions)

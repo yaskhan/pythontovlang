@@ -90,8 +90,7 @@ def test_emit_basic():
     assert "import os" in code
     assert "struct Point {" in code
     assert "__global g int" in code
-    assert "const (" in code
-    assert "    C = 1" in code
+    assert "const C = 1" in code
     assert "fn foo() {}" in code
     assert "fn init() {" in code
     assert "    println('init')" in code

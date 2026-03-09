@@ -37,10 +37,8 @@ class TestLiteralString(TranspilerTest):
         c = f"{a}b"
         """
         expected = """
-        const (
-            a = 'test'
-            b = 'a' + 'b'
-        )
+        const a = 'test'
+        const b = 'a' + 'b'
         """
         self.assert_transpilation(code, expected)
 

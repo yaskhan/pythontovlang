@@ -369,8 +369,9 @@ class TranslatorBase(ast.NodeVisitor):
         # Ensure robustness against test classes and mock translators that do not fully initialize the base class.
         compatibility = getattr(self, 'compatibility', None)
         if compatibility and compatibility.is_v_reserved(name):
-            if is_type:
+            if is_type and name == "Any":
                 return name # Any is valid as a type in our transpiler model
+
             return f"py_{name}"
 
         if is_type:
