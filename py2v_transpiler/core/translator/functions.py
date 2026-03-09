@@ -1131,6 +1131,18 @@ class FunctionsMixin(TranslatorBase):
 
     def visit_Lambda(self, node: ast.Lambda) -> str:
         # lambda args: expr -> fn [captures] (args) { return expr }
+        if isinstance(node.body, ast.Constant) and node.body.value is None:
+             # Force void return for lambda x: None
+             args_str_list = []
+             for arg in node.args.args:
+                 arg_name = self._sanitize_name(arg.arg)
+                 arg_type = "int"
+                 args_str_list.append(f"{arg_name} {arg_type}")
+             args_str = ", ".join(args_str_list)
+             captures = self._find_captured_vars(node)
+             capture_str = f"[{', '.join(captures)}] " if captures else ""
+             return f"fn {capture_str}({args_str}) {{}}"
+
         args_str_list = []
         for arg in node.args.args:
             arg_name = self._sanitize_name(arg.arg)
