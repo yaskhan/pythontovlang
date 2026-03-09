@@ -458,7 +458,7 @@ class ClassesMixin(TranslatorBase):
 
                             if num_params > 1:
                                 # Use named field for multi-parameter generic bases
-                                field_name = f"_base_{base_name}"
+                                field_name = f"base_{base_name}"
                                 fields.append(f"pub mut:\n    {field_name} {v_type}")
                                 self.current_class_generic_bases[base_name] = field_name
                             else:

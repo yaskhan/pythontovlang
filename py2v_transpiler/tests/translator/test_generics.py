@@ -30,7 +30,7 @@ class Derived(Base[K, V]):
     assert "struct Base[K, V]" in v_code
     assert "struct Derived[K, V]" in v_code
     # Multi-parameter generic bases should use named field
-    assert "_base_Base Base[K, V]" in v_code
+    assert "base_Base Base[K, V]" in v_code
 
 def test_generic_inheritance_single_param():
     source = """
@@ -120,5 +120,5 @@ class Derived(Base[str, int]):
     v_code = transpile_source(source)
     assert "struct Derived {" in v_code
     # Multi-parameter generic base -> named field
-    assert "_base_Base Base[string, int]" in v_code
-    assert "self._base_Base = new_base(k, v)" in v_code
+    assert "base_Base Base[string, int]" in v_code
+    assert "self.base_Base = new_base(k, v)" in v_code
