@@ -438,7 +438,7 @@ class AssignmentsMixin(TranslatorBase):
                             if self._is_compile_time_evaluable(node.value):
                                 # Compile-time constant (e.g. DEFAULT_WIDTH = 100) -> const block
                                 pub = "pub " if self._is_exported(target.id) else ""
-                                self.emitter.add_constant(f"{pub}{v_lhs} = {rhs}")
+                                self.emitter.add_constant(f"pub {v_lhs} = {rhs}" if pub else f"{v_lhs} = {rhs}")
                                 return
                             else:
                                 # Runtime UPPER_CASE (e.g. Vector_ZERO = new_Vector(...)) -> global + init()
@@ -452,7 +452,7 @@ class AssignmentsMixin(TranslatorBase):
                     # For compile-time constants we already returned above - assignment not needed
                     if (is_implicit_literal or is_literal_string) and self._is_compile_time_evaluable(node.value) and not lhs.isupper():
                         pub = "pub " if self._is_exported(target.id) else ""
-                        self.emitter.add_constant(f"{pub}{v_lhs} = {rhs}")
+                        self.emitter.add_constant(f"pub {v_lhs} = {rhs}" if pub else f"{v_lhs} = {rhs}")
                         return
                     if (is_implicit_literal or is_literal_string) and not self._is_compile_time_evaluable(node.value) and not lhs.isupper():
                         if lhs not in getattr(self, "global_vars", set()):
