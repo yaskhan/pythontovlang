@@ -269,7 +269,7 @@ def _map_ast_type(node: ast.AST, self_name: str = "Self", allow_union: bool = Tr
                     if isinstance(lit_arg.value, bool): return 'bool'
             return 'string' # default?
 
-        elif value_id == 'Type':
+        elif value_id in ('Type', 'type', 'builtins.type'):
             # Type[C] -> C
             if mapped_args:
                 return mapped_args[0]
@@ -402,6 +402,8 @@ def _map_basic_type(name: str) -> str:
         'TypeForm': 'Any',
         'typing.TypeForm': 'Any',
         'typing_extensions.TypeForm': 'Any',
+        'type': 'Any',
+        'builtins.type': 'Any',
         'Final': 'Any',
         'typing.Final': 'Any',
         'ClassVar': 'Any',
