@@ -107,32 +107,7 @@ class LiteralsMixin(TranslatorBase):
                  v_type = "[]Any"
              return f"{v_type}{{}}"
 
-        v_type = self._guess_type(node)
-
-        # Optimization: Use idiomatic V literal [1, 2, 3] if possible.
-        # But for nested mutability tracking, we might need explicit initialization if it's assigned to a 'mut'.
-        # However, visit_Assign handles .clone() which requires explicit type sometimes or not?
-        # Actually, V's `mut a := [1, 2]` is fine.
-
-        if v_type == "[]Any" or not self.current_assignment_type:
-             # Special case for py_array helper used in tests
-             is_py_array = False
-             for p in getattr(self, "parent_stack", []):
-                 if isinstance(p, ast.Call):
-                     if (isinstance(p.func, ast.Name) and p.func.id == "py_array") or \
-                        (isinstance(p.func, ast.Attribute) and p.func.attr == "array" and \
-                         isinstance(p.func.value, ast.Name) and p.func.value.id == "array"):
-                         is_py_array = True
-                         break
-
-             if v_type != "[]Any" and is_py_array:
-                  return f"{v_type}{{{', '.join(elements)}}}"
-
-             # Optimization: If not in an assignment (e.g. in an assertion),
-             # use V's inferred array [1, 2, 3] which is more idiomatic.
-             return f"[{', '.join(elements)}]"
-
-        return f"{v_type}{{{', '.join(elements)}}}"
+        return f"[{', '.join(elements)}]"
 
     def visit_Dict(self, node: ast.Dict) -> str:
         # Check if the dictionary is being used as a TypedDict

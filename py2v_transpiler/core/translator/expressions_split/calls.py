@@ -578,6 +578,11 @@ class CallsMixin(TranslatorBase):
         if func_name_str == "dict" or (original_id == "dict" and func_name_str == "py_dict"):
             v_type = self.current_assignment_type or "map[string]Any"
             if not v_type.startswith("map["): v_type = "map[string]Any"
+            if "map[Any]" in v_type:
+                v_type = v_type.replace("map[Any]", "map[string]")
+                if not getattr(self, '_emitted_any_map_comment', False):
+                    self.output.append(f"{self._indent()}//##LLM@@ V requires map keys to be comparable types (like string, int). 'Any' was used as a map key in Python, which has been fallback-mapped to 'string'. Please review and manually adjust the map key type and its usage if necessary.")
+                    self._emitted_any_map_comment = True
             if len(args) == 0:
                 return f"{v_type}{{}}"
             return f"{v_type}({', '.join(args)})"
@@ -594,8 +599,13 @@ class CallsMixin(TranslatorBase):
                 return f"{v_type}{{}}"
             return f"{v_type}({', '.join(args)})"
         elif func_name_str == "set" or (original_id == "set" and func_name_str == "py_set"):
-            v_type = self.current_assignment_type or "map[Any]bool"
-            if not v_type.startswith("map["): v_type = "map[Any]bool"
+            v_type = self.current_assignment_type or "map[string]bool"
+            if not v_type.startswith("map["): v_type = "map[string]bool"
+            if "map[Any]" in v_type:
+                v_type = v_type.replace("map[Any]", "map[string]")
+                if not getattr(self, '_emitted_any_map_comment', False):
+                    self.output.append(f"{self._indent()}//##LLM@@ V requires map keys to be comparable types (like string, int). 'Any' was used as a map key in Python, which has been fallback-mapped to 'string'. Please review and manually adjust the map key type and its usage if necessary.")
+                    self._emitted_any_map_comment = True
             if len(args) == 0:
                 return f"{v_type}{{}}"
             return f"{v_type}({', '.join(args)})"
