@@ -12,7 +12,15 @@ class BasicExpressionsMixin(TranslatorBase):
         return f"...{val}"
 
     def visit_Assert(self, node: ast.Assert) -> None:
-        test = self._wrap_bool(node.test)
+        # Temporarily clear name_remap while generating the test expression to avoid
+        # using narrowed variable names before they are declared or established.
+        # We use a copy to preserve the original state for restoration.
+        old_remap = self.name_remap.copy()
+        self.name_remap.clear()
+        try:
+            test = self._wrap_bool(node.test)
+        finally:
+            self.name_remap = old_remap
         self.output.append(f"{self._indent()}assert {test}")
 
     def visit_IfExp(self, node: ast.IfExp) -> str:

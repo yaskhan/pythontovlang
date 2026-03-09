@@ -75,7 +75,7 @@ class ClassesMixin(TranslatorBase):
         self.current_class_generics = []
         self.current_class_generic_map = {}
         self.current_class_bases = []
-        self.current_class_generic_bases = set()
+        self.current_class_generic_bases = {}
         self.current_class_is_unittest = False
 
         py_generics = []
@@ -223,7 +223,10 @@ class ClassesMixin(TranslatorBase):
                                         f"    {field_name} {field_type} = {default_val}"
                                     )
                                 else:
-                                    fields.append(f"    {field_name} {field_type}")
+                                    _ft = field_type
+                                    if _ft.startswith("fn (") or _ft.startswith("fn("):
+                                        _ft += " = unsafe { nil }"
+                                    fields.append(f"    {field_name} {_ft}")
                         elif isinstance(stmt, ast.Assign):
                             for target in stmt.targets:
                                 if (
@@ -449,11 +452,21 @@ class ClassesMixin(TranslatorBase):
                         v_type = self._map_type(type_str)
                         # V only allows anonymous embedding of structs/interfaces. Skip if it maps to array/map.
                         if not (v_type.startswith("[]") or v_type.startswith("map[")):
-                            # Use named field for ALL parameterized generic bases (ast.Subscript)
-                            # to avoid V syntax errors and ensure correct delegation control.
-                            field_name = base_name.lower()
-                            fields.append(f"pub mut:\n    {field_name} {v_type}")
-                            self.current_class_generic_bases.add(base_name)
+                            # Count generic parameters
+                            num_params = 0
+                            if isinstance(base.slice, ast.Tuple):
+                                num_params = len(base.slice.elts)
+                            else:
+                                num_params = 1
+
+                            if num_params > 1:
+                                # Use named field for multi-parameter generic bases
+                                field_name = f"base_{base_name}"
+                                fields.append(f"pub mut:\n    {field_name} {v_type}")
+                                self.current_class_generic_bases[base_name] = field_name
+                            else:
+                                # Use anonymous embedding for single-parameter generic bases
+                                fields.append(f"    {v_type}")
 
                     self.current_class_bases.append(base_name)
 
@@ -563,15 +576,16 @@ class ClassesMixin(TranslatorBase):
 
                     if is_dataclass or is_typed_dict:
                         dataclass_field_order.append(field_name)
-                        if stmt.value:
-                            default_val = self.visit(stmt.value)
-                            fields.append(
-                                f"    {field_name} {field_type} = {default_val}"
-                            )
-                        else:
-                            fields.append(f"    {field_name} {field_type}")
+                    if stmt.value:
+                        default_val = self.visit(stmt.value)
+                        fields.append(
+                            f"    {field_name} {field_type} = {default_val}"
+                        )
                     else:
-                        fields.append(f"    {field_name} {field_type}")
+                        _ft = field_type
+                        if _ft.startswith("fn (") or _ft.startswith("fn("):
+                            _ft += " = unsafe { nil }"
+                        fields.append(f"    {field_name} {_ft}")
             elif isinstance(stmt, ast.Assign):
                 # Check for __slots__
                 for target in stmt.targets:
@@ -653,7 +667,10 @@ class ClassesMixin(TranslatorBase):
                             break
 
                 dataclass_field_order.append(field_name)
-                fields.append(f"    {field_name} {field_type}{default_str}")
+                _ft = field_type
+                if not default_str and (_ft.startswith("fn (") or _ft.startswith("fn(")):
+                    _ft += " = unsafe { nil }"
+                fields.append(f"    {field_name} {_ft}{default_str}")
 
         if is_dataclass or is_typed_dict:
             if not hasattr(self, "dataclasses"):
@@ -852,7 +869,10 @@ class ClassesMixin(TranslatorBase):
                                                 f_type = "Any"
                                                 if len(sub_node.targets) == 1 and isinstance(sub_node.targets[0], ast.Attribute):
                                                     f_type = self._guess_type(sub_node.value)
-                                                fields.append(f"    {field_name} {f_type}")
+                                                _ft = f_type
+                                                if _ft.startswith("fn (") or _ft.startswith("fn("):
+                                                    _ft += " = unsafe { nil }"
+                                                fields.append(f"    {field_name} {_ft}")
                             elif isinstance(sub_node, ast.AnnAssign):
                                 if isinstance(sub_node.target, ast.Attribute) and isinstance(sub_node.target.value, ast.Name) and sub_node.target.value.id == init_self_name:
                                     field_name = self._sanitize_name(sub_node.target.attr)
@@ -865,7 +885,10 @@ class ClassesMixin(TranslatorBase):
                                                 f_type = self._map_type(t_str, struct_name)
                                             except:
                                                 pass
-                                        fields.append(f"    {field_name} {f_type}")
+                                        _ft = f_type
+                                        if _ft.startswith("fn (") or _ft.startswith("fn("):
+                                            _ft += " = unsafe { nil }"
+                                        fields.append(f"    {field_name} {_ft}")
 
             struct_parts = []
             if doc_comment:
@@ -877,12 +900,12 @@ class ClassesMixin(TranslatorBase):
 
             if is_deprecated:
                 if deprecated_message:
-                    struct_parts.append(f"[deprecated: '{deprecated_message}']\n")
+                    struct_parts.append(f"@[deprecated: '{deprecated_message}']\n")
                 else:
-                    struct_parts.append("[deprecated]\n")
+                    struct_parts.append("@[deprecated]\n")
 
             if is_disjoint_base:
-                struct_parts.append("[disjoint_base]\n")
+                struct_parts.append("@[disjoint_base]\n")
 
             if decorators:
                 struct_parts.append("\n".join(decorators) + "\n")
@@ -963,7 +986,7 @@ class ClassesMixin(TranslatorBase):
                                     value = self.visit(stmt.value)
                                     enum_fields.append(f"    {member_name} = {value}")
 
-                flag_attr = "[flag]\n" if is_flag else ""
+                flag_attr = "@[flag]\n" if is_flag else ""
                 struct_parts.append(f"{flag_attr}{pub}enum {struct_name} {{\n")
                 if enum_fields:
                     struct_parts.append("\n".join(enum_fields))

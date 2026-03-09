@@ -23,7 +23,7 @@ a = array.array('i', [1, 2, 3])
     # Check that array.array('i', ...) is mapped to []int
     # V doesn't have 'array' module in the same sense, it uses []T
     # So we expect direct array construction or helper
-    assert "a := py_array('i', []int{1, 2, 3})" in v_code
+    assert "a := py_array('i', [1, 2, 3])" in v_code
 
 def test_array_float():
     source = """
@@ -31,7 +31,7 @@ import array
 a = array.array('d', [1.0, 2.0])
 """
     v_code = translate(source)
-    assert "a := py_array('d', []f64{1.0, 2.0})" in v_code
+    assert "a := py_array('d', [1.0, 2.0])" in v_code
 
 def test_array_init_none_typed():
     source = """

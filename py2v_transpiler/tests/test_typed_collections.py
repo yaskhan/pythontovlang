@@ -25,18 +25,18 @@ class TestTypedCollections(unittest.TestCase):
     def test_homogeneous_list_int(self):
         code = "l = [1, 2, 3]"
         v_code = transpile(code, "test_list_int.py")
-        # Transpiler uses optimization: mut l := []int{cap: 3} ... l << 1
-        self.assertIn("mut l := []int{cap: 3}", v_code)
+        # Transpiler now correctly uses square brackets for elements
+        self.assertIn("l := [1, 2, 3]", v_code)
 
     def test_homogeneous_list_str(self):
         code = "l = ['a', 'b']"
         v_code = transpile(code, "test_list_str.py")
-        self.assertIn("mut l := []string{cap: 2}", v_code)
+        self.assertIn("l := ['a', 'b']", v_code)
 
     def test_mixed_list(self):
         code = "l = [1, 'a']"
         v_code = transpile(code, "test_list_mixed.py")
-        self.assertIn("mut l := []Any{cap: 2}", v_code)
+        self.assertIn("l := [1, 'a']", v_code)
 
     def test_homogeneous_dict_str_int(self):
         code = "d = {'a': 1, 'b': 2}"

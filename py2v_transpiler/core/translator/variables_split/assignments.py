@@ -368,7 +368,18 @@ class AssignmentsMixin(TranslatorBase):
                               if target.id not in self.type_inference.type_map:
                                   self.type_inference.type_map[target.id] = "string"
 
-            if is_simple_list and v_type.startswith("[]") and cap > 0:
+            is_mut = False
+            if hasattr(self, 'type_inference') and hasattr(self.type_inference, 'mutability_map'):
+                # Try precise lookup by location first
+                loc_key = f"{lhs}@{node.lineno}:{node.col_offset}"
+                mut_info = self.type_inference.mutability_map.get(loc_key)
+                if not mut_info:
+                    mut_info = self.type_inference.mutability_map.get(lhs)
+
+                if mut_info:
+                    is_mut = (mut_info.get("is_reassigned", False) or mut_info.get("is_mutated", False)) and not mut_info.get("is_final", False)
+
+            if is_simple_list and v_type.startswith("[]") and cap > 0 and is_mut:
                 # To initialize V arrays with exact capacities (`[]int{cap: N}`) during assignments like `arr = [x, y, z]`
                 # We emit:
                 # mut arr := []T{cap: N}
@@ -427,7 +438,7 @@ class AssignmentsMixin(TranslatorBase):
                             if self._is_compile_time_evaluable(node.value):
                                 # Compile-time constant (e.g. DEFAULT_WIDTH = 100) -> const block
                                 pub = "pub " if self._is_exported(target.id) else ""
-                                self.emitter.add_constant(f"{pub}{v_lhs} = {rhs}")
+                                self.emitter.add_constant(f"pub {v_lhs} = {rhs}" if pub else f"{v_lhs} = {rhs}")
                                 return
                             else:
                                 # Runtime UPPER_CASE (e.g. Vector_ZERO = new_Vector(...)) -> global + init()
@@ -441,7 +452,7 @@ class AssignmentsMixin(TranslatorBase):
                     # For compile-time constants we already returned above - assignment not needed
                     if (is_implicit_literal or is_literal_string) and self._is_compile_time_evaluable(node.value) and not lhs.isupper():
                         pub = "pub " if self._is_exported(target.id) else ""
-                        self.emitter.add_constant(f"{pub}{v_lhs} = {rhs}")
+                        self.emitter.add_constant(f"pub {v_lhs} = {rhs}" if pub else f"{v_lhs} = {rhs}")
                         return
                     if (is_implicit_literal or is_literal_string) and not self._is_compile_time_evaluable(node.value) and not lhs.isupper():
                         if lhs not in getattr(self, "global_vars", set()):
