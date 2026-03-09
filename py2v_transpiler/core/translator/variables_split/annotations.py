@@ -147,7 +147,8 @@ class AnnotationsMixin(TranslatorBase):
 
                             # Use const block only if it evaluates at compile-time (e.g., literal string)
                             if self._is_compile_time_evaluable(node.value) or (is_literal_string_type and self._is_literal_string_expr(node.value)):
-                                self.emitter.add_constant(f"{v_target} = {rhs}")
+                                pub = "pub " if self._is_exported(target) else ""
+                                self.emitter.add_constant(f"pub {v_target} = {rhs}" if pub else f"{v_target} = {rhs}")
                                 return
                             else:
                                 self.emitter.add_init_statement(f"{v_target} = {rhs}")
@@ -160,7 +161,8 @@ class AnnotationsMixin(TranslatorBase):
                     if is_literal_string_type:
                          # Only literal string expressions and compile time evaluables are placed in const
                          if self._is_literal_string_expr(node.value) or self._is_compile_time_evaluable(node.value):
-                              self.emitter.add_constant(f"{v_target} = {rhs}")
+                              pub = "pub " if self._is_exported(target) else ""
+                              self.emitter.add_constant(f"pub {v_target} = {rhs}" if pub else f"{v_target} = {rhs}")
                          else:
                               self.emitter.add_init_statement(f"{v_target} = {rhs}")
                          return
@@ -218,7 +220,8 @@ class AnnotationsMixin(TranslatorBase):
                         return
                     elif target_name.isupper():
                         # V requires consts to be initialized
-                        self.emitter.add_constant(f"{target_name} = /* uninitialized constant */ 0")
+                        pub = "pub " if self._is_exported(target) else ""
+                        self.emitter.add_constant(f"pub {target_name} = /* uninitialized constant */ 0" if pub else f"{target_name} = /* uninitialized constant */ 0")
                         return
                 default_val = "0"
                 if v_type == "int": default_val = "0"

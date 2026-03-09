@@ -57,3 +57,27 @@ VECTOR_ONE = Vector(1, 1, 1)
 
     assert "fn init() {" in v_code
     assert "vector_one = Vector(1, 1, 1)" in v_code
+
+def test_global_constants_public():
+    source = """
+from typing import Final
+
+__all__ = ["DEFAULT_WIDTH"]
+
+DEFAULT_WIDTH = 100
+DEFAULT_HEIGHT: Final = 200
+"""
+    parser = PyASTParser()
+    tree = parser.parse(source)
+    analyzer = TypeInference()
+    translator = VNodeVisitor(analyzer)
+    translator.config = type("TranspilerConfig", (), {"export_all": False})()
+    translator.module_all = ["DEFAULT_WIDTH"]
+
+    v_code = translator.visit_Module(tree)
+    helpers = translator.emitter.emit_helpers()
+    v_code = translator.emitter.emit()
+    assert "pub const (" in v_code
+    assert "default_width = 100" in v_code
+    assert "const (" in v_code
+    assert "default_height = 200" in v_code
