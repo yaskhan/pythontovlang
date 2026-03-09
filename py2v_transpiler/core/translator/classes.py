@@ -75,7 +75,7 @@ class ClassesMixin(TranslatorBase):
         self.current_class_generics = []
         self.current_class_generic_map = {}
         self.current_class_bases = []
-        self.current_class_generic_bases = set()
+        self.current_class_generic_bases = {}
         self.current_class_is_unittest = False
 
         py_generics = []
@@ -449,11 +449,21 @@ class ClassesMixin(TranslatorBase):
                         v_type = self._map_type(type_str)
                         # V only allows anonymous embedding of structs/interfaces. Skip if it maps to array/map.
                         if not (v_type.startswith("[]") or v_type.startswith("map[")):
-                            # Use named field for ALL parameterized generic bases (ast.Subscript)
-                            # to avoid V syntax errors and ensure correct delegation control.
-                            field_name = base_name.lower()
-                            fields.append(f"pub mut:\n    {field_name} {v_type}")
-                            self.current_class_generic_bases.add(base_name)
+                            # Count generic parameters
+                            num_params = 0
+                            if isinstance(base.slice, ast.Tuple):
+                                num_params = len(base.slice.elts)
+                            else:
+                                num_params = 1
+
+                            if num_params > 1:
+                                # Use named field for multi-parameter generic bases
+                                field_name = f"_base_{base_name}"
+                                fields.append(f"pub mut:\n    {field_name} {v_type}")
+                                self.current_class_generic_bases[base_name] = field_name
+                            else:
+                                # Use anonymous embedding for single-parameter generic bases
+                                fields.append(f"    {v_type}")
 
                     self.current_class_bases.append(base_name)
 
