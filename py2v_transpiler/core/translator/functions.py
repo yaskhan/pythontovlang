@@ -695,10 +695,16 @@ class FunctionsMixin(TranslatorBase):
             # Let's map __iter__ to 'iter' if it doesn't return Self, or skip?
             # For now, let's use 'iter'
             func_name = "iter"
+
+            # Remove method generics if they are exactly the same as struct generics
+            method_generics = func_generics_str
+            if method_generics and self.current_class_generics and method_generics == f"[{', '.join(self.current_class_generics)}]":
+                method_generics = ""
+
             if ret_type == "void":
-                decl = f"{noreturn_attr}{deprecated_attr}fn {receiver_str}{func_name}{func_generics_str}({args_str}) {{"
+                decl = f"{noreturn_attr}{deprecated_attr}{pub_prefix}fn {receiver_str}{func_name}{method_generics}({args_str}) {{"
             else:
-                decl = f"{noreturn_attr}{deprecated_attr}fn {receiver_str}{func_name}{func_generics_str}({args_str}) {ret_type} {{"
+                decl = f"{noreturn_attr}{deprecated_attr}{pub_prefix}fn {receiver_str}{func_name}{method_generics}({args_str}) {ret_type} {{"
 
         # PEP 702: Add [deprecated] attribute for @warnings.deprecated decorator
         deprecated_attr = ""

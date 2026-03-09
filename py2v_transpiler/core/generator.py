@@ -89,9 +89,12 @@ class VCodeEmitter:
             lines.append("")
 
         if self.constants:
-            lines.append("const (")
-            lines.extend(["    " + c for c in self.constants])
-            lines.append(")\n")
+            for c in self.constants:
+                if c.startswith("pub "):
+                    lines.append(f"pub const {c[4:]}")
+                else:
+                    lines.append(f"const {c}")
+            lines.append("")
 
         if self.functions:
             lines.extend(self.functions)

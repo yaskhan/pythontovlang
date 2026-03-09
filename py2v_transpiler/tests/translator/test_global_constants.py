@@ -22,9 +22,8 @@ DEFAULT_WIDTH = 100
 DEFAULT_HEIGHT: Final = 200
 """
     v_code = translate(source)
-    assert "const (" in v_code
-    assert "default_width = 100" in v_code
-    assert "default_height = 200" in v_code
+    assert "const default_width = 100" in v_code
+    assert "const default_height = 200" in v_code
     # They should not be in main
     main_body_start = v_code.find("fn main() {")
     assert "DEFAULT_WIDTH" not in v_code[main_body_start:]

@@ -12,7 +12,7 @@ class CompatibilityLayer:
         "fn", "type", "struct", "mut", "if", "else", "for", "return", "match",
         "interface", "enum", "pub", "import", "module", "const", "unsafe",
         "defer", "go", "chan", "shared", "spawn", "assert", "sizeof", "typeof",
-        "__global", "as", "in", "is", "none", "map", "array", "string", "bool", "Any"
+        "__global", "as", "in", "is", "none", "map", "array", "string", "bool", "Any", "union"
     }
 
     # Python soft keywords that may require special handling
@@ -22,7 +22,7 @@ class CompatibilityLayer:
 
     def is_v_reserved(self, name: str) -> bool:
         """Checks if a name is a reserved keyword in V."""
-        return name in self.V_RESERVED_KEYWORDS
+        return name in self.V_RESERVED_KEYWORDS or name.lower() in self.V_RESERVED_KEYWORDS
 
     def is_python_soft_keyword(self, name: str) -> bool:
         """Checks if a name is a Python soft keyword."""
