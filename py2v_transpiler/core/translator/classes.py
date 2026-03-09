@@ -223,7 +223,10 @@ class ClassesMixin(TranslatorBase):
                                         f"    {field_name} {field_type} = {default_val}"
                                     )
                                 else:
-                                    fields.append(f"    {field_name} {field_type}")
+                                    _ft = field_type
+                                    if _ft.startswith("fn (") or _ft.startswith("fn("):
+                                        _ft += " = unsafe { nil }"
+                                    fields.append(f"    {field_name} {_ft}")
                         elif isinstance(stmt, ast.Assign):
                             for target in stmt.targets:
                                 if (
@@ -573,15 +576,16 @@ class ClassesMixin(TranslatorBase):
 
                     if is_dataclass or is_typed_dict:
                         dataclass_field_order.append(field_name)
-                        if stmt.value:
-                            default_val = self.visit(stmt.value)
-                            fields.append(
-                                f"    {field_name} {field_type} = {default_val}"
-                            )
-                        else:
-                            fields.append(f"    {field_name} {field_type}")
+                    if stmt.value:
+                        default_val = self.visit(stmt.value)
+                        fields.append(
+                            f"    {field_name} {field_type} = {default_val}"
+                        )
                     else:
-                        fields.append(f"    {field_name} {field_type}")
+                        _ft = field_type
+                        if _ft.startswith("fn (") or _ft.startswith("fn("):
+                            _ft += " = unsafe { nil }"
+                        fields.append(f"    {field_name} {_ft}")
             elif isinstance(stmt, ast.Assign):
                 # Check for __slots__
                 for target in stmt.targets:
@@ -663,7 +667,10 @@ class ClassesMixin(TranslatorBase):
                             break
 
                 dataclass_field_order.append(field_name)
-                fields.append(f"    {field_name} {field_type}{default_str}")
+                _ft = field_type
+                if not default_str and (_ft.startswith("fn (") or _ft.startswith("fn(")):
+                    _ft += " = unsafe { nil }"
+                fields.append(f"    {field_name} {_ft}{default_str}")
 
         if is_dataclass or is_typed_dict:
             if not hasattr(self, "dataclasses"):
@@ -862,7 +869,10 @@ class ClassesMixin(TranslatorBase):
                                                 f_type = "Any"
                                                 if len(sub_node.targets) == 1 and isinstance(sub_node.targets[0], ast.Attribute):
                                                     f_type = self._guess_type(sub_node.value)
-                                                fields.append(f"    {field_name} {f_type}")
+                                                _ft = f_type
+                                                if _ft.startswith("fn (") or _ft.startswith("fn("):
+                                                    _ft += " = unsafe { nil }"
+                                                fields.append(f"    {field_name} {_ft}")
                             elif isinstance(sub_node, ast.AnnAssign):
                                 if isinstance(sub_node.target, ast.Attribute) and isinstance(sub_node.target.value, ast.Name) and sub_node.target.value.id == init_self_name:
                                     field_name = self._sanitize_name(sub_node.target.attr)
@@ -875,7 +885,10 @@ class ClassesMixin(TranslatorBase):
                                                 f_type = self._map_type(t_str, struct_name)
                                             except:
                                                 pass
-                                        fields.append(f"    {field_name} {f_type}")
+                                        _ft = f_type
+                                        if _ft.startswith("fn (") or _ft.startswith("fn("):
+                                            _ft += " = unsafe { nil }"
+                                        fields.append(f"    {field_name} {_ft}")
 
             struct_parts = []
             if doc_comment:
