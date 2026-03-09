@@ -368,7 +368,18 @@ class AssignmentsMixin(TranslatorBase):
                               if target.id not in self.type_inference.type_map:
                                   self.type_inference.type_map[target.id] = "string"
 
-            if is_simple_list and v_type.startswith("[]") and cap > 0:
+            is_mut = False
+            if hasattr(self, 'type_inference') and hasattr(self.type_inference, 'mutability_map'):
+                # Try precise lookup by location first
+                loc_key = f"{lhs}@{node.lineno}:{node.col_offset}"
+                mut_info = self.type_inference.mutability_map.get(loc_key)
+                if not mut_info:
+                    mut_info = self.type_inference.mutability_map.get(lhs)
+
+                if mut_info:
+                    is_mut = (mut_info.get("is_reassigned", False) or mut_info.get("is_mutated", False)) and not mut_info.get("is_final", False)
+
+            if is_simple_list and v_type.startswith("[]") and cap > 0 and is_mut:
                 # To initialize V arrays with exact capacities (`[]int{cap: N}`) during assignments like `arr = [x, y, z]`
                 # We emit:
                 # mut arr := []T{cap: N}
