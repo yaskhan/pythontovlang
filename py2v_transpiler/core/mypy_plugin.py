@@ -55,7 +55,9 @@ class MutabilityVisitor:
         elif isinstance(node, TryStmt):
             self.visit(node.body)
             for h in node.handlers:
-                self.visit(h.type); self.visit(h.name); self.visit(h.body)
+                if hasattr(h, 'type'): self.visit(h.type)
+                if hasattr(h, 'name'): self.visit(h.name)
+                self.visit(h.body)
             self.visit(node.else_body); self.visit(node.finally_body)
         elif isinstance(node, (TupleExpr, ListExpr)):
             for item in node.items: self.visit(item)
