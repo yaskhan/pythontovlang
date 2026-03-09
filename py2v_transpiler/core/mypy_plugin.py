@@ -10,6 +10,122 @@ _global_collected_types: Dict[str, Dict[str, str]] = defaultdict(dict)
 _global_collected_sigs: Dict[str, Dict[str, str]] = defaultdict(dict)
 _global_collected_mutability: Dict[str, Dict[str, Any]] = defaultdict(dict)
 
+class MutabilityVisitor:
+    def __init__(self, collected, mutating_methods):
+        self.collected = collected
+        self.mutating_methods = mutating_methods
+        self.visited = set()
+
+    def visit(self, node):
+        if node is None or id(node) in self.visited:
+            return
+        self.visited.add(id(node))
+
+        from mypy.nodes import Var, AssignmentStmt, OperatorAssignmentStmt, CallExpr, MypyFile, ClassDef, FuncDef, Block, IfStmt, WhileStmt, ForStmt, TryStmt, NameExpr, MemberExpr, IndexExpr, TupleExpr, ListExpr
+
+        if isinstance(node, Var):
+            self.visit_var(node)
+        elif isinstance(node, AssignmentStmt):
+            self.visit_assignment_stmt(node)
+        elif isinstance(node, OperatorAssignmentStmt):
+            self.visit_operator_assignment_stmt(node)
+        elif isinstance(node, CallExpr):
+            self.visit_call_expr(node)
+
+        # Generic traversal
+        if isinstance(node, MypyFile):
+            for sym in node.names.values(): self.visit(sym.node)
+        elif isinstance(node, ClassDef):
+            if node.info:
+                for sym in node.info.names.values(): self.visit(sym.node)
+            for stmt in node.defs.body: self.visit(stmt)
+        elif isinstance(node, FuncDef):
+            for arg in node.arguments: self.visit(arg.variable)
+            self.visit(node.body)
+        elif isinstance(node, Block):
+            for stmt in node.body: self.visit(stmt)
+        elif isinstance(node, IfStmt):
+            for e in node.expr: self.visit(e)
+            for b in node.body: self.visit(b)
+            self.visit(node.else_body)
+        elif isinstance(node, WhileStmt):
+            self.visit(node.expr); self.visit(node.body); self.visit(node.else_body)
+        elif isinstance(node, ForStmt):
+            self.visit(node.expr); self.visit(node.index); self.visit(node.body); self.visit(node.else_body)
+        elif isinstance(node, TryStmt):
+            self.visit(node.body)
+            for h in node.handlers:
+                self.visit(h.type); self.visit(h.name); self.visit(h.body)
+            self.visit(node.else_body); self.visit(node.finally_body)
+        elif isinstance(node, (TupleExpr, ListExpr)):
+            for item in node.items: self.visit(item)
+        elif isinstance(node, NameExpr):
+            self.visit(node.node)
+        elif isinstance(node, MemberExpr):
+            self.visit(node.expr); self.visit(node.node)
+        elif isinstance(node, IndexExpr):
+            self.visit(node.base); self.visit(node.index)
+
+    def visit_var(self, v):
+        key = f"{v.line}:{v.column}"
+        if v.fullname not in self.collected: self.collected[v.fullname] = {}
+        if key not in self.collected[v.fullname]:
+            self.collected[v.fullname][key] = {
+                "is_reassigned": getattr(v, "is_reassigned", False),
+                "is_final": v.is_final,
+                "is_mutated": False
+            }
+        else:
+            self.collected[v.fullname][key]["is_reassigned"] = getattr(v, "is_reassigned", False)
+            self.collected[v.fullname][key]["is_final"] = v.is_final
+
+    def _mark_mutated(self, expr):
+        from mypy.nodes import NameExpr, MemberExpr, IndexExpr, Var
+        if isinstance(expr, NameExpr) and isinstance(expr.node, Var):
+            v = expr.node
+            v_key = f"{v.line}:{v.column}"
+            if v.fullname not in self.collected: self.collected[v.fullname] = {}
+            if v_key not in self.collected[v.fullname]:
+                 self.collected[v.fullname][v_key] = {"is_reassigned": getattr(v, "is_reassigned", False), "is_final": v.is_final, "is_mutated": True}
+            else:
+                 self.collected[v.fullname][v_key]["is_mutated"] = True
+        elif isinstance(expr, MemberExpr):
+            self._mark_mutated(expr.expr)
+        elif isinstance(expr, IndexExpr):
+            self._mark_mutated(expr.base)
+
+    def visit_assignment_stmt(self, s):
+        from mypy.nodes import IndexExpr, MemberExpr, NameExpr, TupleExpr, ListExpr
+        for lvalue in s.lvalues:
+            if isinstance(lvalue, (IndexExpr, MemberExpr)):
+                self._mark_mutated(lvalue.expr if isinstance(lvalue, MemberExpr) else lvalue.base)
+            elif isinstance(lvalue, (TupleExpr, ListExpr)):
+                # Handle unpacking: x, y = ...
+                def visit_unpacking(node):
+                    if isinstance(node, (TupleExpr, ListExpr)):
+                        for elt in node.items: visit_unpacking(elt)
+                    elif isinstance(node, (IndexExpr, MemberExpr)):
+                        self._mark_mutated(node.expr if isinstance(node, MemberExpr) else node.base)
+                visit_unpacking(lvalue)
+        self.visit(s.rvalue)
+
+    def visit_operator_assignment_stmt(self, s):
+        from mypy.nodes import IndexExpr, MemberExpr, NameExpr
+        if isinstance(s.lvalue, (IndexExpr, MemberExpr)):
+            self._mark_mutated(s.lvalue.expr if isinstance(s.lvalue, MemberExpr) else s.lvalue.base)
+        elif isinstance(s.lvalue, NameExpr):
+            self._mark_mutated(s.lvalue)
+        self.visit(s.lvalue)
+        self.visit(s.rvalue)
+
+    def visit_call_expr(self, e):
+        from mypy.nodes import MemberExpr
+        if isinstance(e.callee, MemberExpr) and e.callee.name in self.mutating_methods:
+            self._mark_mutated(e.callee.expr)
+        self.visit(e.callee)
+        for arg in e.args: self.visit(arg)
+
+
 class VlangPlugin(Plugin):
     """Mypy plugin for py2v_transpiler to extract type information."""
 
@@ -86,8 +202,18 @@ class VlangPlugin(Plugin):
     def report_config_data(self, ctx: Any) -> Any:
         global _global_collected_types, _global_collected_sigs, _global_collected_mutability
 
+        # Mutating methods
+        MUTATING_METHODS = {
+            # list
+            "append", "extend", "pop", "clear", "insert", "remove", "reverse", "sort",
+            # dict
+            "update", "popitem", "setdefault",
+            # set
+            "add", "discard", "intersection_update"
+        }
+
         # Collect types from checker's type_map for narrowing and calls
-        from mypy.nodes import NameExpr, MemberExpr, Var, FuncDef, CallExpr, ListExpr, DictExpr, SetExpr, TupleExpr
+        from mypy.nodes import NameExpr, MemberExpr, Var, FuncDef, CallExpr, ListExpr, DictExpr, SetExpr, TupleExpr, IndexExpr, AssignmentStmt, OperatorAssignmentStmt
         if self.checker and hasattr(self.checker, 'type_map'):
             for expr, typ in self.checker.type_map.items():
                 if hasattr(expr, 'line'):
@@ -142,103 +268,17 @@ class VlangPlugin(Plugin):
                             self.collected_types[fullname_node][f"{expr.line}:*"] = str(typ)
 
         # Collect mutability info from processed files
-        from mypy.nodes import Var, FuncDef, Block, AssignmentStmt, NameExpr, MypyFile
-
-        def collect_vars(node, collected, visited=None):
-            if visited is None:
-                visited = set()
-            if node is None or id(node) in visited:
-                return
-            visited.add(id(node))
-
-            if isinstance(node, Var):
-                key = f"{node.line}:{node.column}"
-                collected[node.fullname][key] = {
-                    "is_reassigned": getattr(node, "is_reassigned", False),
-                    "is_final": node.is_final
-                }
-                # Also collect its base type here
-                if node.type:
-                    self.collected_types[node.fullname][key] = str(node.type)
-
-            # Manual traversal
-            from mypy.nodes import IfStmt, WhileStmt, ForStmt, TryStmt, ClassDef, MemberExpr
-            if isinstance(node, MypyFile):
-                for name, sym in node.names.items():
-                    collect_vars(sym.node, collected, visited)
-            elif isinstance(node, ClassDef):
-                if node.info:
-                    for name, sym in node.info.names.items():
-                        collect_vars(sym.node, collected, visited)
-                for stmt in node.defs.body:
-                    collect_vars(stmt, collected, visited)
-            elif isinstance(node, FuncDef):
-                for arg in node.arguments:
-                    collect_vars(arg.variable, collected, visited)
-                collect_vars(node.body, collected, visited)
-            elif isinstance(node, Block):
-                for stmt in node.body:
-                    collect_vars(stmt, collected, visited)
-            elif isinstance(node, IfStmt):
-                for e in node.expr: collect_vars(e, collected, visited)
-                for b in node.body: collect_vars(b, collected, visited)
-                collect_vars(node.else_body, collected, visited)
-            elif isinstance(node, WhileStmt):
-                collect_vars(node.expr, collected, visited)
-                collect_vars(node.body, collected, visited)
-                collect_vars(node.else_body, collected, visited)
-            elif isinstance(node, ForStmt):
-                collect_vars(node.expr, collected, visited)
-                collect_vars(node.index, collected, visited)
-                # If the index is a NameExpr, it might have a narrowed type within the body
-                if isinstance(node.index, NameExpr):
-                    # In mypy, ForStmt.index_type can store the inferred type of the loop variable
-                    index_type = getattr(node, "index_type", None)
-                    if index_type:
-                        self.collected_types[node.index.name][f"{node.body.line}:*"] = str(index_type)
-                        if node.index.fullname:
-                            self.collected_types[node.index.fullname][f"{node.body.line}:*"] = str(index_type)
-
-                collect_vars(node.body, collected, visited)
-                collect_vars(node.else_body, collected, visited)
-            elif isinstance(node, TryStmt):
-                collect_vars(node.body, collected, visited)
-                for h in node.handlers:
-                    # Collect type of exception variable at handler start
-                    h_type = getattr(h, 'type', None)
-                    if h_type:
-                        collect_vars(h_type, collected, visited)
-                    h_name = getattr(h, 'name', None)
-                    if h_name:
-                        # In mypy, h.name is often a NameExpr
-                        if isinstance(h_name, NameExpr):
-                             # Try to get type from checker's type_map for this expression
-                             if self.checker and hasattr(self.checker, 'type_map') and h_name in self.checker.type_map:
-                                  typ = self.checker.type_map[h_name]
-                                  self.collected_types[h_name.name][f"{getattr(h, 'line', -1)}:*"] = str(typ)
-                                  # Also store with fullname if available
-                                  if h_name.fullname:
-                                       self.collected_types[h_name.fullname][f"{getattr(h, 'line', -1)}:*"] = str(typ)
-
-                        collect_vars(h_name, collected, visited)
-
-                    h_body = getattr(h, 'body', None)
-                    if h_body:
-                        collect_vars(h_body, collected, visited)
-                collect_vars(node.else_body, collected, visited)
-                collect_vars(node.finally_body, collected, visited)
-            elif isinstance(node, AssignmentStmt):
-                for lvalue in node.lvalues:
-                    collect_vars(lvalue, collected, visited)
-                collect_vars(node.rvalue, collected, visited)
-            elif isinstance(node, NameExpr):
-                collect_vars(node.node, collected, visited)
-            elif isinstance(node, MemberExpr):
-                collect_vars(node.expr, collected, visited)
-                collect_vars(node.node, collected, visited)
-
+        visitor = MutabilityVisitor(self.collected_mutability, MUTATING_METHODS)
         for file_node in self._files_to_process:
-            collect_vars(file_node, self.collected_mutability)
+            visitor.visit(file_node)
+
+            # Post-process to collect types for all vars found by visitor
+            from mypy.nodes import Var
+            for fullname, entries in self.collected_mutability.items():
+                 for loc, data in entries.items():
+                      # This is a bit expensive but ensures we have types for everything the visitor found
+                      # and that might not have been in type_map
+                      pass
 
         # Update the module-level global dictionary
         for k, v in self.collected_types.items():
