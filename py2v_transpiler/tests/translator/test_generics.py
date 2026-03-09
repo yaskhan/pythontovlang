@@ -29,8 +29,8 @@ class Derived(Base[K, V]):
     v_code = transpile_source(source)
     assert "struct Base[K, V]" in v_code
     assert "struct Derived[K, V]" in v_code
-    # ALL parameterized generic bases (ast.Subscript) now use named field
-    assert "base Base[K, V]" in v_code
+    # Multi-parameter generic bases should use named field
+    assert "base_Base Base[K, V]" in v_code
 
 def test_generic_inheritance_single_param():
     source = """
@@ -47,10 +47,8 @@ class Derived(Base[T]):
     v_code = transpile_source(source)
     assert "struct Base[T]" in v_code
     assert "struct Derived[T]" in v_code
-    # ALL parameterized generic bases (ast.Subscript) now use named field
-    assert "base Base[T]" in v_code
-    # ALL parameterized generic bases (ast.Subscript) now use named field
-    assert "base Base[T]" in v_code
+    # Single-parameter generic bases should use anonymous embedding
+    assert "    Base[T]" in v_code
 
 def test_generic_inheritance_super_init():
     source = """
@@ -69,8 +67,10 @@ class Derived(Base[int]):
 """
     v_code = transpile_source(source)
     assert "struct Derived {" in v_code
-    assert "base Base[int]" in v_code
-    assert "self.base = new_base(x)" in v_code
+    # Single-parameter generic base -> anonymous embedding
+    assert "    Base[int]" in v_code
+    # Anonymous embedding initialization in V uses base name
+    assert "self.Base = new_base(x)" in v_code
 
 def test_non_generic_inheritance():
     source = """
@@ -98,5 +98,27 @@ class Derived[T](Base[T]):
     v_code = transpile_source(source)
     assert "struct Base[T]" in v_code
     assert "struct Derived[T]" in v_code
-    # ALL parameterized generic bases (ast.Subscript) now use named field
-    assert "base Base[T]" in v_code
+    # Single-parameter generic base -> anonymous embedding
+    assert "    Base[T]" in v_code
+
+def test_generic_inheritance_multi_params_super_init():
+    source = """
+from typing import Generic, TypeVar
+
+K = TypeVar('K')
+V = TypeVar('V')
+
+class Base(Generic[K, V]):
+    def __init__(self, k: K, v: V):
+        self.k = k
+        self.v = v
+
+class Derived(Base[str, int]):
+    def __init__(self, k: str, v: int):
+        super().__init__(k, v)
+"""
+    v_code = transpile_source(source)
+    assert "struct Derived {" in v_code
+    # Multi-parameter generic base -> named field
+    assert "base_Base Base[string, int]" in v_code
+    assert "self.base_Base = new_base(k, v)" in v_code

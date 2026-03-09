@@ -98,7 +98,7 @@ class TranslatorBase(ast.NodeVisitor):
         self.current_class: Optional[str] = None
         self.current_class_generics: List[str] = []
         self.current_class_bases: List[str] = []
-        self.current_class_generic_bases: Set[str] = set()
+        self.current_class_generic_bases: Dict[str, str] = {}
         self.current_class_is_unittest: bool = False
         self._zip_counter: int = 0
         self.defined_classes: Dict[str, Dict[str, Any]] = {}
