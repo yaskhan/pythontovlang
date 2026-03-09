@@ -224,7 +224,7 @@ def _map_ast_type(node: ast.AST, self_name: str = "Self", allow_union: bool = Tr
                 return " | ".join(mapped_args)
             return "Any"
 
-        elif value_id in ('Callable', 'typing.Callable', 'callable', 'collections.abc.Callable'):
+        elif value_id in ('Callable', 'typing.Callable'):
             # Callable[[Arg1, Arg2], Ret]
             # V function types: fn (Arg1, Arg2) Ret
             if len(args) == 2:
@@ -241,19 +241,18 @@ def _map_ast_type(node: ast.AST, self_name: str = "Self", allow_union: bool = Tr
                     # But the test expects `fn ()`.
                     arg_types = []
                 elif isinstance(arg_list_node, ast.Constant) and arg_list_node.value is Ellipsis:
-                    arg_types = ["...Any"]
+                    arg_types = ["..."]
                 elif isinstance(arg_list_node, ast.Name):
                     # ParamSpec: Callable[P, Ret]
                     arg_types = [_map_ast_type(arg_list_node, self_name, allow_union, generic_map, sum_type_registrar, literal_registrar)]
 
                 ret_type = _map_ast_type(ret_node, self_name, allow_union, generic_map, sum_type_registrar, literal_registrar)
-                if ret_type in ("none", "void"):
-                    return f"fn ({', '.join(arg_types)})"
+                if ret_type == "none": ret_type = "void"
 
                 return f"fn ({', '.join(arg_types)}) {ret_type}"
 
             if len(args) == 1 and isinstance(args[0], ast.Constant) and args[0].value is Ellipsis:
-                return "fn (...Any) Any"
+                return "fn (...)"
 
             return "fn"
 
@@ -270,7 +269,7 @@ def _map_ast_type(node: ast.AST, self_name: str = "Self", allow_union: bool = Tr
                     if isinstance(lit_arg.value, bool): return 'bool'
             return 'string' # default?
 
-        elif value_id in ('Type', 'type', 'builtins.type'):
+        elif value_id == 'Type':
             # Type[C] -> C
             if mapped_args:
                 return mapped_args[0]
@@ -378,8 +377,6 @@ def _map_basic_type(name: str) -> str:
         'Optional': '?Any',
         'Union': 'Any',
         'Callable': 'fn',
-        'callable': 'fn',
-        'collections.abc.Callable': 'fn',
         'Sequence': '[]Any',
         'Iterable': '[]Any',
         'Mapping': 'map[string]Any',
@@ -411,8 +408,6 @@ def _map_basic_type(name: str) -> str:
         'TypeForm': 'Any',
         'typing.TypeForm': 'Any',
         'typing_extensions.TypeForm': 'Any',
-        'type': 'Any',
-        'builtins.type': 'Any',
         'Final': 'Any',
         'typing.Final': 'Any',
         'ClassVar': 'Any',

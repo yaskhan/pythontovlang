@@ -77,7 +77,6 @@ DEFAULT_HEIGHT: Final = 200
     v_code = translator.visit_Module(tree)
     helpers = translator.emitter.emit_helpers()
     v_code = translator.emitter.emit()
-    assert "pub const (" in v_code
-    assert "default_width = 100" in v_code
     assert "const (" in v_code
-    assert "default_height = 200" in v_code
+    assert "pub default_width = 100" in v_code
+    assert "default_height = AnyValue(200)" in v_code

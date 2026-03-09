@@ -98,7 +98,7 @@ class TranslatorBase(ast.NodeVisitor):
         self.current_class: Optional[str] = None
         self.current_class_generics: List[str] = []
         self.current_class_bases: List[str] = []
-        self.current_class_generic_bases: Dict[str, str] = {}
+        self.current_class_generic_bases: Set[str] = set()
         self.current_class_is_unittest: bool = False
         self._zip_counter: int = 0
         self.defined_classes: Dict[str, Dict[str, Any]] = {}
@@ -578,7 +578,7 @@ class TranslatorBase(ast.NodeVisitor):
         self._generated_sum_types[normalized] = result
         return f"?{result}" if has_none else result
 
-    def _map_type(self, type_str: str, struct_name: Optional[str] = None, allow_union: bool = True, register_sum_types: bool = True, is_return: bool = False) -> str:
+    def _map_type(self, type_str: str, struct_name: Optional[str] = None, allow_union: bool = True, register_sum_types: bool = True) -> str:
         """
         Centralized type mapping that performs map_python_type_to_v
         followed by imported_symbols and SCC-based re-mapping.
@@ -596,18 +596,6 @@ class TranslatorBase(ast.NodeVisitor):
             sum_type_registrar=registrar,
             literal_registrar=lit_registrar
         )
-
-        if "map[Any]" in v_type:
-            v_type = v_type.replace("map[Any]", "map[string]")
-            # Note: We do not inject output.append here because _map_type is frequently
-            # called within inline expression generation (e.g., function signatures, casts).
-            # Injecting comments directly into self.output here can generate syntactically
-            # invalid V code by breaking statements in the middle. We handle fallback
-            # detection and comment generation strictly at the statement-level generators
-            # (e.g., assignment, explicit set/dict calls).
-
-        if is_return and v_type == "none":
-            return "void"
 
         # Centralize LiteralString to string mapping
         if v_type == "LiteralString":
@@ -733,7 +721,6 @@ class TranslatorBase(ast.NodeVisitor):
                 if fid == "float": return "f64"
                 if fid == "bool": return "bool"
                 if fid == "len": return "int"
-                if fid == "print": return "None"
                 if fid == "input": return "string"
                 if fid == "open": return "os.File"
                 if fid in ("bytearray", "memoryview", "bytes"): return "[]u8"
@@ -744,7 +731,7 @@ class TranslatorBase(ast.NodeVisitor):
                         arg_type = self._guess_type(node.args[0])
                         if arg_type.startswith("[]"):
                             return f"map[{arg_type[2:]}]bool"
-                    return "map[string]bool"
+                    return "map[Any]bool"
 
                 # Check inferred return type
                 inferred_ret = self.type_inference.type_map.get(f"{fid}@return")
@@ -787,7 +774,7 @@ class TranslatorBase(ast.NodeVisitor):
             return "[]Any"
         elif isinstance(node, ast.Set):
             if not node.elts:
-                return "map[string]bool"
+                return "map[Any]bool"
             element_types = set()
             for elt in node.elts:
                 if isinstance(elt, ast.Starred):
@@ -795,11 +782,8 @@ class TranslatorBase(ast.NodeVisitor):
                 else:
                     element_types.add(self._guess_type(elt))
             if len(element_types) == 1:
-                t = list(element_types)[0]
-                if t == "Any":
-                    return "map[string]bool"
-                return f"map[{t}]bool"
-            return "map[string]bool"
+                return f"map[{list(element_types)[0]}]bool"
+            return "map[Any]bool"
         elif isinstance(node, ast.Dict):
             if not node.keys:
                 return "map[string]Any"
@@ -818,9 +802,6 @@ class TranslatorBase(ast.NodeVisitor):
                 k_type = list(key_types)[0]
             elif len(key_types) > 1:
                 k_type = "Any"
-
-            if k_type == "Any":
-                k_type = "string"
 
             v_type = "Any"
             if len(val_types) == 1:

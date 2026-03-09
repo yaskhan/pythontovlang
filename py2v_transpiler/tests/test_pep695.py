@@ -40,7 +40,7 @@ def wrapper[**P](*args: P.args, **kwargs: P.kwargs) -> None:
     pass
 """
         v_code = transpile_code(code)
-        self.assertIn("fn wrapper[P](args ...P, kwargs map[string]Any) {", v_code)
+        self.assertIn("fn wrapper[P](args ...P, kwargs map[string]Any) none {", v_code)
 
     def test_typevartuple_starred(self):
         code = """

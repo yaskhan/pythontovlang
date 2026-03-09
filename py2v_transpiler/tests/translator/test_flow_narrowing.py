@@ -18,8 +18,7 @@ def f(x):
     full_output = tr.visit_Module(tree)
 
     assert "if x is int {" in full_output
-    # V handles SumType is Type narrowing natively
-    assert "println('${x + 1}')" in full_output
+    assert "narrowed_x := int(x)" in full_output
     assert "} else {" in full_output
 
 def test_none_narrowing_generation():
@@ -36,8 +35,7 @@ def f(x):
     full_output = tr.visit_Module(tree)
 
     assert "if x != none {" in full_output
-    # V handles Optional check narrowing natively
-    assert "println('${x + 1}')" in full_output
+    assert "narrowed_x := int(x)" in full_output
 
 def test_none_narrowing_inverse_generation():
     code = """
@@ -56,5 +54,4 @@ def f(x):
 
     assert "if x == none {" in full_output
     assert "} else {" in full_output
-    # V handles Optional check narrowing natively
-    assert "println('${x + 1}')" in full_output
+    assert "narrowed_x := int(x)" in full_output

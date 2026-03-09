@@ -84,13 +84,40 @@ class LiteralsMixin(TranslatorBase):
             return f"py_list_concat({', '.join(chunks)})"
 
         elements = [str(self.visit(elt)) for elt in node.elts]
-        if not elements:
-             v_type = self.current_assignment_type or "[]Any"
-             if not v_type.startswith("[]"):
-                 v_type = "[]Any"
-             return f"{v_type}{{}}"
+        v_type = self._guess_type(node)
+        target_type = self.current_assignment_type
 
-        return f"[{', '.join(elements)}]"
+        res = ""
+        if not elements:
+             actual_type = target_type or "[]Any"
+             if not actual_type.startswith("[]"):
+                 actual_type = "[]Any"
+             res = f"{actual_type}{{}}"
+        else:
+            # Optimization: Use idiomatic V literal [1, 2, 3] if possible.
+            if v_type == "[]Any" or not target_type:
+                 # Special case for py_array helper used in tests
+                 is_py_array = False
+                 for p in getattr(self, "parent_stack", []):
+                     if isinstance(p, ast.Call):
+                         if (isinstance(p.func, ast.Name) and p.func.id == "py_array") or \
+                            (isinstance(p.func, ast.Attribute) and p.func.attr == "array" and \
+                             isinstance(p.func.value, ast.Name) and p.func.value.id == "array"):
+                             is_py_array = True
+                             break
+
+                 if v_type != "[]Any" and is_py_array:
+                      res = f"{v_type}{{{', '.join(elements)}}}"
+                 else:
+                      # Optimization: If not in an assignment (e.g. in an assertion),
+                      # use V's inferred array [1, 2, 3] which is more idiomatic.
+                      res = f"[{', '.join(elements)}]"
+            else:
+                 res = f"{v_type}{{{', '.join(elements)}}}"
+
+        if target_type == "Any" and res != "none":
+            return f"AnyValue({res})"
+        return res
 
     def visit_Dict(self, node: ast.Dict) -> str:
         # Check if the dictionary is being used as a TypedDict

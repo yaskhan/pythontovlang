@@ -67,7 +67,7 @@ class VNodeVisitor(
         self.current_class: Optional[str] = None # Track if we are inside a class definition
         self.current_class_generics: List[str] = [] # Track generics of current class
         self.current_class_bases: List[str] = [] # Track bases of current class
-        self.current_class_generic_bases: Dict[str, str] = {}
+        self.current_class_generic_bases: Set[str] = set()
         self.current_class_is_unittest = False
         self._zip_counter = 0 # Counter for unique variable names in zip loops
         self.used_builtins = set() # Track used built-in helpers (sorted, reversed, etc)

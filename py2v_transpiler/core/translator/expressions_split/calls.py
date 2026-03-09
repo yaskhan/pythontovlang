@@ -330,7 +330,7 @@ class CallsMixin(TranslatorBase):
                 method_name = func_node.attr
                 if self.current_class_bases:
                     parent = self.current_class_bases[0]
-                    field_name = self.current_class_generic_bases.get(parent, self._sanitize_name(parent, is_type=True))
+                    field_name = parent.lower() if parent in self.current_class_generic_bases else parent
                     if method_name == "__init__":
                         factory_name = self._get_factory_name(parent)
                         return f"self.{field_name} = {factory_name}({', '.join(args)})"
@@ -346,7 +346,7 @@ class CallsMixin(TranslatorBase):
                     if len(args) >= 1 and args[0] == "self":
                         base_args = args[1:]
                         factory_name = self._get_factory_name(class_name)
-                        field_name = self.current_class_generic_bases.get(class_name, self._sanitize_name(class_name, is_type=True))
+                        field_name = class_name.lower() if class_name in self.current_class_generic_bases else class_name
                         return f"self.{field_name} = {factory_name}({', '.join(base_args)})"
 
         # Handle unittest assertions
@@ -578,11 +578,6 @@ class CallsMixin(TranslatorBase):
         if func_name_str == "dict" or (original_id == "dict" and func_name_str == "py_dict"):
             v_type = self.current_assignment_type or "map[string]Any"
             if not v_type.startswith("map["): v_type = "map[string]Any"
-            if "map[Any]" in v_type:
-                v_type = v_type.replace("map[Any]", "map[string]")
-                if not getattr(self, '_emitted_any_map_comment', False):
-                    self.output.append(f"{self._indent()}//##LLM@@ V requires map keys to be comparable types (like string, int). 'Any' was used as a map key in Python, which has been fallback-mapped to 'string'. Please review and manually adjust the map key type and its usage if necessary.")
-                    self._emitted_any_map_comment = True
             if len(args) == 0:
                 return f"{v_type}{{}}"
             return f"{v_type}({', '.join(args)})"
@@ -599,13 +594,8 @@ class CallsMixin(TranslatorBase):
                 return f"{v_type}{{}}"
             return f"{v_type}({', '.join(args)})"
         elif func_name_str == "set" or (original_id == "set" and func_name_str == "py_set"):
-            v_type = self.current_assignment_type or "map[string]bool"
-            if not v_type.startswith("map["): v_type = "map[string]bool"
-            if "map[Any]" in v_type:
-                v_type = v_type.replace("map[Any]", "map[string]")
-                if not getattr(self, '_emitted_any_map_comment', False):
-                    self.output.append(f"{self._indent()}//##LLM@@ V requires map keys to be comparable types (like string, int). 'Any' was used as a map key in Python, which has been fallback-mapped to 'string'. Please review and manually adjust the map key type and its usage if necessary.")
-                    self._emitted_any_map_comment = True
+            v_type = self.current_assignment_type or "map[Any]bool"
+            if not v_type.startswith("map["): v_type = "map[Any]bool"
             if len(args) == 0:
                 return f"{v_type}{{}}"
             return f"{v_type}({', '.join(args)})"
@@ -842,11 +832,6 @@ class CallsMixin(TranslatorBase):
                 if obj_type.startswith("[]") or obj_type == "Any":
                     obj = self.visit(func_node.value)
                     return f"{obj} << {args[0]}"
-            elif func_node.attr == "extend" and len(args) == 1:
-                obj_type = self._guess_type(func_node.value)
-                if obj_type.startswith("[]") or obj_type == "Any":
-                    obj = self.visit(func_node.value)
-                    return f"{obj} << ...{args[0]}"
             elif func_node.attr == "clear":
                 obj = self.visit(func_node.value)
                 return f"/* {obj}.clear() */ {obj} = {{}}"

@@ -34,7 +34,6 @@ py2v my_project/ --recursive
 | [Usage](usage.md) | CLI options and usage examples |
 | [Supported Features](supported-features.md) | Complete list of supported Python features |
 | [Standard Library Mapping](stdlib-mapping.md) | Python to V standard library correspondence |
-| [LLM Comments](llm-comments-en.md) ([Russian](llm-comments.md)) | Special `//##LLM@@` comments for AI-assisted code review |
 | [Architecture](architecture.md) | Internal structure of the transpiler |
 | [Development](development.md) | Developer guidelines |
 | [Pydantic](pydantic.md) | Pydantic Support |

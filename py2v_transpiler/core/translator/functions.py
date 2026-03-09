@@ -43,9 +43,6 @@ class FunctionsMixin(TranslatorBase):
         return sorted(list(captured))
 
     def _visit_function_common(self, node: Any, is_async: bool = False) -> None:
-        # Clear name remaps at function start to avoid leakage from other functions
-        self.name_remap.clear()
-
         # Check for @overload
         is_overload = False
         for decorator in node.decorator_list:
@@ -98,14 +95,14 @@ class FunctionsMixin(TranslatorBase):
                 try:
                     type_str = ast.unparse(node.returns)
                     self._check_experimental_type(type_str, node.returns)
-                    sig["return"] = self._map_type(type_str, ov_struct_name, is_return=True)
+                    sig["return"] = self._map_type(type_str, ov_struct_name)
                 except:
                     if isinstance(node.returns, ast.Name):
-                        sig["return"] = self._map_type(node.returns.id, ov_struct_name, is_return=True)
+                        sig["return"] = node.returns.id
                     elif isinstance(node.returns, ast.Constant) and isinstance(
                         node.returns.value, str
                     ):
-                        sig["return"] = self._map_type(node.returns.value, ov_struct_name, is_return=True)
+                        sig["return"] = node.returns.value
 
             ov_key = f"{ov_struct_name}.{node.name}" if ov_struct_name else node.name
             if ov_key not in self.overloaded_signatures:
@@ -494,14 +491,14 @@ class FunctionsMixin(TranslatorBase):
             try:
                 type_str = ast.unparse(node.returns)
                 self._check_experimental_type(type_str, node.returns)
-                ret_type = self._map_type(type_str, struct_name, is_return=True)
+                ret_type = self._map_type(type_str, struct_name)
             except:
                 if isinstance(node.returns, ast.Name):
-                    ret_type = self._map_type(node.returns.id, struct_name, is_return=True)
+                    ret_type = node.returns.id
                 elif isinstance(node.returns, ast.Constant) and isinstance(
                     node.returns.value, str
                 ):
-                    ret_type = self._map_type(node.returns.value, struct_name, is_return=True)
+                    ret_type = node.returns.value
         elif not is_generator and not node.returns:
             # Try to get inferred return type from analyzer
             inferred_ret = self.type_inference.type_map.get(f"{node.name}@return")
@@ -516,9 +513,6 @@ class FunctionsMixin(TranslatorBase):
 
         # Check for NoReturn
         is_noreturn = False
-        if ret_type == "none":
-            ret_type = "void"
-
         if ret_type == "void":
             # Check if original annotation was NoReturn
             try:
@@ -638,7 +632,7 @@ class FunctionsMixin(TranslatorBase):
                  if self._is_exported(struct_name):
                       pub_prefix = "pub "
 
-        noreturn_attr = "@[noreturn]\n" if is_noreturn else ""
+        noreturn_attr = "[noreturn]\n" if is_noreturn else ""
 
         if getattr(self.config, 'source_mapping', False):
             self.output.append(f"// @line: {self._get_source_info(node)}")
@@ -647,9 +641,9 @@ class FunctionsMixin(TranslatorBase):
         deprecated_attr = ""
         if is_deprecated:
             if deprecated_message:
-                deprecated_attr = f"@[deprecated: '{deprecated_message}']\n"
+                deprecated_attr = f"[deprecated: '{deprecated_message}']\n"
             else:
-                deprecated_attr = "@[deprecated]\n"
+                deprecated_attr = "[deprecated]\n"
 
         elif is_method and func_name in (
             "__add__",
@@ -677,10 +671,9 @@ class FunctionsMixin(TranslatorBase):
             op = op_map.get(func_name)
             if op:
                 func_name = op
-                if ret_type == "void":
-                    decl = f"{deprecated_attr}fn {receiver_str}{op} ({args_str}) {{"
-                else:
-                    decl = f"{deprecated_attr}fn {receiver_str}{op} ({args_str}) {ret_type} {{"
+                decl = (
+                    f"{deprecated_attr}fn {receiver_str}{op} ({args_str}) {ret_type} {{"
+                )
         elif func_name in ("__str__", "__repr__"):
             func_name = "str"
             decl = f"{deprecated_attr}fn {receiver_str}{func_name}() string {{"
@@ -695,18 +688,15 @@ class FunctionsMixin(TranslatorBase):
             # Let's map __iter__ to 'iter' if it doesn't return Self, or skip?
             # For now, let's use 'iter'
             func_name = "iter"
-            if ret_type == "void":
-                decl = f"{noreturn_attr}{deprecated_attr}fn {receiver_str}{func_name}{func_generics_str}({args_str}) {{"
-            else:
-                decl = f"{noreturn_attr}{deprecated_attr}fn {receiver_str}{func_name}{func_generics_str}({args_str}) {ret_type} {{"
+            decl = f"{noreturn_attr}{deprecated_attr}fn {receiver_str}{func_name}{func_generics_str}({args_str}) {ret_type} {{"
 
         # PEP 702: Add [deprecated] attribute for @warnings.deprecated decorator
         deprecated_attr = ""
         if dec_info.deprecated:
             if dec_info.deprecated_message:
-                deprecated_attr = f"@[deprecated: '{dec_info.deprecated_message}']\n"
+                deprecated_attr = f"[deprecated: '{dec_info.deprecated_message}']\n"
             else:
-                deprecated_attr = "@[deprecated]\n"
+                deprecated_attr = "[deprecated]\n"
 
         if "decl" not in locals():
             if original_node_name.startswith("__") and original_node_name.endswith("__") and func_name.startswith("__") and func_name.endswith("__"):
@@ -731,10 +721,9 @@ class FunctionsMixin(TranslatorBase):
                 elif getattr(node, "original_name", "") == "__repr__":
                     decl = f"{self._indent()}fn {receiver_str}repr() string {{"
             else:
+                decl = f"{noreturn_attr}{deprecated_attr}{pub_prefix}fn {receiver_str}{func_name}{func_generics_str}({args_str}) {ret_type} {{"
                 if ret_type == "void":
                     decl = f"{noreturn_attr}{deprecated_attr}{pub_prefix}fn {receiver_str}{func_name}{func_generics_str}({args_str}) {{"
-                else:
-                    decl = f"{noreturn_attr}{deprecated_attr}{pub_prefix}fn {receiver_str}{func_name}{func_generics_str}({args_str}) {ret_type} {{"
 
         self.output.append(f"{decl}")
         self._indent_level += 1
@@ -896,9 +885,9 @@ class FunctionsMixin(TranslatorBase):
                         deprecated_message = msg.strip("'\"")
 
         if is_deprecated and deprecated_message:
-            deprecated_attr = f"@[deprecated: '{deprecated_message}']\n"
+            deprecated_attr = f"[deprecated: '{deprecated_message}']\n"
         elif is_deprecated:
-            deprecated_attr = "@[deprecated]\n"
+            deprecated_attr = "[deprecated]\n"
 
         for sig in self.overloaded_signatures[ov_key]:
             old_output = self.output
@@ -979,8 +968,6 @@ class FunctionsMixin(TranslatorBase):
 
             args_str = ", ".join(args_str_list)
             ret_type = sig["return"]
-            if ret_type == "none":
-                ret_type = "void"
 
             if is_init or is_new_factory:
                 base_func_name = self._get_factory_name(struct_name)
@@ -1043,10 +1030,7 @@ class FunctionsMixin(TranslatorBase):
                           pub_prefix = "pub "
 
             if is_operator:
-                if ret_type == "void":
-                    decl = f"{deprecated_attr}{pub_prefix}fn {receiver_str}{op_str} ({args_str}) {{"
-                else:
-                    decl = f"{deprecated_attr}{pub_prefix}fn {receiver_str}{op_str} ({args_str}) {ret_type} {{"
+                decl = f"{deprecated_attr}{pub_prefix}fn {receiver_str}{op_str} ({args_str}) {ret_type} {{"
             else:
                 if node.name.startswith("__") and node.name.endswith("__") and func_name.startswith("__") and func_name.endswith("__"):
                     self.output.append(f"{self._indent()}//##LLM@@ Unmapped Python dunder method (e.g., __call__, __getitem__) detected. V handles object behavior and operator overloading differently. Please implement the equivalent V logic or refactor the calling code.")
@@ -1134,18 +1118,6 @@ class FunctionsMixin(TranslatorBase):
 
     def visit_Lambda(self, node: ast.Lambda) -> str:
         # lambda args: expr -> fn [captures] (args) { return expr }
-        if isinstance(node.body, ast.Constant) and node.body.value is None:
-             # Force void return for lambda x: None
-             args_str_list = []
-             for arg in node.args.args:
-                 arg_name = self._sanitize_name(arg.arg)
-                 arg_type = "int"
-                 args_str_list.append(f"{arg_name} {arg_type}")
-             args_str = ", ".join(args_str_list)
-             captures = self._find_captured_vars(node)
-             capture_str = f"[{', '.join(captures)}] " if captures else ""
-             return f"fn {capture_str}({args_str}) {{}}"
-
         args_str_list = []
         for arg in node.args.args:
             arg_name = self._sanitize_name(arg.arg)
@@ -1158,12 +1130,7 @@ class FunctionsMixin(TranslatorBase):
         capture_str = f"[{', '.join(captures)}] " if captures else ""
 
         body = self.visit(node.body)
-        body_type = self._map_type(self._guess_type(node.body), is_return=True)
-
-        if body_type == "void":
-            if body == "none":
-                return f"fn {capture_str}({args_str}) {{}}"
-            return f"fn {capture_str}({args_str}) {{ {body} }}"
+        body_type = self._map_type(self._guess_type(node.body))
 
         return f"fn {capture_str}({args_str}) {body_type} {{ return {body} }}"
 
@@ -1235,9 +1202,6 @@ class FunctionsMixin(TranslatorBase):
             finally:
                 self.current_assignment_type = prev_assign_type
 
-            if self.current_function_return_type == "void" and val == "none":
-                self.output.append(f"{self._indent()}return")
-            else:
-                self.output.append(f"{self._indent()}return {val}")
+            self.output.append(f"{self._indent()}return {val}")
         else:
             self.output.append(f"{self._indent()}return")
