@@ -129,4 +129,4 @@ import collections
 c = collections.Counter([1, 2, 3])
 """
     v_code = translate(source)
-    assert "c := py_counter([]int{1, 2, 3})" in v_code
+    assert "c := py_counter([1, 2, 3])" in v_code
