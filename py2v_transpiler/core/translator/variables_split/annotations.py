@@ -35,16 +35,6 @@ class AnnotationsMixin(TranslatorBase):
 
         target = self.visit(node.target)
         if node.value:
-            # Pre-allocated Capacity for Typed Collections
-            # Context: assignments like `arr: list[int] = [x, y, z]`
-            is_simple_list = False
-            cap = 0
-            if isinstance(node.value, (ast.List, ast.Tuple)):
-                has_starred = any(isinstance(elt, ast.Starred) for elt in node.value.elts)
-                if not has_starred:
-                    is_simple_list = True
-                    cap = len(node.value.elts)
-
             # Determine type
             v_type = None
             type_str = ""
@@ -84,13 +74,7 @@ class AnnotationsMixin(TranslatorBase):
                 if is_literal_string_type and not self._is_literal_string_expr(node.value) and not self._is_compile_time_evaluable(node.value):
                      self.emitter.add_global(f"{target} string")
 
-            if is_simple_list and v_type.startswith("[]") and cap > 0:
-                self.output.append(f"{self._indent()}mut {target} := {v_type}{{cap: {cap}}}")
-                value_node: Any = node.value
-                for elt in value_node.elts:
-                    val = self.visit(elt)
-                    self.output.append(f"{self._indent()}{target} << {val}")
-            elif v_type.startswith("[") and "]" in v_type and not v_type.startswith("[]") and isinstance(node.value, (ast.List, ast.Tuple)):
+            if v_type.startswith("[") and "]" in v_type and not v_type.startswith("[]") and isinstance(node.value, (ast.List, ast.Tuple)):
                 prev_type = self.current_assignment_type
                 self.current_assignment_type = v_type
                 rhs = self.visit(node.value)
