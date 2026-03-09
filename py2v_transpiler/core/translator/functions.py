@@ -10,6 +10,59 @@ class FunctionsMixin(TranslatorBase):
     def visit_AsyncFunctionDef(self, node: ast.AsyncFunctionDef) -> None:
         self._visit_function_common(node, is_async=True)
 
+    def _extract_implicit_generics(self, node: Any) -> List[str]:
+        """
+        Extract implicit generics by scanning argument and return annotations for known TypeVars.
+        This is necessary for generic functions lacking PEP 695 type_params, common in older stubs.
+        """
+        implicit_generics = set()
+
+        # Helper to scan AST node for known TypeVar names
+        def scan_annotation(ann_node: ast.AST):
+            for n in ast.walk(ann_node):
+                if isinstance(n, ast.Name):
+                    if n.id in self.type_vars:
+                        implicit_generics.add(n.id)
+                elif isinstance(n, ast.Attribute):
+                    # For cases like typing.T
+                    if n.attr in self.type_vars:
+                        implicit_generics.add(n.attr)
+
+        # Scan arguments
+        args = getattr(node.args, "args", [])
+        if hasattr(node.args, "posonlyargs"):
+            args = node.args.posonlyargs + args
+        if hasattr(node.args, "kwonlyargs"):
+            args = args + node.args.kwonlyargs
+
+        for arg in args:
+            if getattr(arg, "annotation", None):
+                scan_annotation(arg.annotation)
+
+        if getattr(node.args, "vararg", None) and getattr(node.args.vararg, "annotation", None):
+            scan_annotation(node.args.vararg.annotation)
+
+        if getattr(node.args, "kwarg", None) and getattr(node.args.kwarg, "annotation", None):
+            scan_annotation(node.args.kwarg.annotation)
+
+        # Scan return annotation
+        if getattr(node, "returns", None):
+            scan_annotation(node.returns)
+
+        # Filter out constrained typevars (they act as aliases, not true generics)
+        valid_generics = set()
+        for gen in implicit_generics:
+            if gen not in getattr(self, "constrained_typevars", set()):
+                valid_generics.add(gen)
+        implicit_generics = valid_generics
+
+        # Remove any generics that are already explicitly defined in class
+        if self.current_class_generics:
+            implicit_generics.difference_update(self.current_class_generics)
+
+        # Return sorted list for determinism
+        return sorted(list(implicit_generics))
+
     def _find_captured_vars(self, node: ast.AST) -> List[str]:
         captured = set()
         inner_defs = set()
@@ -337,6 +390,14 @@ class FunctionsMixin(TranslatorBase):
             # Handle class-qualified name for methods
             full_func_name = f"{struct_name}_{self._sanitize_name(node.name)}" if is_method and struct_name else self._sanitize_name(node.name)
             self.type_params_map[full_func_name] = list(py_func_generics)
+
+        # Extract implicit generics for pre-3.12 stubs or generic functions without type_params
+        if not py_func_generics:
+            implicit_generics = self._extract_implicit_generics(node)
+            if implicit_generics:
+                py_func_generics.extend(implicit_generics)
+                full_func_name = f"{struct_name}_{self._sanitize_name(node.name)}" if is_method and struct_name else self._sanitize_name(node.name)
+                self.type_params_map[full_func_name] = list(py_func_generics)
 
         func_generic_map = self._get_generic_map(py_func_generics)
         # We don't need to manually merge here anymore, as we'll push it to generic_scopes
@@ -878,6 +939,14 @@ class FunctionsMixin(TranslatorBase):
             # Record type params for runtime introspection
             full_func_name = f"{struct_name}_{self._sanitize_name(node.name)}" if is_method and struct_name else self._sanitize_name(node.name)
             self.type_params_map[full_func_name] = list(py_func_generics)
+
+        # Extract implicit generics for pre-3.12 stubs or generic functions without type_params
+        if not py_func_generics:
+            implicit_generics = self._extract_implicit_generics(node)
+            if implicit_generics:
+                py_func_generics.extend(implicit_generics)
+                full_func_name = f"{struct_name}_{self._sanitize_name(node.name)}" if is_method and struct_name else self._sanitize_name(node.name)
+                self.type_params_map[full_func_name] = list(py_func_generics)
 
         func_generic_map = self._get_generic_map(py_func_generics)
         self.generic_scopes.append(func_generic_map)
