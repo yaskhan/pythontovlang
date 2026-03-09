@@ -513,6 +513,9 @@ class FunctionsMixin(TranslatorBase):
 
         # Check for NoReturn
         is_noreturn = False
+        if ret_type == "none":
+            ret_type = "void"
+
         if ret_type == "void":
             # Check if original annotation was NoReturn
             try:
@@ -721,9 +724,10 @@ class FunctionsMixin(TranslatorBase):
                 elif getattr(node, "original_name", "") == "__repr__":
                     decl = f"{self._indent()}fn {receiver_str}repr() string {{"
             else:
-                decl = f"{noreturn_attr}{deprecated_attr}{pub_prefix}fn {receiver_str}{func_name}{func_generics_str}({args_str}) {ret_type} {{"
                 if ret_type == "void":
                     decl = f"{noreturn_attr}{deprecated_attr}{pub_prefix}fn {receiver_str}{func_name}{func_generics_str}({args_str}) {{"
+                else:
+                    decl = f"{noreturn_attr}{deprecated_attr}{pub_prefix}fn {receiver_str}{func_name}{func_generics_str}({args_str}) {ret_type} {{"
 
         self.output.append(f"{decl}")
         self._indent_level += 1
