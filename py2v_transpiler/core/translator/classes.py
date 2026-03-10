@@ -986,6 +986,12 @@ class ClassesMixin(TranslatorBase):
                                     value = self.visit(stmt.value)
                                     enum_fields.append(f"    {member_name} = {value}")
 
+                if not enum_fields:
+                    if is_flag or is_int_enum:
+                        enum_fields.append("    py_empty = 0")
+                    else:
+                        enum_fields.append("    py_empty")
+
                 flag_attr = "@[flag]\n" if is_flag else ""
                 struct_parts.append(f"{flag_attr}{pub}enum {struct_name} {{\n")
                 if enum_fields:
