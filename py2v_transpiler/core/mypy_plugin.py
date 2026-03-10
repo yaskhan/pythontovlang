@@ -1,9 +1,8 @@
 from mypy.plugin import Plugin
-from typing import Any, Dict, Callable, Optional, Sequence
+from typing import Any, Dict, Optional
 import json
 from mypy.nodes import Var, AssignmentStmt, OperatorAssignmentStmt, CallExpr, MypyFile, ClassDef, FuncDef, Block, IfStmt, WhileStmt, ForStmt, TryStmt, NameExpr, MemberExpr, IndexExpr, TupleExpr, ListExpr, DictExpr, SetExpr
 from collections import defaultdict
-import sys
 
 # Global dictionary to store types without relying on the filesystem
 # This is accessed from py2v_transpiler.core.analyzer
