@@ -1,6 +1,7 @@
 from mypy.plugin import Plugin
 from typing import Any, Dict, Callable, Optional, Sequence
 import json
+from mypy.nodes import Var, AssignmentStmt, OperatorAssignmentStmt, CallExpr, MypyFile, ClassDef, FuncDef, Block, IfStmt, WhileStmt, ForStmt, TryStmt, NameExpr, MemberExpr, IndexExpr, TupleExpr, ListExpr, DictExpr, SetExpr
 from collections import defaultdict
 import sys
 
@@ -20,8 +21,6 @@ class MutabilityVisitor:
         if node is None or id(node) in self.visited:
             return
         self.visited.add(id(node))
-
-        from mypy.nodes import Var, AssignmentStmt, OperatorAssignmentStmt, CallExpr, MypyFile, ClassDef, FuncDef, Block, IfStmt, WhileStmt, ForStmt, TryStmt, NameExpr, MemberExpr, IndexExpr, TupleExpr, ListExpr
 
         if isinstance(node, Var):
             self.visit_var(node)
@@ -82,7 +81,6 @@ class MutabilityVisitor:
             self.collected[v.fullname][key]["is_final"] = v.is_final
 
     def _mark_mutated(self, expr):
-        from mypy.nodes import NameExpr, MemberExpr, IndexExpr, Var
         if isinstance(expr, NameExpr) and isinstance(expr.node, Var):
             v = expr.node
             v_key = f"{v.line}:{v.column}"
@@ -97,7 +95,6 @@ class MutabilityVisitor:
             self._mark_mutated(expr.base)
 
     def visit_assignment_stmt(self, s):
-        from mypy.nodes import IndexExpr, MemberExpr, NameExpr, TupleExpr, ListExpr
         for lvalue in s.lvalues:
             if isinstance(lvalue, (IndexExpr, MemberExpr)):
                 self._mark_mutated(lvalue.expr if isinstance(lvalue, MemberExpr) else lvalue.base)
@@ -112,7 +109,6 @@ class MutabilityVisitor:
         self.visit(s.rvalue)
 
     def visit_operator_assignment_stmt(self, s):
-        from mypy.nodes import IndexExpr, MemberExpr, NameExpr
         if isinstance(s.lvalue, (IndexExpr, MemberExpr)):
             self._mark_mutated(s.lvalue.expr if isinstance(s.lvalue, MemberExpr) else s.lvalue.base)
         elif isinstance(s.lvalue, NameExpr):
@@ -121,7 +117,6 @@ class MutabilityVisitor:
         self.visit(s.rvalue)
 
     def visit_call_expr(self, e):
-        from mypy.nodes import MemberExpr
         if isinstance(e.callee, MemberExpr) and e.callee.name in self.mutating_methods:
             self._mark_mutated(e.callee.expr)
         self.visit(e.callee)
@@ -138,6 +133,8 @@ class VlangPlugin(Plugin):
         self.collected_mutability: Dict[str, Dict[str, Any]] = defaultdict(dict)
         self._files_to_process = []
         self.checker: Any = None
+        self._processed_exprs = set()
+        self._processed_files = set()
 
     def get_additional_deps(self, file: Any) -> Any:
         self._files_to_process.append(file)
@@ -215,9 +212,12 @@ class VlangPlugin(Plugin):
         }
 
         # Collect types from checker's type_map for narrowing and calls
-        from mypy.nodes import NameExpr, MemberExpr, Var, FuncDef, CallExpr, ListExpr, DictExpr, SetExpr, TupleExpr, IndexExpr, AssignmentStmt, OperatorAssignmentStmt
         if self.checker and hasattr(self.checker, 'type_map'):
             for expr, typ in self.checker.type_map.items():
+                state_id = (id(expr), id(typ))
+                if state_id in self._processed_exprs:
+                    continue
+                self._processed_exprs.add(state_id)
                 if hasattr(expr, 'line'):
                     key = f"{expr.line}:{expr.column}"
                     # print(f"DEBUG PLUGIN: processing expr {type(expr)} at {key} with type {typ}")
@@ -272,10 +272,12 @@ class VlangPlugin(Plugin):
         # Collect mutability info from processed files
         visitor = MutabilityVisitor(self.collected_mutability, MUTATING_METHODS)
         for file_node in self._files_to_process:
+            if id(file_node) in self._processed_files:
+                continue
+            self._processed_files.add(id(file_node))
             visitor.visit(file_node)
 
             # Post-process to collect types for all vars found by visitor
-            from mypy.nodes import Var
             for fullname, entries in self.collected_mutability.items():
                  for loc, data in entries.items():
                       # This is a bit expensive but ensures we have types for everything the visitor found
