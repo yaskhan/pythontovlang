@@ -66,7 +66,7 @@ class PydanticModelProcessor:
         ]
 
         if configs and not config: # Only show ConfigDict if not already processed into config object
-            config_comment = ", ".join([f"{k}={v}" for k, v in configs.items()])
+            config_comment = ", ".join(f"{k}={v}" for k, v in configs.items())
             struct_def.append(f"// ConfigDict: {config_comment}")
 
         if config:
