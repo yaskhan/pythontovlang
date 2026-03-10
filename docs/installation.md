@@ -34,6 +34,17 @@ pip install py2v-transpiler
    pip install -e ".[dev]"
    ```
 
+### High-Performance Compilation (Optional)
+
+You can compile the transpiler itself into a high-performance C-extension using `mypyc`. This significantly speeds up the transpilation process for large projects.
+
+1. **Ensure you have a C compiler installed** (e.g., `gcc` or `clang`).
+2. **Install the package with the `USE_MYPYC` environment variable:**
+   ```bash
+   USE_MYPYC=1 pip install .
+   ```
+   *Note: This will compile the core module files but will leave `main.py` as a standard Python CLI script.*
+
 ## Dependencies
 
 The transpiler has minimal dependencies:
