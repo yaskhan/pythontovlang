@@ -564,8 +564,7 @@ class TranslatorBase(ast.NodeVisitor):
 
         pub = "pub " if self.config and getattr(self.config, 'include_all_symbols', False) else ""
 
-        llm_comment = "//##LLM@@ Please review this generated sum type. If a semantically identical sum type already exists, replace this definition and its usages with the existing one, and give it a more meaningful name."
-        self.emitter.add_struct(f"{llm_comment}\n{pub}type {type_name}{gen_decl} = {normalized}")
+        self.emitter.add_struct(f"{pub}type {type_name}{gen_decl} = {normalized}")
 
         result = f"{type_name}{gen_args}"
         self._generated_sum_types[normalized] = result
