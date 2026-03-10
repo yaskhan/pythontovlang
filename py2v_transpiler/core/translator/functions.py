@@ -506,6 +506,14 @@ class FunctionsMixin(TranslatorBase):
                 if mut_info:
                     is_mut = mut_info.get("is_reassigned", False) or mut_info.get("is_mutated", False)
 
+            if is_mut:
+                # V only allows mut arguments for arrays, interfaces, maps, pointers, structs or their aliases.
+                # Primitive types like int, string, bool cannot be mut.
+                clean_type = arg_type.lstrip('?')
+                primitives = {"int", "string", "bool", "f32", "f64", "i64", "i16", "i8", "u8", "u16", "u32", "u64", "byte", "rune", "void", "any"}
+                if clean_type in primitives:
+                    is_mut = False
+
             mut_prefix = "mut " if is_mut else ""
             args_str_list.append(f"{mut_prefix}{arg_name} {arg_type}")
 
