@@ -103,7 +103,9 @@ class LiteralsMixin(TranslatorBase):
         elements = [str(self.visit(elt)) for elt in node.elts]
         if not elements:
              v_type = self.current_assignment_type or "[]Any"
-             if not v_type.startswith("[]"):
+             if v_type.startswith("?[]"):
+                 v_type = v_type[1:]
+             elif not v_type.startswith("[]"):
                  v_type = "[]Any"
              return f"{v_type}{{}}"
 
