@@ -505,6 +505,9 @@ class ClassesMixin(TranslatorBase):
                 if val != "builtins.object":
                     self.current_class_bases.append(base.attr)
 
+        if is_protocol:
+            self.known_interfaces.add(struct_name)
+
         if is_typed_dict:
             self.readonly_fields[struct_name] = set()
 
