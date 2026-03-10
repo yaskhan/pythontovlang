@@ -69,13 +69,13 @@ class TestMutability:
 
     def test_function_argument_mutable(self):
         code = """
-        def foo(x: int):
-            x = x + 1
+        def foo(x: list):
+            x.append(1)
             return x
         """
-        mut_map = {"x": {"is_reassigned": True, "is_final": False}}
+        mut_map = {"x": {"is_mutated": True, "is_final": False}}
         result = self._transpile(code, mut_map)
-        assert "fn foo(mut x int)" in result
+        assert "fn foo(mut x []int)" in result
 
     def test_conditional_initialization_mut(self):
         code = """

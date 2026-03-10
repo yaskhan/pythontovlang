@@ -301,6 +301,12 @@ class LoopsMixin(TranslatorBase):
             self.output.append(f"{self._indent()}for {target} in {iter_expr} {{")
             self._indent_level += 1
 
+        # Register loop variables in scope so they can be shadowed during flow narrowing
+        if hasattr(self, '_local_vars_in_scope'):
+            for t_var in target.replace(" ", "").split(","):
+                if t_var:
+                    self._local_vars_in_scope.add(t_var)
+
         # Loop body (common for strings and normal cases)
         for stmt in node.body:
             self.visit(stmt)
