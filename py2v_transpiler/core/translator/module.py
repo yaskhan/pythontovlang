@@ -215,30 +215,27 @@ class ModuleMixin(TranslatorBase):
              self.emitter.add_helper_function("fn (mut p PyArgumentParser) add_argument(name string) {\n    p.definitions << PyArgDef{name: name}\n}")
              self.emitter.add_helper_function("fn (mut p PyArgumentParser) parse_args() map[string]string {\n    mut args := map[string]string{}\n    // Placeholder manual parsing logic\n    for i := 0; i < os.args.len; i++ {\n        arg := os.args[i]\n        if arg.starts_with('--') {\n            key := arg[2..]\n            val := if i + 1 < os.args.len { os.args[i+1] } else { '' }\n            args[key] = val\n        }\n    }\n    return args\n}")
 
+        used_modules_from_symbols = set()
+        for sym in self.imported_symbols.values():
+            parts = sym.split('.')
+            for i in range(1, len(parts)):
+                used_modules_from_symbols.add('.'.join(parts[:i]))
+
         pathlib_used = "pathlib" in self.imported_modules.values()
         if not pathlib_used:
-             for sym in self.imported_symbols.values():
-                 if sym.startswith("pathlib."):
-                     pathlib_used = True
-                     break
+             pathlib_used = "pathlib" in used_modules_from_symbols
 
         # Check for collections usage
         collections_used = "collections" in self.imported_modules.values()
         if not collections_used:
-             for sym in self.imported_symbols.values():
-                 if sym.startswith("collections."):
-                     collections_used = True
-                     break
+             collections_used = "collections" in used_modules_from_symbols
 
         if collections_used:
              self.emitter.add_helper_function("fn py_counter[T](a []T) map[T]int {\n    mut m := map[T]int{}\n    for x in a {\n        m[x]++\n    }\n    return m\n}")
 
         itertools_used = "itertools" in self.imported_modules.values()
         if not itertools_used:
-             for sym in self.imported_symbols.values():
-                 if sym.startswith("itertools."):
-                     itertools_used = True
-                     break
+             itertools_used = "itertools" in used_modules_from_symbols
 
         if itertools_used:
              # py_chain: variadic, generic, flattens arrays
@@ -262,10 +259,7 @@ class ModuleMixin(TranslatorBase):
 
         functools_used = "functools" in self.imported_modules.values()
         if not functools_used:
-             for sym in self.imported_symbols.values():
-                 if sym.startswith("functools."):
-                     functools_used = True
-                     break
+             functools_used = "functools" in used_modules_from_symbols
 
         if functools_used:
              # py_reduce helper
@@ -273,10 +267,7 @@ class ModuleMixin(TranslatorBase):
 
         operator_used = "operator" in self.imported_modules.values()
         if not operator_used:
-             for sym in self.imported_symbols.values():
-                 if sym.startswith("operator."):
-                     operator_used = True
-                     break
+             operator_used = "operator" in used_modules_from_symbols
 
         if operator_used:
              self.emitter.add_helper_function("fn py_op_add[T](a T, b T) T { return a + b }")
@@ -298,10 +289,7 @@ class ModuleMixin(TranslatorBase):
 
         threading_used = "threading" in self.imported_modules.values()
         if not threading_used:
-             for sym in self.imported_symbols.values():
-                 if sym.startswith("threading."):
-                     threading_used = True
-                     break
+             threading_used = "threading" in used_modules_from_symbols
 
         if threading_used:
             # We need a PyThread struct. But standard threads in V (spawn) don't have join() unless we keep the handle.
@@ -349,10 +337,7 @@ class ModuleMixin(TranslatorBase):
 
         socket_used = "socket" in self.imported_modules.values()
         if not socket_used:
-             for sym in self.imported_symbols.values():
-                 if sym.startswith("socket."):
-                     socket_used = True
-                     break
+             socket_used = "socket" in used_modules_from_symbols
 
         if socket_used:
             # Constants
@@ -412,13 +397,6 @@ class ModuleMixin(TranslatorBase):
             # close
             self.emitter.add_helper_function("fn (mut s PySocket) close() {\n    if mut c := s.conn {\n        c.close() or {}\n    }\n    if mut l := s.listener {\n        l.close() or {}\n    }\n}")
 
-        pathlib_used = "pathlib" in self.imported_modules.values()
-        if not pathlib_used:
-             for sym in self.imported_symbols.values():
-                 if sym.startswith("pathlib."):
-                     pathlib_used = True
-                     break
-
         if pathlib_used:
              # struct PyPath { path string }
              self.emitter.add_helper_import("os")
@@ -450,10 +428,7 @@ class ModuleMixin(TranslatorBase):
 
         http_used = "urllib.request" in self.imported_modules.values() or "http.client" in self.imported_modules.values()
         if not http_used:
-             for sym in self.imported_symbols.values():
-                 if sym.startswith("urllib.request.") or sym.startswith("http.client."):
-                     http_used = True
-                     break
+             http_used = "urllib.request" in used_modules_from_symbols or "http.client" in used_modules_from_symbols
 
         if http_used:
              # PyHttpResponse
@@ -472,10 +447,7 @@ class ModuleMixin(TranslatorBase):
 
         csv_used = "csv" in self.imported_modules.values()
         if not csv_used:
-             for sym in self.imported_symbols.values():
-                 if sym.startswith("csv."):
-                     csv_used = True
-                     break
+             csv_used = "csv" in used_modules_from_symbols
 
         if csv_used:
              # PyCsvReader wrapper
@@ -502,10 +474,7 @@ class ModuleMixin(TranslatorBase):
 
         sqlite3_used = "sqlite3" in self.imported_modules.values()
         if not sqlite3_used:
-             for sym in self.imported_symbols.values():
-                 if sym.startswith("sqlite3."):
-                     sqlite3_used = True
-                     break
+             sqlite3_used = "sqlite3" in used_modules_from_symbols
 
         if sqlite3_used:
              # PySqliteConnection wrapping sqlite.DB
@@ -536,10 +505,7 @@ class ModuleMixin(TranslatorBase):
 
         subprocess_used = "subprocess" in self.imported_modules.values()
         if not subprocess_used:
-             for sym in self.imported_symbols.values():
-                 if sym.startswith("subprocess."):
-                     subprocess_used = True
-                     break
+             subprocess_used = "subprocess" in used_modules_from_symbols
 
         if subprocess_used:
              # PyCompletedProcess
@@ -555,10 +521,7 @@ class ModuleMixin(TranslatorBase):
 
         platform_used = "platform" in self.imported_modules.values()
         if not platform_used:
-             for sym in self.imported_symbols.values():
-                 if sym.startswith("platform."):
-                     platform_used = True
-                     break
+             platform_used = "platform" in used_modules_from_symbols
 
         if platform_used:
              # py_platform_machine
@@ -566,10 +529,7 @@ class ModuleMixin(TranslatorBase):
 
         hashlib_used = "hashlib" in self.imported_modules.values()
         if not hashlib_used:
-             for sym in self.imported_symbols.values():
-                 if sym.startswith("hashlib."):
-                     hashlib_used = True
-                     break
+             hashlib_used = "hashlib" in used_modules_from_symbols
 
         if hashlib_used:
              # PyHashSha256
@@ -590,10 +550,7 @@ class ModuleMixin(TranslatorBase):
 
         urllib_parse_used = "urllib.parse" in self.imported_modules.values()
         if not urllib_parse_used:
-             for sym in self.imported_symbols.values():
-                 if sym.startswith("urllib.parse."):
-                     urllib_parse_used = True
-                     break
+             urllib_parse_used = "urllib.parse" in used_modules_from_symbols
 
         if urllib_parse_used:
              # py_urllib_unquote
@@ -617,10 +574,7 @@ class ModuleMixin(TranslatorBase):
 
         zlib_used = "zlib" in self.imported_modules.values()
         if not zlib_used:
-             for sym in self.imported_symbols.values():
-                 if sym.startswith("zlib."):
-                     zlib_used = True
-                     break
+             zlib_used = "zlib" in used_modules_from_symbols
 
         if zlib_used:
              # py_zlib_compress
@@ -631,10 +585,7 @@ class ModuleMixin(TranslatorBase):
 
         gzip_used = "gzip" in self.imported_modules.values()
         if not gzip_used:
-             for sym in self.imported_symbols.values():
-                 if sym.startswith("gzip."):
-                     gzip_used = True
-                     break
+             gzip_used = "gzip" in used_modules_from_symbols
 
         if gzip_used:
              # py_gzip_compress
@@ -644,10 +595,7 @@ class ModuleMixin(TranslatorBase):
 
         copy_used = "copy" in self.imported_modules.values()
         if not copy_used:
-             for sym in self.imported_symbols.values():
-                 if sym.startswith("copy."):
-                     copy_used = True
-                     break
+             copy_used = "copy" in used_modules_from_symbols
 
         if copy_used:
              # py_copy
@@ -663,10 +611,7 @@ class ModuleMixin(TranslatorBase):
 
         struct_used = "struct" in self.imported_modules.values()
         if not struct_used:
-             for sym in self.imported_symbols.values():
-                 if sym.startswith("struct."):
-                     struct_used = True
-                     break
+             struct_used = "struct" in used_modules_from_symbols
 
         if struct_used:
              # Stub for generic pack/unpack
@@ -730,10 +675,7 @@ class ModuleMixin(TranslatorBase):
 
         array_used = "array" in self.imported_modules.values()
         if not array_used:
-             for sym in self.imported_symbols.values():
-                 if sym.startswith("array."):
-                     array_used = True
-                     break
+             array_used = "array" in used_modules_from_symbols
 
         if array_used:
              # py_array helper
@@ -760,10 +702,7 @@ class ModuleMixin(TranslatorBase):
 
         fractions_used = "fractions" in self.imported_modules.values()
         if not fractions_used:
-             for sym in self.imported_symbols.values():
-                 if sym.startswith("fractions."):
-                     fractions_used = True
-                     break
+             fractions_used = "fractions" in used_modules_from_symbols
 
         if fractions_used:
              # py_fraction helper for single argument (int, float, string)
@@ -776,10 +715,7 @@ class ModuleMixin(TranslatorBase):
 
         statistics_used = "statistics" in self.imported_modules.values()
         if not statistics_used:
-             for sym in self.imported_symbols.values():
-                 if sym.startswith("statistics."):
-                     statistics_used = True
-                     break
+             statistics_used = "statistics" in used_modules_from_symbols
 
         if statistics_used:
              # py_statistics_mean
@@ -800,10 +736,7 @@ class ModuleMixin(TranslatorBase):
 
         decimal_used = "decimal" in self.imported_modules.values()
         if not decimal_used:
-             for sym in self.imported_symbols.values():
-                 if sym.startswith("decimal."):
-                     decimal_used = True
-                     break
+             decimal_used = "decimal" in used_modules_from_symbols
 
         if decimal_used:
              # V's math.big provides Rational and Integer, but no arbitrary precision decimal out of the box.
@@ -835,10 +768,7 @@ fn (mut ctx PyDecimalContext) close() {
 
         pickle_used = "pickle" in self.imported_modules.values()
         if not pickle_used:
-             for sym in self.imported_symbols.values():
-                 if sym.startswith("pickle."):
-                     pickle_used = True
-                     break
+             pickle_used = "pickle" in used_modules_from_symbols
 
         if pickle_used:
              llm_comment = "//##LLM@@ Pickle operations are partially mapped to JSON serialization. This may not handle complex objects or exact pickle semantics. Please review and manually implement correct binary serialization if required."
