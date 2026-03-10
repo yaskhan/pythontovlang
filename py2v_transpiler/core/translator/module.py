@@ -998,41 +998,96 @@ mut:
                         s_val = '${arg}'
                     } else if spec == `d` || spec == `i` || spec == `u` {
                         // Integer formatting
-                        // If arg is float, cast to int?
-                        // Using V interpolation format if possible, but we need dynamic width/prec
-                        // Easier to manually format
-                        val_int := '${arg}'.int()
-                        s_val = '${val_int}'
+                        if arg is int {
+                            s_val = '${arg}'
+                        } else if arg is i64 {
+                            s_val = '${arg}'
+                        } else if arg is f64 {
+                            s_val = '${int(arg)}'
+                        } else {
+                            val_int := '${arg}'.int()
+                            s_val = '${val_int}'
+                        }
                         if flag_zero && width > s_val.len && !flag_minus {
                              s_val = '0'.repeat(width - s_val.len) + s_val
                         }
                     } else if spec == `f` || spec == `F` {
                         // Float formatting
-                        val_f := '${arg}'.f64()
                         prec := if precision >= 0 { precision } else { 6 }
-                        s_val = '${val_f:.${prec}f}'
+                        if arg is f64 {
+                            s_val = '${arg:.${prec}f}'
+                        } else if arg is int {
+                            s_val = '${f64(arg):.${prec}f}'
+                        } else if arg is i64 {
+                            s_val = '${f64(arg):.${prec}f}'
+                        } else {
+                            val_f := '${arg}'.f64()
+                            s_val = '${val_f:.${prec}f}'
+                        }
                     } else if spec == `e` || spec == `E` {
-                        val_f := '${arg}'.f64()
                         prec := if precision >= 0 { precision } else { 6 }
-                        s_val = '${val_f:.${prec}e}'
+                        if arg is f64 {
+                            s_val = '${arg:.${prec}e}'
+                        } else if arg is int {
+                            s_val = '${f64(arg):.${prec}e}'
+                        } else if arg is i64 {
+                            s_val = '${f64(arg):.${prec}e}'
+                        } else {
+                            val_f := '${arg}'.f64()
+                            s_val = '${val_f:.${prec}e}'
+                        }
                     } else if spec == `g` || spec == `G` {
-                        val_f := '${arg}'.f64()
                         // V doesn't strictly support %g in interpolation same as C, but close enough
-                        s_val = '${val_f}'
+                        if arg is f64 {
+                            s_val = '${arg}'
+                        } else if arg is int {
+                            s_val = '${f64(arg)}'
+                        } else if arg is i64 {
+                            s_val = '${f64(arg)}'
+                        } else {
+                            val_f := '${arg}'.f64()
+                            s_val = '${val_f}'
+                        }
                     } else if spec == `x` {
-                        val_int := '${arg}'.int()
-                        s_val = '${val_int:x}'
+                        if arg is int {
+                            s_val = '${arg:x}'
+                        } else if arg is i64 {
+                            s_val = '${arg:x}'
+                        } else {
+                            val_int := '${arg}'.int()
+                            s_val = '${val_int:x}'
+                        }
                     } else if spec == `X` {
-                        val_int := '${arg}'.int()
-                        s_val = '${val_int:X}'
+                        if arg is int {
+                            s_val = '${arg:X}'
+                        } else if arg is i64 {
+                            s_val = '${arg:X}'
+                        } else {
+                            val_int := '${arg}'.int()
+                            s_val = '${val_int:X}'
+                        }
                     } else if spec == `o` {
-                        val_int := '${arg}'.int()
-                        s_val = '${val_int:o}'
+                        if arg is int {
+                            s_val = '${arg:o}'
+                        } else if arg is i64 {
+                            s_val = '${arg:o}'
+                        } else {
+                            val_int := '${arg}'.int()
+                            s_val = '${val_int:o}'
+                        }
                     } else if spec == `r` {
                         s_val = '${arg}'
                     } else if spec == `c` {
-                         val_int := '${arg}'.int()
-                         s_val = u8(val_int).ascii_str()
+                        if arg is int {
+                            s_val = u8(arg).ascii_str()
+                        } else if arg is i64 {
+                            s_val = u8(arg).ascii_str()
+                        } else if arg is f64 {
+                            s_val = u8(int(arg)).ascii_str()
+                        } else {
+                            val_int := '${arg}'.int()
+                            s_val = u8(val_int).ascii_str()
+                        }
                     } else {
                         s_val = '${arg}'
                     }
