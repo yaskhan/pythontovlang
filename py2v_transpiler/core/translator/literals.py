@@ -172,9 +172,6 @@ class LiteralsMixin(TranslatorBase):
         # In modern V, map literals with elements should NOT have the type prefix
         # unless it is ambiguous, but usually {key: val} is enough if context type is known.
         # However, map[string]Any requires explicit casts for values.
-        if "Any" in v_type and not v_type.startswith("SumType"):
-             return f"{v_type}{{{', '.join(pairs)}}}"
-
         return f"{{{', '.join(pairs)}}}"
 
     def visit_Set(self, node: ast.Set) -> str:
