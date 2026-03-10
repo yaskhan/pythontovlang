@@ -506,27 +506,36 @@ class TypeInference(ast.NodeVisitor):
                     dict_name = f"{target.value.value.id}.{target.value.attr}"
 
                 if dict_name:
-                    key_type = "string"  # default key
-                    if hasattr(target.slice, "value") and isinstance(
-                        target.slice.value, ast.Constant
-                    ):  # python < 3.9
-                        if isinstance(target.slice.value.value, int):
-                            key_type = "int"
-                        elif isinstance(target.slice.value.value, str):
-                            key_type = "string"
-                    elif isinstance(target.slice, ast.Constant):  # python 3.9+
-                        if isinstance(target.slice.value, int):
-                            key_type = "int"
-                        elif isinstance(target.slice.value, str):
-                            key_type = "string"
+                    if isinstance(target.slice, ast.Slice):
+                        # Slice assignment: target is a list/array
+                        val_type = self._guess_node_type(node.value)
+                        new_type = val_type
+                        if new_type != "Any":
+                            current = self.type_map.get(dict_name, "Any")
+                            if current == "Any" or "Any" in current:
+                                self.type_map[dict_name] = new_type
+                    else:
+                        key_type = "string"  # default key
+                        if hasattr(target.slice, "value") and isinstance(
+                            target.slice.value, ast.Constant
+                        ):  # python < 3.9
+                            if isinstance(target.slice.value.value, int):
+                                key_type = "int"
+                            elif isinstance(target.slice.value.value, str):
+                                key_type = "string"
+                        elif isinstance(target.slice, ast.Constant):  # python 3.9+
+                            if isinstance(target.slice.value, int):
+                                key_type = "int"
+                            elif isinstance(target.slice.value, str):
+                                key_type = "string"
 
-                    val_type = self._guess_node_type(node.value)
-                    new_type = f"map[{key_type}]{val_type}"
+                        val_type = self._guess_node_type(node.value)
+                        new_type = f"map[{key_type}]{val_type}"
 
-                    # Update if current is Any or map[...Any]
-                    current = self.type_map.get(dict_name, "Any")
-                    if current == "Any" or "Any" in current:
-                        self.type_map[dict_name] = new_type
+                        # Update if current is Any or map[...Any]
+                        current = self.type_map.get(dict_name, "Any")
+                        if current == "Any" or "Any" in current:
+                            self.type_map[dict_name] = new_type
             elif isinstance(target, ast.Name):
                 if isinstance(node.value, (ast.List, ast.Dict)):
                     inferred = self._infer_collection_type(node.value)
