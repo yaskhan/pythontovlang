@@ -438,8 +438,10 @@ class ClassesMixin(TranslatorBase):
                 elif isinstance(base.value, ast.Attribute):
                     base_name = base.value.attr
 
-                if base_name == "Generic":
-                    # Generic parameters are already handled at the beginning of visit_ClassDef
+                if base_name in ("Generic", "Protocol"):
+                    if base_name == "Protocol":
+                        is_protocol = True
+                    # Generic/Protocol parameters are already handled at the beginning of visit_ClassDef
                     continue
                 else:
                     # Regular generic base: Parent[T]
