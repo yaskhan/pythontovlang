@@ -111,7 +111,7 @@ class ExceptionsMixin(TranslatorBase):
                  type_str = ""
                  if handler.type:
                      if isinstance(handler.type, ast.Tuple):
-                         type_str = " || ".join([f"{exc_var}.name == '{self.visit(t)}'" for t in handler.type.elts])
+                         type_str = " || ".join(f"{exc_var}.name == '{self.visit(t)}'" for t in handler.type.elts)
                      else:
                          type_str = f"{exc_var}.name == '{str(self.visit(handler.type))}'"
                  else:

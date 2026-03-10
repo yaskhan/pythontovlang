@@ -32,7 +32,7 @@ class AttributesMixin(TranslatorBase):
                 params = self.type_params_map[base_name]
                 if not params:
                     return "[]string{}"
-                params_v = ", ".join([f"'{p}'" for p in params])
+                params_v = ", ".join(f"'{p}'" for p in params)
                 return f"[{params_v}]"
             return "[]string{}"
 
