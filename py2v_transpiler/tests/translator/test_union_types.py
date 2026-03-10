@@ -21,6 +21,15 @@ class TestUnionTypes(unittest.TestCase):
         self.assertIn("type SumType_IntString = int | string", result)
         self.assertIn("x SumType_IntString", result)
 
+    def test_union_deduplication(self):
+        source = """
+def f(x: int | str, y: str | int): pass
+"""
+        result = self.transpile(source)
+        # Should deduplicate and only generate SumType_IntString once
+        self.assertEqual(result.count("type SumType_IntString = int | string"), 1)
+        self.assertIn("fn f(x SumType_IntString, y SumType_IntString)", result)
+
     def test_optional_union_arg(self):
         source = "def f(x: int | None): pass"
         result = self.transpile(source)
