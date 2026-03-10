@@ -1,8 +1,17 @@
 import ast
-from typing import Any
+from typing import Any, Optional
 from ..base import TranslatorBase
 
 class SubscriptsMixin(TranslatorBase):
+    def _get_negative_const(self, node: ast.AST) -> Optional[int]:
+        """Returns the absolute value if node is a negative integer constant, else None."""
+        if isinstance(node, ast.UnaryOp) and isinstance(node.op, ast.USub):
+            if isinstance(node.operand, ast.Constant) and isinstance(node.operand.value, int):
+                return node.operand.value
+        elif isinstance(node, ast.Constant) and isinstance(node.value, int) and node.value < 0:
+            return abs(node.value)
+        return None
+
     def visit_Subscript(self, node: ast.Subscript) -> str:
         value = self.visit(node.value)
 
@@ -58,19 +67,39 @@ class SubscriptsMixin(TranslatorBase):
             is_native = False
 
         if isinstance(node.slice, ast.Slice):
-            lower = self.visit(node.slice.lower) if node.slice.lower else "none"
-            upper = self.visit(node.slice.upper) if node.slice.upper else "none"
+            lower_node = node.slice.lower
+            upper_node = node.slice.upper
+            lower = self.visit(lower_node) if lower_node else "none"
+            upper = self.visit(upper_node) if upper_node else "none"
 
             if is_native:
                 lower_str = lower if lower != "none" else ""
+                if lower_node:
+                    l_neg = self._get_negative_const(lower_node)
+                    if l_neg is not None:
+                        lower_str = f"{value}.len - {l_neg}"
+
                 upper_str = upper if upper != "none" else ""
+                if upper_node:
+                    u_neg = self._get_negative_const(upper_node)
+                    if u_neg is not None:
+                        upper_str = f"{value}.len - {u_neg}"
+
                 return f"{value}[{lower_str}..{upper_str}]"
             else:
                 self.used_builtins.add("py_slice")
                 return f"py_slice({value}, {lower}, {upper})"
         else:
+            idx_node = node.slice
+            # Handle Py < 3.9 ast.Index
+            if hasattr(ast, "Index") and isinstance(idx_node, getattr(ast, "Index")):
+                 idx_node = idx_node.value # type: ignore
+
             index = self.visit(node.slice)
             if is_native:
+                neg_val = self._get_negative_const(idx_node)
+                if neg_val is not None:
+                    return f"{value}[{value}.len - {neg_val}]"
                 return f"{value}[{index}]"
             else:
                 self.used_builtins.add("py_subscript")

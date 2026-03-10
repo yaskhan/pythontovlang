@@ -19,18 +19,9 @@ def transpile(code: str) -> str:
 def test_repro():
     code = """
 def list_operations(arr: list[int]) -> None:
-    print(arr)
-
-list_operations([1, 2, 3, 4])
-
-x: list[int] = [1, 2, 3]
-y = [1, 2, 3]
-z = []
-w: list[int] = []
-
-matrix = [[1, 2], [3, 4]]
-
-zeros = [0] * 10
+    # 1. Negative indexing
+    print("Last element:", arr[-1])
+    print("Second to last:", arr[-2])
 """
     v_code = transpile(code)
     print(v_code)
