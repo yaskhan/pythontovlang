@@ -20,6 +20,13 @@ class NamesMixin(TranslatorBase):
         res = self._sanitize_name(name)
         if name in self._local_vars_in_scope:
             res = self._sanitize_name(name)
+        elif self._to_snake_case(name) in self._local_vars_in_scope:
+            res = self._sanitize_name(self._to_snake_case(name))
+        elif name in getattr(self, "global_vars", set()):
+            res = self._sanitize_name(name)
+        elif self._to_snake_case(name) in getattr(self, "global_vars", set()):
+            res = self._sanitize_name(self._to_snake_case(name))
+
 
         # Apply narrowing if mypy type differs from base type
         if isinstance(node.ctx, ast.Load):
