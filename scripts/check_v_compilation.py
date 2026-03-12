@@ -19,6 +19,7 @@ ERROR_CATEGORIES = {
     'deprecated_sum': r'inline sum types have been deprecated',
     'unexpected_token': r'unexpected token',
     'unexpected_number': r'unexpected number',
+    'bad_top_level': r'bad top level statement token',
 }
 
 def categorize_error(stderr: str) -> str:
