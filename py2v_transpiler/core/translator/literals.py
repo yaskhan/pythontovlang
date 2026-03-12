@@ -119,12 +119,12 @@ class LiteralsMixin(TranslatorBase):
              elif v_type.startswith("[]") and not v_type.startswith("[]?"):
                  base_type = f"?{v_type[2:]}"
 
-             mapped_elements = []
-             for elt in elements:
-                 if elt != "none":
-                     mapped_elements.append(f"{base_type}({elt})")
+             mapped_elements: List[str] = []
+             for element in elements:
+                 if element != "none":
+                     mapped_elements.append(f"{base_type}({element})")
                  else:
-                     mapped_elements.append(elt)
+                     mapped_elements.append(element)
              return f"[{', '.join(mapped_elements)}]"
 
         return f"[{', '.join(elements)}]"
