@@ -268,6 +268,16 @@ class OperatorsMixin(TranslatorBase):
                  op_str = "=="
             elif isinstance(op, ast.IsNot) and str(right) == "none":
                  op_str = "!="
+            elif isinstance(op, ast.In) and str(left) == "none":
+                 right_type = self._guess_type(node.comparators[0] if len(node.ops) == 1 else node.comparators[i])
+                 if right_type.startswith("map["):
+                      return f"none in {right}"
+                 return f"{right}.any(it == none)"
+            elif isinstance(op, ast.NotIn) and str(left) == "none":
+                 right_type = self._guess_type(node.comparators[0] if len(node.ops) == 1 else node.comparators[i])
+                 if right_type.startswith("map["):
+                      return f"none !in {right}"
+                 return f"!{right}.any(it == none)"
 
             return f"{left} {op_str} {right}"
 
@@ -281,6 +291,16 @@ class OperatorsMixin(TranslatorBase):
                  op_str = "=="
             elif isinstance(op, ast.IsNot) and str(right) == "none":
                  op_str = "!="
+            elif isinstance(op, ast.In) and str(left) == "none":
+                 right_type = self._guess_type(node.comparators[0] if len(node.ops) == 1 else node.comparators[i])
+                 if right_type.startswith("map["):
+                      return f"none in {right}"
+                 return f"{right}.any(it == none)"
+            elif isinstance(op, ast.NotIn) and str(left) == "none":
+                 right_type = self._guess_type(node.comparators[0] if len(node.ops) == 1 else node.comparators[i])
+                 if right_type.startswith("map["):
+                      return f"none !in {right}"
+                 return f"!{right}.any(it == none)"
 
             parts.append(f"({left} {op_str} {right})")
 

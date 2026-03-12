@@ -109,6 +109,24 @@ class LiteralsMixin(TranslatorBase):
                  v_type = "[]Any"
              return f"{v_type}{{}}"
 
+        if "none" in elements:
+             v_type = self.current_assignment_type or "[]?Any"
+             base_type = "?Any"
+             if v_type.startswith("[]?"):
+                 base_type = v_type[2:]
+             elif v_type.startswith("?[]?"):
+                 base_type = v_type[3:]
+             elif v_type.startswith("[]") and not v_type.startswith("[]?"):
+                 base_type = f"?{v_type[2:]}"
+
+             mapped_elements = []
+             for elt in elements:
+                 if elt != "none":
+                     mapped_elements.append(f"{base_type}({elt})")
+                 else:
+                     mapped_elements.append(elt)
+             return f"[{', '.join(mapped_elements)}]"
+
         return f"[{', '.join(elements)}]"
 
     def visit_Dict(self, node: ast.Dict) -> str:

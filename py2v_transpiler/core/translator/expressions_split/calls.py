@@ -887,6 +887,14 @@ class CallsMixin(TranslatorBase):
                         # close
                         return f"{obj}.close()"
 
+
+        # Handle list.count(value)
+        if isinstance(func_node, ast.Attribute) and func_node.attr == "count" and len(args) == 1:
+            obj = self.visit(func_node.value)
+            # Only translate if argument is 'none' to avoid breaking string.count()
+            if args[0] == "none":
+                return f"{obj}.filter(it == {args[0]}).len"
+
         # Handle list.sort(reverse=True)
         if isinstance(func_node, ast.Attribute) and func_node.attr == "sort":
              # We assume it is a list sort call if method name is 'sort'
