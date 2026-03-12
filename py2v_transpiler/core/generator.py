@@ -131,7 +131,9 @@ class VCodeEmitter:
         lines = [f"module {module_name}\n"]
 
         # Define custom Any type
-        lines.append("pub type Any = bool | int | i64 | f64 | string | []u8 | none\n")
+        lines.append("pub struct NoneType {}\n")
+        lines.append("pub fn (n NoneType) str() string {\n    return 'None'\n}\n")
+        lines.append("pub type Any = NoneType | []Any | []u8 | bool | f64 | i64 | int | map[string]Any | string\n")
 
         # Sort and deduplicate imports
         unique_imports = sorted(list(set(imports)))
