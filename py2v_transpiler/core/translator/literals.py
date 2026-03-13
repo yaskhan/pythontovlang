@@ -69,6 +69,11 @@ class LiteralsMixin(TranslatorBase):
             elements = [f"u8(0x{b:02x})" for b in val]
             return f"[{', '.join(elements)}]"
         elif val is None:
+            assignment_type = getattr(self, "current_assignment_type", None)
+            if assignment_type == "Any":
+                return "Any(NoneType{})"
+            elif assignment_type and isinstance(assignment_type, str) and assignment_type.startswith("map[") and assignment_type.endswith("]Any"):
+                return "Any(NoneType{})"
             return "none"
         elif isinstance(val, bytes):
             elements = [f"u8(0x{b:02x})" for b in val]

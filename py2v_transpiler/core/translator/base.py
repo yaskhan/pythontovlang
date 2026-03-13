@@ -221,6 +221,12 @@ class TranslatorBase(ast.NodeVisitor):
                  return f"{expr}"
             return expr
 
+        if v_type == "Any":
+            self.used_builtins.add("py_bool")
+            if invert:
+                return f"!py_bool({expr})"
+            return f"py_bool({expr})"
+
         if invert:
              # For other types when inverting, we also want to handles precedence.
              dummy_not = ast.UnaryOp(op=ast.Not(), operand=node)

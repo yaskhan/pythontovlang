@@ -38,6 +38,7 @@ py2v my_project/ --recursive
 | [Architecture](architecture.md) | Internal structure of the transpiler |
 | [Development](development.md) | Developer guidelines |
 | [Pydantic](pydantic.md) | Pydantic Support |
+| [Dynamic Types & None](typing_and_none.md) | How the transpiler maps dynamic types, `None`, and boolean operators |
 
 ## Example
 

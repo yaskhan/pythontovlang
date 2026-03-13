@@ -16,7 +16,7 @@ def test_none_initialization_untyped():
     code = "planner = None"
     v_code = transpile(code)
     # the analyzer falls back to 'Any' (formerly 'int') in _guess_type
-    assert "mut planner := (none as ?Any)" in v_code
+    assert "mut planner := Any(NoneType{})" in v_code
 
 def test_none_initialization_typed():
     code = "planner: Planner = None"
