@@ -74,11 +74,52 @@ class CallsMixin(TranslatorBase):
 
             self.current_assignment_type = old_type
 
+        # First record the original keywords behavior
+        keyword_args = {}
+        original_keyword_append = []
         for keyword in node.keywords:
             if keyword.arg is None:
                 # **kwargs call -> pass dict as arg
                 val = self.visit(keyword.value)
                 args.append(str(val))
+            else:
+                kw_val_str = str(self.visit(keyword.value))
+                keyword_args[keyword.arg] = kw_val_str
+                original_keyword_append.append((keyword.arg, kw_val_str))
+
+        # Check if we should inject defaults
+        # We only inject defaults for normal function calls (not dataclasses, which have their own factory logic)
+        is_dataclass = False
+        if call_sig and "dataclass_metadata" in call_sig:
+             is_dataclass = True
+
+        if call_sig and "arg_names" in call_sig and "defaults" in call_sig and not is_dataclass:
+            arg_names = call_sig["arg_names"]
+            defaults = call_sig["defaults"]
+            # Fill positional arguments that are missing, from keywords or defaults
+            for i in range(len(args), len(arg_names)):
+                arg_name = arg_names[i]
+                if arg_name in keyword_args:
+                    args.append(keyword_args.pop(arg_name))
+                elif arg_name in defaults:
+                    val_node = defaults[arg_name]
+                    val = str(self.visit(val_node))
+                    args.append(val)
+                else:
+                    # Missing argument with no default (might be *args or an error)
+                    pass
+
+            # Any remaining keyword args (might be keyword-only, or **kwargs), append their values. V doesn't support named arguments in standard functions.
+            for k, v in keyword_args.items():
+                args.append(v)
+        else:
+            # Fallback to the original behavior (important for tests like argparse or dataclasses that rely on specific formatting later in the visitor)
+            # The original code didn't append the named keyword args here!
+            # Let's check original code:
+            # `for keyword in node.keywords: if keyword.arg is None: ...`
+            # Wait, the original code did *not* process `keyword.arg is not None` at all in this block! It relied on `node.keywords` later.
+            # I must not append them to `args` if I want original behavior for dataclasses, etc.
+            pass
 
         func_node = node.func
         module_name = None

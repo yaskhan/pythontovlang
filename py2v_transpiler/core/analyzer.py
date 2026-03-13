@@ -661,8 +661,24 @@ class TypeInference(ast.NodeVisitor):
 
         # Collect call signature for local functions
         # Use Python type strings for args so Translator can map them with registrar
+
+        args_len = len(node.args.args)
+        defaults_len = len(node.args.defaults)
+        defaults_map = {}
+        for i, d in enumerate(node.args.defaults):
+            arg_idx = args_len - defaults_len + i
+            if arg_idx >= 0 and arg_idx < args_len:
+                 arg_name = node.args.args[arg_idx].arg
+                 defaults_map[arg_name] = d
+
+        for i, kwarg in enumerate(node.args.kwonlyargs):
+            if i < len(node.args.kw_defaults) and node.args.kw_defaults[i]:
+                 defaults_map[kwarg.arg] = node.args.kw_defaults[i]
+
         sig_data = {
-            "args": [ast.unparse(arg.annotation) if arg.annotation else "Any" for arg in node.args.args],
+            "args": [ast.unparse(arg.annotation) if arg.annotation else "Any" for arg in node.args.args + node.args.kwonlyargs],
+            "arg_names": [arg.arg for arg in node.args.args + node.args.kwonlyargs],
+            "defaults": defaults_map,
             "return": py_type_ret,
             "is_class": False,
             "has_init": False
