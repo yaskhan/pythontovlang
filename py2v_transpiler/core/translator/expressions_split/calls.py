@@ -412,7 +412,31 @@ class CallsMixin(TranslatorBase):
             if obj_type.startswith("map[") or obj_type == "Any":
                 obj = self.visit(func_node.value)
                 key = args[0]
-                default = args[1] if len(args) == 2 else "none"
+                if len(args) == 2:
+                    default = args[1]
+                else:
+                    val_type = "Any"
+                    if obj_type.startswith("map["):
+                        parts = obj_type.split("]", 1)
+                        if len(parts) > 1:
+                            val_type = parts[1]
+
+                    if val_type == "Any" or obj_type == "Any":
+                        default = "Any(NoneType{})"
+                    elif val_type == "int" or val_type == "i64" or val_type == "u32" or val_type == "u64" or val_type == "i8" or val_type == "i16" or val_type == "u8" or val_type == "u16":
+                        default = "0"
+                    elif val_type == "f64" or val_type == "f32":
+                        default = "0.0"
+                    elif val_type == "bool":
+                        default = "false"
+                    elif val_type == "string":
+                        default = "''"
+                    elif val_type.startswith("[]"):
+                        default = f"{val_type}{{}}"
+                    elif val_type.startswith("map["):
+                        default = f"{val_type}{{}}"
+                    else:
+                        default = "none"
                 return f"{obj}[{key}] or {{ {default} }}"
 
 
