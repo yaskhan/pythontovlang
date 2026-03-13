@@ -191,7 +191,8 @@ class LiteralsMixin(TranslatorBase):
                 key_str = self.visit(k)
                 val_str = self.visit(v)
                 if "Any" in v_type and not v_type.startswith("SumType"):
-                     val_str = f"({val_str} as Any)"
+                     if not val_str.startswith("Any(") and not val_str.endswith("as Any)"):
+                         val_str = f"({val_str} as Any)"
                 pairs.append(f"{key_str}: {val_str}")
 
         # In modern V, map literals with elements should NOT have the type prefix
