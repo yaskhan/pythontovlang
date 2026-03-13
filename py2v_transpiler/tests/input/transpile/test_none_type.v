@@ -50,8 +50,8 @@ pub fn test_none_in_dict() {
     d := {'a': Any(1), 'b': Any(NoneType{}), 'c': Any(3)}
     println('Dict with None value: ${d}')
     println('d[\'b\'] is None: ${d["b"] is NoneType}')
-    println('d.get(\'d\'): ${d["d"] or { none }}')
-    println('d.get(\'d\') is None: ${d["d"] or { none } == none}')
+    println('d.get(\'d\'): ${d["d"] or { Any(NoneType{}) }}')
+    println('d.get(\'d\') is None: ${d["d"] or { Any(NoneType{}) } is NoneType}')
 }
 // @line: test_none_type.py:50:0
 pub fn test_none_filter() {

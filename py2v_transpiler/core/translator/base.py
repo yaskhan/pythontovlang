@@ -751,6 +751,13 @@ class TranslatorBase(ast.NodeVisitor):
 
             elif isinstance(node.func, ast.Attribute) and node.func.attr == "bytes":
                 return "[]u8"
+            elif isinstance(node.func, ast.Attribute) and node.func.attr == "get":
+                obj_type = self._guess_type(node.func.value)
+                if obj_type.startswith("map["):
+                    parts = obj_type.split("]", 1)
+                    if len(parts) > 1:
+                        return parts[1]
+                return "Any"
             elif isinstance(node.func, ast.Attribute) and node.func.attr == "open" and isinstance(node.func.value, ast.Name) and node.func.value.id == "os":
                 return "os.File"
             elif isinstance(node.func, ast.Attribute) and node.func.attr in ("exists", "isfile", "isdir"):
