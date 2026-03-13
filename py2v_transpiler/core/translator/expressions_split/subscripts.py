@@ -34,7 +34,7 @@ class SubscriptsMixin(TranslatorBase):
                      match_branches = []
                      idx_str = self.visit(node.slice)
                      for part in parts:
-                         match_branches.append(f"'{part}' {{ ({value}.{part} as Any) }}")
+                         match_branches.append(f"'{part}' {{ Any({value}.{part}) }}")
 
                      match_branches.append("else { panic('unreachable typeddict access') }")
                      return f"match {idx_str} {{ " + " ".join(match_branches) + " }"

@@ -47,7 +47,7 @@ pub fn test_none_assignment() {
 }
 // @line: test_none_type.py:41:0
 pub fn test_none_in_dict() {
-    d := {'a': (1 as Any), 'b': (Any(NoneType{}) as Any), 'c': (3 as Any)}
+    d := {'a': Any(1), 'b': Any(NoneType{}), 'c': Any(3)}
     println('Dict with None value: ${d}')
     println('d[\'b\'] is None: ${d["b"] is NoneType}')
     println('d.get(\'d\'): ${d["d"] or { none }}')
@@ -67,10 +67,10 @@ pub fn test_none_filter() {
 // @line: test_none_type.py:55:0
 pub fn test_none_or() {
     mut value := Any(NoneType{})
-    mut result := if py_bool(value) { value } else { ('default' as Any) }
+    mut result := if py_bool(value) { value } else { Any('default') }
     println('None or \'default\': ${result}')
     value = 'actual'
-    result = if py_bool(value) { value } else { ('default' as Any) }
+    result = if py_bool(value) { value } else { Any('default') }
     println('\'actual\' or \'default\': ${result}')
 }
 // @line: test_none_type.py:65:0

@@ -67,5 +67,5 @@ def get_any_map() -> dict[str, int | str]:
     return {"a": 1, "b": "hello"}
 """
     v_code = translate(py_code)
-    assert "(1 as Any)" in v_code
-    assert "('hello' as Any)" in v_code
+    assert "Any(1)" in v_code
+    assert "Any('hello')" in v_code

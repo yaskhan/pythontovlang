@@ -268,7 +268,7 @@ def check(val: object):
     # TypeGuard narrows the true branch
     assert "narrowed_val := (val as string)" in v_code
     # TypeGuard should NOT narrow the false branch
-    assert "val := (val as Any)" not in v_code
+    assert "val := Any(val)" not in v_code
 
 def test_typing_typeis_narrowing():
     source = """
