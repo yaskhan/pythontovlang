@@ -664,7 +664,7 @@ class TypeInference(ast.NodeVisitor):
 
         args_len = len(node.args.args)
         defaults_len = len(node.args.defaults)
-        defaults_map = {}
+        defaults_map: Dict[str, ast.expr] = {}
         for i, d in enumerate(node.args.defaults):
             arg_idx = args_len - defaults_len + i
             if arg_idx >= 0 and arg_idx < args_len:
@@ -672,10 +672,10 @@ class TypeInference(ast.NodeVisitor):
                  defaults_map[arg_name] = d
 
         for i, kwarg in enumerate(node.args.kwonlyargs):
-            if i < len(node.args.kw_defaults) and node.args.kw_defaults[i]:
-                 defaults_map[kwarg.arg] = node.args.kw_defaults[i]
+            if i < len(node.args.kw_defaults) and node.args.kw_defaults[i] is not None:
+                 defaults_map[kwarg.arg] = node.args.kw_defaults[i] # type: ignore
 
-        sig_data = {
+        sig_data: Dict[str, Any] = {
             "args": [ast.unparse(arg.annotation) if arg.annotation else "Any" for arg in node.args.args + node.args.kwonlyargs],
             "arg_names": [arg.arg for arg in node.args.args + node.args.kwonlyargs],
             "defaults": defaults_map,
