@@ -199,6 +199,43 @@ class TranslatorBase(ast.NodeVisitor):
         else:
              expr = self.visit(node)
 
+        if v_type.startswith("?"):
+            inner_type = v_type[1:]
+
+            # Special case for ?bool, we can't do expr != none && expr
+            # Wait, actually in V, if a is ?bool, we can't do `a != none && a` directly unless smartcast works.
+            # Assuming smartcast works: `expr != none && expr`.
+
+            # Need to recursively get the truthy expression for the inner type.
+            # But the expression string needs to be the same, so we format it based on the type.
+            if inner_type == "bool":
+                inner_cond = f"!{expr}" if invert else expr
+            elif self._is_collection_type(inner_type):
+                op = "==" if invert else ">"
+                inner_cond = f"{expr}.len {op} 0"
+            elif self._is_numeric_type(inner_type):
+                op = "==" if invert else "!="
+                inner_cond = f"{expr} {op} 0"
+            else:
+                # Fallback to Any or unknown object truthiness
+                # Or just checking if it is not none if we don't know the exact inner type's truthiness
+                inner_cond = ""
+
+            if invert:
+                if inner_cond:
+                    # e.g., falsy means either none or inner is falsy
+                    # so value == none || value.len == 0
+                    return f"({expr} == none || {inner_cond})"
+                else:
+                    return f"{expr} == none"
+            else:
+                if inner_cond:
+                    # e.g., truthy means not none and inner is truthy
+                    # so value != none && value.len > 0
+                    return f"({expr} != none && {inner_cond})"
+                else:
+                    return f"{expr} != none"
+
         if self._is_collection_type(v_type):
             op = "==" if invert else ">"
             return f"{expr}.len {op} 0"

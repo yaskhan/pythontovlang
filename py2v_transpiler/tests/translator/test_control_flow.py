@@ -114,3 +114,24 @@ for key in ("name", "age"):
     assert "match key {" in result
     assert "'name' { Any(d.name) }" in result
     assert "'age' { Any(d.age) }" in result
+def test_optional_bool():
+    source = """
+def test_none_or():
+    value: str | None = None
+    if value:
+        print("has value")
+    else:
+        print("no value")
+
+    if not value:
+        print("falsy")
+"""
+    parser = PyASTParser()
+    analyzer = TypeInference()
+    visitor = VNodeVisitor(analyzer)
+    tree = parser.parse(source)
+    analyzer.visit(tree)
+    v_code = visitor.visit(tree)
+
+    assert "if (value != none && value.len > 0) {" in v_code
+    assert "if (value == none || value.len == 0) {" in v_code
