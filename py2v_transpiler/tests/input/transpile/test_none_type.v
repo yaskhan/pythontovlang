@@ -17,7 +17,7 @@ pub fn test_none_default() {
         }
         return 'Hello, ${name}!'
     }
-    println('${greet()}')
+    println('${greet(none)}')
     println('${greet('Alice')}')
 }
 // @line: test_none_type.py:18:0
@@ -79,7 +79,7 @@ pub fn test_none_ternary() {
     mut get_value := fn (mut x Any) Any {
         return if x is NoneType { 'No value' } else { 'Value: ${x}' }
     }
-    println('${get_value()}')
+    println('${get_value(none)}')
     println('${get_value(42)}')
 }
 // @line: test_none_type.py:72:0
