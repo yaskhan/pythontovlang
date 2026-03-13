@@ -1,6 +1,12 @@
 module main
 
-pub type Any = bool | int | i64 | f64 | string | []u8 | none
+pub struct NoneType {}
+
+pub fn (n NoneType) str() string {
+    return 'None'
+}
+
+pub type Any = NoneType | []Any | []u8 | bool | f64 | i64 | int | map[string]Any | string
 
 struct PyGeneratorInput {
     val Any
