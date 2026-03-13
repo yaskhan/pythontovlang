@@ -21,14 +21,14 @@ def test_none_initialization_untyped():
 def test_none_initialization_typed():
     code = "planner: Planner = None"
     v_code = transpile(code)
-    assert "mut planner := (none as ?Planner)" in v_code
+    assert "mut planner := ?Planner(none)" in v_code
 
 def test_none_initialization_optional():
     code = "planner: Optional[int] = None"
     v_code = transpile(code)
-    assert "mut planner := (none as ?int)" in v_code
+    assert "mut planner := ?int(none)" in v_code
 
 def test_none_initialization_optional_forward_ref():
     code = "planner: Optional['Packet'] = None"
     v_code = transpile(code)
-    assert "mut planner := (none as ?Packet)" in v_code
+    assert "mut planner := ?Packet(none)" in v_code
