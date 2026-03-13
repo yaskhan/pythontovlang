@@ -85,7 +85,7 @@ result = value or "default"
 
 **Transpiled V:**
 ```v
-mut result := if py_bool(value) { value } else { ('default' as Any) }
+mut result := if py_bool(value) { value } else { Any('default') }
 ```
 
 This guarantees safety during V compilation while perfectly matching Python's dynamic run-time behavior.
