@@ -348,6 +348,10 @@ class AssignmentsMixin(TranslatorBase):
             # Update type map on normal assignment if type is unknown or we have a literal
             if isinstance(target, ast.Name):
                 assigned_type = getattr(self, "_guess_type", lambda x: "unknown")(node.value)
+                if hasattr(self, 'known_v_types') and assigned_type != "unknown":
+                    # If we assigned a literal list that we emit as `[]?`, register it!
+                    if isinstance(node.value, (ast.List, ast.Tuple)) and assigned_type.startswith("[]?"):
+                        self.known_v_types[target.id] = assigned_type
                 if assigned_type != "unknown" and assigned_type != "int":
                     if hasattr(self, 'type_inference') and hasattr(self.type_inference, 'type_map'):
                         # If not already statically typed, save the literal assigned type

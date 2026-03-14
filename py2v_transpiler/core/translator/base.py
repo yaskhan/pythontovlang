@@ -93,6 +93,7 @@ class TranslatorBase(ast.NodeVisitor):
         self.config: Optional[Any] = None
 
         self.output: List[str] = []
+        self.known_v_types: Dict[str, str] = {}
         self._indent_level: int = 0
         self.in_main: bool = True
         self.current_class: Optional[str] = None
@@ -775,11 +776,22 @@ class TranslatorBase(ast.NodeVisitor):
             if not node.elts:
                 return "[]Any"
             element_types = set()
+            has_none = False
             for elt in node.elts:
                 if isinstance(elt, ast.Starred):
                     element_types.add("Any")
+                elif isinstance(elt, ast.Constant) and elt.value is None:
+                    has_none = True
+                elif isinstance(elt, ast.Name) and elt.id in ("None", "none"):
+                    has_none = True
                 else:
                     element_types.add(self._guess_type(elt))
+            if has_none:
+                if not element_types or element_types == {"Any"}:
+                    return "[]?Any"
+                if len(element_types) == 1:
+                    return f"[]?{list(element_types)[0]}"
+                return "[]?Any"
             if len(element_types) == 1:
                 return f"[]{list(element_types)[0]}"
             return "[]Any"
@@ -828,6 +840,18 @@ class TranslatorBase(ast.NodeVisitor):
 
             return f"map[{k_type}]{v_type}"
         elif isinstance(node, ast.Name):
+            if hasattr(self, "known_v_types"):
+                actual_name = getattr(self, "name_remap", {}).get(node.id, node.id)
+                # First check mapped name (for auto-narrowed or shadowed variables)
+                if actual_name in self.known_v_types:
+                    return self.known_v_types[actual_name]
+                # Then check original name
+                if node.id in self.known_v_types:
+                    return self.known_v_types[node.id]
+
+                # Check for loop variables that we mapped! wait, if we mapped them they should be in known_v_types under original name.
+
+
             # Check for location-based type mapping (from mypy plugin)
             if hasattr(node, 'lineno') and hasattr(node, 'col_offset'):
                 loc_key = f"{node.id}@{node.lineno}:{node.col_offset}"

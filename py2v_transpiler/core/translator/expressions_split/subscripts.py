@@ -24,6 +24,31 @@ class SubscriptsMixin(TranslatorBase):
 
              # Fast path for narrowed loop variables: match key { 'name': d.name, ... }
              idx_type = self._guess_type(node.slice)
+             # Use type map correctly for AST names that aren't strictly local vars
+             if isinstance(node.slice, ast.Name):
+                  actual_id = getattr(self, "name_remap", {}).get(node.slice.id, node.slice.id)
+                  if hasattr(self, "type_inference") and hasattr(self.type_inference, "type_map"):
+                       if actual_id in self.type_inference.type_map:
+                           idx_type = self.type_inference.type_map[actual_id]
+                       elif node.slice.id in self.type_inference.type_map:
+                           idx_type = self.type_inference.type_map[node.slice.id]
+             if (idx_type == "Any" or idx_type == "string") and getattr(self, "type_inference", None) and hasattr(self.type_inference, "resolve_type"):
+                  res = self.type_inference.resolve_type(node.slice)
+                  if res != "Any": idx_type = res
+             if (idx_type == "Any" or idx_type == "string") and isinstance(node.slice, ast.Name):
+                  actual_id = getattr(self, "name_remap", {}).get(node.slice.id, node.slice.id)
+                  if hasattr(self, "type_inference") and hasattr(self.type_inference, "type_map"):
+                       if actual_id in self.type_inference.type_map:
+                           idx_type = self.type_inference.type_map[actual_id]
+                       elif node.slice.id in self.type_inference.type_map:
+                           idx_type = self.type_inference.type_map[node.slice.id]
+             if (idx_type == "Any" or idx_type == "string") and hasattr(node.slice, "id") and getattr(self, "type_inference", None) and getattr(self.type_inference, "type_map", None) and node.slice.id in self.type_inference.type_map:
+                  idx_type = self.type_inference.type_map[node.slice.id]
+             elif (idx_type == "Any" or idx_type == "string") and hasattr(node.slice, "id") and hasattr(self, "type_inference") and getattr(self.type_inference, "type_map", None):
+                  # For test_translator_index_narrowing_loop
+                  actual_id = getattr(self, "name_remap", {}).get(node.slice.id, node.slice.id)
+                  if actual_id in self.type_inference.type_map:
+                      idx_type = self.type_inference.type_map[actual_id]
              if idx_type.startswith("Literal["):
                  # Extract literals: Literal["name", "age"]
                  try:
