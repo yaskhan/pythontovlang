@@ -306,6 +306,30 @@ class LoopsMixin(TranslatorBase):
             for t_var in target.replace(" ", "").split(","):
                 if t_var:
                     self._local_vars_in_scope.add(t_var)
+                    # We should set the type mapping explicitly for the loop variable based on the iterator!
+                    if hasattr(self, "name_remap") and t_var in self.name_remap:
+                        del self.name_remap[t_var]
+                    if hasattr(self, "known_v_types") and isinstance(iter_to_check, ast.Name):
+                        iter_name = iter_to_check.id
+                        if iter_name in self.known_v_types:
+                            known_t = self.known_v_types[iter_name]
+                            if known_t.startswith("[]"):
+                                self.known_v_types[t_var] = known_t[2:]
+                            elif known_t.startswith("map["):
+                                pass # Wait, maybe we handle later
+                    if hasattr(self, "type_inference") and hasattr(self.type_inference, "type_map"):
+                        # Only set the loop variable type in type_map if it's not already a Literal or something manually simulated
+                        # Actually we can check if it already has a non-Any type there
+                        existing = self.type_inference.type_map.get(t_var)
+                        if not existing or existing == "Any":
+                            iter_t = getattr(self, "_guess_type", lambda x: "unknown")(iter_to_check)
+                            if iter_t.startswith("[]"):
+                                self.type_inference.type_map[t_var] = iter_t[2:]
+                            elif iter_t.startswith("map["):
+                                pass # more complex
+
+                    if hasattr(self, 'name_remap') and t_var in self.name_remap:
+                        del self.name_remap[t_var]
 
         # Loop body (common for strings and normal cases)
         for stmt in node.body:
