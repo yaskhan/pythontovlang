@@ -11,6 +11,7 @@ MYPY_TIPS = {
     "operator": "V is strict about operand types. Ensure both sides of the operator have compatible types.",
     "call-arg": "V function calls must match the exact number of defined parameters. Optional arguments in Python are often handled via Optionals or default values in V.",
     "name-defined": "In V, all variables and functions must be declared before use or be visible in the current module scope.",
+    "variance": "Variance violation detected. Python 3.13+ PEP 695 variance modifiers must be strictly followed in generic definitions.",
     "misc": {
         "TypeForm": "Experimental feature 'TypeForm' detected. Use --experimental flag if supported, or simplify the type usage for V compatibility."
     }
