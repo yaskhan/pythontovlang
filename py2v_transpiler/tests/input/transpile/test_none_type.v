@@ -76,7 +76,7 @@ pub fn test_none_or() {
 // @line: test_none_type.py:65:0
 pub fn test_none_ternary() {
 // @line: test_none_type.py:66:4
-    mut get_value := fn (mut x Any) Any {
+    mut get_value := fn (x Any) Any {
         return if (x) is NoneType { 'No value' } else { 'Value: ${x}' }
     }
     println('${get_value(none)}')
