@@ -31,14 +31,14 @@ pub fn test_none_return() {
 // @line: test_none_type.py:24:4
     mut no_return := fn () {
     }
-    mut result := no_return()
+    result := no_return()
     println('No return result: ${result}')
     println('Is None: ${result == none}')
 }
 // @line: test_none_type.py:31:0
 pub fn test_none_assignment() {
-    mut x := Any(NoneType{})
-    mut y := 10
+    x := Any(NoneType{})
+    y := 10
     println('x = ${x}')
     x = y
     println('After x = y, x = ${x}')
@@ -67,7 +67,7 @@ pub fn test_none_filter() {
 // @line: test_none_type.py:55:0
 pub fn test_none_or() {
     mut value := ?string(none)
-    mut result := if value.len > 0 { value } else { 'default' }
+    result := if value.len > 0 { value } else { 'default' }
     println('None or \'default\': ${result}')
     value = 'actual'
     result = if value.len > 0 { value } else { 'default' }
