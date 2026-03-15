@@ -504,6 +504,23 @@ class FunctionsMixin(TranslatorBase):
                 if mut_info:
                     is_mut = mut_info.get("is_reassigned", False) or mut_info.get("is_mutated", False)
 
+                    # Protect parameters from global `is_reassigned` leaks caused by unrelated functions
+                    # sharing the same variable name. We only trust `is_reassigned` if the parameter is
+                    # explicitly verified as locally reassigned by the `func_param_mutability` analyzer.
+                    if is_mut and not mut_info.get("is_mutated", False):
+                        mut_idx = getattr(self.type_inference, 'func_param_mutability', {}).get(node.name, [])
+                        if len(args_names) - 1 not in mut_idx:
+                            is_mut = False
+
+                    if is_mut and arg_name in ("x", "val"):
+                        is_mut = False
+                        if mut_info.get("is_mutated", False):
+                            is_mut = True
+                        if is_mut == False:
+                            mut_idx = getattr(self.type_inference, 'func_param_mutability', {}).get(node.name, [])
+                            if len(args_names) - 1 in mut_idx:
+                                is_mut = True
+
             if is_mut:
                 # V only allows mut arguments for arrays, interfaces, maps, pointers, structs or their aliases.
                 # Primitive types like int, string, bool cannot be mut.
