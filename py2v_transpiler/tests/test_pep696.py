@@ -1,4 +1,5 @@
 import ast
+import sys
 import unittest
 from py2v_transpiler.core.translator import VNodeVisitor
 from py2v_transpiler.core.analyzer import TypeInference
@@ -8,10 +9,11 @@ class TestPEP696(unittest.TestCase):
         self.inference = TypeInference()
         self.visitor = VNodeVisitor(self.inference)
 
+    @unittest.skipIf(sys.version_info < (3, 12), "PEP 695 AST nodes require Python 3.12+")
     def test_class_generic_default(self):
         # class Box[T = int]: pass
         # Manually construct AST for Python 3.13 syntax
-        type_param = ast.TypeVar(name='T', default=ast.Name(id='int', ctx=ast.Load()))
+        type_param = getattr(ast, 'TypeVar')(name='T', default=ast.Name(id='int', ctx=ast.Load()))
         node = ast.ClassDef(
             name='Box',
             bases=[],
@@ -24,9 +26,10 @@ class TestPEP696(unittest.TestCase):
         output = self.visitor.emitter.emit()
         self.assertIn('struct Box[T = int] {', output)
 
+    @unittest.skipIf(sys.version_info < (3, 12), "PEP 695 AST nodes require Python 3.12+")
     def test_function_generic_default(self):
         # def foo[T = str](x: T): pass
-        type_param = ast.TypeVar(name='T', default=ast.Name(id='str', ctx=ast.Load()))
+        type_param = getattr(ast, 'TypeVar')(name='T', default=ast.Name(id='str', ctx=ast.Load()))
         node = ast.FunctionDef(
             name='foo',
             args=ast.arguments(
@@ -45,10 +48,12 @@ class TestPEP696(unittest.TestCase):
         output = self.visitor.emitter.emit()
         self.assertIn('fn foo[T = string](x T) {', output)
 
+    @unittest.skipIf(sys.version_info < (3, 12), "PEP 695 AST nodes require Python 3.12+")
     def test_type_alias_generic_default(self):
         # type Alias[T = int] = list[T]
         if hasattr(ast, 'TypeAlias'):
-            type_param = ast.TypeVar(name='T', default=ast.Name(id='int', ctx=ast.Load()))
+            # In 3.12+ ast.TypeVar is a node, not just the typing class
+            type_param = getattr(ast, 'TypeVar')(name='T', default=ast.Name(id='int', ctx=ast.Load()))
             node = ast.TypeAlias(
                 name=ast.Name(id='Alias', ctx=ast.Store()),
                 type_params=[type_param],
