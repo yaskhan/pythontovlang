@@ -97,7 +97,7 @@ Based on recent Python ecosystem developments (mypy, PyPy, Numba, NumPy, Nuitka,
 ## From Codon (High-Performance Compilation & Types)
 - [ ] **Targeting Extension Modules (`pyext`)**
   - Add a compilation mode (`--pyext` equivalent) that wraps the generated V code in Python C-API bindings (using V's C interoperability), allowing transpiled code to be imported seamlessly back into standard CPython.
-- [ ] **`NoneType` Empty Struct Representation**
+- [x] **`NoneType` Empty Struct Representation**
   - Optimize Python's `None` by transpiling `NoneType` to an empty struct in V, which the compiler handles efficiently with zero runtime size, rather than using a heavy boxed object or generic pointer.
 - [ ] **Union Types Transpilation**
   - Map Python `Union[A, B]` types (or `A | B`) properly into V's sum types (e.g., `type MyUnion = A | B`), with corresponding `match` statements for type checking.
@@ -206,10 +206,10 @@ Based on recent Python ecosystem developments (mypy, PyPy, Numba, NumPy, Nuitka,
 - [ ] **Async generators / comprehensions with type parameters**
 - [ ] **`__type_params__` runtime attribute support**
   - Support this for introspection or metaclass-like features.
-- [ ] **Improved error recovery & source mapping for new syntax nodes**
+- [x] **Improved error recovery & source mapping for new syntax nodes**
   - Provide better line/column tracking in the V output.
 - [ ] **Support for Python 3.14+ soft keywords / future syntax changes**
-- [ ] **Variance in PEP 695 syntax (mypy 1.12+)**
+- [x] **Variance in PEP 695 syntax (mypy 1.12+)**
   - *Context:* New syntax `class C[+T]` for covariance.
   - Parse variance modifiers: detect `+T` (covariant) and `-T` (contravariant) in type parameters.
   - *V Translation:* V generics do not explicitly support variance currently—document this limitation but preserve the annotation for future-proofing.
@@ -236,7 +236,7 @@ Based on recent Python ecosystem developments (mypy, PyPy, Numba, NumPy, Nuitka,
   - A mode requiring Python 3.12+ syntax.
   - Refuse to transpile old `Generic[T]` syntax, requiring the new `[T]` syntax (PEP 695).
   - Require explicit annotations wherever mypy in strict mode infers `Any`.
-- [ ] **Better error mapping: mypy error codes → V tips**
+- [x] **Better error mapping: mypy error codes → V tips**
   - Translate mypy error codes into understandable messages.
   - E.g., `[union-attr]` -> "In V, you must explicitly check the type before accessing a union attribute."
   - E.g., `[misc]` for `TypeForm` -> "Experimental feature, use --experimental."
@@ -248,15 +248,6 @@ Based on recent Python ecosystem developments (mypy, PyPy, Numba, NumPy, Nuitka,
   - If a variable can be changed after narrowing, drop the narrowed type.
   - *V Translation:* Generate a repeated check if V doesn't guarantee immutability.
 
-## Infrastructure & Tooling
-- [ ] **Documentation and Usage Examples**
-  - Include examples for the new syntax and a Vlang interop guide.
-- [ ] **Comprehensive test suite coverage for all new PEP syntax**
-  - e.g., add a `tests/syntax_3_12_3_14/` suite.
-- [ ] **CI matrix with Python 3.12–3.14**
-  - Ensure AST compatibility across modern Python versions.
-- [ ] **CLI flags for targets**
-  - E.g., `--target-python=3.14` or `--strict-generics`.
 
 ## Nice-to-have (syntax only)
 - [ ] **Support for future Python 3.15+ syntax**
@@ -336,9 +327,6 @@ Based on recent Python ecosystem developments (mypy, PyPy, Numba, NumPy, Nuitka,
 - [ ] **`@dataclass` Perfect Field Inference**
   - *Context:* Mypy evaluates `dataclasses` perfectly, including default factories and `InitVar`.
   - *V Translation:* Use the mypy plugin data for `@dataclass` classes to entirely bypass Python-style `__init__` generation and `Any` field guessing, instead emitting exact V struct layouts and native V initialization blocks.
-- [ ] **Dead Code Elimination via Reachability Analysis**
-  - *Context:* Mypy tracks code reachability (e.g., after `assert False` or an impossible `if` condition).
-  - *V Translation:* When mypy flags an AST node or block as unreachable, completely omit that block from the V output, preventing compilation of impossible branches.
 - [x] **Statically Typed `*args` and `**kwargs`**
   - *Context:* Variadic arguments default to highly dynamic processing.
   - *V Translation:* If mypy infers that variadic arguments are homogeneous (e.g., `*args: int`), emit them directly as explicit V arrays (`[]int`) or maps (`map[string]int`) rather than generic `[]Any` arrays, stripping out variadic wrapper overhead.
@@ -351,7 +339,7 @@ Based on recent Python ecosystem developments (mypy, PyPy, Numba, NumPy, Nuitka,
 2. PEP 750 t-strings
 3. PEP 758 bracketless except
 4. Complete `try/except*` (Exception groups) emission
-5. Docs + Tests
+
 ## Analysis of `bm_deltablue.py` Transpilation Issues
 Based on the transpilation of the `bm_deltablue.py` benchmark, several critical areas for improvement have been identified:
 
