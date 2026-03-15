@@ -24,7 +24,7 @@ class TestPEP696(unittest.TestCase):
         )
         self.visitor.visit(node)
         output = self.visitor.emitter.emit()
-        self.assertIn('struct Box[T = int] {', output)
+        self.assertIn('struct Box[T /* = int */] {', output)
 
     @unittest.skipIf(sys.version_info < (3, 12), "PEP 695 AST nodes require Python 3.12+")
     def test_function_generic_default(self):
@@ -46,7 +46,7 @@ class TestPEP696(unittest.TestCase):
         )
         self.visitor.visit(node)
         output = self.visitor.emitter.emit()
-        self.assertIn('fn foo[T = string](x T) {', output)
+        self.assertIn('fn foo[T /* = string */](x T) {', output)
 
     @unittest.skipIf(sys.version_info < (3, 12), "PEP 695 AST nodes require Python 3.12+")
     def test_type_alias_generic_default(self):
@@ -65,7 +65,7 @@ class TestPEP696(unittest.TestCase):
             )
             self.visitor.visit(node)
             output = self.visitor.emitter.emit()
-            self.assertIn('type Alias[T = int] = []T', output)
+            self.assertIn('type Alias[T /* = int */] = []T', output)
 
     def test_typevar_call_default(self):
         # T = TypeVar("T", default=int)
@@ -94,7 +94,7 @@ class TestPEP696(unittest.TestCase):
         )
         self.visitor.visit(class_node)
         output = self.visitor.emitter.emit()
-        self.assertIn('struct Container[T = int] {', output)
+        self.assertIn('struct Container[T /* = int */] {', output)
 
 if __name__ == '__main__':
     unittest.main()

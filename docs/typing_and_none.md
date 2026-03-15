@@ -132,17 +132,17 @@ def foo[T = str](x: T) -> T:
 
 ### V Translation
 
-The transpiler supports PEP 696 defaults in class definitions, function definitions, type aliases, and legacy `TypeVar`/`ParamSpec`/`TypeVarTuple` declarations. These defaults are directly mapped to V's generic default syntax (`[T = Type]`).
+V does not currently support default type parameters for generics. The transpiler detects PEP 696 defaults and preserves them as comments in the generated V code (e.g., `[T /* = int */]`). This maintains documentation and metadata while ensuring the code remains valid V.
 
 **Transpiled V:**
 ```v
-struct Box[T = int] {
+struct Box[T /* = int */] {
     val T
 }
 
-fn foo[T = string](x T) T {
+fn foo[T /* = string */](x T) T {
     return x
 }
 ```
 
-The transpiler handles the mapping of Python types to V types within these defaults (e.g., mapping `str` to `string`) and ensures proper scoping of generic parameters.
+At call sites or instantiation points where Python would omit the type and rely on the default, the transpiler relies on Mypy's static analysis to infer and inject the appropriate explicit type parameters (e.g., `Box[int]{...}`), satisfying V's requirement for concrete types.

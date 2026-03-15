@@ -401,7 +401,7 @@ class TranslatorBase(ast.NodeVisitor):
             if variance:
                 part += f" /* {variance} */"
             if default:
-                part += f" = {default}"
+                part += f" /* = {default} */"
             v_gen_parts.append(part)
         return f"[{', '.join(v_gen_parts)}]"
 
