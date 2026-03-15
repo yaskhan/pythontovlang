@@ -113,3 +113,36 @@ struct Container[T /* + */] {
 ```
 
 Correct variance is enforced during the transpilation process by Mypy (version 1.12+). If Mypy reports a variance violation, the transpiler will surface this error to the user.
+
+---
+
+## 5. PEP 696 Generic Defaults
+
+Python 3.13+ introduced support for default values in generic type parameters (PEP 696).
+
+**Python:**
+```python
+class Box[T = int]:
+    def __init__(self, val: T):
+        self.val = val
+
+def foo[T = str](x: T) -> T:
+    return x
+```
+
+### V Translation
+
+The transpiler supports PEP 696 defaults in class definitions, function definitions, type aliases, and legacy `TypeVar`/`ParamSpec`/`TypeVarTuple` declarations. These defaults are directly mapped to V's generic default syntax (`[T = Type]`).
+
+**Transpiled V:**
+```v
+struct Box[T = int] {
+    val T
+}
+
+fn foo[T = string](x T) T {
+    return x
+}
+```
+
+The transpiler handles the mapping of Python types to V types within these defaults (e.g., mapping `str` to `string`) and ensures proper scoping of generic parameters.

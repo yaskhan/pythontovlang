@@ -52,21 +52,22 @@ class AssignmentsMixin(TranslatorBase):
                     except:
                         pass
 
-            # Check for TypeVar: T = TypeVar("T", int, str)
-            if isinstance(node.value, ast.Call) and isinstance(node.value.func, ast.Name) and node.value.func.id == "TypeVar":
+            # Check for TypeVar, ParamSpec, TypeVarTuple: T = TypeVar("T", int, str, default=int)
+            if isinstance(node.value, ast.Call) and isinstance(node.value.func, ast.Name) and node.value.func.id in ("TypeVar", "ParamSpec", "TypeVarTuple"):
                 self.type_vars.add(target.id)
-                # Check args for constraints
+                # Check args for constraints (only for TypeVar)
                 # args[0] is name
                 is_constrained = False
                 constraints = []
-                for arg in node.value.args[1:]:
-                    is_constrained = True
-                    if isinstance(arg, ast.Name):
-                        constraints.append(map_python_type_to_v(arg.id, self_name=self._get_full_self_type()))
-                    elif isinstance(arg, ast.Constant) and isinstance(arg.value, str):
-                        constraints.append(map_python_type_to_v(arg.value, self_name=self._get_full_self_type()))
+                if node.value.func.id == "TypeVar":
+                    for arg in node.value.args[1:]:
+                        is_constrained = True
+                        if isinstance(arg, ast.Name):
+                            constraints.append(map_python_type_to_v(arg.id, self_name=self._get_full_self_type()))
+                        elif isinstance(arg, ast.Constant) and isinstance(arg.value, str):
+                            constraints.append(map_python_type_to_v(arg.value, self_name=self._get_full_self_type()))
 
-                # Check keyword bound
+                # Check keywords
                 for kw in node.value.keywords:
                     if kw.arg == "bound":
                         is_constrained = True
@@ -81,6 +82,14 @@ class AssignmentsMixin(TranslatorBase):
                             else:
                                 constraints.append(mapped)
                         except:
+                            pass
+                    elif kw.arg == "default":
+                        # PEP 696: TypeVar("T", default=int)
+                        try:
+                            default_str = ast.unparse(kw.value)
+                            v_default = self._map_type(default_str)
+                            self.generic_defaults[target.id] = v_default
+                        except Exception:
                             pass
 
                 if is_constrained:

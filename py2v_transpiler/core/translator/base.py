@@ -126,6 +126,7 @@ class TranslatorBase(ast.NodeVisitor):
         self.overloaded_signatures: Dict[str, List[Dict[str, Any]]] = {} # func_name -> list of overload signatures
         self.type_params_map: Dict[str, List[str]] = {} # name -> list of type parameter names
         self.generic_variance: Dict[str, str] = {} # Python generic name -> variance modifier (+/-)
+        self.generic_defaults: Dict[str, str] = {} # Python generic name -> default type
         self.finally_stack: List[ast.Try] = [] # Stack of active try-finally blocks
         self.loop_stack: List[Dict[str, Any]] = [] # Stack of active loops for break/continue tracking
         self.generic_scopes: List[Dict[str, str]] = [] # Stack of PEP 695 generic mappings
@@ -384,7 +385,7 @@ class TranslatorBase(ast.NodeVisitor):
     def _get_generics_with_variance_str(self, v_generics: List[str]) -> str:
         """
         Returns a V generic parameter string (e.g., [T, U]) with PEP 695 variance
-        annotations preserved as comments.
+        annotations preserved as comments and PEP 696 defaults.
         """
         if not v_generics:
             return ""
@@ -394,10 +395,14 @@ class TranslatorBase(ast.NodeVisitor):
         for v_gen in v_generics:
             py_name = rev_map.get(v_gen)
             variance = self.generic_variance.get(py_name, "") if py_name else ""
+            default = self.generic_defaults.get(py_name, "") if py_name else ""
+
+            part = v_gen
             if variance:
-                v_gen_parts.append(f"{v_gen} /* {variance} */")
-            else:
-                v_gen_parts.append(v_gen)
+                part += f" /* {variance} */"
+            if default:
+                part += f" = {default}"
+            v_gen_parts.append(part)
         return f"[{', '.join(v_gen_parts)}]"
 
     def _find_defining_class_for_static_method(self, class_name: str, method_name: str) -> Optional[str]:

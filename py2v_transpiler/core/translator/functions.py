@@ -378,6 +378,7 @@ class FunctionsMixin(TranslatorBase):
         # if the receiver is generic. E.g. fn (s Struct[T]) foo[T]()
         py_func_generics = []
         added_variance_keys = []
+        added_default_keys = []
         if hasattr(node, "type_params") and node.type_params:
             for param in node.type_params:
                 if hasattr(param, "name"):
@@ -396,6 +397,17 @@ class FunctionsMixin(TranslatorBase):
                         elif variance == 2:
                             self.generic_variance[name] = "-"
                             added_variance_keys.append(name)
+
+                        # Extract default (PEP 696, Python 3.13+)
+                        default_node = getattr(param, "default", None)
+                        if default_node:
+                            try:
+                                default_str = ast.unparse(default_node)
+                                v_default = self._map_type(default_str, struct_name)
+                                self.generic_defaults[name] = v_default
+                                added_default_keys.append(name)
+                            except Exception:
+                                pass
 
             # Record type params for runtime introspection
             # Handle class-qualified name for methods
@@ -886,10 +898,13 @@ class FunctionsMixin(TranslatorBase):
         # Pop function generic scope
         self.generic_scopes.pop()
 
-        # Clean up variance scope
+        # Clean up variance and defaults scope
         for k in added_variance_keys:
             if k in self.generic_variance:
                 del self.generic_variance[k]
+        for k in added_default_keys:
+            if k in self.generic_defaults:
+                del self.generic_defaults[k]
 
         if is_generator:
             self.output.append(
@@ -939,6 +954,7 @@ class FunctionsMixin(TranslatorBase):
         func_generics_str = ""
         py_func_generics = []
         added_variance_keys = []
+        added_default_keys = []
         if hasattr(node, "type_params") and node.type_params:
             for param in node.type_params:
                 if hasattr(param, "name"):
@@ -956,6 +972,17 @@ class FunctionsMixin(TranslatorBase):
                         elif variance == 2:
                             self.generic_variance[name] = "-"
                             added_variance_keys.append(name)
+
+                        # Extract default (PEP 696, Python 3.13+)
+                        default_node = getattr(param, "default", None)
+                        if default_node:
+                            try:
+                                default_str = ast.unparse(default_node)
+                                v_default = self._map_type(default_str, struct_name)
+                                self.generic_defaults[name] = v_default
+                                added_default_keys.append(name)
+                            except Exception:
+                                pass
 
             # Record type params for runtime introspection
             full_func_name = f"{struct_name}_{self._sanitize_name(node.name)}" if is_method and struct_name else self._sanitize_name(node.name)
@@ -1228,10 +1255,13 @@ class FunctionsMixin(TranslatorBase):
         # Pop function generic scope
         self.generic_scopes.pop()
 
-        # Clean up variance scope
+        # Clean up variance and defaults scope
         for k in added_variance_keys:
             if k in self.generic_variance:
                 del self.generic_variance[k]
+        for k in added_default_keys:
+            if k in self.generic_defaults:
+                del self.generic_defaults[k]
 
     def visit_Lambda(self, node: ast.Lambda) -> str:
         # lambda args: expr -> fn [captures] (args) { return expr }

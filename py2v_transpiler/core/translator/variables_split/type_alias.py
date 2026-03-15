@@ -12,9 +12,9 @@ class TypeAliasMixin(TranslatorBase):
 
         py_generics = []
         added_variance_keys = []
+        added_default_keys = []
         if hasattr(node, "type_params") and node.type_params:
             for param in node.type_params:
-                # PEP 696 type defaults (param.default) are intentionally ignored since V doesn't support them
                 if hasattr(param, 'name'):
                     name_attr = param.name
                     if hasattr(name_attr, 'id'):
@@ -30,6 +30,17 @@ class TypeAliasMixin(TranslatorBase):
                         elif variance == 2:
                             self.generic_variance[name_attr] = "-"
                             added_variance_keys.append(name_attr)
+
+                        # Extract default (PEP 696, Python 3.13+)
+                        default_node = getattr(param, "default", None)
+                        if default_node:
+                            try:
+                                default_str = ast.unparse(default_node)
+                                v_default = self._map_type(default_str)
+                                self.generic_defaults[name_attr] = v_default
+                                added_default_keys.append(name_attr)
+                            except Exception:
+                                pass
             self.type_params_map[name] = list(py_generics)
 
         generic_map = self._get_generic_map(py_generics)
@@ -52,7 +63,10 @@ class TypeAliasMixin(TranslatorBase):
 
         self.generic_scopes.pop()
 
-        # Clean up variance scope
+        # Clean up variance and defaults scope
         for k in added_variance_keys:
             if k in self.generic_variance:
                 del self.generic_variance[k]
+        for k in added_default_keys:
+            if k in self.generic_defaults:
+                del self.generic_defaults[k]
