@@ -84,7 +84,7 @@ def generate_all_helpers(output_path: str) -> None:
 
 
 def transpile_file(source_file: str, config: TranspilerConfig, global_helpers: Optional[GlobalHelpers] = None, current_module: str = "main", scc_files: Optional[Set[str]] = None, output_path: Optional[str] = None) -> bool:
-    print(f"Transpiling {source_file} (module: {current_module})...")
+    # print(f"Transpiling {source_file} (module: {current_module})...")
 
     # 1. Read source
     try:
@@ -110,13 +110,13 @@ def transpile_file(source_file: str, config: TranspilerConfig, global_helpers: O
     if config.mypy_enabled:
         stdout, stderr, exit_code = analyzer.run_mypy(source_file, experimental=config.experimental)
         if exit_code != 0:
-            print(f"Mypy found errors in {source_file}:")
-            print(stdout)
+            pass # print(f"Mypy found errors in {source_file}:")
+            # print(stdout)
             if stderr:
-                print(stderr, file=sys.stderr)
+                pass # print(stderr, file=sys.stderr)
             tips = get_mypy_tips(stdout)
             if tips:
-                print(tips)
+                pass # print(tips)
 
     # Run basic AST visitor for type inference regardless of mypy
     analyzer.analyze(tree)
@@ -181,11 +181,11 @@ def transpile_file(source_file: str, config: TranspilerConfig, global_helpers: O
                     f.write(v_code_helpers)
 
                 if not config.helpers_only:
-                    print(f"Success: {output_file} (and {helpers_file})")
+                    pass # print(f"Success: {output_file} (and {helpers_file})")
                 else:
-                    print(f"Success: generated {helpers_file}")
+                    pass # print(f"Success: generated {helpers_file}")
             else:
-                print(f"Success: {output_file}")
+                pass # print(f"Success: {output_file}")
         else:
             # In directory processing mode, we defer helpers writing to the caller.
             # But we should respect `--no-helpers` by not merging.
@@ -193,7 +193,7 @@ def transpile_file(source_file: str, config: TranspilerConfig, global_helpers: O
                 pass # Already skipped merging effectively, or actually we merged it above. Wait, if config.no_helpers we shouldn't merge. Let's fix above too!
 
             if not config.helpers_only:
-                print(f"Success: {output_file}")
+                pass # print(f"Success: {output_file}")
 
         return True
     except Exception as e:
