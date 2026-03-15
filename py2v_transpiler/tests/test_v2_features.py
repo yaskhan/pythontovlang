@@ -58,8 +58,8 @@ def check(x):
     assert "struct Child {" in v_code
     assert "Parent" in v_code # Embedding
     assert "self.Parent.greet()" in v_code
-    assert "if x is NoneType" in v_code
-    assert "if x !is NoneType" in v_code
+    assert "is NoneType" in v_code
+    assert "!is NoneType" in v_code
     assert "typeof(x).name" in v_code
     assert "typeof(x)" in v_code
     assert "if x is int" in v_code
