@@ -426,8 +426,29 @@ class AssignmentsMixin(TranslatorBase):
                     if not self.in_main: self._local_vars_in_scope.add(v_lhs)
 
             else:
+                is_void_call = False
+                if isinstance(node.value, ast.Call):
+                    call_type = self._map_type(self._guess_type(node.value), is_return=True)
+                    if call_type == "void":
+                        is_void_call = True
+
                 if isinstance(node.value, ast.Dict) and not node.value.keys and v_type.startswith("map["):
                     rhs = f"{v_type}{{}}"
+                elif is_void_call:
+                    # Emit the void call on its own line
+                    prev_type = self.current_assignment_type
+                    self.current_assignment_type = v_type
+                    call_expr = self.visit(node.value)
+                    self.current_assignment_type = prev_type
+                    self.output.append(f"{self._indent()}{call_expr}")
+                    # The right hand side for the assignment will be Any(NoneType{}) or none
+                    local_v_type = getattr(self, "_guess_type", lambda x: "unknown")(target)
+                    if local_v_type == "Any" or (local_v_type.startswith("map[") and local_v_type.endswith("]Any")) or local_v_type == "unknown":
+                        rhs = "Any(NoneType{})"
+                    else:
+                        if not local_v_type.startswith("?"):
+                            local_v_type = f"?{local_v_type}"
+                        rhs = f"(none as {local_v_type})"
                 else:
                     prev_type = self.current_assignment_type
                     self.current_assignment_type = v_type
