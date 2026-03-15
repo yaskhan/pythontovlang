@@ -89,3 +89,27 @@ mut result := if py_bool(value) { value } else { Any('default') }
 ```
 
 This guarantees safety during V compilation while perfectly matching Python's dynamic run-time behavior.
+
+---
+
+## 4. PEP 695 Variance Modifiers
+
+Python 3.13 introduced variance modifiers for PEP 695 type parameters: `+T` (covariant) and `-T` (contravariant).
+
+**Python:**
+```python
+class Container[+T]:
+    pass
+```
+
+### V Translation
+
+V generics currently do not explicitly support variance modifiers. The transpiler detects these modifiers and preserves them as comments in the generated V code to ensure future-proofing and maintain metadata.
+
+**Transpiled V:**
+```v
+struct Container[T /* + */] {
+}
+```
+
+Correct variance is enforced during the transpilation process by Mypy (version 1.12+). If Mypy reports a variance violation, the transpiler will surface this error to the user.

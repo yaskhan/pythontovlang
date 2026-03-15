@@ -79,16 +79,27 @@ class ClassesMixin(TranslatorBase):
         self.current_class_is_unittest = False
 
         py_generics = []
+        added_variance_keys = []
         if hasattr(node, "type_params") and node.type_params:
             for param in node.type_params:
                 # TypeVar, ParamSpec, TypeVarTuple might have 'name' as string or attribute
                 # PEP 696 type defaults (param.default) are intentionally ignored since V doesn't support them
                 if hasattr(param, "name"):
                     name = param.name
+                    if hasattr(name, "id"):
+                        name = name.id
+
                     if isinstance(name, str):
                         py_generics.append(name)
-                    elif hasattr(name, "id"):
-                        py_generics.append(name.id)
+                        # Extract variance (Python 3.13+)
+                        # 0: INVARIANT, 1: COVARIANT (+), 2: CONTRAVARIANT (-)
+                        variance = getattr(param, "variance", 0)
+                        if variance == 1:
+                            self.generic_variance[name] = "+"
+                            added_variance_keys.append(name)
+                        elif variance == 2:
+                            self.generic_variance[name] = "-"
+                            added_variance_keys.append(name)
             self.type_params_map[struct_name] = list(py_generics)
 
         # Extract type vars from bases (Legacy Generic[T] or Parent[T])
@@ -762,9 +773,7 @@ class ClassesMixin(TranslatorBase):
             if decorators:
                 interface_parts.append("\n".join(decorators) + "\n")
 
-            generics_str = ""
-            if self.current_class_generics:
-                generics_str = f"[{', '.join(self.current_class_generics)}]"
+            generics_str = self._get_generics_with_variance_str(self.current_class_generics)
 
             pub = ""
             if self._is_exported(node.name):
@@ -1007,9 +1016,7 @@ class ClassesMixin(TranslatorBase):
                 # Skip method generation for simple enums for now
                 return
 
-            generics_str = ""
-            if self.current_class_generics:
-                generics_str = f"[{', '.join(self.current_class_generics)}]"
+            generics_str = self._get_generics_with_variance_str(self.current_class_generics)
 
             pub = ""
             if self._is_exported(node.name):
@@ -1037,6 +1044,11 @@ class ClassesMixin(TranslatorBase):
 
         # Pop class generic scope
         self.generic_scopes.pop()
+
+        # Clean up variance scope
+        for k in added_variance_keys:
+            if k in self.generic_variance:
+                del self.generic_variance[k]
 
         # Restore previous state
         self.class_stack.pop()

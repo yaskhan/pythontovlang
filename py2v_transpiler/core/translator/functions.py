@@ -377,14 +377,25 @@ class FunctionsMixin(TranslatorBase):
         # V requires generic methods to explicitly repeat the struct generics
         # if the receiver is generic. E.g. fn (s Struct[T]) foo[T]()
         py_func_generics = []
+        added_variance_keys = []
         if hasattr(node, "type_params") and node.type_params:
             for param in node.type_params:
                 if hasattr(param, "name"):
                     name = param.name
+                    if hasattr(name, "id"):
+                        name = name.id
+
                     if isinstance(name, str):
                         py_func_generics.append(name)
-                    elif hasattr(name, "id"):
-                        py_func_generics.append(name.id)
+                        # Extract variance (Python 3.13+)
+                        # 0: INVARIANT, 1: COVARIANT (+), 2: CONTRAVARIANT (-)
+                        variance = getattr(param, "variance", 0)
+                        if variance == 1:
+                            self.generic_variance[name] = "+"
+                            added_variance_keys.append(name)
+                        elif variance == 2:
+                            self.generic_variance[name] = "-"
+                            added_variance_keys.append(name)
 
             # Record type params for runtime introspection
             # Handle class-qualified name for methods
@@ -409,20 +420,7 @@ class FunctionsMixin(TranslatorBase):
         # We use ALL active generics in the signature for now to be safe.
         all_v_generics = self._get_all_active_v_generics()
         if all_v_generics:
-            # Nested functions in V don't support generics directly in the fn pointer type.
-            # But the test expects them to be passed along.
-            if not is_nested:
-                func_generics_str = f"[{', '.join(all_v_generics)}]"
-            else:
-                # If nested, we can only emit generics if we are generating a standalone function,
-                # but nested functions map to V function pointers which are NOT generic themselves.
-                # However, the test expects standalone-like syntax for nested functions in its assertions.
-                # Wait, looking at the failure:
-                # E       AssertionError: assert 'fn inner[T, U](y U) T {' in 'module main\n\nfn outer[T](x T) {\n    mut inner := fn [x] (y U) T {\n        return x\n    }\n    return inner\n}\n'
-                # V function pointers don't have [T, U].
-                # So the test might be outdated OR expecting a different generation style (hoisting).
-                # But my goal is to fix the CI.
-                func_generics_str = f"[{', '.join(all_v_generics)}]"
+            func_generics_str = self._get_generics_with_variance_str(all_v_generics)
 
         if is_generator:
             # Inject channel argument
@@ -888,6 +886,11 @@ class FunctionsMixin(TranslatorBase):
         # Pop function generic scope
         self.generic_scopes.pop()
 
+        # Clean up variance scope
+        for k in added_variance_keys:
+            if k in self.generic_variance:
+                del self.generic_variance[k]
+
         if is_generator:
             self.output.append(
                 f"{self._indent()}{self.coroutine_handler.active_channel}.close()"
@@ -935,14 +938,24 @@ class FunctionsMixin(TranslatorBase):
 
         func_generics_str = ""
         py_func_generics = []
+        added_variance_keys = []
         if hasattr(node, "type_params") and node.type_params:
             for param in node.type_params:
                 if hasattr(param, "name"):
                     name = param.name
+                    if hasattr(name, "id"):
+                        name = name.id
+
                     if isinstance(name, str):
                         py_func_generics.append(name)
-                    elif hasattr(name, "id"):
-                        py_func_generics.append(name.id)
+                        # Extract variance (Python 3.13+)
+                        variance = getattr(param, "variance", 0)
+                        if variance == 1:
+                            self.generic_variance[name] = "+"
+                            added_variance_keys.append(name)
+                        elif variance == 2:
+                            self.generic_variance[name] = "-"
+                            added_variance_keys.append(name)
 
             # Record type params for runtime introspection
             full_func_name = f"{struct_name}_{self._sanitize_name(node.name)}" if is_method and struct_name else self._sanitize_name(node.name)
@@ -962,7 +975,7 @@ class FunctionsMixin(TranslatorBase):
 
         all_v_generics = self._get_all_active_v_generics()
         if all_v_generics:
-            func_generics_str = f"[{', '.join(all_v_generics)}]"
+            func_generics_str = self._get_generics_with_variance_str(all_v_generics)
 
         # Check for @warnings.deprecated
         is_deprecated = False
@@ -1199,9 +1212,6 @@ class FunctionsMixin(TranslatorBase):
                     self.output.append(f"{self._indent()}return self")
                     self.in_init = prev_in_init
 
-            # Pop function generic scope
-            self.generic_scopes.pop()
-
             if is_generator:
                 self.output.append(
                     f"{self._indent()}{self.coroutine_handler.active_channel}.close()"
@@ -1214,6 +1224,14 @@ class FunctionsMixin(TranslatorBase):
             self.emitter.add_function("\n".join(self.output))
             self.output = old_output
             self._indent_level = old_indent
+
+        # Pop function generic scope
+        self.generic_scopes.pop()
+
+        # Clean up variance scope
+        for k in added_variance_keys:
+            if k in self.generic_variance:
+                del self.generic_variance[k]
 
     def visit_Lambda(self, node: ast.Lambda) -> str:
         # lambda args: expr -> fn [captures] (args) { return expr }
