@@ -80,10 +80,10 @@ class ClassesMixin(TranslatorBase):
 
         py_generics = []
         added_variance_keys = []
+        added_default_keys = []
         if hasattr(node, "type_params") and node.type_params:
             for param in node.type_params:
                 # TypeVar, ParamSpec, TypeVarTuple might have 'name' as string or attribute
-                # PEP 696 type defaults (param.default) are intentionally ignored since V doesn't support them
                 if hasattr(param, "name"):
                     name = param.name
                     if hasattr(name, "id"):
@@ -100,6 +100,17 @@ class ClassesMixin(TranslatorBase):
                         elif variance == 2:
                             self.generic_variance[name] = "-"
                             added_variance_keys.append(name)
+
+                        # Extract default (PEP 696, Python 3.13+)
+                        default_node = getattr(param, "default", None)
+                        if default_node:
+                            try:
+                                default_str = ast.unparse(default_node)
+                                v_default = self._map_type(default_str, struct_name)
+                                self.generic_defaults[name] = v_default
+                                added_default_keys.append(name)
+                            except Exception:
+                                pass
             self.type_params_map[struct_name] = list(py_generics)
 
         # Extract type vars from bases (Legacy Generic[T] or Parent[T])
@@ -1045,10 +1056,13 @@ class ClassesMixin(TranslatorBase):
         # Pop class generic scope
         self.generic_scopes.pop()
 
-        # Clean up variance scope
+        # Clean up variance and defaults scope
         for k in added_variance_keys:
             if k in self.generic_variance:
                 del self.generic_variance[k]
+        for k in added_default_keys:
+            if k in self.generic_defaults:
+                del self.generic_defaults[k]
 
         # Restore previous state
         self.class_stack.pop()
