@@ -2,17 +2,17 @@ module main
 
 // @line: test_none_type.py:1:0
 pub fn test_none_check() {
-    mut value := Any(NoneType{})
-    println('value is None: ${value is NoneType}')
-    println('value is not None: ${value !is NoneType}')
+    mut value := ?string(none)
+    println('value is None: ${value == none}')
+    println('value is not None: ${value != none}')
     value = 42
-    println('42 is None: ${value is NoneType}')
+    println('42 is None: ${value == none}')
 }
 // @line: test_none_type.py:9:0
 pub fn test_none_default() {
 // @line: test_none_type.py:10:4
     mut greet := fn (name Any) string {
-        if name is NoneType {
+        if (name) is NoneType {
             return 'Hello, guest!'
         }
         return 'Hello, ${name}!'
@@ -49,16 +49,16 @@ pub fn test_none_assignment() {
 pub fn test_none_in_dict() {
     d := {'a': Any(1), 'b': Any(NoneType{}), 'c': Any(3)}
     println('Dict with None value: ${d}')
-    println('d[\'b\'] is None: ${d["b"] is NoneType}')
+    println('d[\'b\'] is None: ${(d["b"]) is NoneType}')
     println('d.get(\'d\'): ${d["d"] or { Any(NoneType{}) }}')
-    println('d.get(\'d\') is None: ${d["d"] or { Any(NoneType{}) } is NoneType}')
+    println('d.get(\'d\') is None: ${((d["d"] or { Any(NoneType{}) }) is NoneType)}')
 }
 // @line: test_none_type.py:50:0
 pub fn test_none_filter() {
     data := [?Any(1), none, ?Any(2), none, ?Any(3)]
     mut filtered := []Any{}
     for x in data {
-        if x !is NoneType {
+        if (x) !is NoneType {
             filtered << x
         }
     }
@@ -66,18 +66,18 @@ pub fn test_none_filter() {
 }
 // @line: test_none_type.py:55:0
 pub fn test_none_or() {
-    mut value := Any(NoneType{})
-    mut result := if py_bool(value) { value } else { Any('default') }
+    mut value := ?string(none)
+    mut result := if value.len > 0 { value } else { 'default' }
     println('None or \'default\': ${result}')
     value = 'actual'
-    result = if py_bool(value) { value } else { Any('default') }
+    result = if value.len > 0 { value } else { 'default' }
     println('\'actual\' or \'default\': ${result}')
 }
 // @line: test_none_type.py:65:0
 pub fn test_none_ternary() {
 // @line: test_none_type.py:66:4
     mut get_value := fn (mut x Any) Any {
-        return if x is NoneType { 'No value' } else { 'Value: ${x}' }
+        return if (x) is NoneType { 'No value' } else { 'Value: ${x}' }
     }
     println('${get_value(none)}')
     println('${get_value(42)}')

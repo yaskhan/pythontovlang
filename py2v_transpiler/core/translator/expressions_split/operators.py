@@ -332,7 +332,10 @@ class OperatorsMixin(TranslatorBase):
                       # If it's an optional type or specifically mapped differently, we would use == none.
                       # But 'unknown' defaults to 'Any' when assigned, so it's safest to treat as Any.
                       if not left_type.startswith("?"):
-                          return f"{left} is NoneType"
+                          if left_type == "Any" or left_type == "unknown":
+                              return f"(({left}) is NoneType)" if left.endswith("}") else f"({left}) is NoneType"
+                          else:
+                              return f"(Any({left})) is NoneType"
                  op_str = "=="
                  right = "none"
             elif isinstance(op, (ast.IsNot, ast.NotEq)) and is_none_node(node.comparators[0]):
@@ -340,7 +343,10 @@ class OperatorsMixin(TranslatorBase):
                      return "false"
                  if left_type == "Any" or left_type == "unknown" or (left_type.startswith("map[") and left_type.endswith("]Any")):
                       if not left_type.startswith("?"):
-                          return f"{left} !is NoneType"
+                          if left_type == "Any" or left_type == "unknown":
+                              return f"(({left}) !is NoneType)" if left.endswith("}") else f"({left}) !is NoneType"
+                          else:
+                              return f"(Any({left})) !is NoneType"
                  op_str = "!="
                  right = "none"
             elif isinstance(op, ast.In) and is_none_node(node.left):
@@ -371,8 +377,12 @@ class OperatorsMixin(TranslatorBase):
                       continue
                  if left_type == "Any" or left_type == "unknown" or (left_type.startswith("map[") and left_type.endswith("]Any")):
                       if not left_type.startswith("?"):
-                          op_str = "is"
-                          right = "NoneType"
+                          left_str = left
+                          if left_type == "Any" or left_type == "unknown":
+                              parts.append(f"(({left_str}) is NoneType)" if left_str.endswith("}") else f"({left_str}) is NoneType")
+                          else:
+                              parts.append(f"(Any({left_str})) is NoneType")
+                          continue
                       else:
                           op_str = "=="
                           right = "none"
@@ -385,8 +395,12 @@ class OperatorsMixin(TranslatorBase):
                       continue
                  if left_type == "Any" or left_type == "unknown" or (left_type.startswith("map[") and left_type.endswith("]Any")):
                       if not left_type.startswith("?"):
-                          op_str = "!is"
-                          right = "NoneType"
+                          left_str = left
+                          if left_type == "Any" or left_type == "unknown":
+                              parts.append(f"(({left_str}) !is NoneType)" if left_str.endswith("}") else f"({left_str}) !is NoneType")
+                          else:
+                              parts.append(f"(Any({left_str})) !is NoneType")
+                          continue
                       else:
                           op_str = "!="
                           right = "none"

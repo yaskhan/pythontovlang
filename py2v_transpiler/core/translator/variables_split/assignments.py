@@ -434,6 +434,17 @@ class AssignmentsMixin(TranslatorBase):
                     rhs = self.visit(node.value)
                     self.current_assignment_type = prev_type
 
+                # Check if rhs is a call to a function returning void, mapped to none usually?
+                assigned_value_type = getattr(self, "_guess_type", lambda x: "unknown")(node.value)
+                if (assigned_value_type == "void" or assigned_value_type == "none" or assigned_value_type == "None") and isinstance(node.value, ast.Call):
+                    self.output.append(f"{self._indent()}{rhs}")
+                    target_type = getattr(self, "_guess_type", lambda x: "unknown")(target)
+                    if getattr(self, "current_assignment_type", None) == "Any" or target_type == "Any" or target_type == "unknown":
+                        rhs = "Any(NoneType{})"
+                        v_type = "Any"
+                    else:
+                        rhs = "none"
+
                 emit_fn = self.output.append
                 if self.in_main:
                     base_lhs = lhs.split('.')[0].split('[')[0]
