@@ -134,6 +134,16 @@ class CallsMixin(
             func_name_str_lookup = node.func.id
             if func_name_str_lookup in getattr(self, 'imported_symbols', {}):
                 fullname_lookup = self.imported_symbols[func_name_str_lookup]
+        elif isinstance(node.func, ast.Subscript):
+            # Handle UserDict[T]()
+            if isinstance(node.func.value, ast.Name):
+                func_name_str_lookup = node.func.value.id
+                # Store full subscript for visit_Call generic params extraction if needed
+                # But ClassCallsMixin._handle_class_call already handles stripping [
+                # Wait, if we return just the name here, visit_Call will use it for lookup.
+                # Actually, ClassCallsMixin._handle_class_call expects the full string or handles it.
+                # Let's see: node.func is passed to _handle_class_call too.
+                pass
         elif isinstance(node.func, ast.Attribute):
             func_name_str_lookup = node.func.attr
             if isinstance(node.func.value, ast.Name):
@@ -331,7 +341,7 @@ class CallsMixin(
         
         # builtins
         if module_name == "builtins":
-            return self._handle_special_builtin(node, func_name, args)
+            return self._handle_special_builtin(node, module_name, func_name, args)
         
         # functools.partial
         if module_name == "functools" and func_name == "partial":

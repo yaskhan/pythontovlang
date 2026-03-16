@@ -94,6 +94,20 @@ class TypeGuessingMixin:
                     if arg_type.startswith("[]"):
                         return f"map[{arg_type[2:]}]bool"
                 return "map[string]bool"
+            if fid == "Counter":
+                return "map[string]int"
+            if fid == "defaultdict":
+                if node.args:
+                    factory = ""
+                    if isinstance(node.args[0], ast.Name):
+                        factory = node.args[0].id
+                    if factory == "int":
+                        return "map[string]int"
+                    elif factory == "list":
+                        return "map[string][]int" # Best guess
+                    elif factory == "set":
+                        return "map[string]map[int]bool" # Best guess
+                return "map[string]Any"
 
             # Check inferred return type
             inferred_ret = self.type_inference.type_map.get(f"{fid}@return")

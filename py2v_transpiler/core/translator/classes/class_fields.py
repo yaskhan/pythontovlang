@@ -87,7 +87,8 @@ class ClassFieldsHandler:
     def collect_init_fields(
         self,
         node: ast.ClassDef,
-        added_fields: Set[str]
+        added_fields: Set[str],
+        struct_name: str
     ) -> List[str]:
         """Collect fields from __init__ method."""
         fields = []

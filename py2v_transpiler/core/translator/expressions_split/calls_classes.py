@@ -25,6 +25,16 @@ class ClassCallsMixin:
         # Strip generics for class lookup (e.g. UserDict[T] -> UserDict)
         base_lookup_name = re.sub(r'\[.*\]', '', lookup_name)
         
+        if not (call_sig and "is_class" in call_sig) and \
+           not (hasattr(self, 'defined_classes') and base_lookup_name in self.defined_classes):
+             # Fallback: check if the visited name is a class (e.g. cls -> UserDict[T])
+             visited_name = self.visit(func_node)
+             v_base_name = re.sub(r'\[.*\]', '', visited_name)
+             if hasattr(self, 'defined_classes') and v_base_name in self.defined_classes:
+                  lookup_name = visited_name
+                  base_lookup_name = v_base_name
+                  func_name_str = visited_name
+
         if call_sig and "is_class" in call_sig:
             is_class = call_sig["is_class"]
             has_factory = call_sig.get("has_init", False) or call_sig.get("has_new", False)
@@ -45,10 +55,21 @@ class ClassCallsMixin:
             if "[" in v_ret_type and v_ret_type.endswith("]"):
                 generic_params = "[" + v_ret_type.split("[", 1)[1]
         
+        if not generic_params and isinstance(func_node, ast.Subscript):
+            try:
+                # Handle UserDict[T]
+                slice_str = ast.unparse(func_node.slice)
+                generic_params = f"[{slice_str}]"
+            except:
+                pass
+
         if has_factory:
-            factory_name = self._get_factory_name(func_name_str)
+            factory_name = self._get_factory_name(base_lookup_name) # Use base name for factory
             return f"{factory_name}{generic_params}({', '.join(args)})"
         else:
+            # Use full func_name_str if it already contains generics, or combine base and generic_params
+            if "[" in func_name_str:
+                return f"{func_name_str}{{{', '.join(args)}}}"
             return f"{func_name_str}{generic_params}{{{', '.join(args)}}}"
 
     def _handle_dataclass_call(self, node: ast.Call, func_name_str: str, args: list,
@@ -194,8 +215,7 @@ class ClassCallsMixin:
             return f"/* super().{method_name} call without known parent */"
         
         parent = self.current_class_bases[0]
-        field_name = self.current_class_generic_bases.get(
-            parent, self._sanitize_name(parent, is_type=True))
+        field_name = self.current_class_generic_bases.get(parent) or self._sanitize_name(parent, is_type=True)
         
         if method_name == "__init__":
             factory_name = self._get_factory_name(parent)
@@ -223,8 +243,7 @@ class ClassCallsMixin:
 
         base_args = args[1:]
         factory_name = self._get_factory_name(class_name)
-        field_name = self.current_class_generic_bases.get(
-            class_name, self._sanitize_name(class_name, is_type=True))
+        field_name = self.current_class_generic_bases.get(class_name) or self._sanitize_name(class_name, is_type=True)
 
         return f"self.{field_name} = {factory_name}({', '.join(base_args)})"
 

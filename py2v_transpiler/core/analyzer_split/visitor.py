@@ -119,26 +119,20 @@ class TypeInferenceVisitorMixin(TypeInferenceBase):
         self.generic_visit(node)
 
     def visit_AnnAssign(self, node: ast.AnnAssign) -> Any:
-        if isinstance(node.target, ast.Name):
-            if node.annotation:
-                try:
-                    type_str = ast.unparse(node.annotation)
-                    if type_str in ("LiteralString", "typing.LiteralString", "typing_extensions.LiteralString"):
-                         v_type = "LiteralString"
-                    else:
-                         v_type = map_python_type_to_v(type_str)
+        if node.annotation:
+            try:
+                type_str = ast.unparse(node.annotation)
+                if type_str in ("LiteralString", "typing.LiteralString", "typing_extensions.LiteralString"):
+                     v_type = "LiteralString"
+                else:
+                     v_type = map_python_type_to_v(type_str)
+                
+                if isinstance(node.target, ast.Name):
                     self.type_map[node.target.id] = v_type
-                except AttributeError:
-                    if isinstance(node.annotation, ast.Name):
-                        v_type = map_python_type_to_v(node.annotation.id)
-                        self.type_map[node.target.id] = v_type
-                    elif isinstance(node.annotation, ast.Constant) and isinstance(
-                        node.annotation.value, str
-                    ):
-                        v_type = map_python_type_to_v(node.annotation.value)
-                        self.type_map[node.target.id] = v_type
-                except Exception:
-                    pass
+                elif isinstance(node.target, ast.Attribute) and isinstance(node.target.value, ast.Name) and node.target.value.id == "self":
+                    self.type_map[node.target.attr] = v_type
+            except Exception:
+                pass
 
         self.generic_visit(node)
 

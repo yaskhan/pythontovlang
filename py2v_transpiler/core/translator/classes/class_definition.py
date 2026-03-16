@@ -174,6 +174,7 @@ class ClassDefinitionHandler:
             is_named_tuple,
             is_typed_dict
         ) = self.translator.class_bases_handler.process_bases(node, struct_name)
+        self.translator.current_class_bases = current_class_bases
         fields.extend(base_fields)
 
         # Check for abstract base class
@@ -302,7 +303,7 @@ class ClassDefinitionHandler:
         # Handle regular classes
         else:
             # Collect fields from __init__
-            init_fields = self.translator.class_fields_handler.collect_init_fields(node, added_fields)
+            init_fields = self.translator.class_fields_handler.collect_init_fields(node, added_fields, struct_name)
             fields.extend(init_fields)
 
             # Generate struct definition

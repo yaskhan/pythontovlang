@@ -9,7 +9,7 @@ class GeneratorCallsMixin:
     def _handle_generator_call(self, node: ast.Call, func_name_str: str, args: list) -> str | None:
         """Handle generator calls."""
 
-        if not self.coroutine_handler.is_generator(func_name_str):
+        if not self.coroutine_handler or not self.coroutine_handler.is_generator(func_name_str):
             return None
 
         # Generate unique names
