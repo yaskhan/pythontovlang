@@ -634,8 +634,8 @@ class FunctionGenerationMixin:
             old_output.append(func_code)
         else:
             self.emitter.add_function(func_code)
-            # Emit annotations metadata constant
-            if not is_unittest_method and not is_abstract:
+            # Emit annotations metadata constant if there are any annotations
+            if not is_unittest_method and not is_abstract and annotations_data:
                 pub = "pub " if pub_prefix else ""
                 anno_map = ", ".join([f"'{k}': '{v}'" for k, v in annotations_data.items()])
                 # Use a unique name for the constant to avoid duplicates when mixins are distributed
