@@ -49,7 +49,7 @@ def test_resolve_type():
     unknown_node = ast.Name(id="y")
     assert analyzer.resolve_type(unknown_node) == "void"
 
-@patch("py2v_transpiler.core.analyzer.mypy_api_module")
+@patch("py2v_transpiler.core.analyzer_split.mypy.mypy_api_module")
 def test_run_mypy(mock_mypy):
     # Setup mock
     mock_mypy.run.return_value = ("Success", "", 0)
@@ -69,7 +69,7 @@ def test_run_mypy_no_module():
     # To test the ImportError case, we'd need to manipulate sys.modules or use a separate process.
     # For now, let's just ensure if mypy_api_module is None (simulated), it returns error.
 
-    with patch("py2v_transpiler.core.analyzer.mypy_api_module", None):
+    with patch("py2v_transpiler.core.analyzer_split.mypy.mypy_api_module", None):
         analyzer = TypeInference()
         stdout, stderr, code = analyzer.run_mypy("test.py")
         assert stdout == "Mypy not installed."
