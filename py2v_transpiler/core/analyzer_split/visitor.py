@@ -231,3 +231,12 @@ class TypeInferenceVisitorMixin(TypeInferenceBase):
 
     def visit_AsyncFunctionDef(self, node: ast.AsyncFunctionDef) -> Any:
         return self.visit_FunctionDef(node) # type: ignore
+
+    def visit_TypeVar(self, node: Any) -> Any:
+        pass
+
+    def visit_ParamSpec(self, node: Any) -> Any:
+        pass
+
+    def visit_TypeVarTuple(self, node: Any) -> Any:
+        pass

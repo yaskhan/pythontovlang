@@ -315,3 +315,12 @@ class ClassCallsMixin:
                 return f"{self.current_class}{{}}"
         
         return None
+
+    def visit_TypeVar(self, node: Any) -> str:
+        return self._sanitize_name(node.name)
+
+    def visit_ParamSpec(self, node: Any) -> str:
+        return self._sanitize_name(node.name)
+
+    def visit_TypeVarTuple(self, node: Any) -> str:
+        return self._sanitize_name(node.name)
