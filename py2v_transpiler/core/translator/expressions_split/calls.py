@@ -49,6 +49,9 @@ class CallsMixin(
         module_name, func_name = self._resolve_module_and_func(node, func_name_str_lookup)
 
         # === Stage 5: Handle special cases by module/function ===
+        if func_name_str_lookup in ("get_type_hints", "get_annotations"):
+             return self._handle_get_type_hints(node, args)
+
         result = self._handle_special_cases(
             node, module_name, func_name, func_name_str_lookup, args, call_sig
         )

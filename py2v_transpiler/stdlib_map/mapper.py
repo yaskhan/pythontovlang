@@ -253,6 +253,11 @@ class StdLibMapper:
             },
             "typing": {
                 "cast": self._typing_cast,
+                "get_type_hints": "py_get_type_hints",
+            },
+            "annotationlib": {
+                "get_annotations": "py_get_type_hints",
+                "Format": "PyAnnotationFormat",
             }
         }
 
@@ -305,6 +310,7 @@ class StdLibMapper:
             "pickle": ["json"],
             "contextlib": [],
             "typing": [],
+            "annotationlib": [],
             "ast": [],
             "pytest": [],
             "pytest_mock": [],

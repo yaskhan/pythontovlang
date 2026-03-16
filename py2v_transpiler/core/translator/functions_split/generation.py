@@ -65,6 +65,7 @@ class FunctionGenerationMixin:
         is_abstract: bool = False,
         force_standalone: bool = False,
     ) -> None:
+        annotations_data: Dict[str, str] = {}
         # If we are distributing an abstract method to a descendant, skip it.
         # It only needs to be in the interface.
         if is_abstract and struct_name != self.current_class:
@@ -243,6 +244,8 @@ class FunctionGenerationMixin:
                 default_type = "Any" if node.name == "__exit__" else "int"
                 arg_type = self._map_type(self.type_inference.type_map.get(arg_name, default_type), struct_name)
 
+            annotations_data[arg_name] = arg_type
+
             if (is_stub_function or self.current_file_name.endswith('.pyi')) and arg_type == "void":
                  continue
 
@@ -281,6 +284,7 @@ class FunctionGenerationMixin:
                     arg_type = inferred
             args_str_list.append(f"{arg_name} ...{arg_type}")
             args_names.append(arg_name)
+            annotations_data[arg_name] = f"...{arg_type}"
 
         if getattr(node, "args", None) and getattr(node.args, "vararg", None) and getattr(node.args, "kwarg", None):
             llm_comment = f"//##LLM@@ Function `{original_node_name}` has both *args and **kwargs. V requires the variadic parameter (...args) to be the final parameter. Please reorder the parameters so that the variadic parameter is last, and update all calls to this function accordingly."
@@ -301,6 +305,7 @@ class FunctionGenerationMixin:
                     arg_type = inferred
             args_str_list.append(f"{arg_name} {arg_type}")
             args_names.append(arg_name)
+            annotations_data[arg_name] = arg_type
 
         args_str = ", ".join(args_str_list)
 
@@ -327,6 +332,9 @@ class FunctionGenerationMixin:
                     if isinstance(body_stmt, ast.Return) and isinstance(body_stmt.value, ast.Name) and body_stmt.value.id == "self":
                         ret_type = self._get_full_self_type(struct_name)
                         break
+
+        if ret_type != "void":
+            annotations_data["return"] = ret_type
 
         is_noreturn = False
         if ret_type == "none":
@@ -626,6 +634,13 @@ class FunctionGenerationMixin:
             old_output.append(func_code)
         else:
             self.emitter.add_function(func_code)
+            # Emit annotations metadata constant
+            if not is_unittest_method and not is_abstract:
+                pub = "pub " if pub_prefix else ""
+                anno_map = ", ".join([f"'{k}': '{v}'" for k, v in annotations_data.items()])
+                # Use a unique name for the constant to avoid duplicates when mixins are distributed
+                const_name = f"{struct_name}_{func_name}__annotations__" if is_method and struct_name else f"{func_name}__annotations__"
+                self.emitter.add_constant(f"{pub}{const_name} = {{ {anno_map} }}")
 
         self.output = old_output
         self._indent_level = old_indent

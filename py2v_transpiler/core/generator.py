@@ -135,6 +135,20 @@ class VCodeEmitter:
         lines.append("pub fn (n NoneType) str() string {\n    return 'None'\n}\n")
         lines.append("pub type Any = NoneType | []Any | []u8 | bool | f64 | i64 | int | map[string]Any | string\n")
 
+        lines.append("pub enum PyAnnotationFormat { value forwardref string }\n")
+
+        lines.append("pub fn py_get_type_hints[T]() map[string]string {")
+        lines.append("    mut hints := map[string]string{}")
+        lines.append("    $for field in T.fields {")
+        lines.append("        hints[field.name] = field.typ")
+        lines.append("    }")
+        lines.append("    return hints")
+        lines.append("}\n")
+
+        lines.append("pub fn py_get_type_hints_generic(obj Any) map[string]string {")
+        lines.append("    return map[string]string{}")
+        lines.append("}\n")
+
         # Sort and deduplicate imports
         unique_imports = sorted(list(set(imports)))
         if unique_imports:
