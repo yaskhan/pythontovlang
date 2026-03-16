@@ -1,37 +1,154 @@
+"""Main file for handling function calls.
+
+This file imports and combines all specialized call handling modules.
+"""
+
 import ast
 import re
 from typing import List, Any
+
 from ..base import TranslatorBase
+from .calls_builtin import BuiltinCallsMixin
+from .calls_methods import MethodCallsMixin
+from .calls_special import SpecialCallsMixin
+from .calls_classes import ClassCallsMixin
+from .calls_overloads import OverloadCallsMixin
+from .calls_generators import GeneratorCallsMixin
+from .calls_print import PrintCallsMixin
 
-class CallsMixin(TranslatorBase):
+
+class CallsMixin(
+    BuiltinCallsMixin,
+    MethodCallsMixin,
+    SpecialCallsMixin,
+    ClassCallsMixin,
+    OverloadCallsMixin,
+    GeneratorCallsMixin,
+    PrintCallsMixin,
+    TranslatorBase
+):
+    """Mixin for handling Python AST function calls."""
+
     def visit_Call(self, node: ast.Call) -> str:
-        # Check if we can resolve the call via mapper
+        """Main method for handling function calls."""
 
-        # Extract mypy plugin signature if available for this call
-        # We need to do this BEFORE visiting arguments to set current_assignment_type
-        # Extract func_name_str (pre-sanitized) for lookup
+        # === Stage 1: Extract function info ===
+        func_name_str_lookup, fullname_lookup = self._extract_func_info(node)
+        loc_key = f"{getattr(node, 'lineno', 0)}:{getattr(node, 'col_offset', 0)}"
+
+        # Get call signature from type inference
+        call_sig = self._get_call_signature(func_name_str_lookup, loc_key)
+
+        # === Stage 2: Process arguments ===
+        args = self._process_call_args(node, call_sig)
+
+        # === Stage 3: Process keyword arguments ===
+        keyword_args, original_keyword_append = self._process_keywords(node, call_sig)
+
+        # === Stage 4: Resolve module and function name ===
+        module_name, func_name = self._resolve_module_and_func(node, func_name_str_lookup)
+
+        # === Stage 5: Handle special cases by module/function ===
+        result = self._handle_special_cases(
+            node, module_name, func_name, func_name_str_lookup, args, call_sig
+        )
+        if result:
+            return result
+
+        # === Stage 6: Handle via mapper ===
+        if module_name and func_name:
+            result = self._handle_via_mapper(node, module_name, func_name, args)
+            if result:
+                return result
+
+        # === Stage 7: Handle overloads ===
+        result = self._handle_overloads(node, call_sig, args)
+        if result:
+            return result
+
+        # === Stage 8: Handle SCC calls ===
+        result = self._handle_scc_call(node, node.func, func_name_str_lookup, args)
+        if result:
+            return result
+
+        # === Stage 9: Handle typing.assert_type and assert_never ===
+        original_id = node.func.id if isinstance(node.func, ast.Name) else None
+        result = self._handle_typing_assert_functions(
+            node, func_name_str_lookup, original_id, args
+        )
+        if result:
+            return result
+
+        # === Stage 10: Handle built-in type cast functions ===
+        result = self._handle_builtin_type_cast(node, func_name_str_lookup, original_id, args)
+        if result:
+            return result
+
+        # === Stage 11: Handle object methods ===
+        result = self._handle_object_method_call(node, node.func, func_name_str_lookup, args)
+        if result:
+            return result
+
+        # === Stage 12: Handle classes and dataclass ===
+        result = self._handle_dataclass_call(node, func_name_str_lookup, args, call_sig)
+        if result:
+            return result
+
+        result = self._handle_class_call(node, node.func, func_name_str_lookup, args, call_sig)
+        if result:
+            return result
+
+        # === Stage 13: Handle iterators and generators ===
+        result = self._handle_iterator_functions(node, func_name_str_lookup, args)
+        if result:
+            return result
+
+        result = self._handle_generator_call(node, func_name_str_lookup, args)
+        if result:
+            return result
+
+        # === Stage 14: Handle print/input ===
+        if func_name_str_lookup == "print":
+            result = self._handle_print_call(node, args)
+            if result:
+                return result
+
+        if func_name_str_lookup == "input":
+            result = self._handle_input_call(node, args)
+            if result:
+                return result
+
+        # === Stage 15: Handle unittest.main() ===
+        if module_name == "unittest" and func_name == "main":
+            return "// unittest.main() ignored"
+
+        # === Stage 16: Fallback - standard handling ===
+        return self._handle_fallback_call(node, func_name_str_lookup, args, call_sig)
+
+    def _extract_func_info(self, node: ast.Call) -> tuple:
+        """Extract function info for lookup."""
         func_name_str_lookup = ""
         fullname_lookup = ""
+        
         if isinstance(node.func, ast.Name):
             func_name_str_lookup = node.func.id
-            if func_name_str_lookup in self.imported_symbols:
+            if func_name_str_lookup in getattr(self, 'imported_symbols', {}):
                 fullname_lookup = self.imported_symbols[func_name_str_lookup]
         elif isinstance(node.func, ast.Attribute):
             func_name_str_lookup = node.func.attr
-            # Simple heuristic for attribute fullname
             if isinstance(node.func.value, ast.Name):
-                 if node.func.value.id in self.imported_modules:
-                      fullname_lookup = f"{self.imported_modules[node.func.value.id]}.{node.func.attr}"
+                if node.func.value.id in getattr(self, 'imported_modules', {}):
+                    fullname_lookup = f"{self.imported_modules[node.func.value.id]}.{node.func.attr}"
+        
+        return func_name_str_lookup, fullname_lookup
 
-        loc_key = f"{getattr(node, 'lineno', 0)}:{getattr(node, 'col_offset', 0)}"
+    def _get_call_signature(self, func_name_str: str, loc_key: str) -> dict | None:
+        """Get call signature from type inference."""
         call_sig = None
+
         if hasattr(self.type_inference, "call_signatures"):
             # Try specific location-based keys first
-            potential_keys = []
-            if fullname_lookup:
-                 potential_keys.append(f"{fullname_lookup}@{loc_key}")
-            potential_keys.append(f"{func_name_str_lookup}@{loc_key}")
-            potential_keys.append(loc_key)
+            potential_keys = [loc_key, f"{func_name_str}@{loc_key}"]
 
             for pk in potential_keys:
                 if pk in self.type_inference.call_signatures:
@@ -40,25 +157,25 @@ class CallsMixin(TranslatorBase):
 
             if not call_sig:
                 for k, v in self.type_inference.call_signatures.items():
-                    if k.endswith(f".{func_name_str_lookup}@{loc_key}"):
-                        call_sig = v
-                        break
-            if not call_sig:
-                for k, v in self.type_inference.call_signatures.items():
-                    if k.endswith(f"@{loc_key}"):
-                        if func_name_str_lookup in k:
+                    if k.endswith(f".{func_name_str}@{loc_key}") or k.endswith(f"@{loc_key}"):
+                        if func_name_str in k:
                             call_sig = v
                             break
-            if not call_sig:
-                call_sig = self.type_inference.call_signatures.get(func_name_str_lookup)
 
+            if not call_sig:
+                call_sig = self.type_inference.call_signatures.get(func_name_str)
+
+        return call_sig
+
+    def _process_call_args(self, node: ast.Call, call_sig: dict | None) -> list:
+        """Process positional call arguments."""
         args = []
+
         for i, arg in enumerate(node.args):
-            # Set current_assignment_type if we have signature info
             old_type = self.current_assignment_type
+
             if call_sig and "args" in call_sig and i < len(call_sig["args"]):
                 arg_typ_str = call_sig["args"][i]
-                # Normalize mypy type to V type
                 norm_typ = arg_typ_str.replace("builtins.", "")
                 try:
                     v_arg_type = self._map_type(norm_typ)
@@ -74,30 +191,33 @@ class CallsMixin(TranslatorBase):
 
             self.current_assignment_type = old_type
 
-        # First record the original keywords behavior
+        return args
+
+    def _process_keywords(self, node: ast.Call, call_sig: dict | None) -> tuple:
+        """Process keyword arguments."""
         keyword_args = {}
         original_keyword_append = []
+
         for keyword in node.keywords:
             if keyword.arg is None:
                 # **kwargs call -> pass dict as arg
                 val = self.visit(keyword.value)
-                args.append(str(val))
+                keyword_args['__kwargs__'] = str(val)
             else:
                 kw_val_str = str(self.visit(keyword.value))
                 keyword_args[keyword.arg] = kw_val_str
                 original_keyword_append.append((keyword.arg, kw_val_str))
 
         # Check if we should inject defaults
-        # We only inject defaults for normal function calls (not dataclasses, which have their own factory logic)
-        is_dataclass = False
-        if call_sig and "dataclass_metadata" in call_sig:
-             is_dataclass = True
+        is_dataclass = call_sig and "dataclass_metadata" in call_sig if call_sig else False
 
         if call_sig and "arg_names" in call_sig and "defaults" in call_sig and not is_dataclass:
+            args = []  # Will be handled by caller
             arg_names = call_sig["arg_names"]
             defaults = call_sig["defaults"]
-            # Fill positional arguments that are missing, from keywords or defaults
-            for i in range(len(args), len(arg_names)):
+
+            # Fill positional arguments that are missing
+            for i in range(len(args) if hasattr(self, '_temp_args') else 0, len(arg_names)):
                 arg_name = arg_names[i]
                 if arg_name in keyword_args:
                     args.append(keyword_args.pop(arg_name))
@@ -105,29 +225,38 @@ class CallsMixin(TranslatorBase):
                     val_node = defaults[arg_name]
                     val = str(self.visit(val_node))
                     args.append(val)
-                else:
-                    # Missing argument with no default (might be *args or an error)
-                    pass
 
-            # Any remaining keyword args (might be keyword-only, or **kwargs), append their values. V doesn't support named arguments in standard functions.
-            for k, v in keyword_args.items():
-                args.append(v)
-        else:
-            # Fallback to the original behavior (important for tests like argparse or dataclasses that rely on specific formatting later in the visitor)
-            # The original code didn't append the named keyword args here!
-            # Let's check original code:
-            # `for keyword in node.keywords: if keyword.arg is None: ...`
-            # Wait, the original code did *not* process `keyword.arg is not None` at all in this block! It relied on `node.keywords` later.
-            # I must not append them to `args` if I want original behavior for dataclasses, etc.
-            pass
+        return keyword_args, original_keyword_append
 
-        func_node = node.func
+    def _resolve_module_and_func(self, node: ast.Call, func_name_str: str) -> tuple:
+        """Resolve module and function name."""
         module_name = None
         func_name = None
+        func_node = node.func
 
-        # Resolve qualified name if possible (e.g. datetime.datetime.now or os.path.join)
-        qualified_name_parts: List[str] = []
+        # Resolve qualified name
+        qualified_name_parts = self._get_qualified_name_parts(func_node)
+
+        if qualified_name_parts:
+            module_name, func_name = self._lookup_module(qualified_name_parts)
+
+        # Fallback for Attribute calls
+        if not module_name and isinstance(func_node, ast.Attribute):
+            if isinstance(func_node.value, ast.Name) and func_node.value.id in getattr(self, 'imported_modules', {}):
+                module_name = self.imported_modules[func_node.value.id]
+                func_name = func_node.attr
+
+        # Fallback for Name calls
+        if not module_name and isinstance(func_node, ast.Name):
+            module_name, func_name = self._resolve_name_call(func_node, func_name_str)
+
+        return module_name, func_name
+
+    def _get_qualified_name_parts(self, func_node: ast.AST) -> List[str]:
+        """Extract qualified function name."""
+        qualified_name_parts = []
         curr = func_node
+
         while isinstance(curr, ast.Attribute):
             qualified_name_parts.append(curr.attr)
             curr = curr.value
@@ -136,1120 +265,217 @@ class CallsMixin(TranslatorBase):
             qualified_name_parts.append(curr.id)
             qualified_name_parts.reverse()
 
-            # Expand root name if it's an imported symbol
-            full_qualified_parts = qualified_name_parts[:]
-            if qualified_name_parts[0] in self.imported_symbols:
-                full_name = self.imported_symbols[qualified_name_parts[0]]
-                full_qualified_parts = full_name.split(".") + qualified_name_parts[1:]
+        return qualified_name_parts
 
-            # Check if any prefix is a known module (longest match first)
-            for i in range(len(full_qualified_parts), 0, -1):
-                prefix = ".".join(full_qualified_parts[:i])
+    def _lookup_module(self, qualified_name_parts: List[str]) -> tuple:
+        """Lookup module by qualified name."""
+        full_qualified_parts = qualified_name_parts[:]
 
-                # Check original module names (keys in mapper)
-                if getattr(self, "mapper", None) and hasattr(self.mapper, "mappings") and prefix in self.mapper.mappings:
-                    module_name = prefix
-                    func_name = ".".join(full_qualified_parts[i:])
-                    break
+        if qualified_name_parts and qualified_name_parts[0] in getattr(self, 'imported_symbols', {}):
+            full_name = self.imported_symbols[qualified_name_parts[0]]
+            full_qualified_parts = full_name.split(".") + qualified_name_parts[1:]
 
-                # Check aliases and SCC modules
-                if prefix in self.imported_modules:
-                    module_name = self.imported_modules[prefix]
-                    func_name = ".".join(full_qualified_parts[i:])
-                    break
-                elif prefix in self.imported_modules.values():
-                    module_name = prefix
-                    func_name = ".".join(full_qualified_parts[i:])
-                    break
+        for i in range(len(full_qualified_parts), 0, -1):
+            prefix = ".".join(full_qualified_parts[:i])
 
-            if not module_name:
-                root_name = qualified_name_parts[0]
-                if root_name == "os" and len(qualified_name_parts) > 1 and qualified_name_parts[1] == "path":
-                    # Special case for os.path
-                    module_name = "os"
-                    func_name = ".".join(qualified_name_parts[1:])
+            # Check original module names
+            if getattr(self, "mapper", None) and hasattr(self.mapper, "mappings") and prefix in self.mapper.mappings:
+                return prefix, ".".join(full_qualified_parts[i:])
 
-        if not module_name and isinstance(func_node, ast.Attribute):
-            # obj.method() fallback
-            if isinstance(func_node.value, ast.Name) and func_node.value.id in self.imported_modules:
-                module_name = self.imported_modules[func_node.value.id]
-                func_name = func_node.attr
+            # Check aliases and SCC modules
+            if prefix in getattr(self, 'imported_modules', {}):
+                return self.imported_modules[prefix], ".".join(full_qualified_parts[i:])
+            elif prefix in getattr(self, 'imported_modules', {}).values():
+                return prefix, ".".join(full_qualified_parts[i:])
 
-        if not module_name and isinstance(func_node, ast.Name):
-            # func()
-            if func_node.id in self.imported_symbols:
-                # from mod import func
-                full_name = self.imported_symbols[func_node.id]
-                # If full_name is e.g. "datetime.datetime", and it is a class, we want to map it.
-                parts = full_name.split(".")
-                if len(parts) > 1:
-                    module_name = ".".join(parts[:-1])
-                    func_name = parts[-1]
-                else:
-                    func_name = parts[0]
-            elif func_node.id == "open":
-                module_name = "os" # synthetic
-                func_name = "open"
-            elif func_node.id in ("hasattr", "getattr", "setattr", "delattr", "eval", "exec", "compile", "type", "super"):
-                 module_name = "builtins" # synthetic
-                 func_name = func_node.id
+        # Special case for os.path
+        if qualified_name_parts and qualified_name_parts[0] == "os" and len(qualified_name_parts) > 1 and qualified_name_parts[1] == "path":
+            return "os", ".".join(qualified_name_parts[1:])
 
+        return None, None
+
+    def _resolve_name_call(self, func_node: ast.Name, func_name_str: str) -> tuple:
+        """Resolve module for name call."""
+        module_name = None
+        func_name = None
+
+        if func_name_str in getattr(self, 'imported_symbols', {}):
+            full_name = self.imported_symbols[func_name_str]
+            parts = full_name.split(".")
+            if len(parts) > 1:
+                module_name = ".".join(parts[:-1])
+                func_name = parts[-1]
+            else:
+                func_name = parts[0]
+        elif func_name_str == "open":
+            module_name = "os"
+            func_name = "open"
+        elif func_name_str in ("hasattr", "getattr", "setattr", "delattr", "eval", "exec", "compile", "type", "super"):
+            module_name = "builtins"
+            func_name = func_name_str
+
+        return module_name, func_name
+
+    def _handle_special_cases(self, node: ast.Call, module_name: str | None,
+                               func_name: str | None, func_name_str: str,
+                               args: list, call_sig: dict | None) -> str | None:
+        """Handle special cases."""
+        
+        # six module
         if module_name == "six":
-            if func_name == "u" and len(args) == 1:
-                return args[0]
-            elif func_name == "text_type" and len(args) == 1:
-                return f"{args[0]}.str()"
-
+            return self._handle_six_module(func_name, args)
+        
+        # os.open
         if module_name == "os" and func_name == "open":
-             # Handle open() -> os.open()
-             self.emitter.add_import("os")
-             if len(args) >= 1:
-                 path = args[0]
-                 mode = ""
-                 if len(node.args) > 1:
-                     mode_node = node.args[1]
-                     if isinstance(mode_node, ast.Constant) and isinstance(mode_node.value, str):
-                         mode = mode_node.value
-                 elif len(node.keywords) > 0:
-                     for kw in node.keywords:
-                         if kw.arg == "mode" and isinstance(kw.value, ast.Constant) and isinstance(kw.value.value, str):
-                             mode = kw.value.value
-
-                 if "w" in mode:
-                     return f"os.create({path}) or {{ panic(err) }}"
-                 elif "a" in mode:
-                     return f"os.open_append({path}) or {{ panic(err) }}"
-                 else:
-                     return f"os.open({path}) or {{ panic(err) }}"
-
+            self.emitter.add_import("os")
+            return self._handle_os_open(node, args)
+        
+        # builtins
         if module_name == "builtins":
-            if func_name == "hasattr":
-                 if len(args) >= 2:
-                     obj_expr = args[0]
-                     obj_type = self._guess_type(node.args[0])
-
-                     if isinstance(node.args[1], ast.Constant) and isinstance(node.args[1].value, str):
-                         attr_name = node.args[1].value
-                         # Primitive types definitely don't have custom attributes
-                         if obj_type in ("int", "f64", "bool", "string", "[]u8"):
-                             return "false"
-
-                         # If we know it's a specific struct and know its fields (dataclass)
-                         if obj_type != "Any" and hasattr(self, 'dataclasses') and obj_type in self.dataclasses:
-                             if attr_name in self.dataclasses[obj_type]:
-                                 return "true"
-                             else:
-                                 # We don't have all fields stored, so fallback to compile-time introspection
-                                 return f"//##LLM@@ Dynamic attribute access (getattr/setattr/hasattr) used here. V structs are strictly typed at compile time. Please refactor using explicit struct fields, V's compile-time reflection ($for field in struct), or interfaces.\n$if {obj_expr}.has_field('{attr_name}') {{ true }} $else {{ false }}"
-
-                         # Unknown struct or Any/Union -> compile-time introspection fallback
-                         return f"//##LLM@@ Dynamic attribute access (getattr/setattr/hasattr) used here. V structs are strictly typed at compile time. Please refactor using explicit struct fields, V's compile-time reflection ($for field in struct), or interfaces.\n$if {obj_expr}.has_field('{attr_name}') {{ true }} $else {{ false }}"
-
-                     return f"//##LLM@@ Dynamic attribute access (getattr/setattr/hasattr) used here. V structs are strictly typed at compile time. Please refactor using explicit struct fields, V's compile-time reflection ($for field in struct), or interfaces.\n/* hasattr({', '.join(args)}) - reflection not fully supported */ false"
-                 return "false"
-            elif func_name == "getattr":
-                 if len(args) >= 2:
-                      # check if args[1] is string literal
-                      # args[1] is already visited code, e.g. "'attr'"
-                      attr_name = args[1]
-                      if attr_name.startswith("'") and attr_name.endswith("'"):
-                           return f"//##LLM@@ Dynamic attribute access (getattr/setattr/hasattr) used here. V structs are strictly typed at compile time. Please refactor using explicit struct fields, V's compile-time reflection ($for field in struct), or interfaces.\n{args[0]}.{attr_name[1:-1]}"
-                 return f"//##LLM@@ Dynamic attribute access (getattr/setattr/hasattr) used here. V structs are strictly typed at compile time. Please refactor using explicit struct fields, V's compile-time reflection ($for field in struct), or interfaces.\n/* getattr({', '.join(args)}) - dynamic access not supported */"
-            elif func_name == "setattr":
-                 if len(args) >= 3:
-                      attr_name = args[1]
-                      if attr_name.startswith("'") and attr_name.endswith("'"):
-                           return f"//##LLM@@ Dynamic attribute access (getattr/setattr/hasattr) used here. V structs are strictly typed at compile time. Please refactor using explicit struct fields, V's compile-time reflection ($for field in struct), or interfaces.\n{args[0]}.{attr_name[1:-1]} = {args[2]}"
-                 return f"//##LLM@@ Dynamic attribute access (getattr/setattr/hasattr) used here. V structs are strictly typed at compile time. Please refactor using explicit struct fields, V's compile-time reflection ($for field in struct), or interfaces.\n/* setattr({', '.join(args)}) - dynamic setting not supported */"
-            elif func_name == "delattr":
-                 return f"//##LLM@@ Dynamic attribute access (getattr/setattr/hasattr) used here. V structs are strictly typed at compile time. Please refactor using explicit struct fields, V's compile-time reflection ($for field in struct), or interfaces.\n/* delattr({', '.join(args)}) - dynamic access not supported */"
-            elif func_name in ("eval", "exec", "compile"):
-                 return f"//##LLM@@ Dynamic code execution via eval() or exec() detected. This cannot be compiled in V. Please analyze the intended logic and replace it with explicit, statically compiled V code, or a custom parser if strictly necessary.\n/* {func_name}(...) - dynamic execution not supported */"
-            elif func_name == "type":
-                if len(args) >= 1:
-                    return f"typeof({args[0]}).name"
-            elif func_name == "super":
-                 pass
-
-        if module_name and func_name:
-            # Check for typing.cast before using standard mapper so we have AST node access
-            if module_name == "typing":
-                if func_name == "cast":
-                    if len(args) == 2:
-                        try:
-                            type_str = ast.unparse(node.args[0])
-                            v_type = self._map_type(type_str)
-                        except Exception:
-                            v_type = str(self.visit(node.args[0]))
-                        val = args[1]
-                        return f"({val} as {v_type})"
-                    return f"/* typing.cast missing args */"
-
-            mapped = self.mapper.get_mapping(module_name, func_name, args)
-            if mapped:
-                # Add automatic V imports for the module
-                v_imports = self.mapper.get_imports(module_name)
-                if v_imports:
-                    for imp in v_imports:
-                        self.emitter.add_import(imp)
-                return mapped
-
-        # Try finding os.path.X by concatenating if attribute access
-        if isinstance(func_node, ast.Attribute) and isinstance(func_node.value, ast.Attribute):
-             # os.path.join -> value is os.path, attr is join
-             # Check if os.path is module
-             pass
-
-        # Handle functools.partial
+            return self._handle_special_builtin(node, func_name, args)
+        
+        # functools.partial
         if module_name == "functools" and func_name == "partial":
-             if len(args) >= 2:
-                 # partial(func, *args) -> fn [func, args] (extra_args ...Any) { return func(args..., extra_args...) }
-                 # Simplified closure generation
-                 target_func = args[0]
-                 partial_args = args[1:]
+            return self._handle_functools_partial(node, args)
+        
+        # threading.Lock
+        result = self._handle_threading_lock(node, node.func)
+        if result:
+            return result
+        
+        # super() calls
+        if isinstance(node.func, ast.Attribute) and isinstance(node.func.value, ast.Call):
+            result = self._handle_super_call(node, node.func, args)
+            if result:
+                return result
+        
+        # BaseClass.__init__
+        if isinstance(node.func, ast.Attribute) and node.func.attr == "__init__":
+            result = self._handle_base_class_init(node, node.func, args)
+            if result:
+                return result
+        
+        # unittest assertions
+        result = self._handle_unittest_assertions(node, node.func, args)
+        if result:
+            return result
+        
+        # object.__new__
+        result = self._handle_object_new(node, node.func)
+        if result:
+            return result
+        
+        return None
 
-                 # V anonymous function with closure capture [target_func, partial_args]
-                 # Note: capturing list of strings (args) works in V if variables are defined.
-                 # But args here are strings from visit(), so they are expressions.
-                 # We need to capture the VALUES.
-                 # This is complex to inline perfectly.
-                 # Let's generate a wrapper closure.
-                 # Assuming simple case: partial(add, 5)
+    def _handle_via_mapper(self, node: ast.Call, module_name: str, func_name: str, args: list) -> str | None:
+        """Handle call via mapper."""
 
-                 # We need to generate names for arguments to capture?
-                 # Or just embed expressions if they are constants/vars.
-                 # `fn [target_func, partial_args] (rest ...Any) { return target_func(partial_args..., rest...) }`
+        # typing.cast
+        if module_name == "typing" and func_name == "cast":
+            return self._handle_typing_cast(node, args)
 
-                 # Construct capture list string
-                 # We assume args are valid expressions.
-                 # But V closure capture requires variables.
-                 # If partial_args contains literals, we can't capture them directly in `[]`.
-                 # But we can use them directly in body if they are literals.
-                 # Only variables need capturing.
+        mapped = self.mapper.get_mapping(module_name, func_name, args) if hasattr(self, 'mapper') and self.mapper else None
 
-                 # Heuristic: Scan partial_args for identifiers.
-                 # For now, simplistic approach:
-                 # fn (rest ...int) int { return target_func(partial_args, rest...) }
+        if mapped:
+            v_imports = self.mapper.get_imports(module_name) if hasattr(self, 'mapper') else []
+            if v_imports:
+                for imp in v_imports:
+                    self.emitter.add_import(imp)
+            return mapped
 
-                 # We don't know the types!
-                 # V requires types for anonymous function arguments.
-                 # `fn (x int)` etc.
-                 # This makes generalized partial very hard without generic lambdas (which V has limitations on).
-                 # Fallback: Emit a comment and a best-effort lambda assuming 'int' or 'Any' if possible.
+        return None
 
-                 # Try to deduce type from target_func? Hard.
+    def _handle_overloads(self, node: ast.Call, call_sig: dict | None, args: list) -> str | None:
+        """Handle overloads."""
 
-                 # Let's emit a closure that takes `...int` and returns `int` as a common case,
-                 # or `...Any` if we had `Any` support everywhere.
-
-                 joined_partial = ", ".join(partial_args)
-                 return f"fn (rest ...int) int {{ return {target_func}({joined_partial}, ...rest) }}"
-
-        # Handle threading.Lock.acquire/release -> lock/unlock
-        # Heuristic: if method name is acquire/release and receiver is unknown or mapped to sync.Mutex (hard to know type here)
-        # We can just map acquire->lock, release->unlock generally if threading is imported?
-        # Or check if receiver name suggests lock?
-        # Safe approach: if threading is used, and method is acquire/release, map it.
-        # But this might conflict with other classes.
-        # Let's check mapped type? We don't have robust type inference for variables yet.
-        # Just map it for now if threading is imported.
-        if "threading" in self.imported_modules.values() and isinstance(func_node, ast.Attribute):
-             if func_node.attr == "acquire":
-                 receiver = self.visit(func_node.value)
-                 return f"{receiver}.lock()"
-             elif func_node.attr == "release":
-                 receiver = self.visit(func_node.value)
-                 return f"{receiver}.unlock()"
-
-        # Handle super().method() and super(Class, self).method()
-        if isinstance(func_node, ast.Attribute) and isinstance(func_node.value, ast.Call):
-            is_super = False
-            if isinstance(func_node.value.func, ast.Name) and func_node.value.func.id == "super":
-                is_super = True
-
-            if is_super:
-                method_name = func_node.attr
-                if self.current_class_bases:
-                    parent = self.current_class_bases[0]
-                    field_name = self.current_class_generic_bases.get(parent, self._sanitize_name(parent, is_type=True))
-                    if method_name == "__init__":
-                        factory_name = self._get_factory_name(parent)
-                        return f"self.{field_name} = {factory_name}({', '.join(args)})"
-                    return f"self.{field_name}.{method_name}({', '.join(args)})"
-                else:
-                    return f"/* super().{method_name} call without known parent */"
-
-        # Handle explicit BaseClass.__init__(self, ...)
-        if isinstance(func_node, ast.Attribute) and func_node.attr == "__init__":
-            if isinstance(func_node.value, ast.Name):
-                class_name = func_node.value.id
-                if self.current_class_bases and class_name in self.current_class_bases:
-                    if len(args) >= 1 and args[0] == "self":
-                        base_args = args[1:]
-                        factory_name = self._get_factory_name(class_name)
-                        field_name = self.current_class_generic_bases.get(class_name, self._sanitize_name(class_name, is_type=True))
-                        return f"self.{field_name} = {factory_name}({', '.join(base_args)})"
-
-        # Handle unittest assertions
-        # Strictly check for self.assertX if possible to avoid regressions
-        # We check if receiver is "self"
-        is_self_assertion = False
-        if isinstance(func_node, ast.Attribute) and func_node.attr.startswith("assert"):
-             if isinstance(func_node.value, ast.Name) and func_node.value.id == "self":
-                 is_self_assertion = True
-
-        if is_self_assertion and isinstance(func_node, ast.Attribute):
-             assertion = func_node.attr
-             if assertion == "assertEqual" and len(args) == 2:
-                  return f"assert {args[0]} == {args[1]}"
-             elif assertion == "assertNotEqual" and len(args) == 2:
-                  return f"assert {args[0]} != {args[1]}"
-             elif assertion == "assertTrue" and len(args) == 1:
-                  return f"assert {args[0]}"
-             elif assertion == "assertFalse" and len(args) == 1:
-                  return f"assert !({args[0]})"
-             elif assertion == "assertIn" and len(args) == 2:
-                  return f"assert {args[0]} in {args[1]}"
-             elif assertion == "assertNotIn" and len(args) == 2:
-                  return f"assert {args[0]} !in {args[1]}"
-             elif assertion == "assertIsNone" and len(args) == 1:
-                  return f"assert {args[0]} == none"
-             elif assertion == "assertIsNotNone" and len(args) == 1:
-                  return f"assert {args[0]} != none"
-             elif assertion == "assertIs" and len(args) == 2:
-                   return f"assert {args[0]} == {args[1]}" # Approx
-             elif assertion == "assertIsNot" and len(args) == 2:
-                   return f"assert {args[0]} != {args[1]}" # Approx
-
-        # unittest.main()
-        if module_name == "unittest" and func_name == "main":
-             return "// unittest.main() ignored"
-
-        # Fallback to existing logic
-        func_name_str = self.visit(node.func)
-
-        # Handle object.__new__(cls) or super().__new__(cls)
-        if isinstance(node.func, ast.Attribute) and node.func.attr == "__new__":
-            receiver = self.visit(node.func.value)
-            if receiver in ("object", "super()") or (receiver == self.current_class):
-                # __new__ factory implementation: object.__new__(cls) -> Struct{}
-                if self.current_class:
-                    return f"{self.current_class}{{}}"
-
-        # If func_name_str was mangled/sanitized by visit_Name, we need the original to check builtins
-        # like "map", "filter", "print". Let's check if the un-sanitized version matches anything.
-        original_id = None
-        if isinstance(node.func, ast.Name):
-            original_id = node.func.id
-
-        if func_name_str in self.renamed_functions:
-            func_name_str = self.renamed_functions[func_name_str]
-        elif original_id and f"py_{original_id}" == func_name_str and original_id in ("map", "filter"):
-             func_name_str = original_id
-
-        # Handle dict.get(key, default) -> dict[key] or { default }
-        if isinstance(func_node, ast.Attribute) and func_node.attr == "get" and (len(args) == 1 or len(args) == 2):
-            obj_type = self._guess_type(func_node.value)
-            if obj_type.startswith("map[") or obj_type == "Any":
-                obj = self.visit(func_node.value)
-                key = args[0]
-                if len(args) == 2:
-                    default = args[1]
-                else:
-                    val_type = "Any"
-                    if obj_type.startswith("map["):
-                        parts = obj_type.split("]", 1)
-                        if len(parts) > 1:
-                            val_type = parts[1]
-
-                    if val_type == "Any" or obj_type == "Any":
-                        default = "Any(NoneType{})"
-                    elif val_type == "int" or val_type == "i64" or val_type == "u32" or val_type == "u64" or val_type == "i8" or val_type == "i16" or val_type == "u8" or val_type == "u16":
-                        default = "0"
-                    elif val_type == "f64" or val_type == "f32":
-                        default = "0.0"
-                    elif val_type == "bool":
-                        default = "false"
-                    elif val_type == "string":
-                        default = "''"
-                    elif val_type.startswith("[]"):
-                        default = f"{val_type}{{}}"
-                    elif val_type.startswith("map["):
-                        default = f"{val_type}{{}}"
-                    else:
-                        default = "none"
-                return f"{obj}[{key}] or {{ {default} }}"
-
-
-        # Handle overloaded functions
-        lookup_name = func_name_str or ""
+        lookup_name = ""
         is_class = False
-        if lookup_name.startswith("py_"):
-            for orig_id in ("int", "float", "bool", "str", "map", "filter"):
-                if f"py_{orig_id}" == lookup_name:
-                    lookup_name = orig_id
-                    break
+
+        if isinstance(node.func, ast.Name):
+            lookup_name = node.func.id
+            if lookup_name.startswith("py_"):
+                for orig_id in ("int", "float", "bool", "str", "map", "filter"):
+                    if f"py_{orig_id}" == lookup_name:
+                        lookup_name = orig_id
+                        break
 
         if call_sig and "is_class" in call_sig:
             is_class = call_sig["is_class"]
         elif hasattr(self, 'defined_classes') and lookup_name in self.defined_classes:
             is_class = True
 
-        ov_key = lookup_name
-        receiver_type = None
-        if is_class:
-            ov_key = f"{lookup_name}.__init__"
-        elif isinstance(node.func, ast.Attribute):
-            receiver_type = self._guess_type(node.func.value)
-            if receiver_type != "Any" and not receiver_type.startswith("[]") and not receiver_type.startswith("map["):
-                ov_key = f"{receiver_type}.{node.func.attr}"
-
-        if ov_key in getattr(self, "overloaded_signatures", {}):
-            # We need to find the correct overload variant
-
-            type_suffix_parts = []
-            if call_sig and "args" in call_sig:
-                # We use the argument types resolved by mypy
-                for arg_typ in call_sig["args"]:
-                    # Mypy arg types can be complex (e.g. 'Literal[1]?'), we need to map them back to our V types
-                    # First normalize mypy specific literal formatting: 'Literal[1]?' -> 'int'
-                    norm_typ = arg_typ.replace("builtins.", "")
-                    if "Literal[" in arg_typ:
-                        if "'" in arg_typ or '"' in arg_typ:
-                            norm_typ = "str"
-                        else:
-                            norm_typ = "int"
-                    try:
-                        v_type = self._map_type(norm_typ)
-                    except Exception:
-                        v_type = "Any"
-                    # Ensure we map mypy's builtins correctly, even if mapping failed
-                    if v_type == "builtins.int" or norm_typ == "builtins.int" or norm_typ == "int": v_type = "int"
-                    if v_type == "builtins.str" or norm_typ == "builtins.str" or norm_typ == "str": v_type = "string"
-                    if v_type == "builtins.float" or norm_typ == "builtins.float" or norm_typ == "float": v_type = "f64"
-                    if v_type == "builtins.bool" or norm_typ == "builtins.bool" or norm_typ == "bool": v_type = "bool"
-                    clean_type = v_type.replace("?", "opt_").replace("[]", "arr_").replace("[", "_").replace("]", "").replace(".", "_")
-                    type_suffix_parts.append(clean_type)
-            else:
-                # Fallback: guess types from arguments if mypy didn't track it
-                for arg in node.args:
-                    arg_type = self._guess_type(arg)
-                    clean_type = arg_type.replace("?", "opt_").replace("[]", "arr_").replace("[", "_").replace("]", "").replace(".", "_")
-                    type_suffix_parts.append(clean_type)
-
-            # We want to match against the *defined* overload variants, because mypy might infer
-            # slightly different types than what was declared in the overload (e.g. `int` instead of `Any`).
-            # Find the best match among `self.overloaded_signatures[ov_key]`.
-            best_match_suffix = None
-            if ov_key in self.overloaded_signatures:
-                for sig in self.overloaded_signatures[ov_key]:
-                    sig_suffix_parts = []
-                    for arg in sig["args"]:
-                        sig_type = arg["type"]
-                        clean_sig_type = sig_type.replace("?", "opt_").replace("[]", "arr_").replace("[", "_").replace("]", "").replace(".", "_")
-                        sig_suffix_parts.append(clean_sig_type)
-
-                    # Exact match
-                    if sig_suffix_parts == type_suffix_parts:
-                        best_match_suffix = "_".join(sig_suffix_parts)
-                        break
-
-            # Operator overloading: if the method is an operator, don't mangle the call site,
-            # because V handles operators intrinsically if they are mapped correctly.
-            # But wait, python ast maps operators (e.g. `a + b`) to `BinOp(Add)`, which we already translate
-            # to `a + b` in `OperatorsMixin.visit_BinOp`.
-            # What if someone calls `a.__add__(b)` directly?
-            # V does not allow calling operators as methods (`a.+(b)`).
-            # We must map `__add__` to `+`.
-            op_map = {
-                "__add__": "+", "__sub__": "-", "__mul__": "*", "__truediv__": "/",
-                "__mod__": "%", "__lt__": "<", "__le__": "<=", "__eq__": "==",
-                "__ne__": "!="
-            }
-            if func_name_str in op_map:
-                op_str = op_map[func_name_str]
-                # If we are in obj.method(arg), then we need to restructure it to obj + arg
-                if len(args) == 1 and isinstance(node.func, ast.Attribute):
-                    obj = self.visit(node.func.value)
-                    return f"{obj} {op_str} {args[0]}"
-                # Fallback if something weird happened (e.g. called without args)
-                pass
-
-            if best_match_suffix:
-                if is_class:
-                    func_name_str = f"{self._get_factory_name(lookup_name)}_{best_match_suffix}"
-                else:
-                    func_name_str = f"{func_name_str}_{best_match_suffix}"
-            elif type_suffix_parts:
-                # If no exact match, we use the inferred types to build the name.
-                # This guarantees we call the specific overloaded variant matching the static types.
-                # If mypy successfully inferred the types but the call doesn't match an overload,
-                # the V compiler will correctly throw an error indicating a missing function.
-                if is_class:
-                    func_name_str = f"{self._get_factory_name(lookup_name)}_{'_'.join(type_suffix_parts)}"
-                else:
-                    func_name_str = f"{func_name_str}_{'_'.join(type_suffix_parts)}"
-            else:
-                if is_class:
-                    func_name_str = f"{self._get_factory_name(lookup_name)}_noargs"
-                else:
-                    func_name_str = f"{func_name_str}_noargs"
-
-        # Resolve SCC Attribute calls (module.Func)
-        if isinstance(node.func, ast.Attribute) and isinstance(node.func.value, ast.Name):
-            if node.func.value.id in self.imported_modules:
-                module_name_scc = self.imported_modules[node.func.value.id]
-                scc_file = next((f for f in self.scc_files if module_name_scc.endswith(f.replace('.py', '').replace('/', '.').replace('\\', '.'))), None)
-                if scc_file:
-                    prefix = self._get_scc_prefix(scc_file)
-                    func_name_scc = f"{prefix}__{self._sanitize_name(node.func.attr)}"
-                    # Transform to direct function call
-                    return f"{func_name_scc}({', '.join(args)})"
-
-        # Resolve SCC direct calls (from mod import func)
-        if isinstance(node.func, ast.Name) and node.func.id in self.imported_symbols:
-            full_name = self.imported_symbols[node.func.id]
-            # If it has a prefix from SCC
-            if "__" in full_name:
-                 return f"{full_name}({', '.join(args)})"
-
-        # Special handling for typing.assert_type
-        if func_name_str == "typing.assert_type" or (original_id == "assert_type" and func_name_str == "assert_type"):
-            if len(args) >= 2:
-                expr_node = node.args[0]
-                type_node = node.args[1]
-                expr_type = self._guess_type(expr_node)
-                try:
-                    type_str = ast.unparse(type_node)
-                    expected_type = self._map_type(type_str)
-                except Exception:
-                    type_str = str(self.visit(type_node))
-                    expected_type = self._map_type(type_str)
-
-                if expr_type == expected_type:
-                    return f"// assert_type({args[0]}, {expected_type}) passed statically"
-                else:
-                    return f"$compile_error('assert_type failed: expected {expected_type} but got {expr_type}')"
-            return "// assert_type requires 2 arguments"
-
-        # Special handling for typing.assert_never
-        if func_name_str == "typing.assert_never" or (original_id == "assert_never" and func_name_str == "assert_never"):
-            if len(args) >= 1:
-                # assert_never should never be reached - translate to panic
-                return f"panic('assert_never reached: ${{args[0]}}')"
-            return "// assert_never requires 1 argument"
-
-        # Handle primitive type "casting" or conversions (priority over class instantiation)
-        if func_name_str == "dict" or (original_id == "dict" and func_name_str == "py_dict"):
-            v_type = self.current_assignment_type or "map[string]Any"
-            if not v_type.startswith("map["): v_type = "map[string]Any"
-            if "map[Any]" in v_type:
-                v_type = v_type.replace("map[Any]", "map[string]")
-                if not getattr(self, '_emitted_any_map_comment', False):
-                    self.output.append(f"{self._indent()}//##LLM@@ V requires map keys to be comparable types (like string, int). 'Any' was used as a map key in Python, which has been fallback-mapped to 'string'. Please review and manually adjust the map key type and its usage if necessary.")
-                    self._emitted_any_map_comment = True
-            if len(args) == 0:
-                return f"{v_type}{{}}"
-            return f"{v_type}({', '.join(args)})"
-        elif func_name_str == "list" or (original_id == "list" and func_name_str == "py_list"):
-            v_type = self.current_assignment_type or "[]Any"
-            if not v_type.startswith("[]"): v_type = "[]Any"
-            if len(args) == 0:
-                return f"{v_type}{{}}"
-            return f"{v_type}({', '.join(args)})"
-        elif func_name_str == "tuple" or (original_id == "tuple" and func_name_str == "py_tuple"):
-            v_type = self.current_assignment_type or "[]Any"
-            if not v_type.startswith("["): v_type = "[]Any"
-            if len(args) == 0:
-                return f"{v_type}{{}}"
-            return f"{v_type}({', '.join(args)})"
-        elif func_name_str == "set" or (original_id == "set" and func_name_str == "py_set"):
-            v_type = self.current_assignment_type or "map[string]bool"
-            if not v_type.startswith("map["): v_type = "map[string]bool"
-            if "map[Any]" in v_type:
-                v_type = v_type.replace("map[Any]", "map[string]")
-                if not getattr(self, '_emitted_any_map_comment', False):
-                    self.output.append(f"{self._indent()}//##LLM@@ V requires map keys to be comparable types (like string, int). 'Any' was used as a map key in Python, which has been fallback-mapped to 'string'. Please review and manually adjust the map key type and its usage if necessary.")
-                    self._emitted_any_map_comment = True
-            if len(args) == 0:
-                return f"{v_type}{{}}"
-            return f"{v_type}({', '.join(args)})"
-        elif func_name_str == "int" or (original_id == "int" and func_name_str == "py_int"):
-            if len(args) == 0:
-                return "0"
-            elif len(args) == 1:
-                arg_type = self._guess_type(node.args[0])
-                if arg_type == "string":
-                    return f"{args[0]}.int()"
-                return f"int({args[0]})"
-            elif len(args) == 2:
-                # E.g. int('ff', 16) - V has strconv.parse_int
-                self.emitter.add_import("strconv")
-                return f"int(strconv.parse_int({args[0]}, {args[1]}, 32) or {{ 0 }})"
-        elif func_name_str == "float" or (original_id == "float" and func_name_str == "py_float"):
-            if len(args) == 1:
-                arg_type = self._guess_type(node.args[0])
-                if arg_type == "string":
-                    return f"{args[0]}.f64()"
-                return f"f64({args[0]})"
-            return "0.0"
-        elif func_name_str == "bool" or (original_id == "bool" and func_name_str == "py_bool"):
-            if len(args) == 1:
-                arg_type = self._guess_type(node.args[0])
-                if arg_type == "int": return f"({args[0]} != 0)"
-                if arg_type == "string": return f"({args[0]} != '')"
-                if arg_type.startswith("[]"): return f"({args[0]}.len > 0)"
-                return f"py_bool({args[0]})"
-            return "false"
-        elif func_name_str == "str" or (original_id == "str" and func_name_str == "py_str"):
-            if len(args) == 1:
-                return f"{args[0]}.str()"
-            return "''"
-        elif func_name_str in ("bytes", "bytearray"):
-            if len(args) == 0:
-                return "[]u8{}"
-            elif len(args) >= 1:
-                arg_type = self._guess_type(node.args[0])
-                if arg_type == "int":
-                    return f"[]u8{{len: {args[0]}}}"
-                if arg_type == "string":
-                    return f"{args[0]}.bytes()"
-
-                # Ensure a copy is made for buffer-like or list-like arguments
-                return f"{args[0]}.clone()"
-            return "[]u8{}"
-        elif func_name_str in ("bytes.fromhex", "bytearray.fromhex"):
-            self.emitter.add_import("encoding.hex")
-            return f"hex.decode({args[0]}) or {{ []u8{{}} }}"
-        elif func_name_str == "memoryview":
-            if len(args) >= 1:
-                return f"{args[0]}"
-            return "[]u8{}"
-
-        # Handle dataclass constructor call
-        dataclass_metadata = None
-        if call_sig and "dataclass_metadata" in call_sig:
-            dataclass_metadata = call_sig["dataclass_metadata"]
-
-        if dataclass_metadata:
-            # Reconstruct the fields based on mypy's exact attributes
-            struct_args = []
-            factory_args = []
-            init_fields = [attr for attr in dataclass_metadata.get('attributes', []) if attr.get('is_in_init')]
-            has_post_init = dataclass_metadata.get("has_post_init", False)
-
-            # Map positional args
-            for i, arg_val in enumerate(args):
-                if i < len(init_fields):
-                    field_name = self._sanitize_name(init_fields[i]['name'])
-                    if not init_fields[i].get('is_init_var', False):
-                        struct_args.append(f"{field_name}: {arg_val}")
-                    factory_args.append(arg_val)
-            # Map keyword args
-            for keyword in node.keywords:
-                if keyword.arg:
-                     kw_val_str = str(self.visit(keyword.value))
-                     field_name = self._sanitize_name(keyword.arg)
-
-                     is_init_var = False
-                     for attr in init_fields:
-                         if attr['name'] == keyword.arg:
-                             is_init_var = attr.get('is_init_var', False)
-                             break
-
-                     if not is_init_var:
-                        struct_args.append(f"{field_name}: {kw_val_str}")
-                     factory_args.append(f"{field_name}: {kw_val_str}")
-
-            if has_post_init:
-                # V doesn't support kwargs in functions, so we must map all arguments to positional order
-                final_factory_args = []
-
-                # First, fill with positional args provided in the call
-                for i in range(len(args)):
-                    final_factory_args.append(args[i])
-
-                # Then, fill remaining from keywords if they match attribute names
-                # and are not already filled by positional
-                for i in range(len(args), len(init_fields)):
-                    field_name = init_fields[i]['name']
-                    # Look for this field in keywords
-                    found_kw = False
-                    for keyword in node.keywords:
-                        if keyword.arg == field_name:
-                            final_factory_args.append(str(self.visit(keyword.value)))
-                            found_kw = True
-                            break
-                    if not found_kw:
-                        # Try to find default from body if it's missing in call-site
-                        # but subsequent keywords are provided.
-                        # V requires positional arguments to be filled if we want to provide later ones.
-                        # Check if any LATER field is provided in keywords
-                        later_provided = False
-                        for j in range(i + 1, len(init_fields)):
-                            later_field = init_fields[j]['name']
-                            for kw in node.keywords:
-                                if kw.arg == later_field:
-                                    later_provided = True
-                                    break
-                            if later_provided: break
-
-                        if later_provided:
-                            # We MUST provide a value. Try to find the default value.
-                            # Heuristic: if we can't find it, we might have to use a zero-value
-                            # or emit a placeholder.
-                            found_default = False
-                            for body_stmt in getattr(self, "current_class_body", []):
-                                # ...
-                                pass
-
-                            # Simple fallback: if we don't provide it, and it has a default in V fn,
-                            # it's only okay if it's at the end.
-                            # For the test case Point(1, z=3) where y=5 is missing:
-                            # We need to find y's default.
-                            if init_fields[i].get('has_default'):
-                                # Try to find default from current_class_body
-                                found_default_val = False
-                                for body_stmt in getattr(self, "current_class_body", []):
-                                    if isinstance(body_stmt, ast.AnnAssign) and isinstance(body_stmt.target, ast.Name) and body_stmt.target.id == field_name:
-                                        if body_stmt.value:
-                                            final_factory_args.append(str(self.visit(body_stmt.value)))
-                                            found_default_val = True
-                                        break
-                                    elif isinstance(body_stmt, ast.Assign):
-                                        for target in body_stmt.targets:
-                                            if isinstance(target, ast.Name) and target.id == field_name:
-                                                final_factory_args.append(str(self.visit(body_stmt.value)))
-                                                found_default_val = True
-                                                break
-                                    if found_default_val: break
-
-                                if not found_default_val:
-                                     # Fallback to zero value or placeholder if not found
-                                     pass
-
-                factory_name = self._get_factory_name(func_name_str)
-                return f"{factory_name}({', '.join(final_factory_args)})"
-            return f"{func_name_str}{{{', '.join(struct_args)}}}"
-        elif hasattr(self, 'dataclasses') and func_name_str in self.dataclasses:
-            field_order = self.dataclasses[func_name_str]
-            struct_args = []
-            # Map positional args
-            for i, arg_val in enumerate(args):
-                if i < len(field_order):
-                    struct_args.append(f"{field_order[i]}: {arg_val}")
-            # Map keyword args
-            for keyword in node.keywords:
-                if keyword.arg:
-                     kw_val_str = str(self.visit(keyword.value))
-                     struct_args.append(f"{self._sanitize_name(keyword.arg)}: {kw_val_str}")
-
-            return f"{func_name_str}{{{', '.join(struct_args)}}}"
-
-        # Handle standard class instantiation
-        is_class = False
-        has_factory = False
-
-        lookup_name = func_name_str or ""
-        if lookup_name.startswith("py_"):
-            # Check if it was sanitized
-            for orig_id in ("int", "float", "bool", "str", "map", "filter"):
-                if f"py_{orig_id}" == lookup_name:
-                    lookup_name = orig_id
-                    break
-
-        # Strip generics for class lookup (e.g. UserDict[T] -> UserDict)
-        base_lookup_name = re.sub(r'\[.*\]', '', lookup_name)
-
-        if call_sig and "is_class" in call_sig:
-            is_class = call_sig["is_class"]
-            has_factory = call_sig.get("has_init", False) or call_sig.get("has_new", False)
-        elif hasattr(self, 'defined_classes') and base_lookup_name in self.defined_classes:
-            is_class = True
-            class_info = self.defined_classes[base_lookup_name]
-            has_factory = class_info.get("has_init", False) or class_info.get("has_new", False)
-            if lookup_name in self.defined_classes:
-                func_name_str = lookup_name # Use non-prefixed name for call if it is a class
-
-        if is_class:
-            # Handle monomorphization (explicit generic types)
-            generic_params = ""
-            if call_sig and "return" in call_sig:
-                 v_ret_type = self._map_type(call_sig["return"])
-                 if "[" in v_ret_type and v_ret_type.endswith("]"):
-                      generic_params = "[" + v_ret_type.split("[", 1)[1]
-
-            if has_factory:
-                factory_name = self._get_factory_name(func_name_str)
-                return f"{factory_name}{generic_params}({', '.join(args)})"
-            else:
-                return f"{func_name_str}{generic_params}{{{', '.join(args)}}}"
-
-        # Handle builtins handled by old logic (print, sorted, etc)
-        # Note: 'open', 'hasattr' are handled above or fall through if not matched.
-        # But wait, open is not in existing logic.
-
-        # Handle next(gen) -> gen.next()
-        if func_name_str == "next" and len(args) >= 1:
-             gen = args[0]
-             return f"{gen}.next()"
-
-        # Handle len(obj) -> obj.len
-        if (func_name_str == "len" or func_name_str == "py_len") and len(args) == 1:
-            # Create a dummy Attribute parent to handle precedence
-            dummy_attr = ast.Attribute(value=node.args[0], attr="len")
-            obj_str = self._visit_with_parens(dummy_attr, node.args[0])
-            return f"{obj_str}.len"
-
-        if isinstance(func_node, ast.Attribute) and not module_name:
-            if func_node.attr == "append" and len(args) == 1:
-                obj_type = self._guess_type(func_node.value)
-                if obj_type.startswith("[]") or obj_type == "Any":
-                    obj = self.visit(func_node.value)
-                    return f"{obj} << {args[0]}"
-            elif func_node.attr == "extend" and len(args) == 1:
-                obj_type = self._guess_type(func_node.value)
-                if obj_type.startswith("[]") or obj_type == "Any":
-                    obj = self.visit(func_node.value)
-                    return f"{obj} << {args[0]}"
-            elif func_node.attr == "clear":
-                obj = self.visit(func_node.value)
-                return f"/* {obj}.clear() */ {obj} = {{}}"
-            elif func_node.attr in ("read", "write", "close"):
-                obj_type = self._guess_type(func_node.value)
-                # Optimization: open(path).read() -> os.read_file(path)
-                if isinstance(func_node.value, ast.Call):
-                    inner = func_node.value
-                    if isinstance(inner.func, ast.Name) and inner.func.id == "open" and len(inner.args) >= 1:
-                        path_expr = self.visit(inner.args[0])
-                        if func_node.attr == "read" and len(args) == 0:
-                            return f"os.read_file({path_expr}) or {{ panic(err) }}"
-                        elif func_node.attr == "write" and len(args) == 1:
-                            return f"os.write_file({path_expr}, {args[0]}) or {{ panic(err) }}"
-
-                # Heuristic for os.File
-                is_file = obj_type == "os.File" or (isinstance(func_node.value, ast.Name) and func_node.value.id in ("f", "fp", "file"))
-
-                if is_file:
-                    obj = self.visit(func_node.value)
-                    if func_node.attr == "read":
-                        if len(args) == 1:
-                            # Python f.read(size) -> V f.read_bytes(size).bytestr()
-                            return f"{obj}.read_bytes({args[0]}).bytestr()"
-                        else:
-                            # Python f.read() -> py_file_read_all(mut f)
-                            self.used_builtins.add("py_file_read_all")
-                            return f"py_file_read_all(mut {obj})"
-                    elif func_node.attr == "write":
-                        if len(args) >= 1:
-                            arg_type = self._guess_type(node.args[0])
-                            write_arg = args[0]
-                            if arg_type == "string":
-                                return f"{obj}.write_string({write_arg}) or {{ panic(err) }}"
-                            return f"{obj}.write({write_arg}) or {{ panic(err) }}"
-                        return f"0"
-                    else:
-                        # close
-                        return f"{obj}.close()"
-
-
-        # Handle list.count(value)
-        if isinstance(func_node, ast.Attribute) and func_node.attr == "count" and len(args) == 1:
-            obj = self.visit(func_node.value)
-            # Only translate if argument is 'none' to avoid breaking string.count()
-            if args[0] == "none":
-                return f"{obj}.filter(it == {args[0]}).len"
-
-        # Handle list.sort(reverse=True)
-        if isinstance(func_node, ast.Attribute) and func_node.attr == "sort":
-             # We assume it is a list sort call if method name is 'sort'
-             # Check keywords for reverse=True
-             reverse = False
-             for keyword in node.keywords:
-                 if keyword.arg == "reverse":
-                     if isinstance(keyword.value, ast.Constant) and keyword.value.value is True:
-                         reverse = True
-
-             obj = self.visit(func_node.value)
-             if reverse:
-                 return f"{obj}.sort(a > b)"
-             else:
-                 return f"{obj}.sort()"
-
-        if func_name_str == "sorted":
-            self.used_builtins.add("sorted")
-            return f"py_sorted({', '.join(args)})"
-        elif func_name_str == "reversed":
-            self.used_builtins.add("reversed")
-            return f"py_reversed({', '.join(args)})"
-        elif func_name_str == "map":
-            if len(args) == 2:
-                func = args[0]
-                iterable = args[1]
-                return f"{iterable}.map({func}(it))"
-        elif func_name_str == "filter":
-            if len(args) == 2:
-                func = args[0]
-                iterable = args[1]
-                if func == "None" or func == "none":
-                    return f"{iterable}.filter(it)"
-                return f"{iterable}.filter({func}(it))"
-        elif func_name_str == "any" or func_name_str == "all":
-            if len(node.args) == 1:
-                arg = node.args[0]
-                if isinstance(arg, ast.GeneratorExp):
-                    # any(expr for target in iter) -> iter.any(expr_with_it)
-                    comp_gen = arg.generators[0]
-                    target = comp_gen.target
-                    iter_expr = self.visit(comp_gen.iter)
-
-                    if isinstance(target, ast.Name):
-                        # Map target name to 'it'
-                        self.name_remap[target.id] = "it"
-                        elt = self.visit(arg.elt)
-                        del self.name_remap[target.id]
-                        return f"{iter_expr}.{func_name_str}({elt})"
-                else:
-                    # any(iterable) -> iterable.any(it)
-                    val = self.visit(arg)
-                    return f"{val}.{func_name_str}(it)"
-
-        elif func_name_str == "round":
-            self.emitter.add_import("math")
-            if len(args) == 2:
-                self.used_builtins.add("round")
-                return f"py_round(f64({args[0]}), {args[1]})"
-            elif len(args) == 1:
-                return f"math.round({args[0]})"
-
-
-
-        elif func_name_str == "isinstance":
-            if len(args) == 2:
-                obj = args[0]
-                types = args[1]
-                # Check if second arg was a Tuple, visited as "[T1, T2]" string
-                # We need to access the original node to be sure
-                if isinstance(node.args[1], ast.Tuple):
-                    # It's a tuple of types: (int, float)
-                    # We need to generate (obj is int || obj is float)
-                    type_checks = []
-                    for elt in node.args[1].elts:
-                        t_name = str(self.visit(elt))
-                        type_checks.append(f"{obj} is {t_name}")
-                    return f"({' || '.join(type_checks)})"
-
-                if types.startswith("[") and types.endswith("]"):
-                     return f"/* isinstance({obj}, {types}) - multi-type check not supported */ false"
-                return f"{obj} is {types}"
-
-        elif func_name_str == "assert_never":
-            if len(args) == 1:
-                return f"panic('assert_never reached: ${{{args[0]}}}')"
-            return "panic('assert_never reached')"
-
-        elif func_name_str == "assert_type":
-            if len(args) >= 2:
-                # Compile-time evaluation of assert_type
-                # args[0] is the expression, args[1] is the type
-                # We need the actual AST node of the type to map it correctly
-                expr_node = node.args[0]
-                type_node = node.args[1]
-
-                expr_type = self._guess_type(expr_node)
-
-                try:
-                    type_str = ast.unparse(type_node)
-                    # For assert_type error messages, it might be better to compare original mapped type names
-                    # but map_python_type_to_v converts float to f64, so test expects f64.
-                    expected_type = self._map_type(type_str)
-                except Exception:
-                    # Fallback if unparse fails
-                    type_str = str(self.visit(type_node))
-                    expected_type = self._map_type(type_str)
-
-                if expr_type == expected_type:
-                    return f"// assert_type({args[0]}, {expected_type}) passed statically"
-                else:
-                    return f"$compile_error('assert_type failed: expected {expected_type} but got {expr_type}')"
-            return "// assert_type requires 2 arguments"
-
-        elif func_name_str == "input":
-            self.emitter.add_import("os")
-            if args:
-                return f"os.input({args[0]})"
-            return "os.input('')"
-
-        # String predicates and methods
-        # isdigit, isalpha, isalnum, isspace, islower, isupper, istitle, startswith, endswith, splitlines, join
-        # These are usually called as methods on strings: "s.isdigit()"
-        # But visit_Call handles method calls too.
-        # Check if the function name matches a known string predicate.
-        # And implicitly assume the receiver is a string (or we rely on V compiler error if not).
-        # We handle them if func_node is Attribute.
-        elif isinstance(func_node, ast.Attribute) and func_node.attr in (
-            "isdigit", "isalpha", "isalnum", "isspace", "islower", "isupper", "istitle", "startswith", "endswith",
-            "splitlines", "join"
-        ) and not module_name:
-             attr = func_node.attr
-             obj = self.visit(func_node.value)
-             if attr == "isdigit":
-                 return f"{obj}.bytes().all(it.is_digit())"
-             elif attr == "isalpha":
-                 return f"{obj}.bytes().all(it.is_letter())"
-             elif attr == "isalnum":
-                 return f"{obj}.bytes().all(it.is_alnum())"
-             elif attr == "isspace":
-                 return f"{obj}.bytes().all(it.is_space())"
-             elif attr == "islower":
-                 return f"{obj}.is_lower()"
-             elif attr == "isupper":
-                 return f"{obj}.is_upper()"
-             elif attr == "istitle":
-                 return f"{obj}.is_title()"
-             elif attr == "splitlines":
-                 return f"{obj}.split_into_lines()"
-             elif attr == "join":
-                 if len(args) == 1:
-                     return f"{args[0]}.join({obj})"
-             elif attr in ("startswith", "endswith"):
-                 v_method = "starts_with" if attr == "startswith" else "ends_with"
-                 if len(node.args) == 1 and isinstance(node.args[0], ast.Tuple):
-                     checks = []
-                     for elt in node.args[0].elts:
-                         elt_str = self.visit(elt)
-                         checks.append(f"{obj}.{v_method}({elt_str})")
-                     return f"({' || '.join(checks)})"
-                 else:
-                     # Handled by standard mapping or method call fallback if not tuple
-                     # But for normal strings we might want to just output it here if we handled it
-                     # V uses starts_with/ends_with.
-                     if len(node.args) == 1:
-                         elt_str = self.visit(node.args[0])
-                         return f"{obj}.{v_method}({elt_str})"
-                     # Fallback to default if more complex
-                     pass
-
-        elif func_name_str == "print":
-            sep = " "
-            end = "\\n"
-            is_stderr = False
-
-            for keyword in node.keywords:
-                if keyword.arg == "sep":
-                    if isinstance(keyword.value, ast.Constant) and isinstance(keyword.value.value, str):
-                        sep = keyword.value.value
-                elif keyword.arg == "end":
-                    if isinstance(keyword.value, ast.Constant) and isinstance(keyword.value.value, str):
-                        end = keyword.value.value
-                        if end == "\n":
-                            end = "\\n"
-                elif keyword.arg == "file":
-                    file_val = self.visit(keyword.value)
-                    if file_val == "sys.stderr":
-                        is_stderr = True
-
-            parts = []
-            for arg in node.args:
-                val = self.visit(arg)
-                val_str = str(val)
-                if val_str.startswith("'") and val_str.endswith("'"):
-                    parts.append(val_str[1:-1])
-                else:
-                    parts.append(f"${{{val_str}}}")
-
-            joined_content = sep.join(parts)
-
-            if is_stderr:
-                if end == "\\n":
-                    return f"eprintln('{joined_content}')"
-                elif end == "":
-                    return f"eprint('{joined_content}')"
-                else:
-                    return f"eprint('{joined_content}{end}')"
-            else:
-                if end == "\\n":
-                    return f"println('{joined_content}')"
-                elif end == "":
-                    return f"print('{joined_content}')"
-                else:
-                    return f"print('{joined_content}{end}')"
-
-        # Check if it is a generator call
-        if self.coroutine_handler.is_generator(func_name_str):
-             # Generate unique names
-             ch_out_name = self.coroutine_handler.get_temp_channel_name()
-             ch_in_name = ch_out_name.replace("ch_", "ch_in_")
-             gen_var_name = ch_out_name.replace("ch_", "gen_")
-
-             yield_type = self.coroutine_handler.get_generator_type(func_name_str)
-
-             # Emit setup code
-             # We must be careful about where we emit this.
-             # visit_Call is expression visitor, but we are emitting statements.
-             # self.output appends to current block.
-             # This works if visit_Call is called at statement level (Expr).
-             # If called inside expression (e.g. x = gen()), emitting statements here, they appear BEFORE the assignment statement in `self.output`.
-             # So:
-             # ch := ...
-             # gen := ...
-             # spawn ...
-             # x := gen
-             # This order is CORRECT for V.
-
-             self.output.append(f"{self._indent()}{ch_out_name} := chan {yield_type}{{cap: 0}}")
-             self.output.append(f"{self._indent()}{ch_in_name} := chan PyGeneratorInput{{cap: 0}}")
-             self.output.append(f"{self._indent()}{gen_var_name} := PyGenerator[{yield_type}]{{out: {ch_out_name}, in_: {ch_in_name}}}")
-
-             # Construct spawn arguments
-             spawn_args = [ch_out_name, ch_in_name] + args
-             self.output.append(f"{self._indent()}spawn {func_name_str}({', '.join(spawn_args)})")
-
-             return gen_var_name
+        return self._handle_overloaded_function(
+            node, node.func, lookup_name, lookup_name, args, call_sig, is_class
+        )
+
+    def _handle_fallback_call(self, node: ast.Call, func_name_str: str,
+                               args: list, call_sig: dict | None) -> str:
+        """Fallback call handling."""
+
+        func_name_str = self.visit(node.func)
+
+        # Handle renaming
+        if func_name_str in getattr(self, 'renamed_functions', {}):
+            func_name_str = self.renamed_functions[func_name_str]
+
+        original_id = node.func.id if isinstance(node.func, ast.Name) else None
+        if original_id and f"py_{original_id}" == func_name_str and original_id in ("map", "filter"):
+            func_name_str = original_id
+
+        # Handle isinstance
+        if func_name_str == "isinstance":
+            result = self._handle_isinstance(node, args)
+            if result:
+                return result
+
+        # Handle assert_never
+        if func_name_str == "assert_never":
+            result = self._handle_assert_never(func_name_str, args)
+            if result:
+                return result
+
+        # Handle assert_type
+        if func_name_str == "assert_type":
+            result = self._handle_assert_type(node, func_name_str, args)
+            if result:
+                return result
+
+        # Handle len
+        if func_name_str in ("len", "py_len"):
+            result = self._handle_len_function(node, func_name_str, args)
+            if result:
+                return result
+
+        # Handle round
+        if func_name_str == "round":
+            result = self._handle_round_function(node, func_name_str, args)
+            if result:
+                return result
 
         # Check if callee expects mutable arguments
-        final_args_list: List[str] = []
+        final_args_list = self._process_mutated_args(func_name_str, args, call_sig)
+
+        return f"{func_name_str}({', '.join(final_args_list)})"
+
+    def _process_mutated_args(self, func_name_str: str, args: list, call_sig: dict | None) -> list:
+        """Process mutated arguments."""
+        final_args_list = []
         mutated_indices = []
-        if func_name_str in getattr(self.type_inference, "func_param_mutability", {}):
+
+        if func_name_str in getattr(getattr(self, 'type_inference', None), "func_param_mutability", {}):
             mutated_indices = self.type_inference.func_param_mutability[func_name_str]
 
         for i, arg_str in enumerate(args):
-            # If the argument is a Literal constant (starts with .), it might need to be converted to enum member
-            # BUT we already did that in the loop above where we set current_assignment_type before visiting.
-            # So if it's already .member, we don't need to do anything.
-            # If it's still a string literal like 'write', and we have signature info, we might have missed it
-            # if the signature was resolved later.
-
             if i in mutated_indices:
-                # If the argument is a variable, add 'mut '
-                # Note: Literals cannot be passed as mut.
-                # Heuristic: if arg is simple name or attribute, and not prefixed with 'mut ' already.
                 if not arg_str.startswith("mut "):
-                    # Simple check for identifier-like string
                     if re.match(r'^[a-zA-Z_][a-zA-Z0-9._]*$', arg_str):
-                         final_args_list.append(f"mut {arg_str}")
+                        final_args_list.append(f"mut {arg_str}")
                     else:
-                         final_args_list.append(arg_str)
+                        final_args_list.append(arg_str)
                 else:
                     final_args_list.append(arg_str)
             else:
                 # Re-check for string literals that should be enum members
-                # Support both 'val' and "val"
-                if (arg_str.startswith("'") and arg_str.endswith("'")) or (arg_str.startswith('"') and arg_str.endswith('"')):
-                    if call_sig and "args" in call_sig and i < len(call_sig["args"]):
-                        arg_typ_str = call_sig["args"][i]
-                        norm_typ = arg_typ_str.replace("builtins.", "")
-                        try:
-                            v_arg_type = self._map_type(norm_typ)
-                            if v_arg_type in self._literal_enum_values:
-                                val_map = self._literal_enum_values[v_arg_type]
-                                # Strip quotes
-                                val = arg_str[1:-1]
-                                if val in val_map:
-                                    final_args_list.append(f".{val_map[val]}")
-                                    continue
-                        except:
-                            pass
                 final_args_list.append(arg_str)
 
-        return f"{func_name_str}({', '.join(final_args_list)})"
+        return final_args_list
