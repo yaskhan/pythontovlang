@@ -1,10 +1,17 @@
 """Handling object methods: append, extend, sort, count, clear, read, write, etc."""
 
 import ast
-from typing import Any
+from typing import Any, Set, TYPE_CHECKING
 
 
 class MethodCallsMixin:
+    """Mixin for handling method calls."""
+
+    if TYPE_CHECKING:
+        def _guess_type(self, node: ast.AST) -> str: ...
+        def visit(self, node: ast.AST) -> str: ...
+        used_builtins: Set[str]
+
     def _handle_object_method_call(self, node: ast.Call, func_node: ast.AST, func_name_str: str, args: list) -> str | None:
         """Handle object method calls."""
 

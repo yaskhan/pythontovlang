@@ -1,10 +1,62 @@
 import ast
 import re
-from typing import Any, List, Optional
-from ..base import TranslatorBase
+from typing import Any, List, Optional, Dict, Set, TYPE_CHECKING
 
 
-class FunctionOverloadMixin(TranslatorBase):
+class FunctionOverloadMixin:
+    if TYPE_CHECKING:
+        visit: Any
+        _indent: Any
+        _indent_level: int
+        output: List[str]
+        current_class: Optional[str]
+        generic_variance: Dict[str, str]
+        generic_defaults: Dict[str, str]
+        type_params_map: Dict[str, List[str]]
+        generic_scopes: List[Dict[str, str]]
+        current_class_generics: List[str]
+        type_inference: Any
+        overloaded_signatures: Dict[str, List[Dict[str, Any]]]
+        coroutine_handler: Any
+        decorator_processor: Any
+        defined_classes: Dict[str, Dict[str, Any]]
+        function_names: Set[str]
+        _scope_stack: List[Set[str]]
+        in_init: bool
+        current_function_return_type: Optional[str]
+        emitter: Any
+        name_remap: Dict[str, str]
+        type_vars: Set[str]
+        def _sanitize_name(self, name: str, is_type: bool = False) -> str: ...
+        def _get_generic_map(self, generics: List[str]) -> Dict[str, str]: ...
+        def _get_all_active_v_generics(self) -> List[str]: ...
+        def _get_generics_with_variance_str(self, generics: List[str]) -> str: ...
+        def _map_type(
+            self,
+            type_str: str,
+            struct_name: Optional[str] = None,
+            allow_union: bool = True,
+            register_sum_types: bool = True,
+            is_return: bool = False
+        ) -> str: ...
+        def _extract_implicit_generics(self, node: Any) -> List[str]: ...
+        def _get_factory_name(self, class_name: str) -> str: ...
+        def _mangle_name(self, name: str, class_name: Optional[str]) -> str: ...
+        def _get_full_self_type(self, struct_name: Optional[str] = None) -> str: ...
+        def _is_exported(self, name: str) -> bool: ...
+        def _get_source_info(self, node: Optional[ast.AST] = None) -> str: ...
+        def _generate_function_for_struct(
+            self,
+            node: Any,
+            is_async: bool,
+            is_method: bool,
+            struct_name: str,
+            dec_info: Any,
+            is_generator: bool,
+            is_abstract: bool = False,
+            force_standalone: bool = False,
+        ) -> None: ...
+
     def _generate_overload_variants(
         self,
         node: Any,

@@ -1,10 +1,17 @@
 """Handling built-in functions: int, str, bool, list, dict, tuple, set, bytes."""
 
 import ast
-from typing import Any
+from typing import Any, List, Optional, TYPE_CHECKING
 
 
 class BuiltinCallsMixin:
+    if TYPE_CHECKING:
+        def _guess_type(self, node: ast.AST) -> str: ...
+        def _indent(self) -> str: ...
+        current_assignment_type: Optional[str]
+        output: List[str]
+        emitter: Any
+        _emitted_any_map_comment: bool
     def _get_full_func_name(self, node: ast.Call) -> str:
         """Get full function name (e.g., bytearray.fromhex)."""
         if isinstance(node.func, ast.Attribute):
@@ -12,7 +19,7 @@ class BuiltinCallsMixin:
                 return f"{node.func.value.id}.{node.func.attr}"
             # For nested attributes like module.submodule.func
             parts = []
-            curr = node.func
+            curr: Any = node.func
             while isinstance(curr, ast.Attribute):
                 parts.append(curr.attr)
                 curr = curr.value
@@ -24,7 +31,7 @@ class BuiltinCallsMixin:
             return node.func.id
         return ""
 
-    def _handle_builtin_type_cast(self, node: ast.Call, func_name_str: str, original_id: str, args: list) -> str | None:
+    def _handle_builtin_type_cast(self, node: ast.Call, func_name_str: str, original_id: Optional[str], args: list) -> str | None:
         """Handle type casting functions: int, float, bool, str, list, dict, tuple, set, bytes."""
 
         # Get full function name for cases like bytearray.fromhex

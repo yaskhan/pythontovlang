@@ -1,9 +1,15 @@
 import ast
-from typing import Any, List
-from ..base import TranslatorBase
+from typing import Any, List, Set, TYPE_CHECKING
 
 
-class FunctionCommonMixin(TranslatorBase):
+class FunctionCommonMixin:
+    if TYPE_CHECKING:
+        type_vars: Set[str]
+        constrained_typevars: Set[str]
+        current_class_generics: List[str]
+        _scope_stack: List[Set[str]]
+        def _sanitize_name(self, name: str, is_type: bool = False) -> str: ...
+
     def _extract_implicit_generics(self, node: Any) -> List[str]:
         """
         Extract implicit generics by scanning argument and return annotations for known TypeVars.
@@ -67,7 +73,7 @@ class FunctionCommonMixin(TranslatorBase):
             if hasattr(node.args, 'posonlyargs'):
                 args = node.args.posonlyargs + args
             if hasattr(node.args, 'kwonlyargs'):
-                args = args + node.args.kwonlyargs
+                args = node.args.kwonlyargs + args
             for arg in args:
                 inner_defs.add(arg.arg)
             if node.args.vararg:

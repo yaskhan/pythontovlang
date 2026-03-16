@@ -1,9 +1,12 @@
 import ast
-from typing import Optional
+from typing import Optional, List, TYPE_CHECKING
 from ..base import TranslatorBase
 
 
 class OtherFunctionVisitorsMixin(TranslatorBase):
+    if TYPE_CHECKING:
+        def _find_captured_vars(self, node: ast.AST) -> List[str]: ...
+
     def visit_Lambda(self, node: ast.Lambda) -> str:
         # lambda args: expr -> fn [captures] (args) { return expr }
         if isinstance(node.body, ast.Constant) and node.body.value is None:

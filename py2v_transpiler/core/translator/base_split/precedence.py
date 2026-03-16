@@ -10,6 +10,9 @@ if TYPE_CHECKING:
 class PrecedenceMixin:
     """Mixin for handling operator precedence and parentheses."""
 
+    if TYPE_CHECKING:
+        def visit(self, node: ast.AST) -> str: ...
+
     def _get_precedence(self, node: ast.AST) -> int:
         """
         Returns the standard Python operator precedence for AST nodes.

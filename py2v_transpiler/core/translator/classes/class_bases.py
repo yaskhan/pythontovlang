@@ -52,7 +52,7 @@ class ClassBasesHandler:
         self,
         node: ast.ClassDef,
         struct_name: str
-    ) -> Tuple[List[str], List[str], bool, bool, bool, bool, bool, bool]:
+    ) -> Tuple[List[str], List[str], bool, bool, bool, bool, bool, bool, bool]:
         """
         Process class base types.
 

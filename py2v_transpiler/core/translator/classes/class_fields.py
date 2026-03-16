@@ -20,7 +20,7 @@ class ClassFieldsHandler:
         is_main_struct: bool
     ) -> List[str]:
         """Collect fields from mixin classes."""
-        fields = []
+        fields: List[str] = []
         if not is_main_struct:
             return fields
 
@@ -91,7 +91,7 @@ class ClassFieldsHandler:
         struct_name: str
     ) -> List[str]:
         """Collect fields from __init__ method."""
-        fields = []
+        fields: List[str] = []
         for stmt in node.body:
             if isinstance(stmt, (ast.FunctionDef, ast.AsyncFunctionDef)) and stmt.name == "__init__":
                 if stmt.args.args:
@@ -140,7 +140,7 @@ class ClassFieldsHandler:
         dataclass_field_order: List[str]
     ) -> List[str]:
         """Process class attribute declarations (AnnAssign and Assign)."""
-        fields = []
+        fields: List[str] = []
         readonly_fields = self.translator.readonly_fields if hasattr(self.translator, "readonly_fields") else {}
 
         for stmt in body:
@@ -219,7 +219,7 @@ class ClassFieldsHandler:
         dataclass_field_order: List[str]
     ) -> List[str]:
         """Process fields from dataclass metadata."""
-        fields = []
+        fields: List[str] = []
         for attr in dataclass_metadata.get("attributes", []):
             if attr.get("is_classvar", False) or attr.get("is_init_var", False):
                 continue

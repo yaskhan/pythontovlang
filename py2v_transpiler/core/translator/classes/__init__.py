@@ -12,7 +12,7 @@ from .special_classes import SpecialClassesHandler
 from .pydantic_handler import PydanticClassHandler
 
 if TYPE_CHECKING:
-    from .base import TranslatorBase
+    from ..base_split.base import TranslatorBase
 
 
 class ClassesMixin:

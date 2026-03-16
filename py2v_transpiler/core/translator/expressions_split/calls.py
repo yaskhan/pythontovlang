@@ -80,7 +80,7 @@ class CallsMixin(
             return result
 
         # === Stage 10: Handle built-in type cast functions ===
-        result = self._handle_builtin_type_cast(node, func_name_str_lookup, original_id, args)
+        result = self._handle_builtin_type_cast(node, str(func_name_str_lookup), original_id, args)
         if result:
             return result
 
@@ -332,7 +332,7 @@ class CallsMixin(
         
         # six module
         if module_name == "six":
-            return self._handle_six_module(func_name, args)
+            return self._handle_six_module(str(func_name), node)
         
         # os.open
         if module_name == "os" and func_name == "open":

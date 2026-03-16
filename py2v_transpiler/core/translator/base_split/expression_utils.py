@@ -1,11 +1,17 @@
-"""Expression capture utilities."""
-
 import ast
-from typing import List, Tuple
+from typing import List, Tuple, TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from .base import TranslatorBase
 
 
 class ExpressionUtilsMixin:
     """Mixin for expression capture utilities."""
+
+    if TYPE_CHECKING:
+        def visit(self, node: ast.AST) -> str: ...
+        def _create_temp(self) -> str: ...
+        def _indent(self) -> str: ...
 
     def _capture_value(self, node: ast.AST) -> Tuple[str, List[str]]:
         """

@@ -1,11 +1,20 @@
 """Type guessing utilities."""
 
 import ast
-from typing import Set
+from typing import TYPE_CHECKING, Any, Set, Dict, List
+
+if TYPE_CHECKING:
+    from .base import TranslatorBase
 
 
 class TypeGuessingMixin:
     """Mixin for guessing types from AST nodes."""
+
+    if TYPE_CHECKING:
+        defined_classes: Dict[str, Dict[str, Any]]
+        type_inference: Any
+        def _is_literal_string_expr(self, node: ast.AST) -> bool: ...
+        def _is_string_type(self, type_str: str) -> bool: ...
 
     def _guess_type(self, node: ast.AST) -> str:
         """Guess the V type from an AST node."""

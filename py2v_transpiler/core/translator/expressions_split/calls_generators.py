@@ -2,10 +2,21 @@
 
 import ast
 import re
-from typing import Any, List
+from typing import Any, List, Set, Dict, Optional, TYPE_CHECKING
 
 
 class GeneratorCallsMixin:
+    if TYPE_CHECKING:
+        def visit(self, node: ast.AST) -> Any: ...
+        def _guess_type(self, node: ast.AST) -> str: ...
+        def _map_type(self, type_str: str) -> str: ...
+        def _visit_with_parens(self, parent_node: ast.AST, child_node: ast.AST, is_right_operand: bool = False) -> str: ...
+        def _indent(self) -> str: ...
+        coroutine_handler: Any
+        output: List[str]
+        used_builtins: Set[str]
+        name_remap: Dict[str, str]
+        emitter: Any
     def _handle_generator_call(self, node: ast.Call, func_name_str: str, args: list) -> str | None:
         """Handle generator calls."""
 

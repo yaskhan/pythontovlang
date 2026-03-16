@@ -1,10 +1,29 @@
 """Special handling of calls: hasattr, getattr, setattr, open, six, threading, etc."""
 
 import ast
-from typing import Any
+from typing import Any, List, Optional, Dict, TYPE_CHECKING
 
 
 class SpecialCallsMixin:
+    """Mixin for handling special builtin calls."""
+
+    if TYPE_CHECKING:
+        def _guess_type(self, node: ast.AST) -> str: ...
+        def _map_type(
+            self,
+            type_str: str,
+            struct_name: Optional[str] = None,
+            allow_union: bool = True,
+            register_sum_types: bool = True,
+            is_return: bool = False
+        ) -> str: ...
+        def visit(self, node: ast.AST) -> str: ...
+        compatibility: Any
+        emitter: Any
+        mapper: Any
+        dataclasses: Dict[str, List[str]]
+        imported_modules: Dict[str, str]
+
     def _handle_special_builtin(self, node: ast.Call, module_name: str | None, func_name: str | None, args: list) -> str | None:
         """Handle special built-in functions."""
 
@@ -85,12 +104,13 @@ class SpecialCallsMixin:
                 return f"//##LLM@@ Dynamic attribute access (getattr/setattr/hasattr) used here. V structs are strictly typed at compile time. Please refactor using explicit struct fields, V's compile-time reflection ($for field in struct), or interfaces.\n{args[0]}.{attr_name[1:-1]} = {args[2]}"
         return f"//##LLM@@ Dynamic attribute access (getattr/setattr/hasattr) used here. V structs are strictly typed at compile time. Please refactor using explicit struct fields, V's compile-time reflection ($for field in struct), or interfaces.\n/* setattr({', '.join(args)}) - dynamic setting not supported */"
 
-    def _handle_six_module(self, func_name: str, args: list) -> str | None:
+    def _handle_six_module(self, func_name: str, node: ast.Call) -> str | None:
         """Handle functions from six module."""
+        args = node.args
         if func_name == "u" and len(args) == 1:
-            return args[0]
+            return str(self.visit(args[0]))
         elif func_name == "text_type" and len(args) == 1:
-            return f"{args[0]}.str()"
+            return f"{self.visit(args[0])}.str()"
         return None
 
     def _handle_os_open(self, node: ast.Call, args: list) -> str | None:

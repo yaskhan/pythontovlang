@@ -1,10 +1,16 @@
 """Handling print() and input()."""
 
 import ast
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 
 class PrintCallsMixin:
+    """Mixin for handling print calls."""
+
+    if TYPE_CHECKING:
+        def visit(self, node: ast.AST) -> str: ...
+        emitter: Any
+
     def _handle_print_call(self, node: ast.Call, args: list) -> str | None:
         """Handle print() with support for sep, end, and file."""
 

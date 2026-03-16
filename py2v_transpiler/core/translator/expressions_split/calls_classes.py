@@ -2,10 +2,28 @@
 
 import ast
 import re
-from typing import Any, List
+from typing import Any, List, Optional, Dict, TYPE_CHECKING
 
 
 class ClassCallsMixin:
+    if TYPE_CHECKING:
+        def visit(self, node: ast.AST) -> Any: ...
+        def _map_type(
+            self,
+            type_str: str,
+            struct_name: Optional[str] = None,
+            allow_union: bool = True,
+            register_sum_types: bool = True,
+            is_return: bool = False
+        ) -> str: ...
+        def _get_factory_name(self, class_name: str) -> str: ...
+        def _sanitize_name(self, name: str, is_type: bool = False) -> str: ...
+        defined_classes: Dict[str, Dict[str, Any]]
+        dataclasses: Dict[str, List[str]]
+        current_class_bases: List[str]
+        current_class_generic_bases: Dict[str, str]
+        current_class: Optional[str]
+        current_class_body: List[ast.AST]
     def _handle_class_call(self, node: ast.Call, func_node: ast.AST, func_name_str: str,
                            args: list, call_sig: dict | None) -> str | None:
         """Handle class instantiation calls."""

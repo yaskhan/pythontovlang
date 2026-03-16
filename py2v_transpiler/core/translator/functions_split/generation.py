@@ -1,9 +1,59 @@
 import ast
-from typing import Any, List, Optional
-from ..base import TranslatorBase
+from typing import Any, List, Optional, Dict, Set, Tuple, TYPE_CHECKING
 
 
-class FunctionGenerationMixin(TranslatorBase):
+class FunctionGenerationMixin:
+    if TYPE_CHECKING:
+        def visit(self, node: ast.AST) -> Any: ...
+        def _indent(self) -> str: ...
+        _indent_level: int
+        output: List[str]
+        current_class: Optional[str]
+        current_class_is_unittest: bool
+        generic_variance: Dict[str, str]
+        generic_defaults: Dict[str, str]
+        type_params_map: Dict[str, List[str]]
+        coroutine_handler: Any
+        generic_scopes: List[Dict[str, str]]
+        current_class_generics: List[str]
+        type_inference: Any
+        current_file_name: str
+        defined_top_level_symbols: Set[str]
+        overloaded_signatures: Dict[str, List[Dict[str, Any]]]
+        function_names: Set[str]
+        property_setters: Set[Tuple[str, str]]
+        renamed_functions: Dict[str, str]
+        defined_classes: Dict[str, Dict[str, Any]]
+        config: Any
+        _scope_stack: List[Set[str]]
+        in_init: bool
+        current_function_return_type: Optional[str]
+        decorator_processor: Any
+        emitter: Any
+        name_remap: Dict[str, str]
+        def _sanitize_name(self, name: str, is_type: bool = False) -> str: ...
+        def _map_type(
+            self,
+            type_str: str,
+            struct_name: Optional[str] = None,
+            allow_union: bool = True,
+            register_sum_types: bool = True,
+            is_return: bool = False
+        ) -> str: ...
+        def _get_full_self_type(self, struct_name: Optional[str] = None) -> str: ...
+        def _get_factory_name(self, class_name: str) -> str: ...
+        def _mangle_name(self, name: str, class_name: Optional[str]) -> str: ...
+        def _is_exported(self, name: str) -> bool: ...
+        def _get_source_info(self, node: Optional[ast.AST] = None) -> str: ...
+        def _extract_implicit_generics(self, node: Any) -> List[str]: ...
+        def _get_generic_map(self, generics: List[str]) -> Dict[str, str]: ...
+        def _get_all_active_v_generics(self) -> List[str]: ...
+        def _get_generics_with_variance_str(self, generics: List[str]) -> str: ...
+        def _generate_overload_variants(self, node: Any, struct_name: str, is_method: bool, dec_info: Any, is_generator: bool) -> None: ...
+        def _find_captured_vars(self, node: ast.AST) -> List[str]: ...
+        def _check_experimental_type(self, type_str: str, node: ast.AST) -> None: ...
+        vexc_depth: int
+
     def _generate_function_for_struct(
         self,
         node: Any,

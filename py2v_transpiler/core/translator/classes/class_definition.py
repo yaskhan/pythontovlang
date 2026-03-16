@@ -1,7 +1,8 @@
 """Main class definition handler."""
 
 import ast
-from typing import TYPE_CHECKING, List, Optional, Set
+import re
+from typing import Any, Dict, List, Optional, Set, TYPE_CHECKING
 
 if TYPE_CHECKING:
     pass
@@ -145,8 +146,8 @@ class ClassDefinitionHandler:
         )
 
         # Initialize fields collection
-        fields = []
-        dataclass_field_order = []
+        fields: List[Any] = []
+        dataclass_field_order: List[str] = []
         added_fields: Set[str] = set()
 
         # Collect mixin fields first

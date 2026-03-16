@@ -2,10 +2,30 @@
 
 import ast
 import re
-from typing import Any, List
+from typing import Any, Dict, List, Optional, TYPE_CHECKING
 
 
 class OverloadCallsMixin:
+    """Mixin for handling overloaded function calls."""
+
+    if TYPE_CHECKING:
+        def _guess_type(self, node: ast.AST) -> str: ...
+        def _map_type(
+            self,
+            type_str: str,
+            struct_name: Optional[str] = None,
+            allow_union: bool = True,
+            register_sum_types: bool = True,
+            is_return: bool = False
+        ) -> str: ...
+        def _get_factory_name(self, struct_name: str) -> str: ...
+        def _get_scc_prefix(self, file_path: str) -> str: ...
+        def _sanitize_name(self, name: str, is_type: bool = False) -> str: ...
+        def visit(self, node: ast.AST) -> str: ...
+        overloaded_signatures: Dict[str, List[Dict[str, Any]]]
+        imported_modules: Dict[str, str]
+        imported_symbols: Dict[str, str]
+
     def _handle_overloaded_function(self, node: ast.Call, func_node: ast.AST, func_name_str: str,
                                     lookup_name: str, args: list, call_sig: dict | None,
                                     is_class: bool) -> str | None:

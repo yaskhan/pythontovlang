@@ -1,10 +1,18 @@
 """Generic type parameter handling."""
 
-from typing import Dict, List, Set
+from typing import Dict, List, TYPE_CHECKING, Set
+
+if TYPE_CHECKING:
+    from .base import TranslatorBase
 
 
 class GenericsMixin:
     """Mixin for handling generic type parameters."""
+
+    if TYPE_CHECKING:
+        generic_scopes: List[Dict[str, str]]
+        generic_variance: Dict[str, str]
+        generic_defaults: Dict[str, str]
 
     def _get_generic_map(self, generic_names: List[str]) -> Dict[str, str]:
         """

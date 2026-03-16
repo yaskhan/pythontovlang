@@ -1,9 +1,12 @@
 import ast
-from typing import Any, Dict
+from typing import Any, Dict, TYPE_CHECKING
 from ..base import TranslatorBase
 
 
 class FunctionVisitorMixin(TranslatorBase):
+    if TYPE_CHECKING:
+        def _generate_function_for_struct(self, node: Any, is_async: bool, is_method: bool, struct_name: str, dec_info: Any, is_generator: bool, is_abstract: bool = False, force_standalone: bool = False) -> None: ...
+
     def visit_FunctionDef(self, node: ast.FunctionDef) -> None:
         self._visit_function_common(node)
 

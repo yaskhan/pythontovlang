@@ -1,10 +1,19 @@
 import ast
-from typing import Any, Dict
+from typing import Any, Dict, List, TYPE_CHECKING
 from py2v_transpiler.models.v_types import map_python_type_to_v
 from .base import TypeInferenceBase
 
 
 class TypeInferenceVisitorMixin(TypeInferenceBase):
+    if TYPE_CHECKING:
+        def _mark_mutated(self, node: ast.AST) -> None: ...
+        def _guess_node_type(self, node: ast.AST) -> str: ...
+        def _infer_collection_type(self, node: ast.AST) -> str: ...
+        def _mark_reassigned(self, node: ast.AST) -> None: ...
+        func_param_mutability: Dict[str, List[int]]
+        call_signatures: Dict[str, Any]
+        type_map: Dict[str, str]
+        mutability_map: Dict[str, Dict[str, Any]]
     def visit_Call(self, node: ast.Call) -> Any:
         if isinstance(node.func, ast.Attribute):
             mutating_methods = {

@@ -8,6 +8,7 @@ class DecoratorInfo:
     is_property: bool = False
     is_setter: bool = False
     is_classmethod: bool = False
+    is_abstract: bool = False
     decorators_to_handle: List[str] = field(default_factory=list)
     cache_wrapper_needed: bool = False
     cache_map_name: Optional[str] = None

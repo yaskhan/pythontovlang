@@ -55,14 +55,14 @@ class ClassMethodsHandler:
     def separate_methods(
         self,
         body: List[ast.stmt]
-    ) -> Tuple[List[ast.stmt], List[ast.stmt]]:
+    ) -> Tuple[List[ast.FunctionDef | ast.AsyncFunctionDef], List[ast.stmt]]:
         """
         Separate methods from other class body statements.
 
         Returns:
             Tuple of (methods list, remaining body statements)
         """
-        methods = []
+        methods: List[ast.FunctionDef | ast.AsyncFunctionDef] = []
         remaining_body = []
 
         for stmt in body:
@@ -73,7 +73,7 @@ class ClassMethodsHandler:
 
         return methods, remaining_body
 
-    def rename_dunder_methods(self, methods: List[ast.stmt], has_str: bool) -> None:
+    def rename_dunder_methods(self, methods: List[ast.FunctionDef | ast.AsyncFunctionDef], has_str: bool) -> None:
         """Rename dunder methods to V-compatible names."""
         for method in methods:
             if method.name == "__repr__":
@@ -93,13 +93,13 @@ class ClassMethodsHandler:
             elif method.name == "__str__":
                 method.name = "str"
 
-    def has_method(self, methods: List[ast.stmt], method_name: str) -> bool:
+    def has_method(self, methods: List[ast.FunctionDef | ast.AsyncFunctionDef], method_name: str) -> bool:
         """Check if a method exists in the methods list."""
         return any(m.name == method_name for m in methods)
 
     def process_interface_methods(
         self,
-        methods: List[ast.stmt]
+        methods: List[ast.FunctionDef | ast.AsyncFunctionDef]
     ) -> List[str]:
         """Process methods for interface definition."""
         interface_methods = []

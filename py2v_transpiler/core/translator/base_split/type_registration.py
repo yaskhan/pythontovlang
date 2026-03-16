@@ -1,11 +1,22 @@
 """Type registration for literal enums and sum types."""
 
 import ast
-from typing import Any, Dict, List, Optional, Sequence, Set
+from typing import Any, List, Optional, Tuple, Dict, Sequence, TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from .base import TranslatorBase
 
 
 class TypeRegistrationMixin:
     """Mixin for registering literal enums and sum types."""
+
+    if TYPE_CHECKING:
+        _generated_literal_enums: Dict[str, str]
+        _literal_enum_values: Dict[str, Dict[Any, str]]
+        _generated_sum_types: Dict[str, str]
+        emitter: Any
+        config: Any
+        def _get_all_active_v_generics(self) -> List[str]: ...
 
     def _register_literal_enum(self, nodes: Sequence[ast.AST]) -> str:
         """
@@ -53,8 +64,8 @@ class TypeRegistrationMixin:
 
         # Build enum body and value mapping
         enum_lines = [f"pub enum {enum_name} {{"]
-        val_map: Dict[Any, str] = {}
-        used_member_names: Set[str] = set()
+        val_map: dict[Any, str] = {}
+        used_member_names: set[str] = set()
 
         for i, val in enumerate(values):
             member_name = str(val).lower().replace(' ', '_').replace('-', '_').replace('.', '_')

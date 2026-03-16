@@ -1,18 +1,13 @@
 from .common import FunctionCommonMixin
-from .overloads import FunctionOverloadMixin
-from .generation import FunctionGenerationMixin
 from .visitor import FunctionVisitorMixin
+from .generation import FunctionGenerationMixin
+from .overloads import FunctionOverloadMixin
 from .other_visitors import OtherFunctionVisitorsMixin
 
-
-class FunctionsMixin(
-    FunctionCommonMixin,
-    FunctionOverloadMixin,
-    FunctionGenerationMixin,
-    FunctionVisitorMixin,
-    OtherFunctionVisitorsMixin,
-):
-    """
-    Combined mixin for function translation.
-    """
-    pass
+__all__ = [
+    "FunctionCommonMixin",
+    "FunctionVisitorMixin",
+    "FunctionGenerationMixin",
+    "FunctionOverloadMixin",
+    "OtherFunctionVisitorsMixin",
+]

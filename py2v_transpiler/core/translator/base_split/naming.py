@@ -1,10 +1,22 @@
-"""Naming utilities for the translator."""
+from typing import Optional, TYPE_CHECKING, Any, Set, Dict, List
 
-from typing import Optional
+if TYPE_CHECKING:
+    from py2v_transpiler.core.compatibility import CompatibilityLayer
 
 
 class NamingMixin:
     """Mixin for naming utilities and identifier sanitization."""
+
+    if TYPE_CHECKING:
+        compatibility: "CompatibilityLayer"
+        current_file_name: str
+        scc_files: Set[str]
+        current_class: Optional[str]
+        type_inference: Any
+        class_hierarchy: Dict[str, List[str]]
+        current_class_generics: List[str]
+
+        def _get_scc_prefix(self, file_path: str) -> str: ...
 
     def _to_snake_case(self, name: str) -> str:
         """Converts CamelCase or UPPER_CASE to snake_case."""
@@ -64,6 +76,12 @@ class NamingMixin:
                     return f"{prefix}__{name}"
 
         return name
+
+    @property
+    def _local_vars_in_scope(self) -> Set[str]:
+        """Returns all local variables in the current function scope."""
+        # This is typically provided by TranslatorStateMixin but accessed here
+        return getattr(self, "_scope_stack", [set()])[-1]
 
     def _mangle_name(self, name: str, class_name: Optional[str]) -> str:
         """

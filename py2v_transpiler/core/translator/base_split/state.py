@@ -1,7 +1,7 @@
 """Translator state initialization and basic utilities."""
 
 import ast
-from typing import Any, Dict, List, Optional, Set, Tuple
+from typing import Any, Dict, List, Optional, Set, Tuple, TYPE_CHECKING
 
 from py2v_transpiler.core.compatibility import CompatibilityLayer
 from py2v_transpiler.core.generator import VCodeEmitter
@@ -12,6 +12,10 @@ from py2v_transpiler.core.coroutines import CoroutineHandler
 
 class TranslatorStateMixin:
     """Mixin for translator state initialization and basic utilities."""
+
+    if TYPE_CHECKING:
+        def _guess_type(self, node: ast.AST) -> str: ...
+        def visit(self, node: ast.AST) -> str: ...
 
     current_assignment_type: Optional[str] = None
 
