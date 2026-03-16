@@ -226,7 +226,7 @@ class CallsMixin(
             defaults = call_sig["defaults"]
 
             # Fill positional arguments that are missing
-            for i in range(len(args) if hasattr(self, '_temp_args') else 0, len(arg_names)):
+            for i in range(len(args), len(arg_names)):
                 arg_name = arg_names[i]
                 if arg_name in keyword_args:
                     args.append(keyword_args.pop(arg_name))
