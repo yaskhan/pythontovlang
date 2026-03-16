@@ -43,7 +43,7 @@ class CallsMixin(
         args = self._process_call_args(node, call_sig)
 
         # === Stage 3: Process keyword arguments ===
-        keyword_args, original_keyword_append = self._process_keywords(node, call_sig)
+        keyword_args, original_keyword_append = self._process_keywords(node, call_sig, args)
 
         # === Stage 4: Resolve module and function name ===
         module_name, func_name = self._resolve_module_and_func(node, func_name_str_lookup)
@@ -193,7 +193,7 @@ class CallsMixin(
 
         return args
 
-    def _process_keywords(self, node: ast.Call, call_sig: dict | None) -> tuple:
+    def _process_keywords(self, node: ast.Call, call_sig: dict | None, args: list) -> tuple:
         """Process keyword arguments."""
         keyword_args = {}
         original_keyword_append = []
@@ -202,7 +202,7 @@ class CallsMixin(
             if keyword.arg is None:
                 # **kwargs call -> pass dict as arg
                 val = self.visit(keyword.value)
-                keyword_args['__kwargs__'] = str(val)
+                args.append(str(val))
             else:
                 kw_val_str = str(self.visit(keyword.value))
                 keyword_args[keyword.arg] = kw_val_str
@@ -212,7 +212,6 @@ class CallsMixin(
         is_dataclass = call_sig and "dataclass_metadata" in call_sig if call_sig else False
 
         if call_sig and "arg_names" in call_sig and "defaults" in call_sig and not is_dataclass:
-            args = []  # Will be handled by caller
             arg_names = call_sig["arg_names"]
             defaults = call_sig["defaults"]
 
@@ -398,15 +397,22 @@ class CallsMixin(
                     if f"py_{orig_id}" == lookup_name:
                         lookup_name = orig_id
                         break
+        elif isinstance(node.func, ast.Attribute):
+            lookup_name = node.func.attr
 
         if call_sig and "is_class" in call_sig:
             is_class = call_sig["is_class"]
         elif hasattr(self, 'defined_classes') and lookup_name in self.defined_classes:
             is_class = True
 
-        return self._handle_overloaded_function(
-            node, node.func, lookup_name, lookup_name, args, call_sig, is_class
+        resolved_name = self._handle_overloaded_function(
+            node, node.func, self.visit(node.func), lookup_name, args, call_sig, is_class
         )
+        if resolved_name:
+             # Check if callee expects mutable arguments
+             final_args_list = self._process_mutated_args(lookup_name, args, call_sig)
+             return f"{resolved_name}({', '.join(final_args_list)})"
+        return None
 
     def _handle_fallback_call(self, node: ast.Call, func_name_str: str,
                                args: list, call_sig: dict | None) -> str:
