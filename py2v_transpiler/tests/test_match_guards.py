@@ -35,7 +35,8 @@ if __name__ == "__main__":
 
     try:
         # Transpile with --no-mypy for simple structure check
-        result = subprocess.run(["python3", "py2v_transpiler/main.py", "temp_match_guards.py", "--no-mypy"],
+        import sys
+        result = subprocess.run([sys.executable, "py2v_transpiler/main.py", "temp_match_guards.py", "--no-mypy"],
                                capture_output=True, text=True, env={**os.environ, "PYTHONPATH": "."})
         assert result.returncode == 0, f"Transpilation failed: {result.stderr}"
 
@@ -74,7 +75,8 @@ def test_main():
 
     try:
         # Transpile
-        result = subprocess.run(["python3", "py2v_transpiler/main.py", "temp_fallthrough.py", "--no-mypy"],
+        import sys
+        result = subprocess.run([sys.executable, "py2v_transpiler/main.py", "temp_fallthrough.py", "--no-mypy"],
                                capture_output=True, text=True, env={**os.environ, "PYTHONPATH": "."})
         assert result.returncode == 0
 

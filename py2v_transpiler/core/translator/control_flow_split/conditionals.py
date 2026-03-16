@@ -13,6 +13,18 @@ class ConditionalsMixin(TranslatorBase):
                 return True
         return False
 
+    def _is_type_checking(self, node: ast.If) -> bool:
+        """Checks for if TYPE_CHECKING: or if typing.TYPE_CHECKING:"""
+        test = node.test
+        # Case: if TYPE_CHECKING:
+        if isinstance(test, ast.Name) and test.id == "TYPE_CHECKING":
+            return True
+        # Case: if typing.TYPE_CHECKING:
+        if isinstance(test, ast.Attribute) and test.attr == "TYPE_CHECKING":
+            if isinstance(test.value, ast.Name) and test.value.id in ("typing", "t"):
+                return True
+        return False
+
     def _has_walrus(self, node: ast.AST) -> bool:
         """Checks if an expression contains a walrus operator."""
         for child in ast.walk(node):
@@ -199,6 +211,10 @@ class ConditionalsMixin(TranslatorBase):
                 self.output.append(f"{self._indent()}// if __name__ == '__main__':")
                 for stmt in node.body:
                     self.visit(stmt)
+                return
+
+            if self._is_type_checking(node):
+                # Simply ignore TYPE_CHECKING blocks during translation
                 return
 
             if_vars = self._collect_assigned_vars(node.body)
