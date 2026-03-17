@@ -242,6 +242,8 @@ class AssignmentsMixin(TranslatorBase):
                 # If upper is empty string from visit, it usually means "up to end".
                 # But V range [a..b] works?
                 # Actually visit_Subscript emits [lower..upper].
+                self.used_delete_many = True
+                self.used_insert_many = True
                 # Here we need values for delete_many/insert_many.
 
                 # We need to know 'count' for delete_many.
