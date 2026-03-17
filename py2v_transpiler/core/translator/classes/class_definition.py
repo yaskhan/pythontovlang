@@ -340,7 +340,7 @@ class ClassDefinitionHandler:
             # Emit class variables as constants
             class_vars = self.translator.defined_classes.get(struct_name, {}).get("class_vars", [])
             for var in class_vars:
-                v_name = f"{struct_name}_{var["name"]}"
+                v_name = f"{struct_name}_{var['name']}"
                 self.translator.emitter.add_constant(f"pub {v_name} = {var.get('value')}")
 
             # Rename dunder methods
