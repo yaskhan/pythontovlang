@@ -68,7 +68,7 @@ class TypeInferenceVisitorMixin(TypeInferenceBase):
                     self.mutability_map[target.id] = {"is_reassigned": False, "is_final": False, "is_mutated": False}
 
             if isinstance(target, ast.Subscript):
-                self._mark_mutated(target.value)
+                self._mark_mutated(self._get_base_node(target.value))
                 dict_name = None
                 if isinstance(target.value, ast.Name):
                     dict_name = target.value.id
@@ -118,13 +118,13 @@ class TypeInferenceVisitorMixin(TypeInferenceBase):
         if isinstance(node.target, (ast.Name, ast.Attribute)):
             self._mark_reassigned(node.target)
         elif isinstance(node.target, ast.Subscript):
-            self._mark_mutated(node.target.value)
+            self._mark_mutated(self._get_base_node(node.target.value))
         self.generic_visit(node)
 
     def visit_Delete(self, node: ast.Delete) -> Any:
         for target in node.targets:
             if isinstance(target, ast.Subscript):
-                self._mark_mutated(target.value)
+                self._mark_mutated(self._get_base_node(target.value))
         self.generic_visit(node)
 
     def visit_AnnAssign(self, node: ast.AnnAssign) -> Any:
@@ -231,6 +231,11 @@ class TypeInferenceVisitorMixin(TypeInferenceBase):
 
     def visit_AsyncFunctionDef(self, node: ast.AsyncFunctionDef) -> Any:
         return self.visit_FunctionDef(node) # type: ignore
+
+    def visit_Subscript(self, node: ast.Subscript) -> Any:
+        if isinstance(node.ctx, ast.Store):
+            self._mark_mutated(self._get_base_node(node.value))
+        self.generic_visit(node)
 
     def visit_TypeVar(self, node: Any) -> Any:
         pass
