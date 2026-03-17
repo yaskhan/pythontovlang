@@ -186,8 +186,16 @@ class AssignmentsMixin(TranslatorBase):
 
         elif isinstance(target, ast.Attribute):
             # obj.attr = value
-            # Check for property setter
             obj_type = self._guess_type(target.value)
+
+            # Check for ReadOnly field assignment in TypedDict
+            if hasattr(self, 'readonly_fields') and obj_type in self.readonly_fields:
+                field_name = self._sanitize_name(target.attr)
+                if field_name in self.readonly_fields[obj_type]:
+                    self.output.append(f"{self._indent()}$compile_error('Cannot assign to ReadOnly TypedDict field \\'{field_name}\\'')")
+                    return
+
+            # Check for property setter
             if (obj_type, target.attr) in self.property_setters:
                 obj_expr = self.visit(target.value)
                 rhs_expr = self.visit(node.value)

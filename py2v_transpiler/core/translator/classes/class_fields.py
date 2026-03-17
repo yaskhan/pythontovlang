@@ -142,6 +142,7 @@ class ClassFieldsHandler:
         """Process class attribute declarations (AnnAssign and Assign)."""
         fields: List[str] = []
         readonly_fields = self.translator.readonly_fields if hasattr(self.translator, "readonly_fields") else {}
+        current_access = None
 
         for stmt in body:
             if isinstance(stmt, ast.AnnAssign) and isinstance(stmt.target, ast.Name):
@@ -156,27 +157,31 @@ class ClassFieldsHandler:
                 else:
                     added_fields.add(field_name)
                     field_type = "int"
+                    is_readonly = False
                     if stmt.annotation:
                         try:
                             type_str = ast.unparse(stmt.annotation)
                             field_type = self.translator._map_type(type_str, struct_name)
+
+                            if is_typed_dict:
+                                if "ReadOnly[" in type_str or type_str.startswith("ReadOnly") or \
+                                   "typing.ReadOnly[" in type_str or type_str.startswith("typing.ReadOnly") or \
+                                   "typing_extensions.ReadOnly[" in type_str or type_str.startswith("typing_extensions.ReadOnly"):
+                                    is_readonly = True
+                                    readonly_fields.setdefault(struct_name, set()).add(field_name)
                         except Exception:
                             if isinstance(stmt.annotation, ast.Name):
                                 field_type = stmt.annotation.id
 
-                    if is_typed_dict:
-                        if stmt.annotation:
-                            try:
-                                ann_str = ast.unparse(stmt.annotation)
-                                if "ReadOnly[" in ann_str or ann_str.startswith(
-                                    "ReadOnly"
-                                ):
-                                    readonly_fields.setdefault(struct_name, set()).add(field_name)
-                            except Exception:
-                                pass
-
                     if is_dataclass or is_typed_dict:
                         dataclass_field_order.append(field_name)
+
+                    if is_typed_dict:
+                        required_access = "pub:" if is_readonly else "pub mut:"
+                        if current_access != required_access:
+                            fields.append(required_access)
+                            current_access = required_access
+
                     if stmt.value:
                         default_val = self.translator.visit(stmt.value)
                         fields.append(
