@@ -20,11 +20,11 @@ class NamesMixin(TranslatorBase):
         res = self._sanitize_name(name)
         if name in self._local_vars_in_scope:
             res = self._sanitize_name(name)
-        elif self._to_snake_case(name) in self._local_vars_in_scope:
+        elif self._to_snake_case(name) in self._local_vars_in_scope and name not in getattr(self, "defined_classes", {}):
             res = self._sanitize_name(self._to_snake_case(name))
         elif name in getattr(self, "global_vars", set()):
             res = self._sanitize_name(name)
-        elif self._to_snake_case(name) in getattr(self, "global_vars", set()):
+        elif self._to_snake_case(name) in getattr(self, "global_vars", set()) and name not in getattr(self, "defined_classes", {}):
             res = self._sanitize_name(self._to_snake_case(name))
 
 

@@ -187,6 +187,23 @@ class ClassFieldsHandler:
                         fields.append(
                             f"    {field_name} {field_type} = {default_val}"
                         )
+                        # Store for constant generation
+                        if not hasattr(self.translator, 'defined_classes'):
+                            self.translator.defined_classes = {}
+                        if struct_name not in self.translator.defined_classes:
+                            self.translator.defined_classes[struct_name] = {
+                                'has_init': False, 'has_new': False,
+                                'static_methods': set(), 'class_methods': set(),
+                                'class_vars': []
+                            }
+                        if 'class_vars' not in self.translator.defined_classes[struct_name]:
+                            self.translator.defined_classes[struct_name]['class_vars'] = []
+
+                        self.translator.defined_classes[struct_name]['class_vars'].append({
+                            'name': field_name,
+                            'type': field_type,
+                            'value': default_val
+                        })
                     else:
                         _ft = field_type
                         if _ft.startswith("fn (") or _ft.startswith("fn("):
@@ -195,23 +212,54 @@ class ClassFieldsHandler:
 
             elif isinstance(stmt, ast.Assign):
                 for target in stmt.targets:
-                    if isinstance(target, ast.Name) and target.id == "__slots__":
-                        slots_list = []
-                        if isinstance(stmt.value, (ast.List, ast.Tuple)):
-                            for elt in stmt.value.elts:
-                                if isinstance(elt, ast.Constant) and isinstance(
-                                    elt.value, str
-                                ):
-                                    slots_list.append(self.translator._sanitize_name(elt.value))
-                        elif isinstance(stmt.value, ast.Constant) and isinstance(
-                            stmt.value.value, str
-                        ):
-                            slots_list.append(self.translator._sanitize_name(stmt.value.value))
+                    if isinstance(target, ast.Name):
+                        if target.id == "__slots__":
+                            slots_list = []
+                            if isinstance(stmt.value, (ast.List, ast.Tuple)):
+                                for elt in stmt.value.elts:
+                                    if isinstance(elt, ast.Constant) and isinstance(
+                                        elt.value, str
+                                    ):
+                                        slots_list.append(self.translator._sanitize_name(elt.value))
+                            elif isinstance(stmt.value, ast.Constant) and isinstance(
+                                stmt.value.value, str
+                            ):
+                                slots_list.append(self.translator._sanitize_name(stmt.value.value))
 
-                        for slot in slots_list:
-                            if slot not in added_fields:
-                                fields.append(f"    {slot} int")
-                                added_fields.add(slot)
+                            for slot in slots_list:
+                                if slot not in added_fields:
+                                    fields.append(f"    {slot} int")
+                                    added_fields.add(slot)
+                        else:
+                            # Class variable
+                            field_name = self.translator._sanitize_name(target.id)
+                            if field_name in added_fields:
+                                continue
+
+                            added_fields.add(field_name)
+                            field_type = self.translator._guess_type(stmt.value)
+                            default_val = self.translator.visit(stmt.value)
+
+                            # Add to fields list for struct definition
+                            fields.append(f"    {field_name} {field_type} = {default_val}")
+
+                            # Store for constant generation
+                            if not hasattr(self.translator, "defined_classes"):
+                                self.translator.defined_classes = {}
+                            if struct_name not in self.translator.defined_classes:
+                                self.translator.defined_classes[struct_name] = {
+                                    "has_init": False, "has_new": False,
+                                    "static_methods": set(), "class_methods": set(),
+                                    "class_vars": []
+                                }
+                            if "class_vars" not in self.translator.defined_classes[struct_name]:
+                                self.translator.defined_classes[struct_name]["class_vars"] = []
+
+                            self.translator.defined_classes[struct_name]["class_vars"].append({
+                                "name": field_name,
+                                "type": field_type,
+                                "value": default_val
+                            })
 
         return fields
 

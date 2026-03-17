@@ -137,3 +137,26 @@ class NamingMixin:
             gen_str = f"[{', '.join(self.current_class_generics)}]"
             return f"{name}{gen_str}"
         return name
+    def _find_defining_class_for_class_var(
+        self,
+        class_name: str,
+        var_name: str
+    ) -> Optional[str]:
+        """Finds the class in the hierarchy where the class variable is defined."""
+        visited = set()
+        stack = [class_name]
+        while stack:
+            curr = stack.pop()
+            if curr in visited:
+                continue
+            visited.add(curr)
+
+            info = getattr(self, "defined_classes", {}).get(curr, {})
+            class_vars = info.get("class_vars", [])
+            for var in class_vars:
+                if var["name"] == var_name:
+                    return curr
+
+            if curr in self.class_hierarchy:
+                stack.extend(self.class_hierarchy[curr])
+        return None
