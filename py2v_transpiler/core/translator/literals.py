@@ -1,11 +1,11 @@
 import ast
-from typing import List
+from typing import List, Sequence
 from .base import TranslatorBase
 
 class LiteralsMixin(TranslatorBase):
-    def _translate_tstring(self, values: List[ast.AST]) -> str:
-        strings = []
-        interpolations = []
+    def _translate_tstring(self, values: Sequence[ast.AST]) -> str:
+        strings: List[str] = []
+        interpolations: List[str] = []
 
         # Check if it's a marked t-string
         if values and isinstance(values[0], ast.Constant) and isinstance(values[0].value, str) and values[0].value.startswith('__py2v_t__'):
@@ -15,7 +15,9 @@ class LiteralsMixin(TranslatorBase):
                     s = val.value
                     if i == 0:
                         s = s[len('__py2v_t__'):] # Remove marker
-                    strings.append(s)
+
+                    # We use self.visit(ast.Constant) to correctly handle quoting and escaping.
+                    strings.append(self.visit(ast.Constant(s)))
                 elif isinstance(val, ast.FormattedValue):
                     # In f-strings (which we used for preprocessing),
                     # there's a string part between each FormattedValue.
@@ -26,35 +28,34 @@ class LiteralsMixin(TranslatorBase):
 
                     # If this is the first item and it's a FormattedValue, we need a leading empty string
                     if i == 0:
-                        strings.append("")
+                        strings.append("''")
 
-                    expr = ""
+                    expr_text = ""
                     if hasattr(ast, 'unparse'):
                         try:
-                            expr = ast.unparse(val.value)
+                            expr_text = ast.unparse(val.value)
                         except:
                             pass
+                    # Use self.visit(ast.Constant) to handle escaping and quoting correctly
+                    v_expr = self.visit(ast.Constant(expr_text))
 
                     v_val = self.visit(val.value)
 
-                    conversion = "none"
+                    conversion = "'none'"
                     if val.conversion == 114: conversion = "'r'"
                     elif val.conversion == 115: conversion = "'s'"
                     elif val.conversion == 97: conversion = "'a'"
 
-                    format_spec = ""
+                    format_spec = "''"
                     if isinstance(val.format_spec, ast.JoinedStr):
+                        # self.visit(JoinedStr) returns a quoted string or template.
                         format_spec = self.visit(val.format_spec)
-                        if format_spec.startswith("'") and format_spec.endswith("'"):
-                            format_spec = format_spec[1:-1]
-                        elif format_spec.startswith('"') and format_spec.endswith('"'):
-                            format_spec = format_spec[1:-1]
 
-                    interpolations.append(f"Interpolation{{value: {v_val}, expression: '{expr}', conversion: {conversion}, format_spec: '{format_spec}'}}")
+                    interpolations.append(f"Interpolation{{value: {v_val}, expression: {v_expr}, conversion: {conversion}, format_spec: {format_spec}}}")
 
                     # If this is the last item, we need a trailing string
                     if i == len(values) - 1:
-                        strings.append("")
+                        strings.append("''")
                 else:
                     # Should not happen in JoinedStr
                     pass
@@ -62,9 +63,9 @@ class LiteralsMixin(TranslatorBase):
             # Ensure strings and interpolations are correctly interleaved
             # If we didn't add enough strings, add them now
             while len(strings) < len(interpolations) + 1:
-                strings.append("")
+                strings.append("''")
 
-            v_strings = "[" + ", ".join(f"'{s}'" for s in strings) + "]"
+            v_strings = "[" + ", ".join(strings) + "]"
             v_interpolations = "[" + ", ".join(interpolations) + "]"
             return f"Template{{strings: {v_strings}, interpolations: {v_interpolations}}}"
         return ""
@@ -73,7 +74,9 @@ class LiteralsMixin(TranslatorBase):
         val = node.value
 
         if isinstance(val, str) and val.startswith('__py2v_t__'):
-            return f"Template{{strings: ['{val[len('__py2v_t__'):]}'], interpolations: []}}"
+            inner = val[len('__py2v_t__'):]
+            v_inner = self.visit(ast.Constant(inner))
+            return f"Template{{strings: [{v_inner}], interpolations: []}}"
 
         # Check if we are assigning to a LiteralEnum
         target_type = self.current_assignment_type

@@ -20,12 +20,12 @@ class TestTStrings(unittest.TestCase):
     def test_interpolation(self):
         code = 'name = "world"\nt"hello {name}"'
         v_code = transpile_code(code)
-        self.assertIn("Template{strings: ['hello ', ''], interpolations: [Interpolation{value: name, expression: 'name', conversion: none, format_spec: ''}]}", v_code)
+        self.assertIn("Template{strings: ['hello ', ''], interpolations: [Interpolation{value: name, expression: 'name', conversion: 'none', format_spec: ''}]}", v_code)
 
     def test_multiple_interpolations(self):
         code = 't"{a} {b}"'
         v_code = transpile_code(code)
-        self.assertIn("Template{strings: ['', ' ', ''], interpolations: [Interpolation{value: a, expression: 'a', conversion: none, format_spec: ''}, Interpolation{value: b, expression: 'b', conversion: none, format_spec: ''}]}", v_code)
+        self.assertIn("Template{strings: ['', ' ', ''], interpolations: [Interpolation{value: a, expression: 'a', conversion: 'none', format_spec: ''}, Interpolation{value: b, expression: 'b', conversion: 'none', format_spec: ''}]}", v_code)
 
     def test_conversions(self):
         code = 't"{x!r} {y!s} {z!a}"'
@@ -49,7 +49,8 @@ class TestTStrings(unittest.TestCase):
     def test_raw_tstring(self):
         code = 'rt"hello\\n{x}"'
         v_code = transpile_code(code)
-        self.assertIn("strings: ['hello\\n', '']", v_code)
+        # LiteralsMixin will use V raw string r'...' if backslash is present
+        self.assertIn("strings: [r'hello\\n', '']", v_code)
 
     def test_concatenation(self):
         code = 't"a" + t"b"'
