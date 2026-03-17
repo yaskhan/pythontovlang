@@ -35,8 +35,10 @@ class MethodCallsMixin:
         
         # list.clear() / dict.clear()
         elif attr == "clear":
+            obj_type = self._guess_type(func_node.value)
             obj = self.visit(func_node.value)
-            return f"/* {obj}.clear() */ {obj} = {{}}"
+            empty_val = "[]" if obj_type.startswith("[]") else "{}"
+            return f"/* {obj}.clear() */ {obj} = {empty_val}"
 
         # file.read() / file.write() / file.close()
         elif attr in ("read", "write", "close"):
