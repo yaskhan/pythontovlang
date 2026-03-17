@@ -272,7 +272,8 @@ class OperatorsMixin(TranslatorBase):
                     val_str = self.visit(vals[0])
                     v_type = self._guess_type(vals[0])
                     if ret_type == "Any" and "Any" not in v_type:
-                        return f"Any({val_str})"
+                        if v_type.startswith("?"): return f"Any({val_str}!)"
+                        return f"Any({val_str}) "
                     return val_str
                 left = vals[0]
                 right_expr = build_boolop(vals[1:], is_and)
@@ -281,7 +282,8 @@ class OperatorsMixin(TranslatorBase):
                 left_val = self.visit(left)
                 left_type = self._guess_type(left)
                 if ret_type == "Any" and "Any" not in left_type:
-                    left_val = f"Any({left_val})"
+                    if left_type.startswith("?"): left_val = f"Any({left_val}!)"
+                    else: left_val = f"Any({left_val})"
 
                 if is_and:
                     # x and y -> if x { y } else { x }

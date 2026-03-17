@@ -64,6 +64,21 @@ class TypeUtilsMixin:
             elif self._is_numeric_type(inner_type):
                 op = "==" if invert else "!="
                 inner_cond = f"{expr} {op} 0"
+            elif inner_type == "Any":
+                self.used_builtins.add("py_bool")
+                inner_cond = f"!py_bool({expr})" if invert else f"py_bool({expr})"
+            elif inner_type == "Any":
+                self.used_builtins.add("py_bool")
+                inner_cond = f"!py_bool({expr})" if invert else f"py_bool({expr})"
+            elif inner_type == "Any":
+                self.used_builtins.add("py_bool")
+                inner_cond = f"!py_bool({expr})" if invert else f"py_bool({expr})"
+            elif inner_type == "Any":
+                self.used_builtins.add("py_bool")
+                inner_cond = f"!py_bool({expr})" if invert else f"py_bool({expr})"
+            elif inner_type == "Any":
+                self.used_builtins.add("py_bool")
+                inner_cond = f"!py_bool({expr})" if invert else f"py_bool({expr})"
             else:
                 inner_cond = ""
 
