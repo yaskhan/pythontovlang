@@ -1,7 +1,7 @@
 from mypy.plugin import Plugin
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, List, Union, cast
 import json
-from mypy.nodes import Var, AssignmentStmt, OperatorAssignmentStmt, CallExpr, MypyFile, ClassDef, FuncDef, Block, IfStmt, WhileStmt, ForStmt, TryStmt, NameExpr, MemberExpr, IndexExpr, TupleExpr, ListExpr, DictExpr, SetExpr
+from mypy.nodes import Var, AssignmentStmt, OperatorAssignmentStmt, CallExpr, MypyFile, ClassDef, FuncDef, Block, IfStmt, WhileStmt, ForStmt, TryStmt, NameExpr, MemberExpr, IndexExpr, TupleExpr, ListExpr, DictExpr, SetExpr, SymbolNode
 from collections import defaultdict
 
 # Global dictionary to store types without relying on the filesystem
@@ -223,40 +223,50 @@ class VlangPlugin(Plugin):
                         self.collected_types[key][key] = str(typ)
 
                     if isinstance(expr, CallExpr):
-                        from mypy.types import Instance, UnboundType
+                        from mypy.types import Instance, CallableType
 
                         if isinstance(expr.callee, (NameExpr, MemberExpr)) and expr.callee.node and isinstance(expr.callee.node, (FuncDef, Var)):
                             node = expr.callee.node
-                            func_node = node if isinstance(node, FuncDef) else None
-                            if not func_node and isinstance(node, Var) and hasattr(node, 'type'):
-                                 from mypy.types import CallableType
-                                 if isinstance(node.type, CallableType) and node.type.definition:
-                                      func_node = node.type.definition
+                            f_node: Optional[FuncDef] = None
+                            if isinstance(node, FuncDef):
+                                f_node = node
+                            elif isinstance(node, Var) and hasattr(node, 'type') and isinstance(node.type, CallableType):
+                                c_type = cast(CallableType, node.type)
+                                if c_type.definition and isinstance(c_type.definition, FuncDef):
+                                    f_node = c_type.definition
 
                             ret_type_str = str(typ)
-                            if func_node and hasattr(func_node, 'type') and hasattr(func_node.type, 'ret_type'):
-                                 ret_type_str = str(func_node.type.ret_type)
+                            if f_node and hasattr(f_node, 'type') and isinstance(f_node.type, CallableType):
+                                ret_type_str = str(f_node.type.ret_type)
 
                             if "TypeIs[" not in ret_type_str and "TypeGuard[" not in ret_type_str:
-                                 # Try to extract it from the actual function type if it was lost in type_map
-                                 if isinstance(expr.callee, (NameExpr, MemberExpr)) and hasattr(expr.callee, 'node') and hasattr(expr.callee.node, 'type'):
-                                      from mypy.types import CallableType
-                                      if isinstance(expr.callee.node.type, CallableType):
-                                           ret_type_str = str(expr.callee.node.type.ret_type)
+                                # Try to extract it from the actual function type if it was lost in type_map
+                                if isinstance(expr.callee, (NameExpr, MemberExpr)) and expr.callee.node and hasattr(expr.callee.node, 'type'):
+                                    callee_node_type = getattr(expr.callee.node, 'type', None)
+                                    if isinstance(callee_node_type, CallableType):
+                                        ret_type_str = str(callee_node_type.ret_type)
+
+                            args_data = []
+                            if f_node:
+                                for arg in f_node.arguments:
+                                    if hasattr(arg, 'variable') and hasattr(arg.variable, 'type'):
+                                        args_data.append(str(arg.variable.type))
+                                    else:
+                                        args_data.append("Any")
 
                             sig_data = {
-                                "args": [str(arg.type) for arg in func_node.arguments] if func_node else [],
+                                "args": args_data,
                                 "return": ret_type_str,
                                 "is_class": False,
                                 "has_init": False
                             }
-                            fullname = func_node.fullname if func_node else (expr.callee.fullname if isinstance(expr.callee, NameExpr) else None)
-                            short_name = func_node.name if func_node else (expr.callee.name if isinstance(expr.callee, MemberExpr) else None)
+                            fullname = f_node.fullname if f_node else (expr.callee.fullname if isinstance(expr.callee, NameExpr) else None)
+                            short_name = f_node.name if f_node else (expr.callee.name if isinstance(expr.callee, MemberExpr) else None)
                             if fullname: self.collected_sigs[fullname][key] = json.dumps(sig_data)
                             if short_name: self.collected_sigs[short_name][key] = json.dumps(sig_data)
                             self.collected_sigs[key][key] = json.dumps(sig_data)
 
-                        if isinstance(typ, (Instance, UnboundType)):
+                        if isinstance(typ, Instance):
                             type_info = typ.type
                             fullname_cls = type_info.fullname
                             short_name_cls = type_info.name
