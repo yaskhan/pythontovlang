@@ -282,10 +282,7 @@ class ConditionalsMixin(TranslatorBase):
 
                             # Use a unique name for narrowing to avoid redefinition errors in V
                             narrowed_arg_name = f"narrowed_{arg_name}"
-                            if v_narrowed_type in ("int", "f64", "string", "bool"):
-                                 narrow_if = f"{narrowed_arg_name} := {v_narrowed_type}({arg_name})"
-                            else:
-                                 narrow_if = f"{narrowed_arg_name} := ({arg_name} as {v_narrowed_type})"
+                            narrow_if = f"{narrowed_arg_name} := ({arg_name} as {v_narrowed_type})"
                             remap_if = (arg_name, narrowed_arg_name)
 
                             if is_typeis:
@@ -336,8 +333,6 @@ class ConditionalsMixin(TranslatorBase):
                                     narrow_else_name = f"narrowed_else_{arg_name}"
                                     if v_remaining_type == "none" and orig_type.startswith("?"):
                                         narrow_else = f"{narrow_else_name} := {orig_type}(none)"
-                                    elif v_remaining_type in ("int", "f64", "string", "bool"):
-                                        narrow_else = f"{narrow_else_name} := {v_remaining_type}({arg_name})"
                                     elif v_remaining_type != "Any":
                                         narrow_else = f"{narrow_else_name} := ({arg_name} as {v_remaining_type})"
                                     remap_else = (arg_name, narrow_else_name)
