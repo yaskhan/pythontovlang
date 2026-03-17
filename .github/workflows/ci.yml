@@ -32,7 +32,7 @@ jobs:
 
     - name: Run tests
       env:
-        PYTHONPATH: .
+        PYTHONPATH: ${{ github.workspace }}
       run: |
         pytest --rootdir=.
 
