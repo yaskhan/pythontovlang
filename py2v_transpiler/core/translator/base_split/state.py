@@ -11,6 +11,7 @@ from py2v_transpiler.core.coroutines import CoroutineHandler
 
 
 class TranslatorStateMixin:
+    _scope_names: List[str]
     """Mixin for translator state initialization and basic utilities."""
 
     if TYPE_CHECKING:

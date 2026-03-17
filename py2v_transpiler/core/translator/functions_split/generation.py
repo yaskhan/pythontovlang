@@ -26,6 +26,7 @@ class FunctionGenerationMixin:
         defined_classes: Dict[str, Dict[str, Any]]
         config: Any
         _scope_stack: List[Set[str]]
+        _scope_names: List[str]
         in_init: bool
         current_function_return_type: Optional[str]
         decorator_processor: Any

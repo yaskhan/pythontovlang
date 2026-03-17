@@ -3,6 +3,7 @@ from typing import Dict, Any, List
 
 
 class TypeInferenceBase(ast.NodeVisitor):
+    _scope_names: List[str]
     def __init__(self):
         self.type_map: Dict[str, str] = {}
         self.mutability_map: Dict[str, Dict[str, Any]] = {}
