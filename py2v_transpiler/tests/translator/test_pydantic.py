@@ -17,7 +17,7 @@ class TestPydanticSupport(unittest.TestCase):
         return visitor.emitter.emit()
 
     def test_basic_pydantic_model(self):
-        code = """
+        code = r"""
 from pydantic import BaseModel, Field
 
 class User(BaseModel):
@@ -41,7 +41,7 @@ class User(BaseModel):
         self.assertIn('if m.age <= 0 { return error("Validation Error: age must be greater than 0")', v_code)
 
     def test_optional_field(self):
-        code = """
+        code = r"""
 from typing import Optional
 from pydantic import BaseModel, Field
 
@@ -54,7 +54,7 @@ class Item(BaseModel):
         self.assertIn("if m.price? <= 0.0 {", v_code)
 
     def test_extended_field_constraints(self):
-        code = """
+        code = r"""
 from pydantic import BaseModel, Field
 from typing import List
 
@@ -91,7 +91,7 @@ class Product(BaseModel):
         self.assertIn("if m.category != 'electronics' { return error('Validation Error: category must be electronics') }", v_code)
 
     def test_pydantic_config_str_transformations(self):
-        code = """
+        code = r"""
 from pydantic import BaseModel
 
 class User(BaseModel):
@@ -110,7 +110,7 @@ class User(BaseModel):
         self.assertIn("m.email = m.email.to_lower()", v_code)
 
     def test_pydantic_config_mutation_and_extra(self):
-        code = """
+        code = r"""
 from pydantic import BaseModel
 
 class User(BaseModel):
@@ -128,7 +128,7 @@ class User(BaseModel):
         self.assertIn("name string", v_code)
 
     def test_pydantic_config_anystr_length(self):
-        code = """
+        code = r"""
 from pydantic import BaseModel
 
 class User(BaseModel):

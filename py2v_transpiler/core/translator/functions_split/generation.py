@@ -26,6 +26,7 @@ class FunctionGenerationMixin:
         defined_classes: Dict[str, Dict[str, Any]]
         config: Any
         _scope_stack: List[Set[str]]
+        _scope_names: List[str]
         in_init: bool
         current_function_return_type: Optional[str]
         decorator_processor: Any
@@ -577,6 +578,7 @@ class FunctionGenerationMixin:
             current_scope.add(orig_args[0].arg)
 
         self._scope_stack.append(current_scope)
+        self._scope_names.append(node.name)
 
         try:
             body = node.body
@@ -603,6 +605,7 @@ class FunctionGenerationMixin:
                 del self.name_remap[orig_args[0].arg]
             self.current_function_return_type = prev_ret_type
             self._scope_stack.pop()
+            self._scope_names.pop()
 
         self.generic_scopes.pop()
 

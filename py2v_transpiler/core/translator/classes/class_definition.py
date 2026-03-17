@@ -36,6 +36,7 @@ class ClassDefinitionHandler:
             self.translator.defined_top_level_symbols.add(node.name)
 
         self.class_stack.append(sanitized_name)
+        self.translator._scope_names.append(node.name)
         struct_name = self.translator._sanitize_name("_".join(self.class_stack), is_type=True)
 
         # Pre-register class definition
@@ -381,6 +382,7 @@ class ClassDefinitionHandler:
 
         # Restore previous state
         self.class_stack.pop()
+        self.translator._scope_names.pop()
         self.translator.current_class = prev_class
         self.translator.current_class_generics = prev_generics
         self.translator.current_class_generic_map = prev_generic_map
