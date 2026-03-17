@@ -25,13 +25,14 @@ class TypeInferenceMypyMixin(TypeInferenceBase):
 
         # Store original PYTHONPATH to restore it later
         original_pythonpath = os.environ.get("PYTHONPATH")
+        project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", ".."))
 
         try:
             # Set PYTHONPATH so mypy can find the plugin
             if original_pythonpath is not None:
-                os.environ["PYTHONPATH"] = f".:{original_pythonpath}"
+                os.environ["PYTHONPATH"] = f"{project_root}{os.pathsep}{original_pythonpath}"
             else:
-                os.environ["PYTHONPATH"] = "."
+                os.environ["PYTHONPATH"] = project_root
 
             # Ensure the global dict is clean before running mypy
             try:
