@@ -801,11 +801,11 @@ fn (mut ctx PyDecimalContext) close() {
 
     mut s := spec
     // Alignment
-    if s.len >= 2 && s[1] in [`<`, `>`, `^`, `=`] {
+    if s.len >= 2 && (s[1] == `<` || s[1] == `>` || s[1] == `^` || s[1] == `=`) {
         fill = s[0]
         align = s[1]
         s = s[2..]
-    } else if s.len >= 1 && s[0] in [`<`, `>`, `^`, `=`] {
+    } else if s.len >= 1 && (s[0] == `<` || s[0] == `>` || s[0] == `^` || s[0] == `=`) {
         align = s[0]
         s = s[1..]
     }
