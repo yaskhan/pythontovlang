@@ -187,6 +187,23 @@ class ClassFieldsHandler:
                         fields.append(
                             f"    {field_name} {field_type} = {default_val}"
                         )
+                        # Store for constant generation
+                        if not hasattr(self.translator, 'defined_classes'):
+                            self.translator.defined_classes = {}
+                        if struct_name not in self.translator.defined_classes:
+                            self.translator.defined_classes[struct_name] = {
+                                'has_init': False, 'has_new': False,
+                                'static_methods': set(), 'class_methods': set(),
+                                'class_vars': []
+                            }
+                        if 'class_vars' not in self.translator.defined_classes[struct_name]:
+                            self.translator.defined_classes[struct_name]['class_vars'] = []
+
+                        self.translator.defined_classes[struct_name]['class_vars'].append({
+                            'name': field_name,
+                            'type': field_type,
+                            'value': default_val
+                        })
                     else:
                         _ft = field_type
                         if _ft.startswith("fn (") or _ft.startswith("fn("):
