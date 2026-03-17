@@ -78,6 +78,14 @@ class OverloadCallsMixin:
         """Build type suffix for overloading."""
         type_suffix_parts = []
 
+        # Prefer actual argument types for matching overload variants
+        if node.args:
+            for arg in node.args:
+                arg_type = self._guess_type(arg)
+                clean_type = arg_type.replace("?", "opt_").replace("[]", "arr_").replace("[", "_").replace("]", "").replace(".", "_")
+                type_suffix_parts.append(clean_type)
+            return type_suffix_parts
+
         if call_sig and "args" in call_sig:
             # Use argument types resolved by mypy
             for arg_typ in call_sig["args"]:

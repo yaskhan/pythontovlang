@@ -107,6 +107,10 @@ class TypeInferenceVisitorMixin(TypeInferenceBase):
                         if current == "Any" or "Any" in current:
                             self.type_map[dict_name] = new_type
             elif isinstance(target, ast.Name):
+                inferred = self._guess_node_type(node.value)
+                if inferred != "Any":
+                    if target.id not in self.type_map or self.type_map[target.id] == "Any":
+                        self.type_map[target.id] = inferred
                 if isinstance(node.value, (ast.List, ast.Dict)):
                     inferred = self._infer_collection_type(node.value)
                     if target.id not in self.type_map or self.type_map[target.id] == "Any":
@@ -217,9 +221,12 @@ class TypeInferenceVisitorMixin(TypeInferenceBase):
             if i < len(node.args.kw_defaults) and node.args.kw_defaults[i] is not None:
                  defaults_map[kwarg.arg] = node.args.kw_defaults[i] # type: ignore
 
+        args_for_sig = node.args.args + node.args.kwonlyargs
+        if args_for_sig and args_for_sig[0].arg in ("self", "cls"):
+            args_for_sig = args_for_sig[1:]
         sig_data: Dict[str, Any] = {
-            "args": [ast.unparse(arg.annotation) if arg.annotation else "Any" for arg in node.args.args + node.args.kwonlyargs],
-            "arg_names": [arg.arg for arg in node.args.args + node.args.kwonlyargs],
+            "args": [ast.unparse(arg.annotation) if arg.annotation else "Any" for arg in args_for_sig],
+            "arg_names": [arg.arg for arg in args_for_sig],
             "defaults": defaults_map,
             "return": py_type_ret,
             "is_class": False,

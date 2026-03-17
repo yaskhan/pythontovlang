@@ -531,6 +531,10 @@ class AssignmentsMixin(TranslatorBase):
                         if local_v_type == "Any" or (local_v_type.startswith("map[") and local_v_type.endswith("]Any")):
                             emit_fn(f"{self._indent()}{v_lhs} = Any(NoneType{{}})")
                         else:
+                            if hasattr(self, "known_v_types"): self.known_v_types[v_lhs] = local_v_type
+                            if hasattr(self, "known_v_types"): self.known_v_types[v_lhs] = local_v_type
+                            if hasattr(self, "known_v_types"): self.known_v_types[v_lhs] = local_v_type
+                            if hasattr(self, "known_v_types"): self.known_v_types[v_lhs] = local_v_type
                             emit_fn(f"{self._indent()}{v_lhs} = none")
                     else:
                         if local_v_type and local_v_type != "unknown":
@@ -539,6 +543,10 @@ class AssignmentsMixin(TranslatorBase):
                             else:
                                 if not local_v_type.startswith("?"):
                                     local_v_type = f"?{local_v_type}"
+                                if hasattr(self, "known_v_types"): self.known_v_types[v_lhs] = local_v_type
+                                if hasattr(self, "known_v_types"): self.known_v_types[v_lhs] = local_v_type
+                                if hasattr(self, "known_v_types"): self.known_v_types[v_lhs] = local_v_type
+                                if hasattr(self, "known_v_types"): self.known_v_types[v_lhs] = local_v_type
                                 emit_fn(f"{self._indent()}mut {v_lhs} := {local_v_type}(none)")
                         else:
                             emit_fn(f"{self._indent()}mut {v_lhs} := Any(NoneType{{}})")
@@ -575,6 +583,14 @@ class AssignmentsMixin(TranslatorBase):
                                         rhs = f"{rhs}.clone()"
 
                                 mut_prefix = "mut " if is_mut else ""
+                                if hasattr(self, "known_v_types") and v_type not in ("unknown", "int"):
+                                    self.known_v_types[v_lhs] = v_type
+                                if hasattr(self, "known_v_types") and v_type not in ("unknown", "int"):
+                                    self.known_v_types[v_lhs] = v_type
+                                if hasattr(self, "known_v_types") and v_type not in ("unknown", "int"):
+                                    self.known_v_types[v_lhs] = v_type
+                                if hasattr(self, "known_v_types") and v_type not in ("unknown", "int"):
+                                    self.known_v_types[v_lhs] = v_type
                                 emit_fn(f"{self._indent()}{mut_prefix}{v_lhs} := {rhs}")
                                 if not self.in_main: self._local_vars_in_scope.add(v_lhs)
                         else:
