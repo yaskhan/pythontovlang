@@ -231,6 +231,12 @@ class FunctionMutabilityScanner(ast.NodeVisitor):
         self.current_params: List[str] = []
         self.mutated_params: Set[str] = set()
 
+    def _get_base_node(self, node: ast.AST) -> ast.AST:
+        curr = node
+        while isinstance(curr, ast.Subscript):
+            curr = curr.value
+        return curr
+
     def analyze(self, tree: ast.AST):
         self.visit(tree)
         return self.func_param_mutability
@@ -268,14 +274,14 @@ class FunctionMutabilityScanner(ast.NodeVisitor):
     def visit_Assign(self, node: ast.Assign):
         for target in node.targets:
             if isinstance(target, (ast.Subscript, ast.Attribute)):
-                self._mark_mutated(target.value)
+                self._mark_mutated(self._get_base_node(target.value))
             elif isinstance(target, ast.Name):
                 self._mark_mutated(target)
         self.generic_visit(node)
 
     def visit_AugAssign(self, node: ast.AugAssign):
         if isinstance(node.target, (ast.Subscript, ast.Attribute)):
-            self._mark_mutated(node.target.value)
+            self._mark_mutated(self._get_base_node(node.target.value))
         elif isinstance(node.target, ast.Name):
             self._mark_mutated(node.target)
         self.generic_visit(node)
@@ -283,7 +289,7 @@ class FunctionMutabilityScanner(ast.NodeVisitor):
     def visit_Delete(self, node: ast.Delete):
         for target in node.targets:
             if isinstance(target, ast.Subscript):
-                self._mark_mutated(target.value)
+                self._mark_mutated(self._get_base_node(target.value))
         self.generic_visit(node)
 
     def visit_Call(self, node: ast.Call):
