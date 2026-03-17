@@ -33,7 +33,7 @@ pub fn test_none_return() {
     }
     mut result := no_return()
     println('No return result: ${result}')
-    println('Is None: ${result == none}')
+    println('Is None: ${(result) is NoneType}')
 }
 // @line: test_none_type.py:31:0
 pub fn test_none_assignment() {
@@ -67,10 +67,10 @@ pub fn test_none_filter() {
 // @line: test_none_type.py:55:0
 pub fn test_none_or() {
     mut value := ?string(none)
-    mut result := if (value != none && value.len > 0) { Any(value!) } else { Any('default')  }
+    mut result := if (value != none && value.len > 0) { Any(value!) } else { Any('default') }
     println('None or \'default\': ${result}')
     value = 'actual'
-    result = if (value != none && value.len > 0) { Any(value!) } else { Any('default')  }
+    result = if (value != none && value.len > 0) { Any(value!) } else { Any('default') }
     println('\'actual\' or \'default\': ${result}')
 }
 // @line: test_none_type.py:65:0

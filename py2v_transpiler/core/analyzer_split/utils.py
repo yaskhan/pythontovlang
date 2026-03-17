@@ -55,6 +55,7 @@ class TypeInferenceUtilsMixin(TypeInferenceBase):
              if node.func.id == "int": return "int"
              if node.func.id == "float": return "f64"
              if node.func.id == "bool": return "bool"
+             if node.func.id[0].isupper(): return node.func.id
              return "Any"
         elif isinstance(node, ast.List):
             if not node.elts:

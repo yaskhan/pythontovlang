@@ -583,13 +583,13 @@ class AssignmentsMixin(TranslatorBase):
                                         rhs = f"{rhs}.clone()"
 
                                 mut_prefix = "mut " if is_mut else ""
-                                if hasattr(self, "known_v_types") and v_type != "unknown":
+                                if hasattr(self, "known_v_types") and v_type not in ("unknown", "int"):
                                     self.known_v_types[v_lhs] = v_type
-                                if hasattr(self, "known_v_types") and v_type != "unknown":
+                                if hasattr(self, "known_v_types") and v_type not in ("unknown", "int"):
                                     self.known_v_types[v_lhs] = v_type
-                                if hasattr(self, "known_v_types") and v_type != "unknown":
+                                if hasattr(self, "known_v_types") and v_type not in ("unknown", "int"):
                                     self.known_v_types[v_lhs] = v_type
-                                if hasattr(self, "known_v_types") and v_type != "unknown":
+                                if hasattr(self, "known_v_types") and v_type not in ("unknown", "int"):
                                     self.known_v_types[v_lhs] = v_type
                                 emit_fn(f"{self._indent()}{mut_prefix}{v_lhs} := {rhs}")
                                 if not self.in_main: self._local_vars_in_scope.add(v_lhs)
