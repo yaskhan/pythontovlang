@@ -45,12 +45,30 @@ class MethodCallsMixin:
             result = self._handle_file_methods(node, func_node, args)
             if result:
                 return result
+        # list.pop()
+        elif attr == "pop":
+            obj_type = self._guess_type(func_node.value)
+            if obj_type.startswith("[]") or obj_type == "Any":
+                obj = self.visit(func_node.value)
+                if len(args) == 0:
+                    return f"{obj}.pop()"
+                elif len(args) == 1:
+                    self.used_builtins.add("py_list_pop_at")
+                    return f"py_list_pop_at(mut {obj}, {args[0]})"
+
+        # list.remove()
+        elif attr == "remove" and len(args) == 1:
+            obj_type = self._guess_type(func_node.value)
+            if obj_type.startswith("[]") or obj_type == "Any":
+                obj = self.visit(func_node.value)
+                self.used_builtins.add("py_list_remove")
+                return f"py_list_remove(mut {obj}, {args[0]})"
 
         # list.count()
         elif attr == "count" and len(args) == 1:
-            obj = self.visit(func_node.value)
-            # Only translate if argument is 'none' to avoid breaking string.count()
-            if args[0] == "none":
+            obj_type = self._guess_type(func_node.value)
+            if obj_type.startswith("[]") or obj_type == "Any":
+                obj = self.visit(func_node.value)
                 return f"{obj}.filter(it == {args[0]}).len"
 
         # list.sort()
