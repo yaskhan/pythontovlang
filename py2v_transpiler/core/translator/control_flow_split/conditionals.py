@@ -275,19 +275,17 @@ class ConditionalsMixin(TranslatorBase):
                     if isinstance(arg_node, ast.Name):
                         arg_name = self._sanitize_name(arg_node.id)
                         import re
-                        m = re.search(r'(?:TypeGuard|TypeIs)\[(.*?)\]', ret_typ)
+                        m = re.search(r'(?:typing\.|typing_extensions\.)?(?:TypeGuard|TypeIs)\[(.*?)\]', ret_typ)
                         if m:
                             inner_type = m.group(1)
-                            from py2v_transpiler.models.v_types import map_python_type_to_v
-                            v_narrowed_type = map_python_type_to_v(inner_type)
-                            if v_narrowed_type == "builtins.str": v_narrowed_type = "string"
-                            elif v_narrowed_type == "builtins.int": v_narrowed_type = "int"
-                            elif v_narrowed_type == "builtins.float": v_narrowed_type = "f64"
-                            elif v_narrowed_type == "builtins.bool": v_narrowed_type = "bool"
+                            v_narrowed_type = self._map_type(inner_type)
 
                             # Use a unique name for narrowing to avoid redefinition errors in V
                             narrowed_arg_name = f"narrowed_{arg_name}"
-                            narrow_if = f"{narrowed_arg_name} := ({arg_name} as {v_narrowed_type})"
+                            if v_narrowed_type in ("int", "f64", "string", "bool"):
+                                 narrow_if = f"{narrowed_arg_name} := {v_narrowed_type}({arg_name})"
+                            else:
+                                 narrow_if = f"{narrowed_arg_name} := ({arg_name} as {v_narrowed_type})"
                             remap_if = (arg_name, narrowed_arg_name)
 
                             if is_typeis:
@@ -299,21 +297,36 @@ class ConditionalsMixin(TranslatorBase):
                                         v_remaining_type = "none"
                                     elif v_narrowed_type == "none":
                                         v_remaining_type = orig_type[1:]
-                                elif " | " in orig_type:
-                                    parts = [p.strip() for p in orig_type.split("|")]
+                                    else:
+                                        # Handle cases like ?(A | B) narrowing with TypeIs[A] -> ?B
+                                        base = orig_type[1:]
+                                        if "SumType_" in base or "|" in base:
+                                             # We might need to decompose the sum type here
+                                             pass
+                                elif " | " in orig_type or orig_type.startswith("SumType_"):
+                                    # Try to decompose and remove v_narrowed_type
+                                    # Since we don't easily have decomposition here, we rely on string matching for now
+                                    parts = [p.strip() for p in orig_type.replace("SumType_", "").split("|")]
                                     if v_narrowed_type in parts:
                                         parts.remove(v_narrowed_type)
-                                        v_remaining_type = " | ".join(parts)
+                                        if len(parts) == 1:
+                                             v_remaining_type = parts[0]
+                                        else:
+                                             v_remaining_type = self._register_sum_type(" | ".join(parts))
                                     else:
                                         mapped_parts = []
                                         for p in parts:
+                                            # Simple heuristic for common primitive types
                                             if p == "int" and v_narrowed_type == "int": continue
                                             if p == "string" and v_narrowed_type == "string": continue
                                             if p == "f64" and v_narrowed_type == "f64": continue
                                             if p == "bool" and v_narrowed_type == "bool": continue
                                             mapped_parts.append(p)
                                         if mapped_parts:
-                                            v_remaining_type = " | ".join(mapped_parts)
+                                            if len(mapped_parts) == 1:
+                                                 v_remaining_type = mapped_parts[0]
+                                            else:
+                                                 v_remaining_type = self._register_sum_type(" | ".join(mapped_parts))
                                         else:
                                             v_remaining_type = "Any"
                                 else:
@@ -323,7 +336,9 @@ class ConditionalsMixin(TranslatorBase):
                                     narrow_else_name = f"narrowed_else_{arg_name}"
                                     if v_remaining_type == "none" and orig_type.startswith("?"):
                                         narrow_else = f"{narrow_else_name} := {orig_type}(none)"
-                                    else:
+                                    elif v_remaining_type in ("int", "f64", "string", "bool"):
+                                        narrow_else = f"{narrow_else_name} := {v_remaining_type}({arg_name})"
+                                    elif v_remaining_type != "Any":
                                         narrow_else = f"{narrow_else_name} := ({arg_name} as {v_remaining_type})"
                                     remap_else = (arg_name, narrow_else_name)
 

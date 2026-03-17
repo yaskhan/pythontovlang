@@ -140,9 +140,7 @@ class VlangPlugin(Plugin):
         return []
 
     def get_function_hook(self, fullname: str):
-        def hook(ctx):
-             return self._hook(ctx, fullname)
-        return hook
+        return self.get_method_hook(fullname)
 
     def get_method_hook(self, fullname: str):
         def hook(ctx):
@@ -212,6 +210,7 @@ class VlangPlugin(Plugin):
 
         # Collect types from checker's type_map for narrowing and calls
         if self.checker and hasattr(self.checker, 'type_map'):
+            # print(f"DEBUG PLUGIN: reporting for {len(self.checker.type_map)} exprs")
             for expr, typ in self.checker.type_map.items():
                 state_id = (id(expr), id(typ))
                 if state_id in self._processed_exprs:
@@ -226,10 +225,41 @@ class VlangPlugin(Plugin):
                         self.collected_types[key][key] = str(typ)
 
                     if isinstance(expr, CallExpr):
-                        from mypy.types import Instance
-                        # For CallExpr, the type in type_map is the return type
-                        # We want to record this instantiation
-                        if isinstance(typ, Instance):
+                        # print(f"DEBUG PLUGIN: CallExpr at {key} type={typ}")
+                        from mypy.types import Instance, UnboundType, CallableType
+
+                        if isinstance(expr.callee, (NameExpr, MemberExpr)) and expr.callee.node and isinstance(expr.callee.node, (FuncDef, Var)):
+                            node = expr.callee.node
+                            func_node = node if isinstance(node, FuncDef) else None
+                            if not func_node and isinstance(node, Var) and hasattr(node, 'type'):
+                                 from mypy.types import CallableType
+                                 if isinstance(node.type, CallableType) and node.type.definition:
+                                      func_node = node.type.definition
+
+                            ret_type_str = str(typ)
+                            if func_node and hasattr(func_node, 'type') and hasattr(func_node.type, 'ret_type'):
+                                 ret_type_str = str(func_node.type.ret_type)
+
+                            if "TypeIs[" not in ret_type_str and "TypeGuard[" not in ret_type_str:
+                                 # Try to extract it from the actual function type if it was lost in type_map
+                                 if isinstance(expr.callee, (NameExpr, MemberExpr)) and hasattr(expr.callee, 'node') and hasattr(expr.callee.node, 'type'):
+                                      from mypy.types import CallableType
+                                      if isinstance(expr.callee.node.type, CallableType):
+                                           ret_type_str = str(expr.callee.node.type.ret_type)
+
+                            sig_data = {
+                                "args": [str(arg.type) for arg in func_node.arguments] if func_node else [],
+                                "return": ret_type_str,
+                                "is_class": False,
+                                "has_init": False
+                            }
+                            fullname = func_node.fullname
+                            short_name = func_node.name
+                            self.collected_sigs[fullname][key] = json.dumps(sig_data)
+                            self.collected_sigs[short_name][key] = json.dumps(sig_data)
+                            self.collected_sigs[key][key] = json.dumps(sig_data)
+
+                        if isinstance(typ, (Instance, UnboundType)):
                             type_info = typ.type
                             fullname_cls = type_info.fullname
                             short_name_cls = type_info.name
