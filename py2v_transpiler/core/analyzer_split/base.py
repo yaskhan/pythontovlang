@@ -15,6 +15,7 @@ class TypeInferenceBase(ast.NodeVisitor):
         self.static_methods: Dict[str, set[str]] = {}
         self.class_methods: Dict[str, set[str]] = {}
         self.is_abc: Dict[str, bool] = {}
+        self._scope_names: List[str] = []
 
     def _get_base_node(self, node: ast.AST) -> ast.AST:
         curr = node

@@ -577,6 +577,7 @@ class FunctionGenerationMixin:
             current_scope.add(orig_args[0].arg)
 
         self._scope_stack.append(current_scope)
+        self._scope_names.append(node.name)
 
         try:
             body = node.body
@@ -603,6 +604,7 @@ class FunctionGenerationMixin:
                 del self.name_remap[orig_args[0].arg]
             self.current_function_return_type = prev_ret_type
             self._scope_stack.pop()
+            self._scope_names.pop()
 
         self.generic_scopes.pop()
 

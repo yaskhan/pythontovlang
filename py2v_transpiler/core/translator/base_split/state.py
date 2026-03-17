@@ -91,6 +91,7 @@ class TranslatorStateMixin:
         self.defined_top_level_symbols: Set[str] = set()
         self.warnings: List[str] = []
         self.type_vars: Set[str] = set()
+        self._scope_names: List[str] = []
         self.constrained_typevars: Set[str] = set()
         self.current_function_return_type: Optional[str] = None
         self.in_pydantic_validator: bool = False

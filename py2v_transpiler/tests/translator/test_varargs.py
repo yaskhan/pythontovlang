@@ -5,8 +5,9 @@ import ast
 
 def transpile(code):
     analyzer = TypeInference()
-    translator = VNodeVisitor(analyzer)
     tree = ast.parse(code)
+    analyzer.analyze(tree)
+    translator = VNodeVisitor(analyzer)
     v_code = translator.visit_Module(tree)
     helpers = translator.emitter.emit_helpers()
     return v_code + "\n" + helpers
@@ -25,13 +26,37 @@ def f(a, *b):
     pass
 """
     v_code = transpile(code)
-    assert "fn f(a int, b ...int)" in v_code
+    assert "fn f(a Any, b ...int)" in v_code
 
 def test_varargs_with_type_annotation():
     code = """
 def f(*args: str):
     pass
 """
-    # Assuming annotation maps to ...string
     v_code = transpile(code)
     assert "fn f(args ...string)" in v_code
+
+def test_kwargs_basic():
+    code = """
+def f(**kwargs):
+    pass
+f(a=1, b=2)
+"""
+    v_code = transpile(code)
+    assert "f({'a': 1, 'b': 2})" in v_code
+
+def test_nested_function_leakage_prevention():
+    code = """
+def test1():
+    def greet():
+        pass
+    greet()
+
+def test2():
+    def greet(x):
+        pass
+    greet(1)
+"""
+    v_code = transpile(code)
+    assert "greet()" in v_code
+    assert "greet(1)" in v_code

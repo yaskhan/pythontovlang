@@ -49,12 +49,14 @@ class TypeInferenceVisitorMixin(TypeInferenceBase):
         self.generic_visit(node)
 
     def visit_ClassDef(self, node: ast.ClassDef) -> Any:
+        self._scope_names.append(node.name)
         for stmt in node.body:
             if isinstance(stmt, ast.Assign):
                 for target in stmt.targets:
                     if isinstance(target, ast.Name):
                         self.type_map[target.id] = self._guess_node_type(stmt.value)
         self.generic_visit(node)
+        self._scope_names.pop()
 
     def visit_Assign(self, node: ast.Assign) -> Any:
         for target in node.targets:
@@ -150,6 +152,7 @@ class TypeInferenceVisitorMixin(TypeInferenceBase):
         self.generic_visit(node)
 
     def visit_FunctionDef(self, node: ast.FunctionDef) -> Any:
+        qualified_name = ".".join(self._scope_names + [node.name])
         self.type_map[node.name] = "fn (...Any) Any"
 
         for arg in node.args.args:
@@ -230,11 +233,15 @@ class TypeInferenceVisitorMixin(TypeInferenceBase):
             "defaults": defaults_map,
             "return": py_type_ret,
             "is_class": False,
-            "has_init": False
+            "has_init": False,
+            "has_vararg": node.args.vararg is not None,
+            "has_kwarg": node.args.kwarg is not None
         }
-        self.call_signatures[node.name] = sig_data
+        self.call_signatures[qualified_name] = sig_data
 
+        self._scope_names.append(node.name)
         self.generic_visit(node)
+        self._scope_names.pop()
 
     def visit_AsyncFunctionDef(self, node: ast.AsyncFunctionDef) -> Any:
         return self.visit_FunctionDef(node) # type: ignore

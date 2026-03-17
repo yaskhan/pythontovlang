@@ -169,6 +169,26 @@ class CallsMixin(
                     break
 
             if not call_sig:
+                # Try qualified name based on current scope
+                if hasattr(self, "_scope_names") and self._scope_names:
+                    # Try from inner scope to outer
+                    for i in range(len(self._scope_names), -1, -1):
+                         prefix = ".".join(self._scope_names[:i])
+                         qualified_name = f"{prefix}.{func_name_str}" if prefix else func_name_str
+                         if qualified_name in self.type_inference.call_signatures:
+                              call_sig = self.type_inference.call_signatures[qualified_name]
+                              break
+
+            if not call_sig:
+                # Fallback to suffix match
+                for k, v in self.type_inference.call_signatures.items():
+                    if k == func_name_str or k.endswith("." + func_name_str):
+                         call_sig = v
+                         # Don't break, keep looking for potentially better matches?
+                         # Actually, the first suffix match found in dict order might not be best.
+                         # But it's better than none.
+
+            if not call_sig:
                 for k, v in self.type_inference.call_signatures.items():
                     if k.endswith(f".{func_name_str}@{loc_key}") or k.endswith(f"@{loc_key}"):
                         if func_name_str in k:
@@ -179,7 +199,6 @@ class CallsMixin(
                 call_sig = self.type_inference.call_signatures.get(func_name_str)
 
         return call_sig
-
     def _process_call_args(self, node: ast.Call, call_sig: dict | None) -> list:
         """Process positional call arguments."""
         args = []
@@ -238,8 +257,13 @@ class CallsMixin(
                     val = str(self.visit(val_node))
                     args.append(val)
 
-        return keyword_args, original_keyword_append
+            # If there's a **kwargs parameter in the signature, collect remaining keyword args
+            if call_sig.get("has_kwarg"):
+                kw_items = [f"'{k}': {v}" for k, v in keyword_args.items()]
+                args.append('{' + ', '.join(kw_items) + '}')
+                keyword_args.clear()
 
+        return keyword_args, original_keyword_append
     def _resolve_module_and_func(self, node: ast.Call, func_name_str: str) -> tuple:
         """Resolve module and function name."""
         module_name = None
