@@ -27,6 +27,10 @@ class SpecialCallsMixin:
     def _handle_special_builtin(self, node: ast.Call, module_name: str | None, func_name: str | None, args: list) -> str | None:
         """Handle special built-in functions."""
 
+        # get_type_hints() / get_annotations()
+        if func_name in ("get_type_hints", "get_annotations"):
+            return self._handle_get_type_hints(node, args)
+
         if module_name != "builtins":
             return None
 
@@ -59,7 +63,35 @@ class SpecialCallsMixin:
         elif func_name == "super":
             pass
 
+        # get_type_hints() / get_annotations()
+        elif func_name in ("get_type_hints", "get_annotations"):
+            return self._handle_get_type_hints(node, args)
+
         return None
+
+    def _handle_get_type_hints(self, node: ast.Call, args: List[str]) -> str:
+        """Handle get_type_hints(obj) and get_annotations(obj)."""
+        if not args:
+            return "map[string]Any{}"
+
+        obj_node = node.args[0]
+        obj_expr = args[0]
+        obj_type = self._guess_type(obj_node)
+
+        # Check if it's a class
+        if obj_type in getattr(self, "defined_classes", {}) or obj_expr in getattr(self, "defined_classes", {}):
+            class_name = obj_expr if obj_expr in getattr(self, "defined_classes", {}) else obj_type
+            return f"py_get_type_hints[{class_name}]()"
+
+        # Check if it's a known function
+        if obj_expr in getattr(self, "function_names", set()):
+            # For methods, the constant name might include the struct name
+            # But get_type_hints(method_obj) is tricky if it's a bound method.
+            # Usually it's func_name__annotations__ for top-level functions.
+            return f"{obj_expr}__annotations__"
+
+        # Fallback to a generic helper that might handle Any/unknown at runtime (though V is limited here)
+        return f"py_get_type_hints_generic({obj_expr})"
 
     def _handle_hasattr(self, node: ast.Call, args: list) -> str:
         """Handle hasattr(obj, attr)."""

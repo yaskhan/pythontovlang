@@ -23,9 +23,9 @@ def map_python_type_to_v(py_type: str, self_name: str = "Self", allow_union: boo
     if py_type.startswith('*') and not py_type.startswith('**'):
         py_type = py_type[1:]
 
-    # Strip surrounding quotes for forward references
-    if (py_type.startswith("'") and py_type.endswith("'")) or \
-       (py_type.startswith('"') and py_type.endswith('"')):
+    # Strip surrounding quotes for forward references and handle deferred evaluation
+    while (py_type.startswith("'") and py_type.endswith("'")) or \
+          (py_type.startswith('"') and py_type.endswith('"')):
         py_type = py_type[1:-1]
 
     # Pre-process basic types to avoid overhead
@@ -278,7 +278,7 @@ def _map_ast_type(node: ast.AST, self_name: str = "Self", allow_union: bool = Tr
         elif value_id == 'TypeForm':
             return 'Any'
 
-        elif value_id in ('Final', 'ClassVar', 'Annotated', 'ReadOnly'):
+        elif value_id in ('Final', 'ClassVar', 'Annotated', 'ReadOnly', 'ForwardRef'):
             # Strip
             if mapped_args:
                 return mapped_args[0]
@@ -408,5 +408,8 @@ def _map_basic_type(name: str) -> str:
         'typing.Final': 'Any',
         'ClassVar': 'Any',
         'typing.ClassVar': 'Any',
+        'ForwardRef': 'Any',
+        'typing.ForwardRef': 'Any',
+        'annotationlib.ForwardRef': 'Any',
     }
     return mapping.get(name, name)

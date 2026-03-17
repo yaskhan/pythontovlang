@@ -20,6 +20,17 @@ class AttributesMixin(TranslatorBase):
              obj = self.visit(node.value)
              return f"typeof({obj})"
 
+        if node.attr in ("__annotations__", "__annotate__"):
+            obj = self.visit(node.value)
+            # Use the same logic as get_type_hints
+            obj_type = self._guess_type(node.value)
+            if obj_type in getattr(self, "defined_classes", {}) or obj in getattr(self, "defined_classes", {}):
+                class_name = obj if obj in getattr(self, "defined_classes", {}) else obj_type
+                return f"py_get_type_hints[{class_name}]()"
+            if obj in getattr(self, "function_names", set()):
+                return f"{obj}__annotations__"
+            return f"py_get_type_hints_generic({obj})"
+
         if node.attr == "__type_params__":
             obj = self.visit(node.value)
             # obj could be ClassName, ClassName[int], or a function name.
