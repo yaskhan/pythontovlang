@@ -33,10 +33,33 @@ class CompatibilityLayer:
         Applies a series of pre-processing transformations to the Python source
         to support newer or future syntax on older Python versions.
         """
+        source = self._preprocess_tstrings(source)
         source = self._preprocess_bracketless_except(source)
         source = self._preprocess_generic_match(source)
         # Add more future pre-processors here
         return source
+
+    def _preprocess_tstrings(self, source: str) -> str:
+        """
+        Pre-processes Python source code to support PEP 750 t-strings on older Python versions.
+        Converts t"..." to f"__py2v_t__..." to be parsed as f-strings but identifiable.
+        Supports t, T, rt, tr prefixes and triple quotes.
+        """
+        def replace_prefix(match):
+            prefix = match.group(1).lower()
+            quotes = match.group(2)
+            if 'r' in prefix:
+                return f'rf{quotes}__py2v_t__'
+            else:
+                return f'f{quotes}__py2v_t__'
+
+        # Matches t, T, rt, tr, etc. followed by ' or " or ''' or """
+        # Only matches if prefix is immediately followed by quotes (no space)
+        # We avoid matching 't' or 'T' inside strings by ensuring it's not preceded by a quote.
+        # But since we use regex on the whole source, it's hard to be perfect without tokenizing.
+        # However, PEP 750 t-strings must be at the start of a token.
+        # Using a negative lookbehind for quotes might help.
+        return re.sub(r'(?<![\'"])\b(rt|tr|t)(["\']{1,3})', replace_prefix, source, flags=re.IGNORECASE)
 
     def _preprocess_generic_match(self, source: str) -> str:
         """

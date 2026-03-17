@@ -133,7 +133,46 @@ class VCodeEmitter:
         # Define custom Any type
         lines.append("pub struct NoneType {}\n")
         lines.append("pub fn (n NoneType) str() string {\n    return 'None'\n}\n")
-        lines.append("pub type Any = NoneType | []Any | []u8 | bool | f64 | i64 | int | map[string]Any | string\n")
+
+        lines.append("pub struct Interpolation {")
+        lines.append("pub:")
+        lines.append("    value       Any")
+        lines.append("    expression  string")
+        lines.append("    conversion  string")
+        lines.append("    format_spec string")
+        lines.append("}\n")
+
+        lines.append("pub struct Template {")
+        lines.append("pub:")
+        lines.append("    strings        []string")
+        lines.append("    interpolations []Interpolation")
+        lines.append("}\n")
+
+        lines.append("pub fn (t Template) values() []Any {")
+        lines.append("    mut res := []Any{cap: t.interpolations.len}")
+        lines.append("    for i in t.interpolations {")
+        lines.append("        res << i.value")
+        lines.append("    }")
+        lines.append("    return res")
+        lines.append("}\n")
+
+        lines.append("pub fn (t1 Template) + (t2 Template) Template {")
+        lines.append("    if t1.strings.len == 0 { return t2 }")
+        lines.append("    if t2.strings.len == 0 { return t1 }")
+        lines.append("    mut new_strings := t1.strings[..t1.strings.len - 1].clone()")
+        lines.append("    new_strings << t1.strings.last() + t2.strings[0]")
+        lines.append("    if t2.strings.len > 1 {")
+        lines.append("        new_strings << t2.strings[1..]")
+        lines.append("    }")
+        lines.append("    mut new_interpolations := t1.interpolations.clone()")
+        lines.append("    new_interpolations << t2.interpolations")
+        lines.append("    return Template{")
+        lines.append("        strings: new_strings")
+        lines.append("        interpolations: new_interpolations")
+        lines.append("    }")
+        lines.append("}\n")
+
+        lines.append("pub type Any = Interpolation | NoneType | Template | []Any | []u8 | bool | f64 | i64 | int | map[string]Any | string\n")
 
         lines.append("pub enum PyAnnotationFormat { value forwardref string }\n")
 

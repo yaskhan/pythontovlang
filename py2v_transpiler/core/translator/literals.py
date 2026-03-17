@@ -1,10 +1,82 @@
 import ast
-from typing import List
+from typing import List, Sequence
 from .base import TranslatorBase
 
 class LiteralsMixin(TranslatorBase):
+    def _translate_tstring(self, values: Sequence[ast.AST]) -> str:
+        strings: List[str] = []
+        interpolations: List[str] = []
+
+        # Check if it's a marked t-string
+        if values and isinstance(values[0], ast.Constant) and isinstance(values[0].value, str) and values[0].value.startswith('__py2v_t__'):
+            # It is a t-string
+            for i, val in enumerate(values):
+                if isinstance(val, ast.Constant) and isinstance(val.value, str):
+                    s = val.value
+                    if i == 0:
+                        s = s[len('__py2v_t__'):] # Remove marker
+
+                    # We use self.visit(ast.Constant) to correctly handle quoting and escaping.
+                    strings.append(self.visit(ast.Constant(s)))
+                elif isinstance(val, ast.FormattedValue):
+                    # In f-strings (which we used for preprocessing),
+                    # there's a string part between each FormattedValue.
+                    # If two FormattedValues are adjacent, Python inserts an empty Constant('').
+
+                    # We need to ensure strings and interpolations match PEP 750:
+                    # strings has N+1 items, interpolations has N items.
+
+                    # If this is the first item and it's a FormattedValue, we need a leading empty string
+                    if i == 0:
+                        strings.append("''")
+
+                    expr_text = ""
+                    if hasattr(ast, 'unparse'):
+                        try:
+                            expr_text = ast.unparse(val.value)
+                        except:
+                            pass
+                    # Use self.visit(ast.Constant) to handle escaping and quoting correctly
+                    v_expr = self.visit(ast.Constant(expr_text))
+
+                    v_val = self.visit(val.value)
+
+                    conversion = "'none'"
+                    if val.conversion == 114: conversion = "'r'"
+                    elif val.conversion == 115: conversion = "'s'"
+                    elif val.conversion == 97: conversion = "'a'"
+
+                    format_spec = "''"
+                    if isinstance(val.format_spec, ast.JoinedStr):
+                        # self.visit(JoinedStr) returns a quoted string or template.
+                        format_spec = self.visit(val.format_spec)
+
+                    interpolations.append(f"Interpolation{{value: {v_val}, expression: {v_expr}, conversion: {conversion}, format_spec: {format_spec}}}")
+
+                    # If this is the last item, we need a trailing string
+                    if i == len(values) - 1:
+                        strings.append("''")
+                else:
+                    # Should not happen in JoinedStr
+                    pass
+
+            # Ensure strings and interpolations are correctly interleaved
+            # If we didn't add enough strings, add them now
+            while len(strings) < len(interpolations) + 1:
+                strings.append("''")
+
+            v_strings = "[" + ", ".join(strings) + "]"
+            v_interpolations = "[" + ", ".join(interpolations) + "]"
+            return f"Template{{strings: {v_strings}, interpolations: {v_interpolations}}}"
+        return ""
+
     def visit_Constant(self, node: ast.Constant) -> str:
         val = node.value
+
+        if isinstance(val, str) and val.startswith('__py2v_t__'):
+            inner = val[len('__py2v_t__'):]
+            v_inner = self.visit(ast.Constant(inner))
+            return f"Template{{strings: [{v_inner}], interpolations: []}}"
 
         # Check if we are assigning to a LiteralEnum
         target_type = self.current_assignment_type
@@ -265,6 +337,10 @@ class LiteralsMixin(TranslatorBase):
         return f"[{', '.join(elements)}]"
 
     def visit_JoinedStr(self, node: ast.JoinedStr) -> str:
+        tstring = self._translate_tstring(node.values)
+        if tstring:
+            return tstring
+
         # Determine the delimiter based on nesting level
         # This helps support Python 3.12+ relaxed quoting while staying V-compatible
         current_quote = self.fstring_quote_stack[-1] if self.fstring_quote_stack else None

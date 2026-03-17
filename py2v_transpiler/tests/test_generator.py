@@ -112,7 +112,7 @@ def test_emit_global_helpers():
     code = VCodeEmitter.emit_global_helpers(imports, structs, functions)
 
     assert "module main" in code
-    assert "pub type Any = NoneType | []Any | []u8 | bool | f64 | i64 | int | map[string]Any | string" in code
+    assert "pub type Any = Interpolation | NoneType | Template | []Any | []u8 | bool | f64 | i64 | int | map[string]Any | string" in code
     # deduplicated and sorted
     assert "import math" in code
     assert "import os" in code
