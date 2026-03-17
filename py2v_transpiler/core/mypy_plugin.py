@@ -210,7 +210,6 @@ class VlangPlugin(Plugin):
 
         # Collect types from checker's type_map for narrowing and calls
         if self.checker and hasattr(self.checker, 'type_map'):
-            # print(f"DEBUG PLUGIN: reporting for {len(self.checker.type_map)} exprs")
             for expr, typ in self.checker.type_map.items():
                 state_id = (id(expr), id(typ))
                 if state_id in self._processed_exprs:
@@ -218,15 +217,13 @@ class VlangPlugin(Plugin):
                 self._processed_exprs.add(state_id)
                 if hasattr(expr, 'line'):
                     key = f"{expr.line}:{expr.column}"
-                    # print(f"DEBUG PLUGIN: processing expr {type(expr)} at {key} with type {typ}")
 
                     if isinstance(expr, (CallExpr, ListExpr, DictExpr, SetExpr, TupleExpr)):
                         # Store by location for direct lookup
                         self.collected_types[key][key] = str(typ)
 
                     if isinstance(expr, CallExpr):
-                        # print(f"DEBUG PLUGIN: CallExpr at {key} type={typ}")
-                        from mypy.types import Instance, UnboundType, CallableType
+                        from mypy.types import Instance, UnboundType
 
                         if isinstance(expr.callee, (NameExpr, MemberExpr)) and expr.callee.node and isinstance(expr.callee.node, (FuncDef, Var)):
                             node = expr.callee.node
@@ -253,10 +250,10 @@ class VlangPlugin(Plugin):
                                 "is_class": False,
                                 "has_init": False
                             }
-                            fullname = func_node.fullname
-                            short_name = func_node.name
-                            self.collected_sigs[fullname][key] = json.dumps(sig_data)
-                            self.collected_sigs[short_name][key] = json.dumps(sig_data)
+                            fullname = func_node.fullname if func_node else (expr.callee.fullname if isinstance(expr.callee, NameExpr) else None)
+                            short_name = func_node.name if func_node else (expr.callee.name if isinstance(expr.callee, MemberExpr) else None)
+                            if fullname: self.collected_sigs[fullname][key] = json.dumps(sig_data)
+                            if short_name: self.collected_sigs[short_name][key] = json.dumps(sig_data)
                             self.collected_sigs[key][key] = json.dumps(sig_data)
 
                         if isinstance(typ, (Instance, UnboundType)):
@@ -305,13 +302,6 @@ class VlangPlugin(Plugin):
                 continue
             self._processed_files.add(id(file_node))
             visitor.visit(file_node)
-
-            # Post-process to collect types for all vars found by visitor
-            for fullname, entries in self.collected_mutability.items():
-                 for loc, data in entries.items():
-                      # This is a bit expensive but ensures we have types for everything the visitor found
-                      # and that might not have been in type_map
-                      pass
 
         # Update the module-level global dictionary
         for k, v in self.collected_types.items():

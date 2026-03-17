@@ -185,10 +185,7 @@ class ConditionalsMixin(TranslatorBase):
                   # BUT only if narrowing to a specific non-Any type.
                   if narrowed_type not in ("Any", "void", "none"):
                       narrowed_name = f"narrowed_{sanitized_name}"
-                      if narrowed_type in ("int", "f64", "string", "bool"):
-                           self.output.append(f"{self._indent()}{narrowed_name} := {narrowed_type}({sanitized_name})")
-                      else:
-                           self.output.append(f"{self._indent()}{narrowed_name} := ({sanitized_name} as {narrowed_type})")
+                      self.output.append(f"{self._indent()}{narrowed_name} := ({sanitized_name} as {narrowed_type})")
                       # Map original name to narrowed name within this block
                       original_remaps[var_name] = self.name_remap.get(var_name)
                       self.name_remap[var_name] = narrowed_name
@@ -196,10 +193,7 @@ class ConditionalsMixin(TranslatorBase):
                   # If not in scope (should not happen for parameters/locals, but maybe for globals),
                   # we can declare it.
                   if narrowed_type not in ("Any", "void", "none"):
-                      if narrowed_type in ("int", "f64", "string", "bool"):
-                           self.output.append(f"{self._indent()}{sanitized_name} := {narrowed_type}({sanitized_name})")
-                      else:
-                           self.output.append(f"{self._indent()}{sanitized_name} := ({sanitized_name} as {narrowed_type})")
+                      self.output.append(f"{self._indent()}{sanitized_name} := ({sanitized_name} as {narrowed_type})")
                       self._local_vars_in_scope.add(var_name)
 
         return original_remaps

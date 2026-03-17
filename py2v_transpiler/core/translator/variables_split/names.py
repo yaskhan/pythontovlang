@@ -38,7 +38,7 @@ class NamesMixin(TranslatorBase):
 
             base_type = self.type_inference.type_map.get(node.id)
 
-            if narrowed_type and narrowed_type not in ("Any", "void", "none"):
+            if narrowed_type and narrowed_type not in ("int", "f64", "string", "bool", "Any", "void", "none"):
                  # Skip narrowing for functions/classes
                  if base_type and (base_type.startswith("fn") or "fn(" in base_type):
                       return res
