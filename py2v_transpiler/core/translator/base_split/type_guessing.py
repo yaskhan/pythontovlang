@@ -1,7 +1,7 @@
 """Type guessing utilities."""
 
 import ast
-from typing import TYPE_CHECKING, Any, Set, Dict, List
+from typing import TYPE_CHECKING, Any, Set, Dict, List, Union
 
 if TYPE_CHECKING:
     from .base import TranslatorBase
@@ -66,6 +66,15 @@ class TypeGuessingMixin:
 
         elif isinstance(node, ast.BinOp):
             return self._guess_type_binop(node)
+
+        elif isinstance(node, (ast.ListComp, ast.GeneratorExp)):
+            return self._guess_type_listcomp(node)
+
+        elif isinstance(node, ast.SetComp):
+            return self._guess_type_setcomp(node)
+
+        elif isinstance(node, ast.DictComp):
+            return self._guess_type_dictcomp(node)
 
         return "int"
 
@@ -303,3 +312,27 @@ class TypeGuessingMixin:
         if left == "f64" or right == "f64":
             return "f64"
         return "int"
+
+    def _guess_type_listcomp(self, node: Union[ast.ListComp, ast.GeneratorExp]) -> str:
+        """Guess type for a ListComp or GeneratorExp node."""
+        elt_type = self._guess_type(node.elt)
+        if elt_type == "unknown":
+            return "[]int"
+        return f"[]{elt_type}"
+
+    def _guess_type_setcomp(self, node: ast.SetComp) -> str:
+        """Guess type for a SetComp node."""
+        elt_type = self._guess_type(node.elt)
+        if elt_type == "unknown":
+            return "map[string]bool"
+        return f"map[{elt_type}]bool"
+
+    def _guess_type_dictcomp(self, node: ast.DictComp) -> str:
+        """Guess type for a DictComp node."""
+        key_type = self._guess_type(node.key)
+        val_type = self._guess_type(node.value)
+        if key_type == "unknown":
+            key_type = "string"
+        if val_type == "unknown":
+            val_type = "Any"
+        return f"map[{key_type}]{val_type}"
