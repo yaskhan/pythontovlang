@@ -1115,6 +1115,17 @@ mut:
     return res.str()
 }""")
 
+        if self.used_delete_many:
+            self.emitter.add_helper_function("""fn (mut a []T) delete_many[T](start int, count int) {
+    if count <= 0 { return }
+    a.delete(start, start + count)
+}""")
+
+        if self.used_insert_many:
+            self.emitter.add_helper_function("""fn (mut a []T) insert_many[T](index int, val []T) {
+    a.insert(index, val)
+}""")
+
         if self.used_list_concat:
             self.emitter.add_helper_function("""fn py_list_concat[T](lists ...[]T) []T {
     mut res := []T{}

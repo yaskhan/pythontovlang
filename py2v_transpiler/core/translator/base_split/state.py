@@ -44,6 +44,8 @@ class TranslatorStateMixin:
         self.used_builtins: Set[str] = set()
         self.used_complex: bool = False
         self.used_list_concat: bool = False
+        self.used_delete_many: bool = False
+        self.used_insert_many: bool = False
         self.used_dict_merge: bool = False
         self.used_string_format: bool = False
         self.dataclasses: Dict[str, List[str]] = {}

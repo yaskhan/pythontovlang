@@ -1,0 +1,77 @@
+diff --git a/py2v_transpiler/core/translator/base_split/state.py b/py2v_transpiler/core/translator/base_split/state.py
+index 14642ec..05a2bb0 100644
+--- a/py2v_transpiler/core/translator/base_split/state.py
++++ b/py2v_transpiler/core/translator/base_split/state.py
+@@ -44,6 +44,8 @@ class TranslatorStateMixin:
+         self.used_builtins: Set[str] = set()
+         self.used_complex: bool = False
+         self.used_list_concat: bool = False
++        self.used_delete_many: bool = False
++        self.used_insert_many: bool = False
+         self.used_dict_merge: bool = False
+         self.used_string_format: bool = False
+         self.dataclasses: Dict[str, List[str]] = {}
+diff --git a/py2v_transpiler/core/translator/module.py b/py2v_transpiler/core/translator/module.py
+index ecc1137..79efd15 100644
+--- a/py2v_transpiler/core/translator/module.py
++++ b/py2v_transpiler/core/translator/module.py
+@@ -1115,6 +1115,17 @@ mut:
+     return res.str()
+ }""")
+
++        if self.used_delete_many:
++            self.emitter.add_helper_function("""fn (mut a []T) delete_many[T](start int, count int) {
++    if count <= 0 { return }
++    a.delete(start, start + count)
++}""")
++
++        if self.used_insert_many:
++            self.emitter.add_helper_function("""fn (mut a []T) insert_many[T](index int, val []T) {
++    a.insert(index, val)
++}""")
++
+         if self.used_list_concat:
+             self.emitter.add_helper_function("""fn py_list_concat[T](lists ...[]T) []T {
+     mut res := []T{}
+diff --git a/py2v_transpiler/core/translator/variables_split/assignments.py b/py2v_transpiler/core/translator/variables_split/assignments.py
+index ecaa3e4..a728c27 100644
+--- a/py2v_transpiler/core/translator/variables_split/assignments.py
++++ b/py2v_transpiler/core/translator/variables_split/assignments.py
+@@ -242,6 +242,8 @@ class AssignmentsMixin(TranslatorBase):
+                 # If upper is empty string from visit, it usually means "up to end".
+                 # But V range [a..b] works?
+                 # Actually visit_Subscript emits [lower..upper].
++                self.used_delete_many = True
++                self.used_insert_many = True
+                 # Here we need values for delete_many/insert_many.
+
+                 # We need to know 'count' for delete_many.
+diff --git a/py2v_transpiler/tests/translator/test_slice_helpers_injection.py b/py2v_transpiler/tests/translator/test_slice_helpers_injection.py
+new file mode 100644
+index 0000000..a3141e4
+--- /dev/null
++++ b/py2v_transpiler/tests/translator/test_slice_helpers_injection.py
+@@ -0,0 +1,23 @@
++import ast
++import unittest
++from py2v_transpiler.core.translator import VNodeVisitor
++from py2v_transpiler.core.analyzer import TypeInference
++
++class TestSliceHelpersInjection(unittest.TestCase):
++    def setUp(self):
++        self.type_inference = TypeInference()
++        self.translator = VNodeVisitor(self.type_inference)
++
++    def transpile(self, source):
++        tree = ast.parse(source)
++        self.translator.visit(tree)
++        return self.translator.emitter.emit() + "\n" + self.translator.emitter.emit_helpers()
++
++    def test_slice_helpers_injection(self):
++        source = "l = [1, 2, 3]\nl[1:2] = [4]"
++        result = self.transpile(source)
++        self.assertIn("fn (mut a []T) delete_many[T]", result)
++        self.assertIn("fn (mut a []T) insert_many[T]", result)
++
++if __name__ == '__main__':
++    unittest.main()
