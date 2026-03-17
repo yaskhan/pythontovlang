@@ -122,3 +122,23 @@ fn py_bytes_format(fmt []u8, args Any) []u8 {
     res := fmt_str.replace('%s', arg_str)
     return res.bytes()
 }
+fn py_list_pop_at[T](mut a []T, index int) T {
+    mut i := index
+    if i < 0 { i += a.len }
+    res := a[i]
+    a.delete(i)
+    return res
+}
+fn py_list_remove[T](mut a []T, val T) {
+    idx := a.index(val)
+    if idx >= 0 {
+        a.delete(idx)
+    }
+}
+fn (mut a []T) delete_many[T](start int, count int) {
+    if count <= 0 { return }
+    a.delete(start, start + count)
+}
+fn (mut a []T) insert_many[T](index int, val []T) {
+    a.insert(index, val)
+}

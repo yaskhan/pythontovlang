@@ -20,7 +20,7 @@ pub fn test_list_insert_remove() {
     lst << 5
     lst.insert(2, 3)
     println('${lst}')
-    lst.remove(3)
+    py_list_remove(mut lst, 3)
     println('${lst}')
 }
 // @line: test_list_operations.py:17:0
@@ -32,9 +32,9 @@ pub fn test_list_pop_clear() {
     lst << 40
     popped := lst.pop()
     println('Popped: ${popped}, List: ${lst}')
-    popped2 := lst.pop(1)
+    popped2 := py_list_pop_at(mut lst, 1)
     println('Popped at index: ${popped2}, List: ${lst}')
-    /* lst.clear() */ lst = {}
+    /* lst.clear() */ lst = []
     println('Cleared: ${lst}')
 }
 // @line: test_list_operations.py:28:0
@@ -49,7 +49,7 @@ pub fn test_list_index_count() {
     lst << 5
     idx := lst.index(3)
     println('Index of 3: ${idx}')
-    cnt := lst.count(2)
+    cnt := lst.filter(it == 2).len
     println('Count of 2: ${cnt}')
 }
 // @line: test_list_operations.py:36:0
