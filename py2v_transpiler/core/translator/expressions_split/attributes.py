@@ -99,9 +99,15 @@ class AttributesMixin(TranslatorBase):
             attr_name = self._sanitize_name(self._mangle_name(node.attr, self.current_class))
 
         # Static/Class methods resolution
+        # If receiver is a class name, check for class variables (constants).
+        defined_classes = getattr(self, "defined_classes", {})
+        if obj in defined_classes:
+            defining_class = self._find_defining_class_for_class_var(obj, attr_name)
+            if defining_class:
+                return f"{defining_class}_{attr_name}"
+
         # If receiver is a class name or its type is a class we know, check for static methods.
         target_class = None
-        defined_classes = getattr(self, "defined_classes", {})
         if obj in defined_classes:
             target_class = obj
         else:
@@ -110,6 +116,10 @@ class AttributesMixin(TranslatorBase):
                 target_class = obj_type
 
         if target_class:
+            defining_class = self._find_defining_class_for_static_method(target_class, node.attr)
+            if defining_class:
+                return f"{defining_class}_{attr_name}"
+
             defining_class = self._find_defining_class_for_static_method(target_class, node.attr)
             if defining_class:
                 return f"{defining_class}_{attr_name}"

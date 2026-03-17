@@ -337,6 +337,12 @@ class ClassDefinitionHandler:
             struct_parts.append("}")
             self.translator.emitter.add_struct("".join(struct_parts))
 
+            # Emit class variables as constants
+            class_vars = self.translator.defined_classes.get(struct_name, {}).get("class_vars", [])
+            for var in class_vars:
+                v_name = f"{struct_name}_{var["name"]}"
+                self.translator.emitter.add_constant(f"pub {v_name} = {var.get('value')}")
+
             # Rename dunder methods
             has_str = self.translator.class_methods_handler.has_method(methods, "__str__")
             self.translator.class_methods_handler.rename_dunder_methods(methods, has_str)
