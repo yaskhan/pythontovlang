@@ -1,7 +1,7 @@
 from mypy.plugin import Plugin
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, List, Union, cast
 import json
-from mypy.nodes import Var, AssignmentStmt, OperatorAssignmentStmt, CallExpr, MypyFile, ClassDef, FuncDef, Block, IfStmt, WhileStmt, ForStmt, TryStmt, NameExpr, MemberExpr, IndexExpr, TupleExpr, ListExpr, DictExpr, SetExpr
+from mypy.nodes import Var, AssignmentStmt, OperatorAssignmentStmt, CallExpr, MypyFile, ClassDef, FuncDef, Block, IfStmt, WhileStmt, ForStmt, TryStmt, NameExpr, MemberExpr, IndexExpr, TupleExpr, ListExpr, DictExpr, SetExpr, SymbolNode
 from collections import defaultdict
 
 # Global dictionary to store types without relying on the filesystem
@@ -140,9 +140,7 @@ class VlangPlugin(Plugin):
         return []
 
     def get_function_hook(self, fullname: str):
-        def hook(ctx):
-             return self._hook(ctx, fullname)
-        return hook
+        return self.get_method_hook(fullname)
 
     def get_method_hook(self, fullname: str):
         def hook(ctx):
@@ -219,16 +217,55 @@ class VlangPlugin(Plugin):
                 self._processed_exprs.add(state_id)
                 if hasattr(expr, 'line'):
                     key = f"{expr.line}:{expr.column}"
-                    # print(f"DEBUG PLUGIN: processing expr {type(expr)} at {key} with type {typ}")
 
                     if isinstance(expr, (CallExpr, ListExpr, DictExpr, SetExpr, TupleExpr)):
                         # Store by location for direct lookup
                         self.collected_types[key][key] = str(typ)
 
                     if isinstance(expr, CallExpr):
-                        from mypy.types import Instance
-                        # For CallExpr, the type in type_map is the return type
-                        # We want to record this instantiation
+                        from mypy.types import Instance, CallableType
+
+                        if isinstance(expr.callee, (NameExpr, MemberExpr)) and expr.callee.node and isinstance(expr.callee.node, (FuncDef, Var)):
+                            node = expr.callee.node
+                            f_node: Optional[FuncDef] = None
+                            if isinstance(node, FuncDef):
+                                f_node = node
+                            elif isinstance(node, Var) and hasattr(node, 'type') and isinstance(node.type, CallableType):
+                                c_type = cast(CallableType, node.type)
+                                if c_type.definition and isinstance(c_type.definition, FuncDef):
+                                    f_node = c_type.definition
+
+                            ret_type_str = str(typ)
+                            if f_node and hasattr(f_node, 'type') and isinstance(f_node.type, CallableType):
+                                ret_type_str = str(f_node.type.ret_type)
+
+                            if "TypeIs[" not in ret_type_str and "TypeGuard[" not in ret_type_str:
+                                # Try to extract it from the actual function type if it was lost in type_map
+                                if isinstance(expr.callee, (NameExpr, MemberExpr)) and expr.callee.node and hasattr(expr.callee.node, 'type'):
+                                    callee_node_type = getattr(expr.callee.node, 'type', None)
+                                    if isinstance(callee_node_type, CallableType):
+                                        ret_type_str = str(callee_node_type.ret_type)
+
+                            args_data = []
+                            if f_node:
+                                for arg in f_node.arguments:
+                                    if hasattr(arg, 'variable') and hasattr(arg.variable, 'type'):
+                                        args_data.append(str(arg.variable.type))
+                                    else:
+                                        args_data.append("Any")
+
+                            sig_data = {
+                                "args": args_data,
+                                "return": ret_type_str,
+                                "is_class": False,
+                                "has_init": False
+                            }
+                            fullname = f_node.fullname if f_node else (expr.callee.fullname if isinstance(expr.callee, NameExpr) else None)
+                            short_name = f_node.name if f_node else (expr.callee.name if isinstance(expr.callee, MemberExpr) else None)
+                            if fullname: self.collected_sigs[fullname][key] = json.dumps(sig_data)
+                            if short_name: self.collected_sigs[short_name][key] = json.dumps(sig_data)
+                            self.collected_sigs[key][key] = json.dumps(sig_data)
+
                         if isinstance(typ, Instance):
                             type_info = typ.type
                             fullname_cls = type_info.fullname
@@ -275,13 +312,6 @@ class VlangPlugin(Plugin):
                 continue
             self._processed_files.add(id(file_node))
             visitor.visit(file_node)
-
-            # Post-process to collect types for all vars found by visitor
-            for fullname, entries in self.collected_mutability.items():
-                 for loc, data in entries.items():
-                      # This is a bit expensive but ensures we have types for everything the visitor found
-                      # and that might not have been in type_map
-                      pass
 
         # Update the module-level global dictionary
         for k, v in self.collected_types.items():
