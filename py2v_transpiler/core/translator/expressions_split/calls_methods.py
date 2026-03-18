@@ -91,7 +91,8 @@ class MethodCallsMixin:
         # String methods: isdigit, isalpha, isalnum, etc.
         elif attr in (
             "isdigit", "isalpha", "isalnum", "isspace", "islower", "isupper", "istitle",
-            "startswith", "endswith", "splitlines", "join"
+            "startswith", "endswith", "splitlines", "join", "strip", "lstrip", "rstrip",
+            "lower", "upper", "capitalize", "title", "find", "index", "replace", "split", "format"
         ):
             return self._handle_string_methods(node, func_node, args)
 
@@ -193,6 +194,44 @@ class MethodCallsMixin:
             return f"{obj}.is_upper()"
         elif attr == "istitle":
             return f"{obj}.is_title()"
+        elif attr == "lower":
+            return f"{obj}.to_lower()"
+        elif attr == "upper":
+            return f"{obj}.to_upper()"
+        elif attr == "capitalize":
+            return f"{obj}.capitalize()"
+        elif attr == "title":
+            return f"{obj}.title()"
+        elif attr == "strip":
+            if len(args) == 0:
+                return f"{obj}.trim_space()"
+            return f"{obj}.trim({args[0]})"
+        elif attr == "lstrip":
+            if len(args) == 0:
+                return f"{obj}.trim_left(' \\n\\r\\t\\v\\f')"
+            return f"{obj}.trim_left({args[0]})"
+        elif attr == "rstrip":
+            if len(args) == 0:
+                return f"{obj}.trim_right(' \\n\\r\\t\\v\\f')"
+            return f"{obj}.trim_right({args[0]})"
+        elif attr == "find":
+            return f"{obj}.index({args[0]}) or {{ -1 }}"
+        elif attr == "index":
+            return f"{obj}.index({args[0]}) or {{ panic('ValueError: substring not found') }}"
+        elif attr == "replace":
+            if len(args) == 2:
+                return f"{obj}.replace({args[0]}, {args[1]})"
+            elif len(args) == 3:
+                return f"{obj}.replace_n({args[0]}, {args[1]}, {args[2]})"
+        elif attr == "split":
+            if len(args) == 0:
+                return f"{obj}.fields()"
+            elif len(args) == 1:
+                return f"{obj}.split({args[0]})"
+            elif len(args) == 2:
+                return f"{obj}.split_nth({args[0]}, {args[1]} + 1)"
+        elif attr == "format":
+            return f"/* {obj}.format(...) */ {obj} //##LLM@@ .format() is not supported, use interpolation"
         elif attr == "splitlines":
             return f"{obj}.split_into_lines()"
         elif attr == "join":
