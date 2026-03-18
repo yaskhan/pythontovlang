@@ -154,7 +154,7 @@ class OperatorsMixin(TranslatorBase):
                   return f"math.pow({l_val}, {r_val})"
              else:
                   # Integer power
-                  return f"math.powi({left}, {right})"
+                  return f"int(math.powi(f64({left}), {right}))"
 
         if isinstance(node.op, ast.FloorDiv):
              # Floor division //
