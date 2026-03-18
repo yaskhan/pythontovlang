@@ -85,14 +85,14 @@ def test_pow_float_base_negative_exponent():
     assert translate_expr("2.0 ** -1") == "math.pow(2.0, f64(-1))"
 
 def test_pow_positive_literal():
-    # 2 ** 2 -> math.powi(2, 2)
-    assert translate_expr("2 ** 2") == "math.powi(2, 2)"
+    # 2 ** 2 -> int(math.powi(f64(2), 2))
+    assert translate_expr("2 ** 2") == "int(math.powi(f64(2), 2))"
 
 def test_pow_variable_exponent():
-    # n = -1; 2 ** n -> math.powi(2, n) (current limitation)
+    # n = -1; 2 ** n -> int(math.powi(f64(2), n)) (current limitation)
     # n is int, 2 is int.
     code = "n = -1\n2 ** n"
-    assert translate_stmt_expr(code, 1) == "math.powi(2, n)"
+    assert translate_stmt_expr(code, 1) == "int(math.powi(f64(2), n))"
 
 def test_pow_float_base_variable_exponent():
     # n = -1; 2.0 ** n

@@ -7,7 +7,7 @@ class TestPow(unittest.TestCase):
         transpiler = Transpiler()
         output = transpiler.transpile(code)
         self.assertIn("import math", output)
-        self.assertIn("a := math.powi(2, 10)", output)
+        self.assertIn("a := int(math.powi(f64(2), 10))", output)
 
     def test_pow_floats(self):
         code = "b = 2.5 ** 2"
