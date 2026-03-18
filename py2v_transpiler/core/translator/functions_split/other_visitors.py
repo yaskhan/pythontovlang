@@ -1,46 +1,93 @@
 import ast
-from typing import Optional, List, TYPE_CHECKING
+from typing import Optional, List, Set, Any, TYPE_CHECKING
 from ..base import TranslatorBase
 
 
 class OtherFunctionVisitorsMixin(TranslatorBase):
     if TYPE_CHECKING:
         def _find_captured_vars(self, node: ast.AST) -> List[str]: ...
+        _scope_stack: List[Set[str]]
+        _scope_names: List[str]
+        type_inference: Any
+        def _map_type(self, type_str: str, struct_name: Optional[str] = None, allow_union: bool = True, register_sum_types: bool = True, is_return: bool = False) -> str: ...
 
     def visit_Lambda(self, node: ast.Lambda) -> str:
         # lambda args: expr -> fn [captures] (args) { return expr }
-        if isinstance(node.body, ast.Constant) and node.body.value is None:
-             # Force void return for lambda x: None
-             args_str_list = []
-             for arg in node.args.args:
-                 arg_name = self._sanitize_name(arg.arg)
-                 arg_type = "int"
-                 args_str_list.append(f"{arg_name} {arg_type}")
-             args_str = ", ".join(args_str_list)
-             captures = self._find_captured_vars(node)
-             capture_str = f"[{', '.join(captures)}] " if captures else ""
-             return f"fn {capture_str}({args_str}) {{}}"
 
+        # Prepare arguments string and collect them for the scope
+        current_scope: Set[str] = set()
         args_str_list = []
-        for arg in node.args.args:
+
+        all_args = node.args.args
+        if hasattr(node.args, 'posonlyargs'):
+            all_args = node.args.posonlyargs + all_args
+        if hasattr(node.args, 'kwonlyargs'):
+            all_args = all_args + node.args.kwonlyargs
+
+        for arg in all_args:
             arg_name = self._sanitize_name(arg.arg)
-            arg_type = "int"  # Default type for now
+            current_scope.add(arg.arg)
+            # Try to get inferred type
+            arg_type = "int"
+            if hasattr(self, 'type_inference') and hasattr(self.type_inference, 'type_map'):
+                inferred = self.type_inference.type_map.get(arg_name)
+                if inferred:
+                    arg_type = self._map_type(inferred)
             args_str_list.append(f"{arg_name} {arg_type}")
+
+        # V requires variadic parameter (...args) to be the final parameter.
+        # If both *args and **kwargs are present, we must swap them or warn.
+        if node.args.vararg and node.args.kwarg:
+            self.output.append(f"{self._indent()}//##LLM@@ Lambda has both *args and **kwargs. V requires the variadic parameter (...args) to be the final parameter. Please reorder the parameters so that the variadic parameter is last, and update all calls accordingly.")
+
+        # Add kwarg before vararg to ensure variadic is last if both exist
+        if node.args.kwarg:
+            arg_name = self._sanitize_name(node.args.kwarg.arg)
+            current_scope.add(node.args.kwarg.arg)
+            arg_type = "map[string]int"
+            if hasattr(self, 'type_inference') and hasattr(self.type_inference, 'type_map'):
+                inferred = self.type_inference.type_map.get(arg_name)
+                if inferred:
+                    arg_type = self._map_type(inferred)
+            args_str_list.append(f"{arg_name} {arg_type}")
+
+        if node.args.vararg:
+            arg_name = self._sanitize_name(node.args.vararg.arg)
+            current_scope.add(node.args.vararg.arg)
+            arg_type = "int"
+            if hasattr(self, 'type_inference') and hasattr(self.type_inference, 'type_map'):
+                inferred = self.type_inference.type_map.get(arg_name)
+                if inferred:
+                    arg_type = self._map_type(inferred)
+            args_str_list.append(f"{arg_name} ...{arg_type}")
 
         args_str = ", ".join(args_str_list)
 
+        # Find captures BEFORE pushing current lambda's scope
         captures = self._find_captured_vars(node)
         capture_str = f"[{', '.join(captures)}] " if captures else ""
 
-        body = self.visit(node.body)
-        body_type = self._map_type(self._guess_type(node.body), is_return=True)
+        if isinstance(node.body, ast.Constant) and node.body.value is None:
+             # Force void return for lambda x: None
+             return f"fn {capture_str}({args_str}) {{}}"
 
-        if body_type == "void":
-            if body == "none":
-                return f"fn {capture_str}({args_str}) {{}}"
-            return f"fn {capture_str}({args_str}) {{ {body} }}"
+        # Push scope for visiting body
+        self._scope_stack.append(current_scope)
+        self._scope_names.append("<lambda>")
 
-        return f"fn {capture_str}({args_str}) {body_type} {{ return {body} }}"
+        try:
+            body = self.visit(node.body)
+            body_type = self._map_type(self._guess_type(node.body), is_return=True)
+
+            if body_type == "void":
+                if body == "none":
+                    return f"fn {capture_str}({args_str}) {{}}"
+                return f"fn {capture_str}({args_str}) {{ {body} }}"
+
+            return f"fn {capture_str}({args_str}) {body_type} {{ return {body} }}"
+        finally:
+            self._scope_stack.pop()
+            self._scope_names.pop()
 
     def visit_Yield(self, node: ast.Yield) -> str:
         if self.coroutine_handler.active_channel:
