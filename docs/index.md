@@ -39,6 +39,7 @@ py2v my_project/ --recursive
 | [Development](development.md) | Developer guidelines |
 | [Pydantic](pydantic.md) | Pydantic Support |
 | [Dynamic Types & None](typing_and_none.md) | How the transpiler maps dynamic types, `None`, and boolean operators |
+| [Changelog](changelog.md) | Release history and notable changes per version |
 
 ## Example
 
