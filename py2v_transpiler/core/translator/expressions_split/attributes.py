@@ -73,8 +73,8 @@ class AttributesMixin(TranslatorBase):
             if not narrowed_type:
                 narrowed_type = self._guess_type(node.value)
 
-            # If mypy narrowed the type and it's not "int" (fallback) or generic "Any"
-            if narrowed_type and base_type and narrowed_type != base_type and narrowed_type not in ("int", "Any", "void"):
+            # If mypy narrowed the type and it's not a primitive (fallback) or generic "Any"
+            if narrowed_type and base_type and narrowed_type != base_type and narrowed_type not in ("int", "f64", "string", "bool", "Any", "void", "none", "f32", "i64", "i32", "i16", "i8", "u64", "u32", "u16", "u8", "byte", "rune"):
                 # Avoid casting to same primitive types or optionals
                 if not (base_type.startswith("?") and base_type[1:] == narrowed_type):
                     # Emit an explicit cast in V: (obj as NarrowedType)
