@@ -10,10 +10,10 @@ def translate(source: str) -> str:
     if not isinstance(tree, ast.Module):
         raise ValueError("Parsed AST is not a Module")
     analyzer = TypeInference()
+    analyzer.analyze(tree)
     translator = VNodeVisitor(analyzer)
     v_code = translator.visit_Module(tree)
-    helpers = translator.emitter.emit_helpers()
-    return v_code + "\n" + helpers
+    return v_code
 
 def test_hashlib_sha256():
     source = """

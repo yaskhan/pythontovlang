@@ -45,16 +45,29 @@ class MethodCallsMixin:
             result = self._handle_file_methods(node, func_node, args)
             if result:
                 return result
-        # list.pop()
+
+        # list.pop() / dict.pop()
         elif attr == "pop":
             obj_type = self._guess_type(func_node.value)
-            if obj_type.startswith("[]") or obj_type == "Any":
-                obj = self.visit(func_node.value)
+            obj = self.visit(func_node.value)
+            if obj_type.startswith("[]"):
                 if len(args) == 0:
                     return f"{obj}.pop()"
                 elif len(args) == 1:
                     self.used_builtins.add("py_list_pop_at")
                     return f"py_list_pop_at(mut {obj}, {args[0]})"
+            elif obj_type.startswith("map["):
+                if len(args) >= 1:
+                    self.used_builtins.add("py_dict_pop")
+                    default = args[1] if len(args) == 2 else "none"
+                    return f"py_dict_pop(mut {obj}, {args[0]}, {default})"
+            elif obj_type == "Any":
+                if len(args) == 0:
+                    return f"{obj}.pop()"
+                else:
+                    self.used_builtins.add("py_dict_pop")
+                    default = args[1] if len(args) == 2 else "none"
+                    return f"py_dict_pop(mut {obj}, {args[0]}, {default})"
 
         # list.remove()
         elif attr == "remove" and len(args) == 1:
@@ -82,7 +95,22 @@ class MethodCallsMixin:
         ):
             return self._handle_string_methods(node, func_node, args)
 
-        # dict.get()
+        # dict.get() / update() / setdefault()
+        elif attr == "update":
+            obj_type = self._guess_type(func_node.value)
+            # Heuristic to avoid collision with hashlib
+            if obj_type in ("PyHashSha256", "PyHashMd5"):
+                 return None
+
+            # Additional heuristic: hashlib objects usually start with 'h'
+            if obj_type == "Any" and isinstance(func_node.value, ast.Name) and func_node.value.id.startswith("h"):
+                 return None
+
+            return self._handle_dict_update(node, func_node, args)
+
+        elif attr == "setdefault":
+            return self._handle_dict_setdefault(node, func_node, args)
+
         elif attr == "get":
             return self._handle_dict_get(node, func_node, args)
 
@@ -218,4 +246,40 @@ class MethodCallsMixin:
                     default = "none"
             return f"{obj}[{key}] or {{ {default} }}"
         
+        return None
+
+    def _handle_dict_update(self, node: ast.Call, func_node: ast.Attribute, args: list) -> str | None:
+        """Handle dict.update(other, **kwargs)."""
+        obj_type = self._guess_type(func_node.value)
+        if obj_type.startswith("map[") or obj_type == "Any":
+            obj = self.visit(func_node.value)
+            self.used_builtins.add("py_dict_update")
+
+            other = args[0] if len(args) == 1 else "{}"
+
+            # Handle kwargs if any
+            if node.keywords:
+                kw_pairs = []
+                for kw in node.keywords:
+                    if kw.arg:
+                        val = self.visit(kw.value)
+                        kw_pairs.append(f"'{kw.arg}': {val}")
+                kwargs_dict = f"{{{', '.join(kw_pairs)}}}"
+                if other == "{}":
+                    other = kwargs_dict
+                else:
+                    return f"py_dict_update(mut {obj}, {other}, {kwargs_dict})"
+
+            return f"py_dict_update(mut {obj}, {other})"
+        return None
+
+    def _handle_dict_setdefault(self, node: ast.Call, func_node: ast.Attribute, args: list) -> str | None:
+        """Handle dict.setdefault(key, default)."""
+        obj_type = self._guess_type(func_node.value)
+        if obj_type.startswith("map[") or obj_type == "Any":
+            obj = self.visit(func_node.value)
+            self.used_builtins.add("py_dict_setdefault")
+            key = args[0]
+            default = args[1] if len(args) == 2 else "none"
+            return f"py_dict_setdefault(mut {obj}, {key}, {default})"
         return None

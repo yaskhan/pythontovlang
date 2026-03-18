@@ -1,8 +1,11 @@
 import ast
-from typing import Any, Dict, List, TYPE_CHECKING
+import re
+from typing import Any, List, Set, Dict, Optional, TYPE_CHECKING
 from py2v_transpiler.models.v_types import map_python_type_to_v
 from .base import TypeInferenceBase
 
+if TYPE_CHECKING:
+    from .utils import TypeInferenceUtilsMixin
 
 class TypeInferenceVisitorMixin(TypeInferenceBase):
     if TYPE_CHECKING:
@@ -14,6 +17,8 @@ class TypeInferenceVisitorMixin(TypeInferenceBase):
         call_signatures: Dict[str, Any]
         type_map: Dict[str, str]
         mutability_map: Dict[str, Dict[str, Any]]
+        location_map: Dict[str, str]
+
     def visit_Call(self, node: ast.Call) -> Any:
         if isinstance(node.func, ast.Attribute):
             mutating_methods = {
@@ -32,6 +37,15 @@ class TypeInferenceVisitorMixin(TypeInferenceBase):
                             new_type = f"[]{elt_type}"
                             if var_name not in self.type_map or self.type_map[var_name] == "[]Any":
                                 self.type_map[var_name] = new_type
+
+            # Better hashlib recognition
+            if isinstance(node.func.value, ast.Name) and node.func.value.id == "hashlib":
+                loc_key = f"{node.lineno}:{node.col_offset}"
+                if node.func.attr == "sha256":
+                    self.location_map[loc_key] = "PyHashSha256"
+                elif node.func.attr == "md5":
+                    self.location_map[loc_key] = "PyHashMd5"
+
         elif isinstance(node.func, ast.Name):
             func_name = node.func.id
             if func_name in self.func_param_mutability:
@@ -110,6 +124,15 @@ class TypeInferenceVisitorMixin(TypeInferenceBase):
                             self.type_map[dict_name] = new_type
             elif isinstance(target, ast.Name):
                 inferred = self._guess_node_type(node.value)
+
+                # hashlib special handling
+                if isinstance(node.value, ast.Call) and isinstance(node.value.func, ast.Attribute):
+                    if isinstance(node.value.func.value, ast.Name) and node.value.func.value.id == "hashlib":
+                        if node.value.func.attr == "sha256":
+                            inferred = "PyHashSha256"
+                        elif node.value.func.attr == "md5":
+                            inferred = "PyHashMd5"
+
                 if inferred != "Any":
                     if target.id not in self.type_map or self.type_map[target.id] == "Any":
                         self.type_map[target.id] = inferred

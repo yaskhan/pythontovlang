@@ -1165,6 +1165,69 @@ mut:
     return res
 }""")
 
+        if "py_dict_pop" in self.used_builtins:
+            self.emitter.add_helper_function("""fn py_dict_pop[K, V](mut d map[K]V, key K, default V) V {
+    if key in d {
+        val := d[key]
+        d.delete(key)
+        return val
+    }
+    return default
+}""")
+
+        if "py_dict_update" in self.used_builtins:
+            self.emitter.add_helper_function("""fn py_dict_update[K, V](mut d map[K]V, other ...map[K]V) map[K]V {
+    for o in other {
+        for k, v in o {
+            d[k] = v
+        }
+    }
+    return d
+}""")
+
+        if "py_dict_setdefault" in self.used_builtins:
+            self.emitter.add_helper_function("""fn py_dict_setdefault[K, V](mut d map[K]V, key K, default V) V {
+    if key in d {
+        return d[key]
+    }
+    d[key] = default
+    return default
+}""")
+
+        if "py_dict_fromkeys" in self.used_builtins:
+            self.emitter.add_helper_function("""fn py_dict_fromkeys[M, K, V](keys []K, val V) M {
+    mut res := M{ }
+    for k in keys {
+        res[k] = val
+    }
+    return res
+}""")
+
+        if "py_dict_from_pairs" in self.used_builtins:
+            self.emitter.add_helper_function("""fn py_dict_from_pairs[M, K, V](pairs [][]Any) M {
+    mut res := M{ }
+    for p in pairs {
+        if p.len >= 2 {
+            mut key := K{}
+            $if K is string {
+                 key = (p[0] as string)
+            } $else $if K is int {
+                 key = (p[0] as int)
+            } $else {
+                 key = (p[0] as K)
+            }
+            mut value := V{}
+             $if V is Any {
+                 value = p[1]
+            } $else {
+                 value = (p[1] as V)
+            }
+            res[key] = value
+        }
+    }
+    return res
+}""")
+
         if "py_set_union" in self.used_builtins:
              self.emitter.add_helper_function("""fn py_set_union[K](a map[K]bool, b map[K]bool) map[K]bool {
     mut res := a.clone()

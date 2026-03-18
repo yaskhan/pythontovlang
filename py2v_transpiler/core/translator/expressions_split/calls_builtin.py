@@ -2,16 +2,20 @@
 
 import ast
 from typing import Any, List, Optional, TYPE_CHECKING
+from py2v_transpiler.models.v_types import map_python_type_to_v
 
 
 class BuiltinCallsMixin:
     if TYPE_CHECKING:
         def _guess_type(self, node: ast.AST) -> str: ...
         def _indent(self) -> str: ...
+        def visit(self, node: ast.AST) -> str: ...
         current_assignment_type: Optional[str]
         output: List[str]
         emitter: Any
         _emitted_any_map_comment: bool
+        used_builtins: set[str]
+
     def _get_full_func_name(self, node: ast.Call) -> str:
         """Get full function name (e.g., bytearray.fromhex)."""
         if isinstance(node.func, ast.Attribute):
@@ -47,10 +51,41 @@ class BuiltinCallsMixin:
                 if not getattr(self, '_emitted_any_map_comment', False):
                     self.output.append(f"{self._indent()}//##LLM@@ V requires map keys to be comparable types (like string, int). 'Any' was used as a map key in Python, which has been fallback-mapped to 'string'. Please review and manually adjust the map key type and its usage if necessary.")
                     self._emitted_any_map_comment = True
-            if len(args) == 0:
+
+            if len(args) == 0 and not node.keywords:
                 return f"{v_type}{{}}"
+
+            # Handle dict([("x", 10)]) -> py_dict_from_pairs
+            if len(args) == 1 and not node.keywords:
+                self.used_builtins.add("py_dict_from_pairs")
+                return f"py_dict_from_pairs<{v_type}>({args[0]})"
+
+            # Handle dict(a=1, b=2) or dict(other, a=1)
+            if node.keywords:
+                kw_pairs = []
+                for kw in node.keywords:
+                    if kw.arg:
+                        val = self.visit(kw.value)
+                        kw_pairs.append(f"'{kw.arg}': {val}")
+                kwargs_dict = f"{{{', '.join(kw_pairs)}}}"
+                if len(args) == 0:
+                    return kwargs_dict
+                else:
+                    self.used_builtins.add("py_dict_update")
+                    # Create a copy and update it
+                    return f"py_dict_update(mut {v_type}({args[0]}).clone(), {kwargs_dict})"
+
             return f"{v_type}({', '.join(args)})"
         
+        # dict.fromkeys()
+        elif full_func_name == "dict.fromkeys":
+            v_type = self.current_assignment_type or "map[string]Any"
+            if not v_type.startswith("map["):
+                v_type = "map[string]Any"
+            self.used_builtins.add("py_dict_fromkeys")
+            val = args[1] if len(args) == 2 else "none"
+            return f"py_dict_fromkeys<{v_type}>({args[0]}, {val})"
+
         # list()
         elif func_name_str == "list" or (original_id == "list" and func_name_str == "py_list"):
             v_type = self.current_assignment_type or "[]Any"
