@@ -1,5 +1,5 @@
 import ast
-from typing import Any, Optional
+from typing import Any, Optional, cast
 from ..base import TranslatorBase
 
 class SubscriptsMixin(TranslatorBase):
@@ -94,10 +94,46 @@ class SubscriptsMixin(TranslatorBase):
         if isinstance(node.slice, ast.Slice):
             lower_node = node.slice.lower
             upper_node = node.slice.upper
+            step_node = node.slice.step
             lower = self.visit(lower_node) if lower_node else "none"
             upper = self.visit(upper_node) if upper_node else "none"
+            step = self.visit(step_node) if step_node else "none"
+
+            # Check for simple reverse [::-1]
+            is_simple_reverse = False
+            if step_node and isinstance(step_node, ast.UnaryOp) and isinstance(step_node.op, ast.USub):
+                if isinstance(step_node.operand, ast.Constant) and step_node.operand.value == 1:
+                    if lower_node is None and upper_node is None:
+                        is_simple_reverse = True
+            elif step_node and isinstance(step_node, ast.Constant) and step_node.value == -1:
+                if lower_node is None and upper_node is None:
+                    is_simple_reverse = True
+
+            if is_simple_reverse:
+                if val_type == "string":
+                    self.used_builtins.add("py_str_reverse")
+                    return f"py_str_reverse({value})"
+                elif val_type.startswith("[]"):
+                    self.used_builtins.add("py_list_reverse")
+                    return f"py_list_reverse({value})"
+                elif not is_native:
+                    self.used_builtins.add("py_slice")
+                    return f"py_slice({value}, {lower}, {upper}, {step})"
 
             if is_native:
+                if step_node is not None:
+                     # V doesn't support step in slicing natively.
+                     # If step is 1, we can ignore it.
+                     if isinstance(step_node, ast.Constant) and step_node.value == 1:
+                          pass
+                     else:
+                          if val_type == "string":
+                               self.used_builtins.add("py_str_slice")
+                               return f"py_str_slice({value}, {lower}, {upper}, {step})"
+                          else:
+                               self.used_builtins.add("py_list_slice")
+                               return f"py_list_slice({value}, {lower}, {upper}, {step})"
+
                 lower_str = lower if lower != "none" else ""
                 if lower_node:
                     l_neg = self._get_negative_const(lower_node)
@@ -113,7 +149,7 @@ class SubscriptsMixin(TranslatorBase):
                 return f"{value}[{lower_str}..{upper_str}]"
             else:
                 self.used_builtins.add("py_slice")
-                return f"py_slice({value}, {lower}, {upper})"
+                return f"py_slice({value}, {lower}, {upper}, {step})"
         else:
             idx_node = node.slice
             # Handle Py < 3.9 ast.Index
