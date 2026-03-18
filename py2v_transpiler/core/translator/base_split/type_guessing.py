@@ -19,7 +19,7 @@ class TypeGuessingMixin:
     def _guess_type(self, node: ast.AST) -> str:
         """Guess the V type from an AST node."""
         # Check location map first for high-precision results
-        if hasattr(node, "lineno") and hasattr(self.type_inference, "location_map"):
+        if hasattr(node, "lineno") and hasattr(node, "col_offset") and hasattr(self.type_inference, "location_map"):
             loc_key = f"{node.lineno}:{node.col_offset}"
             if loc_key in self.type_inference.location_map:
                 return self.type_inference.location_map[loc_key]
