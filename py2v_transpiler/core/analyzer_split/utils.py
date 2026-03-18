@@ -1,6 +1,7 @@
 import ast
 from typing import Dict, Any
 from .base import TypeInferenceBase
+from py2v_transpiler.models.v_types import map_python_type_to_v
 
 
 class TypeInferenceUtilsMixin(TypeInferenceBase):
@@ -48,14 +49,17 @@ class TypeInferenceUtilsMixin(TypeInferenceBase):
             return self.type_map.get(node.attr, "Any")
         elif isinstance(node, ast.Name):
             return self.type_map.get(node.id, "Any")
-        elif isinstance(node, ast.Call) and isinstance(node.func, ast.Name):
-             if node.func.id == "Node": # Special case for test_dict_inference_self_attribute
+        elif isinstance(node, ast.Call):
+             if isinstance(node.func, ast.Attribute) and isinstance(node.func.value, ast.Name) and node.func.value.id == "hashlib":
+                 if node.func.attr == "sha256": return "PyHashSha256"
+                 if node.func.attr == "md5": return "PyHashMd5"
+             if isinstance(node.func, ast.Name) and node.func.id == "Node": # Special case for test_dict_inference_self_attribute
                  return "Node"
-             if node.func.id == "str": return "string"
-             if node.func.id == "int": return "int"
-             if node.func.id == "float": return "f64"
-             if node.func.id == "bool": return "bool"
-             if node.func.id[0].isupper(): return node.func.id
+             if isinstance(node.func, ast.Name) and node.func.id == "str": return "string"
+             if isinstance(node.func, ast.Name) and node.func.id == "int": return "int"
+             if isinstance(node.func, ast.Name) and node.func.id == "float": return "f64"
+             if isinstance(node.func, ast.Name) and node.func.id == "bool": return "bool"
+             if isinstance(node.func, ast.Name) and node.func.id[0].isupper(): return node.func.id
              return "Any"
         elif isinstance(node, ast.List):
             if not node.elts:
