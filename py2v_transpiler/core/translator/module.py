@@ -163,6 +163,9 @@ class ModuleMixin(TranslatorBase):
             self.emitter.add_helper_function(
                 "fn py_reversed[T](a []T) []T {\n    mut b := a.clone()\n    b.reverse()\n    return b\n}"
             )
+            
+        if "py_is_identical" in self.used_builtins:
+             self.emitter.add_helper_function("fn py_is_identical[T, U](a T, b U) bool {\n    return voidptr(&a) == voidptr(&b)\n}")
 
         if "py_repeat" in self.used_builtins:
              self.emitter.add_helper_function("fn py_repeat[T](val T, n int) []T {\n    return []T{len: n, init: val}\n}")

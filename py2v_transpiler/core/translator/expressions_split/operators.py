@@ -329,17 +329,14 @@ class OperatorsMixin(TranslatorBase):
 
             if isinstance(op, (ast.Is, ast.Eq)) and is_none_node(node.comparators[0]):
                  if is_none_node(node.left):
-                     return "true" # none == none is not strictly valid in V outside of optional context sometimes, but evaluating to true is safe
+                     return "true"
                  if left_type == "Any" or left_type == "unknown" or (left_type.startswith("map[") and left_type.endswith("]Any")):
-                      # If it's an optional type or specifically mapped differently, we would use == none.
-                      # But 'unknown' defaults to 'Any' when assigned, so it's safest to treat as Any.
                       if not left_type.startswith("?"):
                           if left_type == "Any" or left_type == "unknown":
                               return f"(({left}) is NoneType)" if left.endswith("}") else f"({left}) is NoneType"
                           else:
                               return f"(Any({left})) is NoneType"
-                 op_str = "=="
-                 right = "none"
+                 return f"{left} == none"
             elif isinstance(op, (ast.IsNot, ast.NotEq)) and is_none_node(node.comparators[0]):
                  if is_none_node(node.left):
                      return "false"
@@ -349,8 +346,25 @@ class OperatorsMixin(TranslatorBase):
                               return f"(({left}) !is NoneType)" if left.endswith("}") else f"({left}) !is NoneType"
                           else:
                               return f"(Any({left})) !is NoneType"
-                 op_str = "!="
-                 right = "none"
+                 return f"{left} != none"
+            elif isinstance(op, (ast.Is, ast.Eq)) and is_none_node(node.left):
+                 right_type = self._guess_type(node.comparators[0])
+                 if right_type == "Any" or right_type == "unknown" or (right_type.startswith("map[") and right_type.endswith("]Any")):
+                      if not right_type.startswith("?"):
+                           if right_type == "Any" or right_type == "unknown":
+                               return f"(({right}) is NoneType)" if right.endswith("}") else f"({right}) is NoneType"
+                           else:
+                               return f"(Any({right})) is NoneType"
+                 return f"none == {right}"
+            elif isinstance(op, (ast.IsNot, ast.NotEq)) and is_none_node(node.left):
+                 right_type = self._guess_type(node.comparators[0])
+                 if right_type == "Any" or right_type == "unknown" or (right_type.startswith("map[") and right_type.endswith("]Any")):
+                      if not right_type.startswith("?"):
+                           if right_type == "Any" or right_type == "unknown":
+                               return f"(({right}) !is NoneType)" if right.endswith("}") else f"({right}) !is NoneType"
+                           else:
+                               return f"(Any({right})) !is NoneType"
+                 return f"none != {right}"
             elif isinstance(op, ast.In) and is_none_node(node.left):
                  right_type = self._guess_type(node.comparators[0])
                  if right_type.startswith("map["):
@@ -361,6 +375,13 @@ class OperatorsMixin(TranslatorBase):
                  if right_type.startswith("map["):
                       return f"none !in {right}"
                  return f"!{right}.any(it == none)"
+
+            if isinstance(op, ast.Is):
+                 self.used_builtins.add("py_is_identical")
+                 return f"py_is_identical({left}, {right})"
+            if isinstance(op, ast.IsNot):
+                 self.used_builtins.add("py_is_identical")
+                 return f"!py_is_identical({left}, {right})"
 
             return f"{left} {op_str} {right}"
 
@@ -385,12 +406,7 @@ class OperatorsMixin(TranslatorBase):
                           else:
                               parts.append(f"(Any({left_str})) is NoneType")
                           continue
-                      else:
-                          op_str = "=="
-                          right = "none"
-                 else:
-                      op_str = "=="
-                      right = "none"
+                 parts.append(f"({left} == none)")
             elif isinstance(op, (ast.IsNot, ast.NotEq)) and is_none_node(right_node):
                  if is_none_node(left_node):
                       parts.append("false")
@@ -403,23 +419,46 @@ class OperatorsMixin(TranslatorBase):
                           else:
                               parts.append(f"(Any({left_str})) !is NoneType")
                           continue
-                      else:
-                          op_str = "!="
-                          right = "none"
-                 else:
-                      op_str = "!="
-                      right = "none"
+                 parts.append(f"({left} != none)")
+            elif isinstance(op, (ast.Is, ast.Eq)) and is_none_node(left_node):
+                 right_type = self._guess_type(right_node)
+                 if right_type == "Any" or right_type == "unknown" or (right_type.startswith("map[") and right_type.endswith("]Any")):
+                      if not right_type.startswith("?"):
+                           if right_type == "Any" or right_type == "unknown":
+                               parts.append(f"(({right}) is NoneType)" if right.endswith("}") else f"({right}) is NoneType")
+                           else:
+                               parts.append(f"(Any({right})) is NoneType")
+                           continue
+                 parts.append(f"(none == {right})")
+            elif isinstance(op, (ast.IsNot, ast.NotEq)) and is_none_node(left_node):
+                 right_type = self._guess_type(right_node)
+                 if right_type == "Any" or right_type == "unknown" or (right_type.startswith("map[") and right_type.endswith("]Any")):
+                      if not right_type.startswith("?"):
+                           if right_type == "Any" or right_type == "unknown":
+                               parts.append(f"(({right}) !is NoneType)" if right.endswith("}") else f"({right}) !is NoneType")
+                           else:
+                               parts.append(f"(Any({right})) !is NoneType")
+                           continue
+                 parts.append(f"(none != {right})")
             elif isinstance(op, ast.In) and is_none_node(left_node):
                  right_type = self._guess_type(node.comparators[i])
                  if right_type.startswith("map["):
-                      return f"none in {right}"
-                 return f"{right}.any(it == none)"
+                      parts.append(f"(none in {right})")
+                 else:
+                      parts.append(f"({right}.any(it == none))")
             elif isinstance(op, ast.NotIn) and is_none_node(left_node):
                  right_type = self._guess_type(node.comparators[i])
                  if right_type.startswith("map["):
-                      return f"none !in {right}"
-                 return f"!{right}.any(it == none)"
-
-            parts.append(f"({left} {op_str} {right})")
+                      parts.append(f"(none !in {right})")
+                 else:
+                      parts.append(f"(!{right}.any(it == none))")
+            elif isinstance(op, ast.Is):
+                 self.used_builtins.add("py_is_identical")
+                 parts.append(f"py_is_identical({left}, {right})")
+            elif isinstance(op, ast.IsNot):
+                 self.used_builtins.add("py_is_identical")
+                 parts.append(f"!py_is_identical({left}, {right})")
+            else:
+                 parts.append(f"({left} {op_str} {right})")
 
         return " && ".join(parts)

@@ -36,14 +36,14 @@ class TypeInferenceUtilsMixin(TypeInferenceBase):
 
     def _guess_node_type(self, node: ast.AST) -> str:
         if isinstance(node, ast.Constant):
+            if isinstance(node.value, bool):
+                return "bool"
             if isinstance(node.value, int):
                 return "int"
             if isinstance(node.value, float):
                 return "f64"
             if isinstance(node.value, str):
                 return "string"
-            if isinstance(node.value, bool):
-                return "bool"
         elif isinstance(node, ast.Attribute) and isinstance(node.value, ast.Name) and node.value.id == "self":
             # Heuristic for self.attributes
             return self.type_map.get(node.attr, "Any")
