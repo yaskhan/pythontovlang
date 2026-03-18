@@ -63,6 +63,7 @@ class GeneratorCallsMixin:
         if func_name_str == "map" and len(args) == 2:
             func = args[0]
             iterable = args[1]
+            if func.startswith("fn "): return f"{iterable}.map({func})"
             return f"{iterable}.map({func}(it))"
         
         # filter()
@@ -71,6 +72,7 @@ class GeneratorCallsMixin:
             iterable = args[1]
             if func == "None" or func == "none":
                 return f"{iterable}.filter(it)"
+            if func.startswith("fn "): return f"{iterable}.filter({func})"
             return f"{iterable}.filter({func}(it))"
         
         # any() / all()

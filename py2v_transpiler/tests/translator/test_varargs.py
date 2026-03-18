@@ -60,3 +60,18 @@ def test2():
     v_code = transpile(code)
     assert "greet()" in v_code
     assert "greet(1)" in v_code
+
+def test_varargs_list_annotation():
+    code = """
+from typing import List
+def f(*args: List[int]):
+    pass
+"""
+    v_code = transpile(code)
+    # The fix should strip [] from []int to get ...int
+    assert "fn f(args ...int)" in v_code
+
+def test_lambda_varargs():
+    code = "sum_all = lambda *args: sum(args)"
+    v_code = transpile(code)
+    assert "fn (args ...int) Any" in v_code
