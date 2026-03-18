@@ -24,10 +24,26 @@ class AugAssignMixin(TranslatorBase):
             if isinstance(node.op, ast.Pow):
                 self.emitter.add_import("math")
                 target_type = self._guess_type(node.target) if hasattr(self, '_guess_type') else "unknown"
-                if target_type == "int":
-                     emit_fn(f"{self._indent()}{new_target} = int(math.pow({new_target}, {value}))")
+                value_type = self._guess_type(node.value) if hasattr(self, '_guess_type') else "unknown"
+
+                # Check for negative exponent literal
+                is_negative_literal = False
+                if isinstance(node.value, ast.UnaryOp) and isinstance(node.value.op, ast.USub):
+                    if isinstance(node.value.operand, ast.Constant) and isinstance(node.value.operand.value, (int, float)):
+                         is_negative_literal = True
+                elif isinstance(node.value, ast.Constant) and isinstance(node.value.value, (int, float)) and node.value.value < 0:
+                     is_negative_literal = True
+
+                if target_type == "int" and value_type == "int" and not is_negative_literal:
+                     # Integer power
+                     emit_fn(f"{self._indent()}{new_target} = int(math.powi(f64({new_target}), {value}))")
                 else:
-                     emit_fn(f"{self._indent()}{new_target} = math.pow({new_target}, {value})")
+                     l_val = new_target if target_type == "f64" else f"f64({new_target})"
+                     r_val = value if value_type == "f64" else f"f64({value})"
+                     if target_type == "int":
+                          emit_fn(f"{self._indent()}{new_target} = int(math.pow({l_val}, {r_val}))")
+                     else:
+                          emit_fn(f"{self._indent()}{new_target} = math.pow({l_val}, {r_val})")
             elif isinstance(node.op, ast.FloorDiv):
                 target_type = self._guess_type(node.target) if hasattr(self, '_guess_type') else "unknown"
                 self.emitter.add_import("math")
@@ -41,7 +57,8 @@ class AugAssignMixin(TranslatorBase):
         value = self.visit(node.value)
         op_map = {
             ast.Add: "+=", ast.Sub: "-=", ast.Mult: "*=", ast.Div: "/=",
-            ast.Mod: "%="
+            ast.Mod: "%=", ast.BitOr: "|=", ast.BitAnd: "&=", ast.BitXor: "^=",
+            ast.LShift: "<<=", ast.RShift: ">>="
         }
 
         emit_fn = self.output.append
@@ -50,7 +67,7 @@ class AugAssignMixin(TranslatorBase):
             if base_target in getattr(self, "global_vars", set()) or base_target.isupper():
                 emit_fn = lambda stmt: self.emitter.add_init_statement(stmt.strip())
 
-        # V supports +=, -=, *=, /=, %=
+        # V supports +=, -=, *=, /=, %=, |=, &=, ^=, <<=, >>=
         op_str = op_map.get(type(node.op))
         if op_str:
              emit_fn(f"{self._indent()}{target} {op_str} {value}")

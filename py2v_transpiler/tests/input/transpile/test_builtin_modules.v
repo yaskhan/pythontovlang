@@ -68,10 +68,10 @@ pub fn test_builtin_functions() {
     q := py_destruct_2[0]
     r := py_destruct_2[1]
     println('Divmod: quotient=${q}, remainder=${r}')
-    println('All True: ${[true, true, true].all(it)}')
-    println('All with False: ${[true, false, true].all(it)}')
-    println('Any True: ${[false, false, true].any(it)}')
-    println('Any False: ${[false, false, false].any(it)}')
+    println('All True: ${py_all([true, true, true])}')
+    println('All with False: ${py_all([true, false, true])}')
+    println('Any True: ${py_any([false, false, true])}')
+    println('Any False: ${py_any([false, false, false])}')
     println('Ord(\'A\'): ${ord("A")}')
     println('Chr(65): ${chr(65)}')
 }

@@ -1424,4 +1424,62 @@ mut:
     }
     return res
 }""")
+        if "py_any" in self.used_builtins:
+            self.used_builtins.add("py_bool")
+            self.emitter.add_helper_function("""fn py_any[T](a []T) bool {
+    for it in a {
+        $if T is bool {
+            if it { return true }
+        } $else $if T is int {
+            if it != 0 { return true }
+        } $else $if T is i64 {
+            if it != 0 { return true }
+        } $else $if T is f64 {
+            if it != 0.0 { return true }
+        } $else $if T is string {
+            if it.len > 0 { return true }
+        } $else $if T is Any {
+            if py_bool(it) { return true }
+        } $else {
+            if it != none { return true }
+        }
+    }
+    return false
+}""")
+
+        if "py_all" in self.used_builtins:
+            self.used_builtins.add("py_bool")
+            self.emitter.add_helper_function("""fn py_all[T](a []T) bool {
+    for it in a {
+        $if T is bool {
+            if !it { return false }
+        } $else $if T is int {
+            if it == 0 { return false }
+        } $else $if T is i64 {
+            if it == 0 { return false }
+        } $else $if T is f64 {
+            if it == 0.0 { return false }
+        } $else $if T is string {
+            if it.len == 0 { return false }
+        } $else $if T is Any {
+            if !py_bool(it) { return false }
+        } $else {
+            if it == none { return false }
+        }
+    }
+    return true
+}""")
+
+        if "py_bool" in self.used_builtins:
+            self.emitter.add_helper_function("""fn py_bool(val Any) bool {
+    if val is bool { return val }
+    if val is int { return val != 0 }
+    if val is i64 { return val != 0 }
+    if val is f64 { return val != 0.0 }
+    if val is string { return val.len > 0 }
+    if val is []Any { return val.len > 0 }
+    if val is map[string]Any { return val.len > 0 }
+    if val is NoneType { return false }
+    return true
+}""")
         return self.emitter.emit()

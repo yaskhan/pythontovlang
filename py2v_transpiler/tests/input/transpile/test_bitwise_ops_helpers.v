@@ -72,20 +72,6 @@ mut:
     open bool = true
 }
 
-fn py_sorted[T](a []T) []T {
-    mut b := a.clone()
-    b.sort()
-    return b
-}
-fn py_reversed[T](a []T) []T {
-    mut b := a.clone()
-    b.reverse()
-    return b
-}
-fn py_round(number f64, ndigits int) f64 {
-    p := math.pow(10, f64(ndigits))
-    return math.round(number * p) / p
-}
 fn (mut g PyGenerator[T]) next() ?T {
     if !g.open { return none }
     g.in_ <- PyGeneratorInput{val: 0} // Send dummy value
@@ -129,62 +115,10 @@ fn py_bytes_format(fmt []u8, args Any) []u8 {
     // TODO: handle args properly. V's string interpolation/formatting expects distinct args.
     // If args is []u8, treat as string.
     arg_str := if args is []u8 { args.bytestr() } else { '${args}' }
-    
 
     // Manual substitution of %s
     // V does not have sprintf for runtime strings easily available in core without C interop.
     // Simple replace for %s
     res := fmt_str.replace('%s', arg_str)
     return res.bytes()
-}
-fn py_any[T](a []T) bool {
-    for it in a {
-        $if T is bool {
-            if it { return true }
-        } $else $if T is int {
-            if it != 0 { return true }
-        } $else $if T is i64 {
-            if it != 0 { return true }
-        } $else $if T is f64 {
-            if it != 0.0 { return true }
-        } $else $if T is string {
-            if it.len > 0 { return true }
-        } $else $if T is Any {
-            if py_bool(it) { return true }
-        } $else {
-            if it != none { return true }
-        }
-    }
-    return false
-}
-fn py_all[T](a []T) bool {
-    for it in a {
-        $if T is bool {
-            if !it { return false }
-        } $else $if T is int {
-            if it == 0 { return false }
-        } $else $if T is i64 {
-            if it == 0 { return false }
-        } $else $if T is f64 {
-            if it == 0.0 { return false }
-        } $else $if T is string {
-            if it.len == 0 { return false }
-        } $else $if T is Any {
-            if !py_bool(it) { return false }
-        } $else {
-            if it == none { return false }
-        }
-    }
-    return true
-}
-fn py_bool(val Any) bool {
-    if val is bool { return val }
-    if val is int { return val != 0 }
-    if val is i64 { return val != 0 }
-    if val is f64 { return val != 0.0 }
-    if val is string { return val.len > 0 }
-    if val is []Any { return val.len > 0 }
-    if val is map[string]Any { return val.len > 0 }
-    if val is NoneType { return false }
-    return true
 }

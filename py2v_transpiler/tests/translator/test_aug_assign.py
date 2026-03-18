@@ -19,7 +19,7 @@ x **= 3
 """
     v_code = transpile(source)
     # x is int, so we expect cast
-    assert "x = int(math.pow(x, 3))" in v_code
+    assert "x = int(math.powi(f64(x), 3))" in v_code
     assert "import math" in v_code
 
 def test_pow_assign_complex_subscript():
