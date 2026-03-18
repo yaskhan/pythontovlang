@@ -161,21 +161,21 @@ class BuiltinCallsMixin:
             return "''"
 
         # repr()
-        elif func_name_str == "repr" or (original_id == "repr" and func_name_str == "py_repr"):
+        elif original_id == "repr" or (original_id == "repr" and func_name_str == "py_repr"):
             self.used_builtins.add("py_repr")
             if len(args) == 1:
                 return f"py_repr({args[0]})"
             return "''"
 
         # ascii()
-        elif func_name_str == "ascii" or (original_id == "ascii" and func_name_str == "py_ascii"):
+        elif original_id == "ascii" or (original_id == "ascii" and func_name_str == "py_ascii"):
             self.used_builtins.add("py_ascii")
             if len(args) == 1:
                 return f"py_ascii({args[0]})"
             return "''"
 
         # format()
-        elif func_name_str == "format" or (original_id == "format" and func_name_str == "py_format"):
+        elif original_id == "format" or (original_id == "format" and func_name_str == "py_format"):
             self.used_builtins.add("py_format")
             if len(args) == 1:
                 return f"py_format({args[0]}, '')"
