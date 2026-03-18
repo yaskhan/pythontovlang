@@ -14,8 +14,8 @@ class PrintCallsMixin:
     def _handle_print_call(self, node: ast.Call, args: list) -> str | None:
         """Handle print() with support for sep, end, and file."""
 
-        sep_val = " "
-        end_val = "\n"
+        sep_val: str | None = " "
+        end_val: str | None = "\n"
         is_stderr = False
 
         sep_expr = "' '"

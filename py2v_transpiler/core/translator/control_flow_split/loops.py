@@ -8,25 +8,22 @@ class LoopsMixin(TranslatorBase):
         for node in nodes:
             if isinstance(node, ast.Break):
                 return True
-            if isinstance(node, (ast.If, ast.With, ast.AsyncWith, ast.Try)):
+            if isinstance(node, ast.If):
+                if self._has_break(node.body) or self._has_break(node.orelse):
+                    return True
+            elif isinstance(node, (ast.With, ast.AsyncWith)):
                 if self._has_break(node.body):
                     return True
+            elif isinstance(node, ast.Try):
+                if self._has_break(node.body) or self._has_break(node.orelse) or self._has_break(node.finalbody):
+                    return True
+                for handler in node.handlers:
+                    if self._has_break(handler.body):
+                        return True
             elif isinstance(node, getattr(ast, 'Match', type(None))):
-                for case in node.cases:
+                for case in getattr(node, "cases", []):
                     if self._has_break(case.body):
                         return True
-                if hasattr(node, "orelse") and self._has_break(node.orelse):
-                    return True
-                if hasattr(node, "handlers"):
-                    for handler in node.handlers:
-                        if self._has_break(handler.body):
-                            return True
-                if hasattr(node, "finalbody") and self._has_break(node.finalbody):
-                    return True
-                if hasattr(node, "cases"):
-                    for case in node.cases:
-                        if self._has_break(case.body):
-                            return True
         return False
 
     
