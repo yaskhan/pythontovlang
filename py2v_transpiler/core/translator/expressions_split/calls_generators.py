@@ -84,9 +84,10 @@ class GeneratorCallsMixin:
     def _handle_any_all(self, node: ast.Call, func_name_str: str, args: list) -> str:
         """Handle any() and all()."""
         arg = node.args[0]
+        self.used_builtins.add(f"py_{func_name_str}")
 
         if isinstance(arg, ast.GeneratorExp):
-            # any(expr for target in iter) -> iter.any(expr_with_it)
+            # any(expr for target in iter) -> py_any(iter.map(expr))
             comp_gen = arg.generators[0]
             target = comp_gen.target
             iter_expr = self.visit(comp_gen.iter)
@@ -96,15 +97,12 @@ class GeneratorCallsMixin:
                 self.name_remap[target.id] = "it"
                 elt = self.visit(arg.elt)
                 del self.name_remap[target.id]
-                return f"{iter_expr}.{func_name_str}({elt})"
-        else:
-            # any(iterable) -> iterable.any(it)
-            val = self.visit(arg)
-            return f"{val}.{func_name_str}(it)"
+                return f"py_{func_name_str}({iter_expr}.map({elt}))"
 
-        # Fallback
+        # any(iterable) -> py_any(iterable)
         val = self.visit(arg)
-        return f"{val}.{func_name_str}(it)"
+        return f"py_{func_name_str}({val})"
+
 
     def _handle_len_function(self, node: ast.Call, func_name_str: str, args: list) -> str | None:
         """Handle len() -> obj.len."""

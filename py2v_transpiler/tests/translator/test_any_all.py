@@ -20,7 +20,8 @@ a = [True, False]
 b = any(a)
 """
     v_code = translate(source)
-    assert "b := a.any(it)" in v_code
+    assert "b := py_any(a)" in v_code
+    assert "fn py_any[T](a []T) bool" in v_code
 
 def test_all_basic():
     source = """
@@ -28,7 +29,8 @@ a = [1, 2]
 b = all(a)
 """
     v_code = translate(source)
-    assert "b := a.all(it)" in v_code
+    assert "b := py_all(a)" in v_code
+    assert "fn py_all[T](a []T) bool" in v_code
 
 def test_any_generator():
     source = """
@@ -36,7 +38,7 @@ nums = [1, 2, 3]
 b = any(x > 0 for x in nums)
 """
     v_code = translate(source)
-    assert "b := nums.any(it > 0)" in v_code
+    assert "b := py_any(nums.map(it > 0))" in v_code
 
 def test_all_generator():
     source = """
@@ -44,7 +46,7 @@ nums = [1, 2, 3]
 b = all(y < 10 for y in nums)
 """
     v_code = translate(source)
-    assert "b := nums.all(it < 10)" in v_code
+    assert "b := py_all(nums.map(it < 10))" in v_code
 
 def test_any_generator_renamed():
     # Ensure nested renaming works or at least basic usage
@@ -53,4 +55,4 @@ nums = [1, 2]
 b = any(val == 1 for val in nums)
 """
     v_code = translate(source)
-    assert "b := nums.any(it == 1)" in v_code
+    assert "b := py_any(nums.map(it == 1))" in v_code
