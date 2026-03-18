@@ -92,6 +92,15 @@ class TypeInferenceUtilsMixin(TypeInferenceBase):
                 v_type = list(val_types)[0]
 
             return f"map[{k_type}]{v_type}"
+        elif isinstance(node, ast.Set):
+            if not node.elts:
+                return "map[string]bool"
+            element_types = set()
+            for elt in node.elts:
+                element_types.add(self._guess_node_type(elt))
+            if len(element_types) == 1:
+                return f"map[{list(element_types)[0]}]bool"
+            return "map[string]bool"
         return "Any"
 
     def _infer_collection_type(self, node: ast.AST) -> str:
@@ -106,3 +115,12 @@ class TypeInferenceUtilsMixin(TypeInferenceBase):
     def get_variable_types(self) -> Dict[str, str]:
         """Returns the map of variable names to their V types."""
         return self.type_map
+
+    def _get_base_node(self, node: ast.AST) -> ast.AST:
+        curr = node
+        while isinstance(curr, (ast.Subscript, ast.Attribute)):
+            if isinstance(curr, ast.Subscript):
+                curr = curr.value
+            else:
+                curr = curr.value
+        return curr

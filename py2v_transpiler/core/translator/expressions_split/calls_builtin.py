@@ -55,7 +55,7 @@ class BuiltinCallsMixin:
             if len(args) == 0 and not node.keywords:
                 return f"{v_type}{{}}"
 
-            # Handle dict([("x", 10)]) -> py_dict_from_pairs
+            # Handle dict([(\"x\", 10)]) -> py_dict_from_pairs
             if len(args) == 1 and not node.keywords:
                 self.used_builtins.add("py_dict_from_pairs")
                 return f"py_dict_from_pairs<{v_type}>({args[0]})"
@@ -111,13 +111,13 @@ class BuiltinCallsMixin:
                 v_type = "map[string]bool"
             if "map[Any]" in v_type:
                 v_type = v_type.replace("map[Any]", "map[string]")
-                if not getattr(self, '_emitted_any_map_comment', False):
+                if not getattr(self, "_emitted_any_map_comment", False):
                     self.output.append(f"{self._indent()}//##LLM@@ V requires map keys to be comparable types (like string, int). 'Any' was used as a map key in Python, which has been fallback-mapped to 'string'. Please review and manually adjust the map key type and its usage if necessary.")
                     self._emitted_any_map_comment = True
             if len(args) == 0:
                 return f"{v_type}{{}}"
-            return f"{v_type}({', '.join(args)})"
-        
+            self.used_builtins.add("py_set_from_list")
+            return f"py_set_from_list<{v_type}>({", ".join(args)})"
         # int()
         elif func_name_str == "int" or (original_id == "int" and func_name_str == "py_int"):
             if len(args) == 0:
