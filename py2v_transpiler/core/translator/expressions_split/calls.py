@@ -134,14 +134,14 @@ class CallsMixin(
                   v_func_name = f"{v_imports[0]}.{func_name}"
                   if v_func_name == "rand.sample":
                        self.used_builtins.add("py_random_sample")
-                       return f"py_random_sample({ ", ".join(args) })"
+                       return f"py_random_sample({ ', '.join(args) })"
                   if v_func_name == "os.path.split":
                        self.used_builtins.add("py_os_path_split")
-                       return f"py_os_path_split({ ", ".join(args) })"
+                       return f"py_os_path_split({ ', '.join(args) })"
                   if v_func_name == "os.path.splitext":
                        self.used_builtins.add("py_os_path_splitext")
-                       return f"py_os_path_splitext({ ", ".join(args) })"
-                  return f"{v_func_name}({ ", ".join(args) })"
+                       return f"py_os_path_splitext({ ', '.join(args) })"
+                  return f"{v_func_name}({ ', '.join(args) })"
 
         return self._handle_fallback_call(node, func_name_str_lookup, args, call_sig)
 
