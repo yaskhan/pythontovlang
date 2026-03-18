@@ -42,9 +42,14 @@ class LiteralsMixin(TranslatorBase):
                     v_val = self.visit(val.value)
 
                     conversion = "'none'"
-                    if val.conversion == 114: conversion = "'r'"
-                    elif val.conversion == 115: conversion = "'s'"
-                    elif val.conversion == 97: conversion = "'a'"
+                    if val.conversion == 114:
+                        conversion = "'r'"
+                        self.used_builtins.add('py_repr')
+                    elif val.conversion == 115:
+                        conversion = "'s'"
+                    elif val.conversion == 97:
+                        conversion = "'a'"
+                        self.used_builtins.add('py_ascii')
 
                     format_spec = "''"
                     if isinstance(val.format_spec, ast.JoinedStr):
