@@ -283,6 +283,7 @@ class FunctionGenerationMixin:
                 inferred = self.type_inference.type_map.get(arg_name)
                 if isinstance(inferred, str):
                     arg_type = inferred
+            if arg_type.startswith("[]"): arg_type = arg_type[2:]
             args_str_list.append(f"{arg_name} ...{arg_type}")
             args_names.append(arg_name)
             annotations_data[arg_name] = f"...{arg_type}"

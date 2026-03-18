@@ -59,6 +59,7 @@ class OtherFunctionVisitorsMixin(TranslatorBase):
                 inferred = self.type_inference.type_map.get(arg_name)
                 if inferred:
                     arg_type = self._map_type(inferred)
+            if arg_type.startswith("[]"): arg_type = arg_type[2:]
             args_str_list.append(f"{arg_name} ...{arg_type}")
 
         args_str = ", ".join(args_str_list)
