@@ -104,7 +104,8 @@ def test(x: str | int):
 
         # First print should have cast or narrowing
         # In V, SumType is Type narrowing allows direct access via (obj as Type)
-        assert "(x as string).upper()" in v_code
+        # Note: with recent improvements, .upper() is mapped to .to_upper() and interpolation is used
+        assert "x.to_upper()" in v_code
         # Second print should NOT have string cast
         assert "(x as string) + 1" not in v_code
         assert "x + 1" in v_code
