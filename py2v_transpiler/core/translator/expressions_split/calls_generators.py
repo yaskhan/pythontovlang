@@ -78,6 +78,26 @@ class GeneratorCallsMixin:
         # any() / all()
         if func_name_str in ("any", "all") and len(node.args) == 1:
             return self._handle_any_all(node, func_name_str, args)
+
+        # sum, min, max, zip, enumerate, range
+        if func_name_str == "sum":
+            self.used_builtins.add("py_sum")
+            return f"py_sum({ ", ".join(args) })"
+        if func_name_str == "min":
+            self.used_builtins.add("py_min")
+            return f"py_min({ ", ".join(args) })"
+        if func_name_str == "max":
+            self.used_builtins.add("py_max")
+            return f"py_max({ ", ".join(args) })"
+        if func_name_str == "zip":
+            self.used_builtins.add("py_zip")
+            return f"py_zip({ ", ".join(args) })"
+        if func_name_str == "enumerate":
+            self.used_builtins.add("py_enumerate")
+            return f"py_enumerate({ ", ".join(args) })"
+        if func_name_str == "range":
+            self.used_builtins.add("py_range")
+            return f"py_range({ ", ".join(args) })"
         
         return None
 

@@ -30,8 +30,8 @@ pub fn test_random_functions() {
     println('Random int 1-10: ${rand.intn(10 - 1 + 1) + 1}')
     choices := ['apple', 'banana', 'cherry']
     println('Choice: ${choices[rand.intn(choices.len)]}')
-    println('Sample: ${random.sample(choices, 2)}')
-    random.shuffle(choices)
+    println('Sample: ${py_random_sample(choices, 2)}')
+    rand.shuffle(choices)
     println('Shuffled: ${choices}')
 }
 // @line: test_builtin_modules.py:42:0
@@ -40,11 +40,11 @@ pub fn test_os_functions() {
     println('CWD: ${cwd}')
     path := os.join_path('folder', 'subfolder', 'file.txt')
     println('Joined path: ${path}')
-    py_destruct_0 := os.path.split(path)
+    py_destruct_0 := py_os_path_split(path)
     dirname := py_destruct_0[0]
     basename := py_destruct_0[1]
     println('Dir: ${dirname}, Base: ${basename}')
-    py_destruct_1 := os.path.splitext('file.txt')
+    py_destruct_1 := py_os_path_splitext('file.txt')
     root := py_destruct_1[0]
     ext := py_destruct_1[1]
     println('Root: ${root}, Ext: ${ext}')
@@ -55,13 +55,13 @@ pub fn test_os_functions() {
 // @line: test_builtin_modules.py:64:0
 pub fn test_builtin_functions() {
     println('Len: ${[1, 2, 3, 4, 5].len}')
-    println('Range: ${[]Any(range(5))}')
-    println('Range with start: ${[]Any(range(2, 7))}')
-    println('Range with step: ${[]Any(range(0, 10, 2))}')
+    println('Range: ${[]Any(py_range(5))}')
+    println('Range with start: ${[]Any(py_range(2, 7))}')
+    println('Range with step: ${[]Any(py_range(0, 10, 2))}')
     nums := [5, 2, 8, 1, 9]
-    println('Sum: ${sum(nums)}')
-    println('Min: ${min(nums)}')
-    println('Max: ${max(nums)}')
+    println('Sum: ${py_sum(nums)}')
+    println('Min: ${py_min(nums)}')
+    println('Max: ${py_max(nums)}')
     println('Abs: ${abs(-10)}')
     println('Pow: ${pow(2, 10)}')
     py_destruct_2 := divmod(17, 5)
@@ -92,8 +92,8 @@ pub fn test_list_builtin() {
     println('Reversed: ${[]Any(py_reversed(lst))}')
     names := ['Alice', 'Bob', 'Charlie']
     ages := [25, 30, 35]
-    println('Zipped: ${[]Any(zip(names, ages))}')
-    println('Enumerated: ${[]Any(enumerate(["a", "b", "c"]))}')
+    println('Zipped: ${[]Any(py_zip(names, ages))}')
+    println('Enumerated: ${[]Any(py_enumerate(["a", "b", "c"]))}')
 }
 // @line: test_builtin_modules.py:121:0
 pub fn test() {

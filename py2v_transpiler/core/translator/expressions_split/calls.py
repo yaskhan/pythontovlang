@@ -126,6 +126,23 @@ class CallsMixin(
             return "// unittest.main() ignored"
 
         # === Stage 16: Fallback - standard handling ===
+        if module_name and func_name:
+             # If we have a module name and a function name, but no mapping was found,
+             # check if the module itself was mapped (e.g., random -> rand)
+             v_imports = self.mapper.get_imports(module_name)
+             if v_imports and len(v_imports) == 1 and v_imports[0] != module_name:
+                  v_func_name = f"{v_imports[0]}.{func_name}"
+                  if v_func_name == "rand.sample":
+                       self.used_builtins.add("py_random_sample")
+                       return f"py_random_sample({ ", ".join(args) })"
+                  if v_func_name == "os.path.split":
+                       self.used_builtins.add("py_os_path_split")
+                       return f"py_os_path_split({ ", ".join(args) })"
+                  if v_func_name == "os.path.splitext":
+                       self.used_builtins.add("py_os_path_splitext")
+                       return f"py_os_path_splitext({ ", ".join(args) })"
+                  return f"{v_func_name}({ ", ".join(args) })"
+
         return self._handle_fallback_call(node, func_name_str_lookup, args, call_sig)
 
     def _extract_func_info(self, node: ast.Call) -> tuple:
@@ -278,6 +295,10 @@ class CallsMixin(
 
         # Fallback for Attribute calls
         if not module_name and isinstance(func_node, ast.Attribute):
+            # Check for os.path manually if not caught by qualified parts
+            if isinstance(func_node.value, ast.Attribute) and isinstance(func_node.value.value, ast.Name) and func_node.value.value.id == "os" and func_node.value.attr == "path":
+                module_name = "os"
+                func_name = f"path.{func_node.attr}"
             if isinstance(func_node.value, ast.Name) and func_node.value.id in getattr(self, 'imported_modules', {}):
                 module_name = self.imported_modules[func_node.value.id]
                 func_name = func_node.attr
@@ -326,6 +347,7 @@ class CallsMixin(
 
         # Special case for os.path
         if qualified_name_parts and qualified_name_parts[0] == "os" and len(qualified_name_parts) > 1 and qualified_name_parts[1] == "path":
+            # If it is os.path.something, return module="os", func="path.something"
             return "os", ".".join(qualified_name_parts[1:])
 
         return None, None
@@ -417,6 +439,10 @@ class CallsMixin(
             if v_imports:
                 for imp in v_imports:
                     self.emitter.add_import(imp)
+            if "py_os_path_split" in mapped:
+                self.used_builtins.add("py_os_path_split")
+            if "py_os_path_splitext" in mapped:
+                self.used_builtins.add("py_os_path_splitext")
             return mapped
 
         return None
