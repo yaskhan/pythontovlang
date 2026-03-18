@@ -37,3 +37,21 @@ b = filter(None, a)
 """
     v_code = translate(source)
     assert "b := a.filter(it)" in v_code
+
+def test_filter_lambda():
+    source = """
+nums = [1, 2, 3]
+evens = filter(lambda x: x % 2 == 0, nums)
+"""
+    v_code = translate(source)
+    # Should NOT have (it) suffix
+    assert "evens := nums.filter(fn (x int) bool { return x % 2 == 0 })" in v_code
+
+def test_map_lambda():
+    source = """
+nums = [1, 2, 3]
+squares = map(lambda x: x * x, nums)
+"""
+    v_code = translate(source)
+    # Should NOT have (it) suffix
+    assert "squares := nums.map(fn (x int) int { return x * x })" in v_code
