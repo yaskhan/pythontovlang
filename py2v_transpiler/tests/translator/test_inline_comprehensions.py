@@ -18,7 +18,7 @@ class TestInlineComprehensions(TranspilerTest):
         for x in [1, 2, 3] {
             py_comp_1 << x * 2
         }
-        max(py_comp_1)
+        py_max(py_comp_1)
         """
         self.assert_transpilation(code, expected)
 
@@ -59,6 +59,6 @@ class TestInlineComprehensions(TranspilerTest):
         for x in [1, 2, 3] {
             py_comp_1 << x * 2
         }
-        sum(py_comp_1)
+        py_sum(py_comp_1)
         """
         self.assert_transpilation(code, expected)

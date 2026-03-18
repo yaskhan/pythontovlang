@@ -33,6 +33,10 @@ class StdLibMapper:
                 "random": "rand.f64",
                 "choice": self._random_choice,
                 "seed": "rand.seed",
+                "sample": self._random_sample,
+                "shuffle": self._random_shuffle,
+                "uniform": self._random_uniform,
+                "gauss": self._random_gauss,
             },
             "json": {
                 "loads": self._json_loads,
@@ -76,6 +80,8 @@ class StdLibMapper:
                 "path.abspath": "os.abs_path",
                 "path.basename": "os.base",
                 "path.dirname": "os.dir",
+                "path.split": self._os_path_split,
+                "path.splitext": self._os_path_splitext,
             },
             "re": {
                 "match": "regex.regex_opt", # V regex is different, simplified mapping
@@ -414,6 +420,26 @@ class StdLibMapper:
             return f"{args[0]}[rand.intn({args[0]}.len)]"
         return "/* random.choice args error */"
 
+    def _random_sample(self, args: List[str]) -> str:
+        if len(args) == 2:
+            return f"py_random_sample({args[0]}, {args[1]})"
+        return "/* random.sample args error */"
+
+    def _random_shuffle(self, args: List[str]) -> str:
+        if len(args) == 1:
+            return f"rand.shuffle(mut {args[0]})"
+        return "/* random.shuffle args error */"
+
+    def _random_uniform(self, args: List[str]) -> str:
+        if len(args) == 2:
+            return f"rand.f64_in_range(f64({args[0]}), f64({args[1]}))"
+        return "/* random.uniform args error */"
+
+    def _random_gauss(self, args: List[str]) -> str:
+        if len(args) == 2:
+            return f"rand.normal(f64({args[0]}), f64({args[1]}))"
+        return "/* random.gauss args error */"
+
     def _json_loads(self, args: List[str]) -> str:
         if len(args) >= 1:
              # Default to map[string]Any for generic JSON object
@@ -690,3 +716,13 @@ class StdLibMapper:
         if len(args) >= 1:
             return f"os.ls({args[0]}) or {{ panic(err) }}"
         return "/* os.listdir args error */"
+
+    def _os_path_split(self, args: List[str]) -> str:
+        if len(args) == 1:
+            return f"py_os_path_split({args[0]})"
+        return "/* os.path.split args error */"
+
+    def _os_path_splitext(self, args: List[str]) -> str:
+        if len(args) == 1:
+            return f"py_os_path_splitext({args[0]})"
+        return "/* os.path.splitext args error */"
