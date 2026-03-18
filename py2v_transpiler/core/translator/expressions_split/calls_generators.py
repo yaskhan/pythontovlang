@@ -154,6 +154,50 @@ class GeneratorCallsMixin:
 
         return f"{obj} is {types}"
 
+
+    def _handle_issubclass(self, node: ast.Call, args: list) -> str | None:
+        """Handle issubclass()."""
+        if len(args) != 2:
+            return None
+
+        subclass = args[0]
+
+        # Check if second arg was a Tuple
+        if isinstance(node.args[1], ast.Tuple):
+            type_checks = []
+            for elt in node.args[1].elts:
+                t_name = str(self.visit(elt))
+                res = self._eval_issubclass(subclass, t_name)
+                type_checks.append(res)
+            return f"({' || '.join(type_checks)})"
+
+        superclass = args[1]
+        return self._eval_issubclass(subclass, superclass)
+
+    def _eval_issubclass(self, subclass: str, superclass: str) -> str:
+        """Evaluate issubclass statically."""
+        if subclass == superclass:
+            return f"/* issubclass({subclass}, {superclass}) */ true"
+
+        class_hierarchy = getattr(self, "class_hierarchy", {})
+
+        visited = set()
+        stack = [subclass]
+        while stack:
+            curr = stack.pop()
+            if curr in visited:
+                continue
+            visited.add(curr)
+            if curr == superclass:
+                return f"/* issubclass({subclass}, {superclass}) */ true"
+            if curr in class_hierarchy:
+                stack.extend(class_hierarchy[curr])
+
+        if subclass in class_hierarchy:
+            return f"/* issubclass({subclass}, {superclass}) */ false"
+
+        return f"/* //##LLM@@ issubclass({subclass}, {superclass}) - dynamic check not supported */ false"
+
     def _handle_assert_never(self, func_name_str: str, args: list) -> str | None:
         """Handle assert_never()."""
 

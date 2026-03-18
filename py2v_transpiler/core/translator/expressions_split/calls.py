@@ -471,6 +471,12 @@ class CallsMixin(
             if result:
                 return result
 
+        # Handle issubclass
+        if func_name_str == "issubclass":
+            result = self._handle_issubclass(node, args)
+            if result:
+                return result
+
         # Handle assert_never
         if func_name_str == "assert_never":
             result = self._handle_assert_never(func_name_str, args)
