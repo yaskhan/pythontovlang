@@ -26,4 +26,4 @@ def test_typing_noreturn_mapping():
 
 def test_typing_callable_mapping():
     assert map_python_type_to_v("typing.Callable[[int], str]") == "fn (int) string"
-    assert map_python_type_to_v("typing.Callable") == "fn"
+    assert map_python_type_to_v("typing.Callable") == "fn (...Any) Any"

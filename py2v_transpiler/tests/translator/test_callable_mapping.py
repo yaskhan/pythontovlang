@@ -54,7 +54,7 @@ def apply(f: callable, x: int) -> int:
     return f(x)
 """
     v_code = translate(py_code)
-    assert "fn apply(f fn, x int) int {" in v_code
+    assert "fn apply(f fn (...Any) Any, x int) int {" in v_code
 
 def test_collections_abc_callable():
     py_code = """
