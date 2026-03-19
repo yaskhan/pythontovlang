@@ -270,7 +270,7 @@ class FunctionGenerationMixin:
             is_reassigned = False
             is_mutated_only = False
             if hasattr(self, 'type_inference') and hasattr(self.type_inference, 'mutability_map'):
-                prefix = ".".join(self._scope_stack)
+                prefix = ".".join(self._scope_names)
                 qual_func_name = f"{prefix}.{node.name}" if prefix else node.name
                 mut_info = self.type_inference.mutability_map.get(f"{qual_func_name}.{arg.arg}")
                 if not mut_info:
