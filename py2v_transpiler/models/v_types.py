@@ -1,6 +1,6 @@
 import ast
 from enum import Enum, auto
-from typing import Optional, Callable, List, Sequence
+from typing import Optional, Callable, List, Sequence, Dict
 
 class VType(Enum):
     INT = auto()
@@ -26,7 +26,7 @@ def get_tuple_struct_name(types_str: str) -> str:
         name_parts.append(clean_t)
     return f"TupleStruct_{''.join(name_parts)}"
 
-def map_python_type_to_v(py_type: str, self_name: str = "Self", allow_union: bool = True, generic_map: Optional[dict[str, str]] = None, sum_type_registrar: Optional[Callable[[str], str]] = None, literal_registrar: Optional[Callable[[Sequence[ast.AST]], str]] = None, tuple_registrar: Optional[Callable[[str], str]] = None) -> str:
+def map_python_type_to_v(py_type: str, self_name: str = "Self", allow_union: bool = True, generic_map: Optional[Dict[str, str]] = None, sum_type_registrar: Optional[Callable[[str], str]] = None, literal_registrar: Optional[Callable[[Sequence[ast.AST]], str]] = None, tuple_registrar: Optional[Callable[[str], str]] = None) -> str:
     """Maps a Python type name to its V equivalent."""
     if not py_type:
         return 'void'
@@ -88,7 +88,7 @@ def map_python_type_to_v(py_type: str, self_name: str = "Self", allow_union: boo
         clean_py_type = py_type.replace("builtins.", "").replace("typing.", "").replace("typing_extensions.", "")
         return clean_py_type
 
-def _map_ast_type(node: ast.AST, self_name: str = "Self", allow_union: bool = True, generic_map: Optional[dict[str, str]] = None, sum_type_registrar: Optional[Callable[[str], str]] = None, literal_registrar: Optional[Callable[[Sequence[ast.AST]], str]] = None, tuple_registrar: Optional[Callable[[str], str]] = None) -> str:
+def _map_ast_type(node: ast.AST, self_name: str = "Self", allow_union: bool = True, generic_map: Optional[Dict[str, str]] = None, sum_type_registrar: Optional[Callable[[str], str]] = None, literal_registrar: Optional[Callable[[Sequence[ast.AST]], str]] = None, tuple_registrar: Optional[Callable[[str], str]] = None) -> str:
     if isinstance(node, ast.Name):
         if node.id == "Self":
             return self_name

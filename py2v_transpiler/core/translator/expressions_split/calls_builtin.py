@@ -109,31 +109,31 @@ class BuiltinCallsMixin:
         # set()
         elif func_name_str == "set" or (original_id == "set" and func_name_str == "py_set"):
             v_assigned_type = self.current_assignment_type
-            v_type = ""
+            v_type_final = ""
             if len(args) == 1:
                 arg_type = self._guess_type(node.args[0])
                 if arg_type.startswith("[]"):
                     guessed_v_type = f"map[{arg_type[2:]}]bool"
                     if not v_assigned_type or "map[string]bool" in v_assigned_type:
-                        v_type = guessed_v_type
+                        v_type_final = guessed_v_type
                 elif arg_type == "range":
-                    v_type = "map[int]bool"
+                    v_type_final = "map[int]bool"
 
-            if not v_type:
-                v_type = v_assigned_type or "map[string]bool"
+            if not v_type_final:
+                v_type_final = v_assigned_type or "map[string]bool"
 
-            if not v_type.startswith("map["):
-                v_type = "map[string]bool"
+            if not v_type_final.startswith("map["):
+                v_type_final = "map[string]bool"
 
-            if "map[Any]" in v_type:
-                v_type = v_type.replace("map[Any]", "map[string]")
+            if "map[Any]" in v_type_final:
+                v_type_final = v_type_final.replace("map[Any]", "map[string]")
                 if not getattr(self, '_emitted_any_map_comment', False):
                     self.output.append(f"{self._indent()}//##LLM@@ V requires map keys to be comparable types (like string, int). 'Any' was used as a map key in Python, which has been fallback-mapped to 'string'. Please review and manually adjust the map key type and its usage if necessary.")
                     self._emitted_any_map_comment = True
             if len(args) == 0:
-                return f"{v_type}{{}}"
+                return f"{v_type_final}{{}}"
             self.used_builtins.add("py_set_from_list")
-            return f"py_set_from_list<{v_type}>({args[0]})"
+            return f"py_set_from_list<{v_type_final}>({args[0]})"
         
         # int()
         elif func_name_str == "int" or (original_id == "int" and func_name_str == "py_int"):

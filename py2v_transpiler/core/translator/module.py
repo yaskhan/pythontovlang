@@ -1516,4 +1516,20 @@ mut:
              self.emitter.add_helper_struct("struct PyPathSplitExt { root string; ext string }")
              self.emitter.add_helper_function("fn py_os_path_splitext(path string) PyPathSplitExt { ext := os.file_ext(path); return PyPathSplitExt{ root: path[..path.len - ext.len], ext: ext } }")
 
+        if 'py_set_from_list' in self.used_builtins:
+             self.emitter.add_helper_function("fn py_set_from_list[M, K](l []K) M { mut res := M{}; for x in l { res[x] = true }; return res }")
+
+        if 'py_list_cast' in self.used_builtins:
+             self.emitter.add_helper_function("""fn py_list_cast[L, T](l []T) L {
+    mut res := L{cap: l.len}
+    for x in l {
+        $if T is Any {
+             res << x
+        } $else {
+             res << x
+        }
+    }
+    return res
+}""")
+
         return self.emitter.emit()
