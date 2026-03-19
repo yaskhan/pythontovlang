@@ -22,7 +22,9 @@ class TypeGuessingMixin:
         if hasattr(node, "lineno") and hasattr(node, "col_offset") and hasattr(self.type_inference, "location_map"):
             loc_key = f"{node.lineno}:{node.col_offset}"
             if loc_key in self.type_inference.location_map:
-                return self.type_inference.location_map[loc_key]
+                res = self.type_inference.location_map[loc_key]
+                if res != "none":
+                    return res
 
 
         if isinstance(node, ast.Constant):
@@ -83,7 +85,7 @@ class TypeGuessingMixin:
         elif isinstance(node, ast.DictComp):
             return self._guess_type_dictcomp(node)
 
-        return "int"
+        return "Any"
 
     def _guess_type_call(self, node: ast.Call) -> str:
         """Guess type for a Call node."""
@@ -275,7 +277,7 @@ class TypeGuessingMixin:
             return inferred
         if hasattr(self.type_inference, "type_map") and node.id in self.type_inference.type_map:
             return self.type_inference.type_map[node.id]
-        return "int"
+        return "Any"
 
     def _guess_type_attribute(self, node: ast.Attribute) -> str:
         """Guess type for an Attribute node."""
@@ -318,19 +320,19 @@ class TypeGuessingMixin:
             return "PyComplex"
         if left == "f64" or right == "f64":
             return "f64"
-        return "int"
+        return "Any"
 
     def _guess_type_listcomp(self, node: Union[ast.ListComp, ast.GeneratorExp]) -> str:
         """Guess type for a ListComp or GeneratorExp node."""
         elt_type = self._guess_type(node.elt)
-        if elt_type == "unknown":
-            return "[]int"
+        if elt_type == "Any" or elt_type == "unknown":
+            return "[]Any"
         return f"[]{elt_type}"
 
     def _guess_type_setcomp(self, node: ast.SetComp) -> str:
         """Guess type for a SetComp node."""
         elt_type = self._guess_type(node.elt)
-        if elt_type == "unknown":
+        if elt_type == "Any" or elt_type == "unknown":
             return "map[string]bool"
         return f"map[{elt_type}]bool"
 
@@ -338,8 +340,8 @@ class TypeGuessingMixin:
         """Guess type for a DictComp node."""
         key_type = self._guess_type(node.key)
         val_type = self._guess_type(node.value)
-        if key_type == "unknown":
+        if key_type == "Any" or key_type == "unknown":
             key_type = "string"
-        if val_type == "unknown":
+        if val_type == "Any" or val_type == "unknown":
             val_type = "Any"
         return f"map[{key_type}]{val_type}"

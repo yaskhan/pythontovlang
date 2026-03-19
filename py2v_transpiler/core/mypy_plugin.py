@@ -33,6 +33,8 @@ class MutabilityVisitor:
         # Generic traversal
         if isinstance(node, MypyFile):
             for sym in node.names.values(): self.visit(sym.node)
+            if hasattr(node, 'defs'):
+                for stmt in node.defs: self.visit(stmt)
         elif isinstance(node, ClassDef):
             if node.info:
                 for sym in node.info.names.values(): self.visit(sym.node)
@@ -204,7 +206,16 @@ class VlangPlugin(Plugin):
              return ctx.default_attr_type
         return hook
 
-    def report_config_data(self, ctx: Any) -> Any:
+    def report_config_data(self, ctx: ReportConfigContext):
+        """Called at the end of checking. We use this to collect our data."""
+        self.collected_types.clear()
+        self.collected_sigs.clear()
+        self.collected_mutability.clear()
+        
+        with open("plugin_debug.log", "a") as f:
+            f.write(f"report_config_data called, checker={self.checker is not None}\n")
+            if self.checker:
+                f.write(f"DEBUG: checker dir={dir(self.checker)}\n")
         global _global_collected_types, _global_collected_sigs, _global_collected_mutability
 
         # Mutating methods
@@ -217,115 +228,184 @@ class VlangPlugin(Plugin):
             "add", "discard", "intersection_update"
         }
 
-        # Collect types from checker's type_map for narrowing and calls
+        # DEBUG: Log EVERY entry in type_map to find where bool at 43:4 comes from
         if self.checker and hasattr(self.checker, 'type_map'):
-            for expr, typ in self.checker.type_map.items():
-                state_id = (id(expr), id(typ))
-                if state_id in self._processed_exprs:
-                    continue
-                self._processed_exprs.add(state_id)
-                if hasattr(expr, 'line'):
-                    key = f"{expr.line}:{expr.column}"
+            with open("plugin_debug.log", "a") as f_deb:
+                f_deb.write(f"DEBUG: type_map size={len(self.checker.type_map)}\n")
+                for expr, typ in self.checker.type_map.items():
+                    if hasattr(expr, 'line'):
+                        f_deb.write(f"DEBUG: type_map entry: {type(expr).__name__} at {expr.line}:{expr.column} = {typ}\n")
 
-                    # Store types by location if it's a real expression (not synthetic)
-                    if isinstance(expr, (NameExpr, MemberExpr, CallExpr)):
-                         self.collected_types[key][key] = str(typ)
+        class TypeVisitor:
+            def __init__(self, plugin, type_map):
+                self.plugin = plugin
+                self.type_map = type_map
+                self.visited = set()
 
-                    if isinstance(expr, CallExpr):
-                        from mypy.types import Instance, CallableType
+            def visit(self, node):
+                if node is None or id(node) in self.visited:
+                    return
+                self.visited.add(id(node))
 
-                        if isinstance(expr.callee, (NameExpr, MemberExpr)) and expr.callee.node and isinstance(expr.callee.node, (FuncDef, Var)):
-                            node_callee = expr.callee.node
-                            f_node: Optional[FuncDef] = None
-                            if isinstance(node_callee, FuncDef):
-                                f_node = node_callee
-                            elif isinstance(node_callee, Var) and hasattr(node_callee, 'type') and isinstance(node_callee.type, CallableType):
-                                c_type = cast(CallableType, node_callee.type)
-                                if c_type.definition and isinstance(c_type.definition, FuncDef):
-                                    f_node = c_type.definition
-
-                            ret_type_str = str(typ)
-                            if f_node and hasattr(f_node, 'type') and isinstance(f_node.type, CallableType):
-                                ret_type_str = str(f_node.type.ret_type)
-
-                            if "TypeIs[" not in ret_type_str and "TypeGuard[" not in ret_type_str:
-                                # Try to extract it from the actual function type if it was lost in type_map
-                                if isinstance(expr.callee, (NameExpr, MemberExpr)) and expr.callee.node and hasattr(expr.callee.node, 'type'):
-                                    callee_node_type = getattr(expr.callee.node, 'type', None)
-                                    if isinstance(callee_node_type, CallableType):
-                                        ret_type_str = str(callee_node_type.ret_type)
-
-                            args_data = []
-                            if f_node:
-                                for arg in f_node.arguments:
-                                    if hasattr(arg, 'variable') and hasattr(arg.variable, 'type'):
-                                        args_data.append(str(arg.variable.type))
-                                    else:
-                                        args_data.append("Any")
-
-                            sig_data = {
-                                "args": args_data,
-                                "return": ret_type_str,
-                                "is_class": False,
-                                "has_init": False
-                            }
-                            fullname_node_s = f_node.fullname if f_node else (expr.callee.fullname if isinstance(expr.callee, NameExpr) else None)
-                            short_name_s = f_node.name if f_node else (expr.callee.name if isinstance(expr.callee, MemberExpr) else None)
-                            if fullname_node_s: self.collected_sigs[fullname_node_s][key] = json.dumps(sig_data)
-                            if short_name_s: self.collected_sigs[short_name_s][key] = json.dumps(sig_data)
-                            self.collected_sigs[key][key] = json.dumps(sig_data)
-
-                        if isinstance(typ, Instance):
-                            type_info = typ.type
-                            fullname_cls = type_info.fullname
-                            short_name_cls = type_info.name
-                            namedtuple_metadata = None
-                            if 'namedtuple' in type_info.metadata:
-                                nt_meta = type_info.metadata['namedtuple']
-                                namedtuple_metadata = {
-                                    "fields": nt_meta.get("fields", []),
-                                    "types": [str(t) for t in nt_meta.get("types", [])]
-                                }
-
-                            sig_data_cls = {
-                                "args": [], # difficult to recover from type_map easily
-                                "return": str(typ),
-                                "is_class": True, 
-                                "has_init": '__init__' in type_info.names
-                            }
-                            if namedtuple_metadata:
-                                sig_data_cls["namedtuple_metadata"] = namedtuple_metadata
-                            self.collected_sigs[fullname_cls][key] = json.dumps(sig_data_cls)
-                            self.collected_sigs[short_name_cls][key] = json.dumps(sig_data_cls)
-                            self.collected_sigs[key][key] = json.dumps(sig_data_cls)
-
-                    name: Optional[str] = None
-                    fullname_node: Optional[str] = None
-                    if isinstance(expr, NameExpr):
-                        name = expr.name
-                        fullname_node = expr.fullname
-                    elif isinstance(expr, MemberExpr):
-                        name = expr.name
-                        fullname_node = expr.fullname
-                    elif isinstance(expr, Var):
-                        name = expr.name
-                        fullname_node = expr.fullname
-                    elif hasattr(expr, 'name'):
-                        name = getattr(expr, 'name')
-                        fullname_node = getattr(expr, 'fullname', None)
-
-                    if name:
-                        # Store by multiple keys to increase hit rate
-                        self.collected_types[name][key] = str(typ)
-                        # Also store by line only for block-start heuristic
-                        self.collected_types[name][f"{expr.line}:*"] = str(typ)
-                        if fullname_node:
-                            self.collected_types[fullname_node][key] = str(typ)
-                            self.collected_types[fullname_node][f"{expr.line}:*"] = str(typ)
+                typ = None
+                if node in self.type_map:
+                    typ = self.type_map[node]
+                elif hasattr(self.plugin.checker, "get_expression_type"):
+                    try:
+                        typ = self.plugin.checker.get_expression_type(node)
+                    except Exception:
+                        pass
+                
+                if typ:
+                    if hasattr(node, 'line'):
+                        # Include path in key if possible to avoid cross-file collisions 
+                        # during the whole mypy session
+                        file_path = getattr(self.plugin.checker, 'path', '')
+                        if not file_path and hasattr(node, 'file'): # Some nodes have .file
+                             file_path = node.file
                         
-                        # IMPORTANT: For local variables, fullname might be None or just the name.
-                        # Ensure we store it under the name@location key which is used by analyzer.
-                        self.collected_types[f"{name}@{key}"][key] = str(typ)
+                        key = f"{node.line}:{node.column}"
+                        
+                        name: Optional[str] = None
+                        fullname_node: Optional[str] = None
+                        if isinstance(node, (NameExpr, MemberExpr, Var)):
+                            name = node.name
+                            fullname_node = getattr(node, 'fullname', None)
+                        
+                        # Store by name if possible
+                        if name:
+                            self.plugin.collected_types[name][key] = str(typ)
+                        
+                        # Also store by location for anonymous expressions
+                        if isinstance(node, (NameExpr, MemberExpr, CallExpr, IndexExpr)):
+                             self.plugin.collected_types["@"][key] = str(typ)
+
+                        if fullname_node:
+                            # Use fullname as primary key for robustness
+                            self.plugin.collected_types[fullname_node][key] = str(typ)
+                        elif hasattr(node, 'name'):
+                            name = getattr(node, 'name')
+                            fullname_node = getattr(node, 'fullname', None)
+
+                        if name:
+                            self.plugin.collected_types[name][key] = str(typ)
+                            if fullname_node:
+                                self.plugin.collected_types[fullname_node][key] = str(typ)
+                                self.plugin.collected_types[fullname_node][f"{node.line}:*"] = str(typ)
+                            self.plugin.collected_types[f"{name}@{key}"][key] = str(typ)
+
+                        # Handle Call signatures
+                        if isinstance(node, CallExpr):
+                             self._collect_call_sig(node, typ, key)
+
+                # Generic traversal (similar to MutabilityVisitor)
+                if isinstance(node, MypyFile):
+                    for sym in node.names.values(): self.visit(sym.node)
+                    if hasattr(node, 'defs'):
+                        for stmt in node.defs: self.visit(stmt)
+                elif isinstance(node, ClassDef):
+                    if node.info:
+                        for sym in node.info.names.values(): self.visit(sym.node)
+                    for stmt in node.defs.body: self.visit(stmt)
+                elif isinstance(node, FuncDef):
+                    for arg in node.arguments: self.visit(arg.variable)
+                    self.visit(node.body)
+                elif isinstance(node, Block):
+                    for stmt in node.body: self.visit(stmt)
+                elif isinstance(node, IfStmt):
+                    for e in node.expr: self.visit(e)
+                    for b in node.body: self.visit(b)
+                    self.visit(node.else_body)
+                elif isinstance(node, WhileStmt):
+                    self.visit(node.expr); self.visit(node.body); self.visit(node.else_body)
+                elif isinstance(node, ForStmt):
+                    self.visit(node.expr); self.visit(node.index); self.visit(node.body); self.visit(node.else_body)
+                elif isinstance(node, TryStmt):
+                    self.visit(node.body)
+                    for h in node.handlers:
+                        if hasattr(h, 'type'): self.visit(h.type)
+                        if hasattr(h, 'name'): self.visit(h.name)
+                        self.visit(h.body)
+                    self.visit(node.else_body); self.visit(node.finally_body)
+                elif isinstance(node, (TupleExpr, ListExpr)):
+                    for item in node.items: self.visit(item)
+                elif isinstance(node, NameExpr):
+                    self.visit(node.node)
+                elif isinstance(node, MemberExpr):
+                    self.visit(node.expr); self.visit(node.node)
+                elif isinstance(node, IndexExpr):
+                    self.visit(node.base); self.visit(node.index)
+
+            def _collect_call_sig(self, expr, typ, key):
+                from mypy.types import Instance, CallableType
+                f_node: Optional[FuncDef] = None
+                if isinstance(expr.callee, (NameExpr, MemberExpr)) and expr.callee.node and isinstance(expr.callee.node, (FuncDef, Var)):
+                    node_callee = expr.callee.node
+                    if isinstance(node_callee, FuncDef):
+                        f_node = node_callee
+                    elif isinstance(node_callee, Var) and hasattr(node_callee, 'type') and isinstance(node_callee.type, CallableType):
+                        c_type = cast(CallableType, node_callee.type)
+                        if c_type.definition and isinstance(c_type.definition, FuncDef):
+                            f_node = c_type.definition
+
+                    ret_type_str = str(typ)
+                    if f_node and hasattr(f_node, 'type') and isinstance(f_node.type, CallableType):
+                        ret_type_str = str(f_node.type.ret_type)
+
+                    args_data = []
+                    if f_node:
+                        for arg in f_node.arguments:
+                            if hasattr(arg, 'variable') and hasattr(arg.variable, 'type'):
+                                args_data.append(str(arg.variable.type))
+                            else:
+                                args_data.append("Any")
+
+                    sig_data = {
+                        "args": args_data,
+                        "return": ret_type_str,
+                        "is_class": False,
+                        "has_init": False
+                    }
+                    fullname_node_s = f_node.fullname if f_node else (expr.callee.fullname if isinstance(expr.callee, NameExpr) else None)
+                    short_name_s = f_node.name if f_node else (expr.callee.name if isinstance(expr.callee, MemberExpr) else None)
+                    if fullname_node_s: self.plugin.collected_sigs[fullname_node_s][key] = json.dumps(sig_data)
+                    if short_name_s: self.plugin.collected_sigs[short_name_s][key] = json.dumps(sig_data)
+                    self.plugin.collected_sigs[key][key] = json.dumps(sig_data)
+
+                if isinstance(typ, Instance):
+                    type_info = typ.type
+                    sig_data_cls = {
+                        "args": [],
+                        "return": str(typ),
+                        "is_class": True,
+                        "has_init": '__init__' in type_info.names
+                    }
+                    if 'namedtuple' in type_info.metadata:
+                        nt_meta = type_info.metadata['namedtuple']
+                        sig_data_cls["namedtuple_metadata"] = {
+                            "fields": nt_meta.get("fields", []),
+                            "types": [str(t) for t in nt_meta.get("types", [])]
+                        }
+                    fullname_cls = type_info.fullname
+                    short_name_cls = type_info.name
+                    self.plugin.collected_sigs[fullname_cls][key] = json.dumps(sig_data_cls)
+                    self.plugin.collected_sigs[short_name_cls][key] = json.dumps(sig_data_cls)
+                    self.plugin.collected_sigs[key][key] = json.dumps(sig_data_cls)
+
+        # Collect types from checker's type_map for narrowing and calls ONLY for processed files
+        if self.checker:
+            # Try some known locations for type_map in different mypy versions
+            type_map = getattr(self.checker, "type_map", {})
+            if not type_map and hasattr(self.checker, "expr_checker"):
+                type_map = getattr(self.checker.expr_checker, "type_map", {})
+            
+            visitor = TypeVisitor(self, type_map)
+            if hasattr(self.checker, 'files'):
+                for file_node in self.checker.files.values():
+                    visitor.visit(file_node)
+            elif self._files_to_process:
+                for file_node in self._files_to_process:
+                    visitor.visit(file_node)
 
         # Collect mutability info from processed files
         visitor = MutabilityVisitor(self.collected_mutability, MUTATING_METHODS)

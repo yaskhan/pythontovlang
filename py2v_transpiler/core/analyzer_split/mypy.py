@@ -1,5 +1,7 @@
 import ast
 import os
+import sys
+import subprocess
 import json
 import tempfile
 from typing import Tuple
@@ -34,10 +36,13 @@ class TypeInferenceMypyMixin(TypeInferenceBase):
             else:
                 os.environ["PYTHONPATH"] = project_root
 
-            # Ensure the global dict is clean before running mypy
+            # Ensure the global dict is clean and reload the plugin to pick up changes
             try:
+                import importlib
+                if "py2v_transpiler.core.mypy_plugin" in sys.modules:
+                    sys.modules.pop("py2v_transpiler.core.mypy_plugin")
                 import py2v_transpiler.core.mypy_plugin as m_p
-
+                importlib.reload(m_p)
                 m_p._global_collected_types.clear()
                 m_p._global_collected_sigs.clear()
                 m_p._global_collected_mutability.clear()
@@ -99,7 +104,8 @@ class TypeInferenceMypyMixin(TypeInferenceBase):
 
                         # Populate location_map for O(1) lookups by location
                         if (
-                            "builtins.float" in fullname
+                            fullname == "@"
+                            or "builtins.float" in fullname
                             or location not in self.location_map
                         ):
                             self.location_map[location] = v_type

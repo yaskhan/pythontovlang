@@ -89,7 +89,7 @@ class AttributesMixin(TranslatorBase):
                         is_named_struct = v_base_name and v_base_name[0].isupper() and not v_base_name.startswith("TupleStruct_")
                         is_generic_cast = v_narrowed_type.startswith("[]") or v_narrowed_type.startswith("TupleStruct_") or v_narrowed_type == "Any"
                         
-                        if not (is_named_struct and is_generic_cast):
+                        if not (is_named_struct and is_generic_cast) and v_narrowed_type != "none":
                             # Emit an explicit cast in V: (obj as NarrowedType)
                             obj = f"({obj} as {v_narrowed_type})"
 

@@ -102,6 +102,10 @@ class BuiltinCallsMixin:
                 v_type = "[]Any"
             if len(args) == 0:
                 return f"{v_type}{{}}"
+            if len(args) == 1:
+                arg_type = self._guess_type(node.args[0])
+                if arg_type.startswith("[]") or arg_type == "Any":
+                    return f"{args[0]}.clone()"
             return f"{v_type}({', '.join(args)})"
         
         # set()

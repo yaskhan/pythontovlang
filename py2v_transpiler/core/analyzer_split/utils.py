@@ -22,6 +22,8 @@ class TypeInferenceUtilsMixin(TypeInferenceBase):
             if name not in self.mutability_map:
                 self.mutability_map[name] = {"is_reassigned": False, "is_final": False, "is_mutated": False}
             self.mutability_map[name]["is_mutated"] = True
+        elif isinstance(node, ast.Subscript):
+            self._mark_mutated(node.value)
 
     def _mark_reassigned(self, node: ast.AST):
         if isinstance(node, ast.Name):

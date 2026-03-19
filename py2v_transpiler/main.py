@@ -109,6 +109,7 @@ def transpile_file(source_file: str, config: TranspilerConfig, global_helpers: O
     analyzer = TypeInference()
     if config.mypy_enabled:
         stdout, stderr, exit_code = analyzer.run_mypy(source_file, experimental=config.experimental)
+        print(f"DEBUG: Mypy output:\n{stdout}")
         if exit_code != 0:
             print(f"Mypy found errors in {source_file}:")
             print(stdout)
