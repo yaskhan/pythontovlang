@@ -270,6 +270,8 @@ class FunctionMutabilityScanner(ast.NodeVisitor):
         elif isinstance(node, ast.Attribute) and isinstance(node.value, ast.Name):
             if node.value.id in self.current_params:
                 self.mutated_params.add(node.value.id)
+        elif isinstance(node, ast.Subscript):
+            self._mark_mutated(node.value)
 
     def visit_Assign(self, node: ast.Assign):
         for target in node.targets:

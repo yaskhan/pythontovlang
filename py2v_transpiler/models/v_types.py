@@ -1,6 +1,6 @@
 import ast
 from enum import Enum, auto
-from typing import Optional, Callable, List, Sequence
+from typing import Optional, Callable, List, Sequence, Dict, Any
 
 class VType(Enum):
     INT = auto()
