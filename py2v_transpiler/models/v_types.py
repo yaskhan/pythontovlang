@@ -63,7 +63,7 @@ def map_python_type_to_v(py_type: str, self_name: Optional[str] = None, allow_un
     if py_type == 'None': return 'none'
     if py_type == 'Any': return 'Any'
     if py_type == 'object': return 'Any' # Map object to Any
-    if py_type == 'Self': return self_name
+    if py_type == 'Self': return self_name or 'Self'
     if py_type == 'builtins.int': return 'int'
     if py_type == 'builtins.float': return 'f64'
     if py_type == 'builtins.str': return 'string'
@@ -74,12 +74,13 @@ def map_python_type_to_v(py_type: str, self_name: Optional[str] = None, allow_un
 
     try:
         if "[" in py_type:
-            node = ast.parse(py_type).body[0].value
-            return _map_ast_type(node, self_name, allow_union, generic_map, sum_type_registrar, literal_registrar, tuple_registrar)
+            tree = ast.parse(py_type)
+            if tree.body and isinstance(tree.body[0], ast.Expr):
+                return _map_ast_type(tree.body[0].value, self_name or "Self", allow_union, generic_map, sum_type_registrar, literal_registrar, tuple_registrar)
 
         # Use AST to parse complex types (for non-bracketed types or if the above didn't return)
         node = ast.parse(py_type, mode='eval').body
-        return _map_ast_type(node, self_name, allow_union, generic_map, sum_type_registrar, literal_registrar, tuple_registrar)
+        return _map_ast_type(node, self_name or "Self", allow_union, generic_map, sum_type_registrar, literal_registrar, tuple_registrar)
     except SyntaxError:
         # If parsing fails, it might be a simple type name or an unparseable complex type.
         # Try to clean it up before returning as is.

@@ -1,0 +1,21 @@
+<<<<<<< SEARCH
+    try:
+        if "[" in py_type:
+            stmt = ast.parse(py_type).body[0]
+            if isinstance(stmt, ast.Expr):
+                return _map_ast_type(stmt.value, self_name or "Self", allow_union, generic_map, sum_type_registrar, literal_registrar, tuple_registrar)
+
+        # Use AST to parse complex types (for non-bracketed types or if the above didn't return)
+        node = ast.parse(py_type, mode='eval').body
+        return _map_ast_type(node, self_name or "Self", allow_union, generic_map, sum_type_registrar, literal_registrar, tuple_registrar)
+=======
+    try:
+        if "[" in py_type:
+            tree = ast.parse(py_type)
+            if tree.body and isinstance(tree.body[0], ast.Expr):
+                return _map_ast_type(tree.body[0].value, self_name or "Self", allow_union, generic_map, sum_type_registrar, literal_registrar, tuple_registrar)
+
+        # Use AST to parse complex types (for non-bracketed types or if the above didn't return)
+        node = ast.parse(py_type, mode='eval').body
+        return _map_ast_type(node, self_name or "Self", allow_union, generic_map, sum_type_registrar, literal_registrar, tuple_registrar)
+>>>>>>> REPLACE
