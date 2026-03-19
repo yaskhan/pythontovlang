@@ -4,9 +4,9 @@ module main
 pub fn test_dict_creation() {
     mut d1 := {'a': 1, 'b': 2}
     println('${d1}')
-    mut d2 := map[string]int{}
+    mut d2 := {'a': 1, 'b': 2}
     println('${d2}')
-    d3 := map[string]Any([['x', 10], ['y', 20]])
+    d3 := py_dict_from_pairs<map[string]Any>([['x', 10], ['y', 20]])
     println('${d3}')
 }
 // @line: test_dict_operations.py:14:0
@@ -26,7 +26,7 @@ pub fn test_dict_modification() {
 // @line: test_dict_operations.py:26:0
 pub fn test_dict_deletion() {
     mut d := {'a': 1, 'b': 2, 'c': 3}
-    mut val := d.pop('b')
+    mut val := py_dict_pop(mut d, 'b', none)
     println('Popped: ${val}, Dict: ${d}')
     d.delete('a')
     println('After del: ${d}')
@@ -36,9 +36,9 @@ pub fn test_dict_deletion() {
 // @line: test_dict_operations.py:37:0
 pub fn test_dict_keys_values_items() {
     mut d := {'x': 1, 'y': 2, 'z': 3}
-    println('Keys: ${[]Any(d.keys())}')
-    println('Values: ${[]Any(d.values())}')
-    println('Items: ${[]Any(d.items())}')
+    println('Keys: ${py_list_from_iter<[]Any>(d.keys())}')
+    println('Values: ${py_list_from_iter<[]Any>(d.values())}')
+    println('Items: ${py_list_from_iter<[]Any>(d.items())}')
     for key in d {
         println('Key: ${key}')
     }
@@ -50,9 +50,9 @@ pub fn test_dict_keys_values_items() {
 pub fn test_dict_update() {
     mut d1 := {'a': 1, 'b': 2}
     mut d2 := {'b': 20, 'c': 3}
-    d1.update(d2)
+    py_dict_update(mut d1, d2)
     println('Updated: ${d1}')
-    d1.update()
+    py_dict_update(mut d1, {'d': 4, 'e': 5})
     println('Updated with kwargs: ${d1}')
 }
 // @line: test_dict_operations.py:60:0
@@ -73,17 +73,17 @@ pub fn test_dict_comprehension() {
 // @line: test_dict_operations.py:68:0
 pub fn test_dict_fromkeys() {
     keys := ['a', 'b', 'c']
-    mut d := dict.fromkeys(keys, 0).clone()
+    mut d := py_dict_fromkeys<map[string]int>(keys, 0).clone()
     println('From keys: ${d}')
-    mut d2 := dict.fromkeys(keys, []Any{}).clone()
+    mut d2 := py_dict_fromkeys<map[string]int>(keys, []Any{}).clone()
     println('From keys with list: ${d2}')
 }
 // @line: test_dict_operations.py:76:0
 pub fn test_dict_setdefault() {
     mut d := {'a': 1}
-    mut val := d.setdefault('b', 2)
+    mut val := py_dict_setdefault(mut d, 'b', 2)
     println('Setdefault result: ${val}, Dict: ${d}')
-    val2 := d.setdefault('a', 100)
+    val2 := py_dict_setdefault(mut d, 'a', 100)
     println('Setdefault existing: ${val2}, Dict: ${d}')
 }
 // @line: test_dict_operations.py:84:0

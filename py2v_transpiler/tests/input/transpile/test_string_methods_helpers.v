@@ -115,7 +115,7 @@ fn py_bytes_format(fmt []u8, args Any) []u8 {
     // TODO: handle args properly. V's string interpolation/formatting expects distinct args.
     // If args is []u8, treat as string.
     arg_str := if args is []u8 { args.bytestr() } else { '${args}' }
-
+    
     // Manual substitution of %s
     // V does not have sprintf for runtime strings easily available in core without C interop.
     // Simple replace for %s
