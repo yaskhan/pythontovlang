@@ -32,7 +32,7 @@ class StdLibMapper:
                 "randint": self._random_randint,
                 "random": "rand.f64",
                 "choice": self._random_choice,
-                "seed": "rand.seed",
+                "seed": self._random_seed,
                 "sample": self._random_sample,
                 "shuffle": self._random_shuffle,
                 "uniform": self._random_uniform,
@@ -334,6 +334,15 @@ class StdLibMapper:
         If no mapping is found, returns None.
         """
         if module not in self.mappings:
+            # Handle submodules by trying to find a mapping in the parent module
+            # e.g. module="os.path", func="join" -> module="os", func="path.join"
+            if "." in module:
+                parts = module.split(".")
+                for i in range(len(parts)-1, 0, -1):
+                    prefix = ".".join(parts[:i])
+                    suffix = ".".join(parts[i:])
+                    if prefix in self.mappings:
+                        return self.get_mapping(prefix, f"{suffix}.{func}", args)
             return None
 
         module_map = self.mappings[module]
@@ -357,6 +366,14 @@ class StdLibMapper:
         Returns the V code for a given module constant.
         """
         if module not in self.mappings:
+            # Handle submodules
+            if "." in module:
+                parts = module.split(".")
+                for i in range(len(parts)-1, 0, -1):
+                    prefix = ".".join(parts[:i])
+                    suffix = ".".join(parts[i:])
+                    if prefix in self.mappings:
+                        return self.get_constant_mapping(prefix, f"{suffix}.{name}")
             return None
 
         module_map = self.mappings[module]
@@ -377,7 +394,18 @@ class StdLibMapper:
         Returns None if module is unknown/not mapped.
         Returns [] if module is known but needs no imports.
         """
-        return self.v_imports.get(module)
+        if module in self.v_imports:
+            return self.v_imports[module]
+            
+        # Handle submodules
+        if "." in module:
+            parts = module.split(".")
+            for i in range(len(parts)-1, 0, -1):
+                prefix = ".".join(parts[:i])
+                if prefix in self.v_imports:
+                    return self.v_imports[prefix]
+        
+        return None
 
     # specialized handlers
 
@@ -410,14 +438,19 @@ class StdLibMapper:
             return "strings.new_builder(1024)"
         return f"py_io_stringio({args[0]})"
 
+    def _random_seed(self, args: List[str]) -> str:
+        if len(args) == 1:
+            return f"rand.seed([u32({args[0]}), u32(0)])"
+        return "rand.seed(rand.seed_array_42())"
+
     def _random_randint(self, args: List[str]) -> str:
         if len(args) == 2:
-            return f"rand.intn({args[1]} - {args[0]} + 1) + {args[0]}"
+            return f"(rand.intn({args[1]} - {args[0]} + 1) or {{ 0 }}) + {args[0]}"
         return "/* random.randint args error */"
 
     def _random_choice(self, args: List[str]) -> str:
         if len(args) == 1:
-            return f"{args[0]}[rand.intn({args[0]}.len)]"
+            return f"{args[0]}[rand.intn({args[0]}.len) or {{ 0 }}]"
         return "/* random.choice args error */"
 
     def _random_sample(self, args: List[str]) -> str:
@@ -427,17 +460,17 @@ class StdLibMapper:
 
     def _random_shuffle(self, args: List[str]) -> str:
         if len(args) == 1:
-            return f"rand.shuffle(mut {args[0]})"
+            return f"rand.shuffle(mut {args[0]}) or {{ panic(err) }}"
         return "/* random.shuffle args error */"
 
     def _random_uniform(self, args: List[str]) -> str:
         if len(args) == 2:
-            return f"rand.f64_in_range(f64({args[0]}), f64({args[1]}))"
+            return f"rand.f64_in_range(f64({args[0]}), f64({args[1]})) or {{ 0.0 }}"
         return "/* random.uniform args error */"
 
     def _random_gauss(self, args: List[str]) -> str:
         if len(args) == 2:
-            return f"rand.normal(f64({args[0]}), f64({args[1]}))"
+            return f"rand.normal(f64({args[0]}), f64({args[1]})) or {{ 0.0 }}"
         return "/* random.gauss args error */"
 
     def _json_loads(self, args: List[str]) -> str:

@@ -385,7 +385,7 @@ class CallsMixin(
         elif func_name_str == "open":
             module_name = "os"
             func_name = "open"
-        elif func_name_str in ("hasattr", "getattr", "setattr", "delattr", "eval", "exec", "compile", "type", "super"):
+        elif func_name_str in ("hasattr", "getattr", "setattr", "delattr", "eval", "exec", "compile", "type", "super", "abs", "pow", "divmod"):
             module_name = "builtins"
             func_name = func_name_str
 
@@ -456,10 +456,11 @@ class CallsMixin(
             if v_imports:
                 for imp in v_imports:
                     self.emitter.add_import(imp)
-            if "py_os_path_split" in mapped:
-                self.used_builtins.add("py_os_path_split")
-            if "py_os_path_splitext" in mapped:
-                self.used_builtins.add("py_os_path_splitext")
+            
+            # Identify and track used py_ helpers from the mapper
+            for py_helper in re.findall(r'py_[a-zA-Z0-9_]+', mapped):
+                self.used_builtins.add(py_helper)
+            
             return mapped
 
         return None

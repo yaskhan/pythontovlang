@@ -58,7 +58,7 @@ class BuiltinCallsMixin:
             # Handle dict([("x", 10)]) -> py_dict_from_pairs
             if len(args) == 1 and not node.keywords:
                 self.used_builtins.add("py_dict_from_pairs")
-                return f"py_dict_from_pairs<{v_type}>({args[0]})"
+                return f"py_dict_from_pairs[{v_type}]({args[0]})"
 
             # Handle dict(a=1, b=2) or dict(other, a=1)
             if node.keywords:
@@ -84,7 +84,7 @@ class BuiltinCallsMixin:
                 v_type = "map[string]Any"
             self.used_builtins.add("py_dict_fromkeys")
             val = args[1] if len(args) == 2 else "none"
-            return f"py_dict_fromkeys<{v_type}>({args[0]}, {val})"
+            return f"py_dict_fromkeys[{v_type}]({args[0]}, {val})"
 
         # list()
         elif func_name_str == "list" or (original_id == "list" and func_name_str == "py_list"):
@@ -95,12 +95,21 @@ class BuiltinCallsMixin:
                 return f"{v_type}{{}}"
             
             if len(args) == 1:
-                arg_type = self._guess_type(node.args[0])
-                if arg_type.startswith("[]"):
+                arg_node = node.args[0]
+                arg_type = self._guess_type(arg_node)
+                
+                # Check if it's one of our helpers that returns a slice
+                is_slice_helper = False
+                if isinstance(arg_node, ast.Call) and isinstance(arg_node.func, ast.Name):
+                    if arg_node.func.id in ("range", "py_range", "sorted", "py_sorted", "reversed", "py_reversed", "zip", "py_zip", "enumerate", "py_enumerate"):
+                        is_slice_helper = True
+                
+                if arg_type.startswith("[]") or is_slice_helper:
                     return f"{args[0]}.clone()"
+                
                 # If it is not a known array, it might be an iterator
                 self.used_builtins.add("py_list_from_iter")
-                return f"py_list_from_iter<{v_type}>({args[0]})"
+                return f"py_list_from_iter({args[0]})"
 
             return f"{v_type}({', '.join(args)})"
         
@@ -112,12 +121,20 @@ class BuiltinCallsMixin:
             if len(args) == 0:
                 return f"{v_type}{{}}"
             if len(args) == 1:
-                arg_type = self._guess_type(node.args[0])
-                if arg_type.startswith("[]"):
+                arg_node = node.args[0]
+                arg_type = self._guess_type(arg_node)
+                
+                is_slice_helper = False
+                if isinstance(arg_node, ast.Call) and isinstance(arg_node.func, ast.Name):
+                    if arg_node.func.id in ("range", "py_range", "sorted", "py_sorted", "reversed", "py_reversed", "zip", "py_zip", "enumerate", "py_enumerate"):
+                        is_slice_helper = True
+                
+                if arg_type.startswith("[]") or is_slice_helper:
                     return f"{args[0]}.clone()"
+                
                 # If it is not a known array, it might be an iterator
                 self.used_builtins.add("py_list_from_iter")
-                return f"py_list_from_iter<{v_type}>({args[0]})"
+                return f"py_list_from_iter({args[0]})"
             return f"{v_type}({', '.join(args)})"
         
         # set()
@@ -137,10 +154,10 @@ class BuiltinCallsMixin:
                 arg_type = self._guess_type(node.args[0])
                 if arg_type.startswith("[]"):
                     self.used_builtins.add("py_set_from_list")
-                    return f"py_set_from_list<{v_type}>({args[0]})"
+                    return f"py_set_from_list[{v_type}]({args[0]})"
                 # If it is not a known array, it might be an iterator
                 self.used_builtins.add("py_set_from_iter")
-                return f"py_set_from_iter<{v_type}>({args[0]})"
+                return f"py_set_from_iter({args[0]})"
 
             return f"{v_type}({', '.join(args)})"
         
@@ -234,4 +251,44 @@ class BuiltinCallsMixin:
                 return f"{args[0]}"
             return "[]u8{}"
         
+        # abs()
+        elif func_name_str == "abs":
+            if len(args) == 1:
+                arg_type = self._guess_type(node.args[0])
+                if arg_type == "int":
+                    # V doesn't have int.abs(), but math.abs() exists for f64
+                    # For ints, we can use if-else or math.abs(f64(x)) safely if we want f64 result.
+                    # Python abs(int) returns int.
+                    self.emitter.add_import("math")
+                    return f"int(math.abs(f64({args[0]})))"
+                self.emitter.add_import("math")
+                return f"math.abs(f64({args[0]}))"
+        
+        # pow()
+        elif func_name_str == "pow":
+            if len(args) == 2:
+                self.emitter.add_import("math")
+                return f"math.pow(f64({args[0]}), f64({args[1]}))"
+            elif len(args) == 3:
+                # pow(x, y, z) -> (x**y) % z
+                # V math.pow doesn't support 3 args.
+                self.emitter.add_import("math")
+                return f"(u64(math.pow(f64({args[0]}), f64({args[1]}))) % u64({args[2]}))"
+
+        # divmod()
+        elif func_name_str == "divmod":
+            if len(args) == 2:
+                self.used_builtins.add("py_divmod")
+                return f"py_divmod({args[0]}, {args[1]})"
+
+        # ord()
+        elif func_name_str == "ord":
+            if len(args) == 1:
+                return f"int({args[0]}[0])"
+
+        # chr()
+        elif func_name_str == "chr":
+            if len(args) == 1:
+                return f"u8({args[0]}).ascii_str()"
+
         return None

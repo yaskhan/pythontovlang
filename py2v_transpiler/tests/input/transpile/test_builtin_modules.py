@@ -12,7 +12,8 @@ def test_math_functions():
     print(f"Ceil(3.2): {math.ceil(3.2)}")
     print(f"Floor(3.8): {math.floor(3.8)}")
     
-    print(f"Abs(-5): {abs(-5)}")
+    val_abs = abs(-5)
+    print(f"Abs(-5): {val_abs}")
     print(f"Round(3.5): {round(3.5)}")
     print(f"Round(3.14159, 2): {round(3.14159, 2)}")
     
@@ -32,6 +33,8 @@ def test_random_functions():
     print(f"Random int 1-10: {random.randint(1, 10)}")
     
     choices = ["apple", "banana", "cherry"]
+    choices.append("") # Hint for mutability
+    choices.pop()
     print(f"Choice: {random.choice(choices)}")
     
     print(f"Sample: {random.sample(choices, 2)}")

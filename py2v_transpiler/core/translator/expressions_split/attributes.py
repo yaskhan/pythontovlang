@@ -3,18 +3,29 @@ from ..base import TranslatorBase
 
 class AttributesMixin(TranslatorBase):
     def visit_Attribute(self, node: ast.Attribute) -> str:
-        # Check if this is a mapped constant (e.g. math.pi)
+        # Handle module attributes (mapped constants or fallback)
         if isinstance(node.value, ast.Name) and node.value.id in self.imported_modules:
-             module_name = self.imported_modules[node.value.id]
-             const_name = node.attr
-             mapped = self.mapper.get_constant_mapping(module_name, const_name)
-             if mapped:
+            module_name = self.imported_modules[node.value.id]
+            scc_file = next((f for f in self.scc_files if module_name.endswith(f.replace('.py', '').replace('/', '.').replace('\\', '.'))), None)
+            if scc_file:
+                prefix = self._get_scc_prefix(scc_file)
+                return f'{prefix}__{node.attr}'
+
+            # Check if this is a mapped constant or function from a module
+            const_name = node.attr
+            mapped = self.mapper.get_constant_mapping(module_name, const_name)
+            if mapped:
                  # Add automatic V imports for the module
                  v_imports = self.mapper.get_imports(module_name)
                  if v_imports:
                      for imp in v_imports:
                          self.emitter.add_import(imp)
                  return mapped
+
+            # Fallback for unmapped attributes of a mapped module (e.g. random.seed)
+            v_imports = self.mapper.get_imports(module_name)
+            if v_imports and len(v_imports) == 1 and v_imports[0] != module_name:
+                 return f'{v_imports[0]}.{node.attr}'
 
         if node.attr == "__class__":
              obj = self.visit(node.value)
@@ -175,12 +186,10 @@ class AttributesMixin(TranslatorBase):
                 # Otherwise, it's a struct field access
                 return f"({obj}.{attr_name} as {narrowed_desc_type})"
 
-        # Handle SCC Attribute access: imported_module.attr -> prefix__attr
         if isinstance(node.value, ast.Name) and node.value.id in self.imported_modules:
             module_name = self.imported_modules[node.value.id]
             scc_file = next((f for f in self.scc_files if module_name.endswith(f.replace('.py', '').replace('/', '.').replace('\\', '.'))), None)
             if scc_file:
-                prefix = self._get_scc_prefix(scc_file)
                 return f"{prefix}__{attr_name}"
 
         return f"{obj}.{attr_name}"
