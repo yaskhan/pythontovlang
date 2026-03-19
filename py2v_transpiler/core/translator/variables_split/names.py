@@ -47,10 +47,17 @@ class NamesMixin(TranslatorBase):
 
                 # Map types to V equivalents
                 v_narrowed_type = self._map_type(narrowed_type)
+                v_base_type = self._map_type(base_type) if base_type else None
 
-                # We always apply the cast if mypy provides it for non-primitives,
-                # to satisfy existing tests that expect it even if it seems redundant
-                # from the transpiler's local perspective.
-                res = f"({res} as {v_narrowed_type})"
+                # If base type is unknown or differs from narrowed, apply cast
+                if not v_base_type or (v_narrowed_type != v_base_type and not (v_base_type.startswith("?") and v_base_type[1:] == v_narrowed_type)):
+                    # Special case: don't cast from a named struct (NamedTuple/Class)
+                    # to a generic collection/TupleStruct or Any.
+                    v_base_name = v_base_type.split('.')[-1] if v_base_type else ""
+                    is_named_struct = v_base_name and v_base_name[0].isupper() and not v_base_name.startswith("TupleStruct_")
+                    is_generic_cast = v_narrowed_type.startswith("[]") or v_narrowed_type.startswith("TupleStruct_") or v_narrowed_type == "Any"
+
+                    if not (is_named_struct and is_generic_cast):
+                        res = f"({res} as {v_narrowed_type})"
 
         return res

@@ -81,15 +81,17 @@ class AttributesMixin(TranslatorBase):
                 if not (base_type.startswith("?") and base_type[1:] == narrowed_type):
                     # Ensure narrowed_type is mapped to a V type
                     v_narrowed_type = self._map_type(narrowed_type)
+                    v_base_type = self._map_type(base_type) if base_type else None
+
                     if v_narrowed_type not in ("Any", "void", "unknown"):
                         # Special case: don't cast from a named struct (NamedTuple/Class) 
                         # to a generic collection/TupleStruct if we are accessing an attribute.
                         # This avoids breaking field access like (p2 as []string).x
-                        v_base_name = base_type.split('.')[-1]
+                        v_base_name = v_base_type.split('.')[-1] if v_base_type else ""
                         is_named_struct = v_base_name and v_base_name[0].isupper() and not v_base_name.startswith("TupleStruct_")
                         is_generic_cast = v_narrowed_type.startswith("[]") or v_narrowed_type.startswith("TupleStruct_") or v_narrowed_type == "Any"
                         
-                        if not (is_named_struct and is_generic_cast):
+                        if not (is_named_struct and is_generic_cast) and v_narrowed_type != v_base_type:
                             # Emit an explicit cast in V: (obj as NarrowedType)
                             obj = f"({obj} as {v_narrowed_type})"
 
@@ -146,19 +148,6 @@ class AttributesMixin(TranslatorBase):
             return f"{obj}__{attr_name}"
 
         # Descriptor narrowing check
-        # If the attribute itself has a narrowed type that's explicitly not generic,
-        # and it's accessed via a standard property/descriptor pattern, we can
-        # either emit an explicit cast, or rely on V's static type mapping if properties
-        # are mapped accurately.
-        # Since Python properties map to V struct fields (or getters if we had them),
-        # if the type is explicitly narrowed from a dynamic attribute to a static type,
-        # we can wrap it in a cast if needed, but usually just returning it is fine unless
-        # it was typed as Any/void previously.
-        # To strictly enforce the descriptor narrowing request: "if a descriptor returns a specific type, use it in V."
-        # If mypy knows `m.desc` is an `int` because of `Descriptor.__get__ -> int`, we should ensure
-        # that type is used if assigned or passed. We can use an explicit cast if it helps V.
-        # Just checking if `type_inference` has mapped `StructName.attr_name`.
-        # First, we need to know the base class name of `obj`.
         base_obj_type = self._guess_type(node.value)
         if base_obj_type and base_obj_type not in ("Any", "unknown", "void", "int", "f64", "string", "bool"):
             desc_key = f"{base_obj_type}.{node.attr}"
@@ -166,12 +155,15 @@ class AttributesMixin(TranslatorBase):
             if narrowed_desc_type and narrowed_desc_type not in ("Any", "unknown", "void"):
                 attr_name = self._sanitize_name(node.attr)
 
+                # Ensure mapped V type
+                v_narrowed_desc_type = self._map_type(narrowed_desc_type)
+
                 # Check if it corresponds to a known function first
                 if obj in self.function_names:
-                    return f"({obj}__{attr_name} as {narrowed_desc_type})"
+                    return f"({obj}__{attr_name} as {v_narrowed_desc_type})"
 
                 # Otherwise, it's a struct field access
-                return f"({obj}.{attr_name} as {narrowed_desc_type})"
+                return f"({obj}.{attr_name} as {v_narrowed_desc_type})"
 
         # Handle SCC Attribute access: imported_module.attr -> prefix__attr
         if isinstance(node.value, ast.Name) and node.value.id in self.imported_modules:
