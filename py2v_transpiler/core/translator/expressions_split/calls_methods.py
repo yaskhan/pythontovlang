@@ -105,7 +105,7 @@ class MethodCallsMixin:
         elif attr in (
             "isdigit", "isalpha", "isalnum", "isspace", "islower", "isupper", "istitle",
             "startswith", "endswith", "splitlines", "join", "strip", "lstrip", "rstrip",
-            "lower", "upper", "capitalize", "title", "find", "index", "replace", "split", "format"
+            "lower", "upper", "capitalize", "title", "find", "index", "replace", "split", "format", "format_map"
         ):
             return self._handle_string_methods(node, func_node, args)
 
@@ -251,6 +251,10 @@ class MethodCallsMixin:
                 return f"{obj}.split_nth({args[0]}, {args[1]} + 1)"
         elif attr == "format":
             return f"/* {obj}.format(...) */ {obj} //##LLM@@ .format() is not supported, use interpolation"
+        elif attr == "format_map" and len(args) == 1:
+            self.used_builtins.add("py_string_format_map")
+            self.used_builtins.add("py_format")
+            return f"py_string_format_map({obj}, {args[0]})"
         elif attr == "splitlines":
             return f"{obj}.split_into_lines()"
         elif attr == "join":

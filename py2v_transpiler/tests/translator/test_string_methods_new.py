@@ -83,3 +83,6 @@ def test_string_split():
 
 def test_string_format():
     assert translate_expr("s.format(a, b)") == "/* s.format(...) */ s //##LLM@@ .format() is not supported, use interpolation"
+
+def test_string_format_map():
+    assert translate_expr("s.format_map(data)") == "py_string_format_map(s, data)"
