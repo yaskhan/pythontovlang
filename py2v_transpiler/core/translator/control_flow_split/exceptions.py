@@ -6,13 +6,6 @@ class ExceptionsMixin(TranslatorBase):
     """Обработка исключений: try, except, raise, finally"""
     
     def visit_Raise(self, node: ast.Raise) -> None:
-        # Special case for StopIteration in next() methods
-        if node.exc and (isinstance(node.exc, ast.Name) and node.exc.id == "StopIteration" or
-                         isinstance(node.exc, ast.Call) and isinstance(node.exc.func, ast.Name) and node.exc.func.id == "StopIteration"):
-            if self._scope_names and (self._scope_names[-1] == "__next__" or self._scope_names[-1] == "next"):
-                self.output.append(f"{self._indent()}return none")
-                return
-
         if self.in_pydantic_validator:
             if node.exc:
                 if isinstance(node.exc, ast.Call):

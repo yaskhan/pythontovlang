@@ -1,3 +1,4 @@
+
 import pytest
 from .utils import TranspilerTest
 
@@ -46,9 +47,9 @@ class TestListNegativeIndexing(TranspilerTest):
         """
         v_code = """
         fn slice_ops(arr []int) {
-            println('${py_list_slice(arr, -2, none, none)}')
-            println('${py_list_slice(arr, none, -1, none)}')
-            println('${py_list_slice(arr, -3, -1, none)}')
+            println('${arr[arr.len - 2..]}')
+            println('${arr[..arr.len - 1]}')
+            println('${arr[arr.len - 3..arr.len - 1]}')
         }
         """
         self.assert_transpilation(code, v_code)

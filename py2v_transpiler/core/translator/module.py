@@ -1483,15 +1483,6 @@ mut:
     return true
 }""")
 
-        if 'py_iter' in self.used_builtins:
-             self.emitter.add_helper_function("fn py_iter[T](obj T) T { return obj }")
-
-        if 'py_list_from_iter' in self.used_builtins:
-             self.emitter.add_helper_function("fn py_list_from_iter[T, U](mut it U) T { mut res := []Any{}; for { val := it.next() or { break }; res << val }; return T(res) }")
-
-        if 'py_set_from_iter' in self.used_builtins:
-             self.emitter.add_helper_function("fn py_set_from_iter[T, U](mut it U) T { mut res := T{}; for { val := it.next() or { break }; res[val.str()] = true }; return res }")
-
         if 'py_sum' in self.used_builtins:
              self.emitter.add_helper_function("fn py_sum[T](a []T) T { mut s := T{}; for x in a { s += x }; return s }")
 
