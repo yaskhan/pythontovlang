@@ -52,7 +52,7 @@ keys = ["a", "b"]
 d = dict.fromkeys(keys, 0)
 """
     v_code, helpers = translate_full(source)
-    assert "py_dict_fromkeys<map[string]Any>(keys, 0)" in v_code
+    assert "py_dict_fromkeys[map[string]Any](keys, 0)" in v_code
     assert "fn py_dict_fromkeys" in helpers
 
 def test_dict_constructor_pairs():
@@ -60,7 +60,7 @@ def test_dict_constructor_pairs():
 d = dict([("a", 1), ("b", 2)])
 """
     v_code, helpers = translate_full(source)
-    assert "py_dict_from_pairs<map[string]Any>([['a', 1], ['b', 2]])" in v_code
+    assert "py_dict_from_pairs[map[string]Any]([['a', 1], ['b', 2]])" in v_code
     assert "fn py_dict_from_pairs" in helpers
 
 def test_dict_kwargs():
@@ -83,7 +83,7 @@ keys = ["a", "b"]
 d = dict.fromkeys(keys, [])
 """
     v_code, helpers = translate_full(source)
-    assert "py_dict_fromkeys<map[string]Any>(keys, []Any{})" in v_code
+    assert "py_dict_fromkeys[map[string]Any](keys, []Any{})" in v_code
     assert "fn py_dict_fromkeys" in helpers
 
 def test_dict_pop_no_default():

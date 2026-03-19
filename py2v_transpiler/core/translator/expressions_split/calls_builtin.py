@@ -58,7 +58,7 @@ class BuiltinCallsMixin:
             # Handle dict([("x", 10)]) -> py_dict_from_pairs
             if len(args) == 1 and not node.keywords:
                 self.used_builtins.add("py_dict_from_pairs")
-                return f"py_dict_from_pairs<{v_type}>({args[0]})"
+                return f"py_dict_from_pairs[{v_type}]({args[0]})"
 
             # Handle dict(a=1, b=2) or dict(other, a=1)
             if node.keywords:
@@ -84,7 +84,7 @@ class BuiltinCallsMixin:
                 v_type = "map[string]Any"
             self.used_builtins.add("py_dict_fromkeys")
             val = args[1] if len(args) == 2 else "none"
-            return f"py_dict_fromkeys<{v_type}>({args[0]}, {val})"
+            return f"py_dict_fromkeys[{v_type}]({args[0]}, {val})"
 
         # list()
         elif func_name_str == "list" or (original_id == "list" and func_name_str == "py_list"):
@@ -100,7 +100,7 @@ class BuiltinCallsMixin:
                     return f"{args[0]}.clone()"
                 # If it is not a known array, it might be an iterator
                 self.used_builtins.add("py_list_from_iter")
-                return f"py_list_from_iter<{v_type}>({args[0]})"
+                return f"py_list_from_iter[{v_type}]({args[0]})"
 
             return f"{v_type}({', '.join(args)})"
         
@@ -117,7 +117,7 @@ class BuiltinCallsMixin:
                     return f"{args[0]}.clone()"
                 # If it is not a known array, it might be an iterator
                 self.used_builtins.add("py_list_from_iter")
-                return f"py_list_from_iter<{v_type}>({args[0]})"
+                return f"py_list_from_iter[{v_type}]({args[0]})"
             return f"{v_type}({', '.join(args)})"
         
         # set()
@@ -137,10 +137,10 @@ class BuiltinCallsMixin:
                 arg_type = self._guess_type(node.args[0])
                 if arg_type.startswith("[]"):
                     self.used_builtins.add("py_set_from_list")
-                    return f"py_set_from_list<{v_type}>({args[0]})"
+                    return f"py_set_from_list[{v_type}]({args[0]})"
                 # If it is not a known array, it might be an iterator
                 self.used_builtins.add("py_set_from_iter")
-                return f"py_set_from_iter<{v_type}>({args[0]})"
+                return f"py_set_from_iter[{v_type}]({args[0]})"
 
             return f"{v_type}({', '.join(args)})"
         

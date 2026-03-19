@@ -67,7 +67,7 @@ class TestSetFullOps(unittest.TestCase):
         self.assertEqual(self.translate_expr("a > b"), "py_set_strict_superset(a, b)")
 
     def test_set_creation_inference(self):
-        self.assertEqual(self.translate_expr("set([1, 2])"), "py_set_from_list<map[int]bool>([1, 2])")
+        self.assertEqual(self.translate_expr("set([1, 2])"), "py_set_from_list[map[int]bool]([1, 2])")
         self.assertEqual(self.translate_expr("set()"), "map[string]bool{}")
 
 if __name__ == '__main__':

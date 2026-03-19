@@ -57,9 +57,9 @@ class TestIdiomaticIterators(TranspilerTest):
             """,
             """
             fn consume(it Any) {
-                l := py_list_from_iter<[]Any>(it)
-                s := py_set_from_iter<map[string]bool>(it)
-                t := py_list_from_iter<[]Any>(it)
+                l := py_list_from_iter[[]Any](it)
+                s := py_set_from_iter[map[string]bool](it)
+                t := py_list_from_iter[[]Any](it)
             }
             """
         )
