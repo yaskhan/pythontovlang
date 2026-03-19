@@ -31,7 +31,7 @@ class MethodCallsMixin:
             obj_type = self._guess_type(func_node.value)
             if obj_type.startswith("[]") or obj_type == "Any":
                 obj = self.visit(func_node.value)
-                return f"{obj} << {args[0]}"
+                return f"{obj} << ...{args[0]}"
         
         # list.clear() / dict.clear() / set.clear()
         elif attr == "clear":

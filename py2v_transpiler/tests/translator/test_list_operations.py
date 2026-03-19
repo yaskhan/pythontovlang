@@ -24,7 +24,7 @@ def test():
     return result
 """
     v_code = transpile(code)
-    assert "result << [1, 2, 3]" in v_code
+    assert "result << ...[1, 2, 3]" in v_code
 
 def test_list_extend_variable():
     code = """
@@ -34,7 +34,7 @@ def test(values: list[int]):
     return result
 """
     v_code = transpile(code)
-    assert "result << values" in v_code
+    assert "result << ...values" in v_code
 
 def test_list_extend_dict_values():
     code = """
@@ -45,7 +45,7 @@ def test(data: dict[str, list[int]]):
     return result
 """
     v_code = transpile(code)
-    assert "result << values" in v_code
+    assert "result << ...values" in v_code
 
 def test_list_extend_generator():
     code = """
@@ -55,4 +55,4 @@ def test():
     return result
 """
     v_code = transpile(code)
-    assert "result << py_comp" in v_code
+    assert "result << ...py_comp" in v_code
