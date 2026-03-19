@@ -17,7 +17,13 @@ class MutabilityVisitor:
         self.visited = set()
 
     def visit(self, node):
-        if node is None or id(node) in self.visited:
+        if node is None:
+            return
+        if isinstance(node, (list, tuple)):
+            for item in node:
+                self.visit(item)
+            return
+        if id(node) in self.visited:
             return
         self.visited.add(id(node))
 
@@ -243,14 +249,24 @@ class VlangPlugin(Plugin):
                 self.visited = set()
 
             def visit(self, node):
-                if node is None or id(node) in self.visited:
+                if node is None:
+                    return
+                if isinstance(node, (list, tuple)):
+                    for item in node:
+                        self.visit(item)
+                    return
+                if id(node) in self.visited:
                     return
                 self.visited.add(id(node))
 
                 typ = None
-                if node in self.type_map:
-                    typ = self.type_map[node]
-                elif hasattr(self.plugin.checker, "get_expression_type"):
+                try:
+                    if node in self.type_map:
+                        typ = self.type_map[node]
+                except TypeError:
+                    pass
+
+                if not typ and hasattr(self.plugin.checker, "get_expression_type"):
                     try:
                         typ = self.plugin.checker.get_expression_type(node)
                     except Exception:
@@ -408,12 +424,12 @@ class VlangPlugin(Plugin):
                     visitor.visit(file_node)
 
         # Collect mutability info from processed files
-        visitor = MutabilityVisitor(self.collected_mutability, MUTATING_METHODS)
+        mut_visitor = MutabilityVisitor(self.collected_mutability, MUTATING_METHODS)
         for file_node in self._files_to_process:
             if id(file_node) in self._processed_files:
                 continue
             self._processed_files.add(id(file_node))
-            visitor.visit(file_node)
+            mut_visitor.visit(file_node)
 
         # Update the module-level global dictionary
         for k, v in self.collected_types.items():

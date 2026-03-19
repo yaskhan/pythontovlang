@@ -1,0 +1,15 @@
+<<<<<<< SEARCH
+                typ = None
+                if node in self.type_map:
+                    typ = self.type_map[node]
+                elif hasattr(self.plugin.checker, "get_expression_type"):
+=======
+                typ = None
+                try:
+                    if node in self.type_map:
+                        typ = self.type_map[node]
+                except TypeError:
+                    pass
+
+                if not typ and hasattr(self.plugin.checker, "get_expression_type"):
+>>>>>>> REPLACE
