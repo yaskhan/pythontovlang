@@ -230,7 +230,7 @@ class VlangPlugin(Plugin):
                 self.plugin.collected_sigs[sh_cls][key] = json.dumps(sig_data_cls)
                 self.plugin.collected_sigs[key][key] = json.dumps(sig_data_cls)
 
-        type_map = {}
+        type_map: Dict[Any, Any] = {}
         if hasattr(self, 'checker') and self.checker:
             type_map = getattr(self.checker, 'type_map', {})
             if not type_map and hasattr(self.checker, 'expr_checker'):
