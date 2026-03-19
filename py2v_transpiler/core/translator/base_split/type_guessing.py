@@ -135,6 +135,23 @@ class TypeGuessingMixin:
                     elif factory == "set":
                         return "map[string]map[int]bool" # Best guess
                 return "map[string]Any"
+            
+            if fid == "py_range":
+                return "[]int"
+            if fid in ("py_sorted", "py_reversed"):
+                if node.args:
+                    return self._guess_type(node.args[0])
+                return "[]Any"
+            if fid == "py_zip":
+                return "[]PyZipItem"
+            if fid == "py_enumerate":
+                return "[]PyEnumerateItem"
+            if fid == "py_divmod":
+                if node.args:
+                    return f"[]{self._guess_type(node.args[0])}"
+                return "[]Any"
+            if fid in ("py_os_path_split", "py_os_path_splitext"):
+                return "[]string"
 
             # Check inferred return type
             inferred_ret = self.type_inference.type_map.get(f"{fid}@return")

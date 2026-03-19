@@ -1,8 +1,8 @@
-
 import sys
 import os
 import argparse
 import ast
+import subprocess
 from typing import List, Optional, Set
 from py2v_transpiler.config import TranspilerConfig
 from py2v_transpiler.core.parser import PyASTParser
@@ -286,6 +286,65 @@ def process_directory(path: str, config: TranspilerConfig, recursive: bool) -> N
             except Exception as e:
                 print(f"Error writing global helpers to {helpers_file}: {e}")
 
+def run_v_code(v_file: str, helpers_file: Optional[str] = None) -> bool:
+    """Compile and run V code using v run."""
+    import tempfile
+    import shutil
+    
+    # Check if v compiler is available
+    try:
+        result = subprocess.run(["v", "--version"], capture_output=True, text=True)
+        if result.returncode != 0:
+            print("Error: V compiler not found. Please install V from https://vlang.io")
+            return False
+    except FileNotFoundError:
+        print("Error: V compiler not found. Please install V from https://vlang.io")
+        return False
+
+    # Use absolute paths to ensure V can find the files
+    v_file_abs = os.path.abspath(v_file)
+    v_basename = os.path.basename(v_file_abs)
+    
+    # Create a temporary directory to avoid conflicts with other .v files
+    temp_dir = tempfile.mkdtemp(prefix="py2v_")
+    
+    try:
+        # Copy main .v file to temp directory
+        temp_v_file = os.path.join(temp_dir, v_basename)
+        shutil.copy2(v_file_abs, temp_v_file)
+        
+        # Copy helpers file if it exists
+        if helpers_file and os.path.exists(helpers_file):
+            helpers_basename = os.path.basename(helpers_file)
+            temp_helpers_file = os.path.join(temp_dir, helpers_basename)
+            shutil.copy2(helpers_file, temp_helpers_file)
+            print(f"Using helpers file: {helpers_basename}")
+        
+        # Compile from temp directory
+        cmd = ["v", "run", temp_dir]
+        
+        print(f"Compiling and running: {v_basename}")
+        print("-" * 50)
+        
+        # Run the V code
+        result = subprocess.run(cmd, capture_output=False, text=True)
+        print("-" * 50)
+        
+        if result.returncode != 0:
+            print(f"V compilation/execution failed with exit code: {result.returncode}")
+            return False
+        return True
+    except Exception as e:
+        print(f"Error running V code: {e}")
+        return False
+    finally:
+        # Clean up temporary directory
+        try:
+            shutil.rmtree(temp_dir)
+        except Exception:
+            pass  # Ignore cleanup errors
+
+
 def print_banner():
     """Print a nice banner and usage information when py2v is run without arguments."""
     banner = """
@@ -308,16 +367,18 @@ Options:
   --helpers-only        Only generate the helper V file
   --include-all-symbols Include all symbols (not just __all__)
   --strict-exports      Warn about symbols missing from __all__
+  --run                 Compile and run V code after transpilation
   -h, --help            Show this help message
 
 Examples:
   py2v script.py                    # Transpile a single file
+  py2v script.py --run              # Transpile and run V code
   py2v src/ -r                      # Transpile all files in directory
   py2v mylib/ --no-mypy             # Transpile without Mypy checks
   py2v project/ --helpers-only      # Generate only helpers file
 
 Quick Start:
-  py2v your_script.py
+  py2v your_script.py --run
 =================================================================
 """
     print(banner)
@@ -335,6 +396,7 @@ def main():
         epilog="""
 Examples:
   py2v script.py                    # Transpile a single file
+  py2v script.py --run              # Transpile and run V code
   py2v src/ -r                      # Transpile all files in directory
   py2v mylib/ --no-mypy             # Transpile without Mypy checks
   py2v project/ --helpers-only      # Generate only helpers file
@@ -350,6 +412,7 @@ Examples:
     parser.add_argument("--include-all-symbols", action="store_true", help="Include all symbols even if not in __all__")
     parser.add_argument("--strict-exports", action="store_true", help="Warn about public symbols missing from __all__")
     parser.add_argument("--experimental", action="store_true", help="Enable experimental PEP features")
+    parser.add_argument("--run", action="store_true", help="Compile and run V code after transpilation")
 
     args = parser.parse_args()
 
@@ -393,7 +456,18 @@ Examples:
         if not (path.endswith(".py") or path.endswith(".pyi")):
             print("Error: Input file must be a Python script (.py or .pyi)")
             sys.exit(1)
-        transpile_file(path, config)
+        success = transpile_file(path, config)
+        
+        # If --run flag is set and transpilation was successful, compile and run V code
+        if args.run and success:
+            v_file = os.path.splitext(path)[0] + ".v"
+            helpers_file = os.path.splitext(path)[0] + "_helpers.v"
+            
+            if not os.path.exists(helpers_file):
+                helpers_file = None
+            
+            if not run_v_code(v_file, helpers_file):
+                sys.exit(1)
     elif os.path.isdir(path):
         process_directory(path, config, args.recursive)
     else:

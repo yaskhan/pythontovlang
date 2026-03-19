@@ -130,6 +130,13 @@ class VCodeEmitter:
         """Generates the V source code for an aggregated set of helpers."""
         lines = [f"module {module_name}\n"]
 
+        # Sort and deduplicate imports - MUST BE AT THE TOP
+        unique_imports = sorted(list(set(imports)))
+        if unique_imports:
+            for imp in unique_imports:
+                lines.append(f"import {imp}")
+            lines.append("")
+
         # Define custom Any type
         lines.append("pub struct NoneType {}\n")
         lines.append("pub fn (n NoneType) str() string {\n    return 'None'\n}\n")
@@ -188,12 +195,6 @@ class VCodeEmitter:
         lines.append("    return map[string]string{}")
         lines.append("}\n")
 
-        # Sort and deduplicate imports
-        unique_imports = sorted(list(set(imports)))
-        if unique_imports:
-            for imp in unique_imports:
-                lines.append(f"import {imp}")
-            lines.append("")
 
         # Deduplicate structs (preserving order roughly)
         seen_structs = set()

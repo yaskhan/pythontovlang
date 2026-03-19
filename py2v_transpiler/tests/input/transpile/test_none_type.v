@@ -2,7 +2,7 @@ module main
 
 // @line: test_none_type.py:1:0
 pub fn test_none_check() {
-    mut value := ?string(none)
+    mut value := ?int(none)
     println('value is None: ${value == none}')
     println('value is not None: ${value != none}')
     value = 42
@@ -66,11 +66,11 @@ pub fn test_none_filter() {
 }
 // @line: test_none_type.py:55:0
 pub fn test_none_or() {
-    mut value := ?string(none)
-    mut result := if (value != none && value.len > 0) { Any(value!) } else { Any('default') }
+    mut value := ?int(none)
+    mut result := if (value != none && value != 0) { Any(value!) } else { Any('default') }
     println('None or \'default\': ${result}')
     value = 'actual'
-    result = if (value != none && value.len > 0) { Any(value!) } else { Any('default') }
+    result = if (value != none && value != 0) { Any(value!) } else { Any('default') }
     println('\'actual\' or \'default\': ${result}')
 }
 // @line: test_none_type.py:65:0

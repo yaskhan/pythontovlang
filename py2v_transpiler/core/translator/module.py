@@ -1426,7 +1426,7 @@ mut:
 }""")
         if "py_any" in self.used_builtins:
             self.used_builtins.add("py_bool")
-            self.emitter.add_helper_function("""fn py_any[T](a []T) bool {
+            self.emitter.add_helper_function("""pub fn py_any[T](a []T) bool {
     for it in a {
         $if T is bool {
             if it { return true }
@@ -1449,7 +1449,7 @@ mut:
 
         if "py_all" in self.used_builtins:
             self.used_builtins.add("py_bool")
-            self.emitter.add_helper_function("""fn py_all[T](a []T) bool {
+            self.emitter.add_helper_function("""pub fn py_all[T](a []T) bool {
     for it in a {
         $if T is bool {
             if !it { return false }
@@ -1471,7 +1471,7 @@ mut:
 }""")
 
         if "py_bool" in self.used_builtins:
-            self.emitter.add_helper_function("""fn py_bool(val Any) bool {
+            self.emitter.add_helper_function("""pub fn py_bool(val Any) bool {
     if val is bool { return val }
     if val is int { return val != 0 }
     if val is i64 { return val != 0 }
@@ -1484,45 +1484,62 @@ mut:
 }""")
 
         if 'py_iter' in self.used_builtins:
-             self.emitter.add_helper_function("fn py_iter[T](obj T) T { return obj }")
+             self.emitter.add_helper_function("pub fn py_iter[T](obj T) T { return obj }")
 
         if 'py_list_from_iter' in self.used_builtins:
-             self.emitter.add_helper_function("fn py_list_from_iter[T, U](mut it U) T { mut res := []Any{}; for { val := it.next() or { break }; res << val }; return T(res) }")
+             self.emitter.add_helper_function("pub fn py_list_from_iter[U](mut it U) []Any { mut res := []Any{}; for { val := it.next() or { break }; res << val }; return res }")
 
         if 'py_set_from_iter' in self.used_builtins:
-             self.emitter.add_helper_function("fn py_set_from_iter[T, U](mut it U) T { mut res := T{}; for { val := it.next() or { break }; res[val.str()] = true }; return res }")
+             self.emitter.add_helper_function("pub fn py_set_from_iter[U](mut it U) map[string]bool { mut res := map[string]bool{}; for { val := it.next() or { break }; res[val.str()] = true }; return res }")
 
         if 'py_sum' in self.used_builtins:
-             self.emitter.add_helper_function("fn py_sum[T](a []T) T { mut s := T{}; for x in a { s += x }; return s }")
+             self.emitter.add_helper_function("pub fn py_sum[T](a []T) T { mut s := T{}; for x in a { s += x }; return s }")
+
+        if 'py_sorted' in self.used_builtins:
+             self.emitter.add_helper_function("pub fn py_sorted[T](a []T, reverse bool) []T { mut res := a.clone(); res.sort(a < b); if reverse { res.reverse() }; return res }")
+
+        if 'py_reversed' in self.used_builtins:
+             self.emitter.add_helper_function("pub fn py_reversed[T](a []T) []T { mut res := a.clone(); res.reverse(); return res }")
 
         if 'py_min' in self.used_builtins:
-             self.emitter.add_helper_function("fn py_min[T](a []T) T { if a.len == 0 { panic('min() arg is an empty sequence') }; mut m := a[0]; for x in a { if x < m { m = x } }; return m }")
+             self.emitter.add_helper_function("pub fn py_min[T](a []T) T { if a.len == 0 { panic('min() arg is an empty sequence') }; mut m := a[0]; for x in a { if x < m { m = x } }; return m }")
 
         if 'py_max' in self.used_builtins:
-             self.emitter.add_helper_function("fn py_max[T](a []T) T { if a.len == 0 { panic('max() arg is an empty sequence') }; mut m := a[0]; for x in a { if x > m { m = x } }; return m }")
+             self.emitter.add_helper_function("pub fn py_max[T](a []T) T { if a.len == 0 { panic('max() arg is an empty sequence') }; mut m := a[0]; for x in a { if x > m { m = x } }; return m }")
 
         if 'py_zip' in self.used_builtins:
-             self.emitter.add_helper_struct("struct PyZipItem[T, U] { a T; b U }")
-             self.emitter.add_helper_function("fn py_zip[T, U](a []T, b []U) []PyZipItem[T, U] { mut res := []PyZipItem[T, U]{}; limit := if a.len < b.len { a.len } else { b.len }; for i in 0..limit { res << PyZipItem[T, U]{a: a[i], b: b[i]} }; return res }")
+             self.emitter.add_helper_struct("pub struct PyZipItem[T, U] {\npub:\n    a T\n    b U\n}")
+             self.emitter.add_helper_function("pub fn py_zip[T, U](a []T, b []U) []PyZipItem[T, U] { mut res := []PyZipItem[T, U]{}; limit := if a.len < b.len { a.len } else { b.len }; for i in 0..limit { res << PyZipItem[T, U]{a: a[i], b: b[i]} }; return res }")
 
         if 'py_enumerate' in self.used_builtins:
-             self.emitter.add_helper_struct("struct PyEnumerateItem[T] { index int; value T }")
-             self.emitter.add_helper_function("fn py_enumerate[T](a []T) []PyEnumerateItem[T] { mut res := []PyEnumerateItem[T]{}; for i, x in a { res << PyEnumerateItem[T]{index: i, value: x} }; return res }")
+             self.emitter.add_helper_struct("pub struct PyEnumerateItem[T] {\npub:\n    index int\n    value T\n}")
+             self.emitter.add_helper_function("pub fn py_enumerate[T](a []T) []PyEnumerateItem[T] { mut res := []PyEnumerateItem[T]{}; for i, x in a { res << PyEnumerateItem[T]{index: i, value: x} }; return res }")
 
         if 'py_range' in self.used_builtins:
-             self.emitter.add_helper_function("fn py_range(args ...int) []int { mut res := []int{}; if args.len == 1 { for i in 0..args[0] { res << i } } else if args.len == 2 { for i in args[0]..args[1] { res << i } } else if args.len == 3 { start := args[0]; stop := args[1]; step := args[2]; if step > 0 { for i := start; i < stop; i += step { res << i } } else if step < 0 { for i := start; i > stop; i += step { res << i } } }; return res }")
+             self.emitter.add_helper_function("pub fn py_range(args ...int) []int { mut res := []int{}; if args.len == 1 { for i in 0..args[0] { res << i } } else if args.len == 2 { for i in args[0]..args[1] { res << i } } else if args.len == 3 { start := args[0]; stop := args[1]; step := args[2]; if step > 0 { for i := start; i < stop; i += step { res << i } } else if step < 0 { for i := start; i > stop; i += step { res << i } } }; return res }")
 
         if 'py_random_sample' in self.used_builtins:
-             self.emitter.add_helper_function("fn py_random_sample[T](a []T, k int) []T { if k > a.len { panic('sample larger than population') }; mut res := []T{}; mut indices := []int{len: a.len}; for i in 0..a.len { indices[i] = i }; rand.shuffle(mut indices); for i in 0..k { res << a[indices[i]] }; return res }")
+             self.emitter.add_helper_import('rand')
+             self.emitter.add_helper_function("pub fn py_random_sample[T](a []T, k int) []T { if k > a.len { panic('sample larger than population') }; mut res := []T{}; mut indices := []int{len: a.len}; for i in 0..a.len { indices[i] = i }; rand.shuffle(mut indices) or { panic(err) }; for i in 0..k { res << a[indices[i]] }; return res }")
+
+        if 'py_divmod' in self.used_builtins:
+             self.emitter.add_helper_import('math')
+             self.emitter.add_helper_function("""pub fn py_divmod[T](a T, b T) []T {
+    $if T is f64 {
+        q := math.floor(a / b)
+        r := a - q * b
+        return [q, r]
+    } $else {
+        return [a / b, a % b]
+    }
+}""")
 
         if 'py_os_path_split' in self.used_builtins:
              self.emitter.add_helper_import('os')
-             self.emitter.add_helper_struct("struct PyPathSplit { dir string; base string }")
-             self.emitter.add_helper_function("fn py_os_path_split(path string) PyPathSplit { return PyPathSplit{ dir: os.dir(path), base: os.base(path) } }")
+             self.emitter.add_helper_function("pub fn py_os_path_split(path string) []string { return [os.dir(path), os.base(path)] }")
 
         if 'py_os_path_splitext' in self.used_builtins:
              self.emitter.add_helper_import('os')
-             self.emitter.add_helper_struct("struct PyPathSplitExt { root string; ext string }")
-             self.emitter.add_helper_function("fn py_os_path_splitext(path string) PyPathSplitExt { ext := os.file_ext(path); return PyPathSplitExt{ root: path[..path.len - ext.len], ext: ext } }")
+             self.emitter.add_helper_function("pub fn py_os_path_splitext(path string) []string { ext := os.file_ext(path); return [path[..path.len - ext.len], ext] }")
 
         return self.emitter.emit()

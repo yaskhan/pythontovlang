@@ -3,11 +3,11 @@ module main
 // @line: test_string_methods.py:1:0
 pub fn test_basic_string_methods() {
     mut s := '  Hello, World!  '
-    println('${s.strip()}')
-    println('${s.lstrip()}')
-    println('${s.rstrip()}')
-    println('${s.lower()}')
-    println('${s.upper()}')
+    println('${s.trim_space()}')
+    println('${s.trim_left(' \n\r\t\v\f')}')
+    println('${s.trim_right(' \n\r\t\v\f')}')
+    println('${s.to_lower()}')
+    println('${s.to_upper()}')
     println('${s.capitalize()}')
     println('${s.title()}')
 }
@@ -18,7 +18,7 @@ pub fn test_string_split_join() {
     println('${parts}')
     joined := parts.join('-')
     println('${joined}')
-    limited := text.split(',', 1)
+    limited := text.split_nth(',', 1 + 1)
     println('${limited}')
 }
 // @line: test_string_methods.py:24:0
@@ -27,15 +27,15 @@ pub fn test_string_replace() {
     replaced := s.replace('world', 'universe')
     println('${replaced}')
     mut s2 := 'aaaabaaa'
-    replaced2 := s2.replace('a', 'x', 3)
+    replaced2 := s2.replace_n('a', 'x', 3)
     println('${replaced2}')
 }
 // @line: test_string_methods.py:34:0
 pub fn test_string_find_index() {
     mut s := 'hello world'
-    println('${s.find('world')}')
-    println('${s.find('python')}')
-    println('${s.index('world')}')
+    println('${s.index('world') or { -1 }}')
+    println('${s.index('python') or { -1 }}')
+    println('${s.index('world') or { panic('ValueError: substring not found') }}')
     println('${s.starts_with('hello')}')
     println('${s.ends_with('world')}')
 }
@@ -43,13 +43,13 @@ pub fn test_string_find_index() {
 pub fn test_string_format() {
     name := 'Alice'
     age := 30
-    msg := 'My name is {} and I am {}'.format(name, age)
+    msg := /* 'My name is {} and I am {}'.format(...) */ 'My name is {} and I am {}' //##LLM@@ .format() is not supported, use interpolation
     println('${msg}')
-    msg2 := 'My name is {name} and I am {age}'.format()
+    msg2 := /* 'My name is {name} and I am {age}'.format(...) */ 'My name is {name} and I am {age}' //##LLM@@ .format() is not supported, use interpolation
     println('${msg2}')
     pi := 3.14159265359
-    println('${'Pi: {:.2f}'.format(pi)}')
-    println('${'Number: {:05d}'.format(42)}')
+    println('${/* 'Pi: {:.2f}'.format(...) */ 'Pi: {:.2f}' //##LLM@@ .format() is not supported, use interpolation}')
+    println('${/* 'Number: {:05d}'.format(...) */ 'Number: {:05d}' //##LLM@@ .format() is not supported, use interpolation}')
 }
 // @line: test_string_methods.py:61:0
 pub fn test_string_slicing() {
@@ -57,7 +57,7 @@ pub fn test_string_slicing() {
     println('${s[0..4]}')
     println('${s[4..]}')
     println('${s[..4]}')
-    println('${s[s.len - 3..]}')
+    println('${py_str_slice(s, -3, none, none)}')
     println('${py_str_slice(s, none, none, 2)}')
     println('${py_str_reverse(s)}')
 }

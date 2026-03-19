@@ -90,7 +90,7 @@ pub fn test_function_return() {
 pub fn test_function_multiple_returns() {
 // @line: test_function_defs.py:67:4
     mut min_max := fn (nums Any) Any {
-        return [min(nums), max(nums)]
+        return [py_min(nums), py_max(nums)]
     }
     mut result := min_max([3, 1, 4, 1, 5, 9])
     println('Min and max: ${result}')

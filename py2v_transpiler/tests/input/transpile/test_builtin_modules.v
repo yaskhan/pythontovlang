@@ -12,7 +12,7 @@ pub fn test_math_functions() {
     println('Pow(2, 3): ${math.pow(f64(2), f64(3))}')
     println('Ceil(3.2): ${math.ceil(f64(3.2))}')
     println('Floor(3.8): ${math.floor(f64(3.8))}')
-    println('Abs(-5): ${abs(-5)}')
+    println('Abs(-5): ${(if -5 < 0 { -(-5) } else { -5 })}')
     println('Round(3.5): ${math.round(3.5)}')
     println('Round(3.14159, 2): ${py_round(f64(3.14159), 2)}')
     println('Sin(0): ${math.sin(f64(0))}')
@@ -31,7 +31,7 @@ pub fn test_random_functions() {
     choices := ['apple', 'banana', 'cherry']
     println('Choice: ${choices[rand.intn(choices.len)]}')
     println('Sample: ${py_random_sample(choices, 2)}')
-    rand.shuffle(choices)
+    rand.shuffle(mut choices)
     println('Shuffled: ${choices}')
 }
 // @line: test_builtin_modules.py:42:0
@@ -55,16 +55,16 @@ pub fn test_os_functions() {
 // @line: test_builtin_modules.py:64:0
 pub fn test_builtin_functions() {
     println('Len: ${[1, 2, 3, 4, 5].len}')
-    println('Range: ${[]Any(py_range(5))}')
-    println('Range with start: ${[]Any(py_range(2, 7))}')
-    println('Range with step: ${[]Any(py_range(0, 10, 2))}')
+    println('Range: ${py_list_from_iter<[]Any>(py_range(5))}')
+    println('Range with start: ${py_list_from_iter<[]Any>(py_range(2, 7))}')
+    println('Range with step: ${py_list_from_iter<[]Any>(py_range(0, 10, 2))}')
     nums := [5, 2, 8, 1, 9]
     println('Sum: ${py_sum(nums)}')
     println('Min: ${py_min(nums)}')
     println('Max: ${py_max(nums)}')
-    println('Abs: ${abs(-10)}')
-    println('Pow: ${pow(2, 10)}')
-    py_destruct_2 := divmod(17, 5)
+    println('Abs: ${(if -10 < 0 { -(-10) } else { -10 })}')
+    println('Pow: ${math.pow(f64(2), f64(10))}')
+    py_destruct_2 := py_divmod(17, 5)
     q := py_destruct_2[0]
     r := py_destruct_2[1]
     println('Divmod: quotient=${q}, remainder=${r}')
@@ -72,8 +72,8 @@ pub fn test_builtin_functions() {
     println('All with False: ${py_all([true, false, true])}')
     println('Any True: ${py_any([false, false, true])}')
     println('Any False: ${py_any([false, false, false])}')
-    println('Ord(\'A\'): ${ord("A")}')
-    println('Chr(65): ${chr(65)}')
+    println('Ord(\'A\'): ${int("A"[0])}')
+    println('Chr(65): ${u8(65).ascii_str()}')
 }
 // @line: test_builtin_modules.py:97:0
 pub fn test_string_builtin() {
@@ -89,11 +89,11 @@ pub fn test_list_builtin() {
     lst := [3, 1, 4, 1, 5, 9, 2, 6]
     println('Sorted: ${py_sorted(lst)}')
     println('Sorted desc: ${py_sorted(lst)}')
-    println('Reversed: ${[]Any(py_reversed(lst))}')
+    println('Reversed: ${py_list_from_iter<[]Any>(py_reversed(lst))}')
     names := ['Alice', 'Bob', 'Charlie']
     ages := [25, 30, 35]
-    println('Zipped: ${[]Any(py_zip(names, ages))}')
-    println('Enumerated: ${[]Any(py_enumerate(["a", "b", "c"]))}')
+    println('Zipped: ${py_list_from_iter<[]Any>(py_zip(names, ages))}')
+    println('Enumerated: ${py_list_from_iter<[]Any>(py_enumerate(["a", "b", "c"]))}')
 }
 // @line: test_builtin_modules.py:121:0
 pub fn test() {

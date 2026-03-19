@@ -47,7 +47,7 @@ pub fn test_list_index_count() {
     lst << 4
     lst << 2
     lst << 5
-    idx := lst.index(3)
+    idx := lst.index(3) or { panic('ValueError: substring not found') }
     println('Index of 3: ${idx}')
     cnt := lst.filter(it == 2).len
     println('Count of 2: ${cnt}')

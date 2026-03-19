@@ -59,13 +59,25 @@ class GeneratorCallsMixin:
         
         # sorted()
         if func_name_str == "sorted":
-            self.used_builtins.add("sorted")
-            return f"py_sorted({', '.join(args)})"
+            self.used_builtins.add("py_sorted")
+            # Handle reverse and key
+            reverse_val = "false"
+            has_key = False
+            for kw in node.keywords:
+                if kw.arg == "reverse":
+                    reverse_val = self.visit(kw.value)
+                if kw.arg == "key":
+                    has_key = True
+            
+            if has_key:
+                return f"/* //##LLM@@ sorted with 'key' is not supported */ py_sorted({args[0]}, {reverse_val})"
+            
+            return f"py_sorted({args[0]}, {reverse_val})"
         
         # reversed()
         if func_name_str == "reversed":
-            self.used_builtins.add("reversed")
-            return f"py_reversed({', '.join(args)})"
+            self.used_builtins.add("py_reversed")
+            return f"py_reversed({args[0]})"
         
         # map()
         if func_name_str == "map" and len(args) == 2:
