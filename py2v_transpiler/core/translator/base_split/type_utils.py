@@ -31,6 +31,10 @@ class TypeUtilsMixin:
         """Checks if a V type is a collection that requires .clone() for mutable assignment."""
         return v_type.startswith("[]") or v_type.startswith("map[")
 
+    def _is_tuple_struct(self, v_type: str) -> bool:
+        """Checks if a V type is a generated tuple struct."""
+        return v_type.startswith("TupleStruct_")
+
     def _is_string_type(self, v_type: str) -> bool:
         return v_type == "string" or v_type == "LiteralString"
 

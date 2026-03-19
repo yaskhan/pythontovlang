@@ -138,8 +138,25 @@ class ComprehensionsMixin(TranslatorBase):
                     else:
                         self.output.append(f"{self._indent()}//##LLM@@ Enumerate used with a single target variable instead of unpacking. Please rewrite to unpack the index and value properly.")
 
-        self.output.append(f"{self._indent()}for {target} in {iter_expr} {{")
-        self._indent_level += 1
+        is_enumerate = isinstance(gen.iter, ast.Call) and getattr(gen.iter.func, "id", "") == "enumerate"
+        if isinstance(gen.target, ast.Tuple) and not is_enumerate:
+             val_name = f"py_comp_val_{id(gen)}"
+             self.output.append(f"{self._indent()}for {val_name} in {iter_expr} {{")
+             self._indent_level += 1
+
+             iter_t = getattr(self, "_guess_type", lambda x: "unknown")(gen.iter)
+             elt_t = "unknown"
+             if iter_t.startswith("[]"):
+                  elt_t = iter_t[2:]
+             is_tuple = self._is_tuple_struct(elt_t)
+
+             for i, elt in enumerate(gen.target.elts):
+                 elt_name = self.visit(elt)
+                 idx_expr = f"{val_name}.it_{i}" if is_tuple else f"{val_name}[{i}]"
+                 self.output.append(f"{self._indent()}{elt_name} := {idx_expr}")
+        else:
+             self.output.append(f"{self._indent()}for {target} in {iter_expr} {{")
+             self._indent_level += 1
 
         for if_expr in gen.ifs:
             cond = self.visit(if_expr)

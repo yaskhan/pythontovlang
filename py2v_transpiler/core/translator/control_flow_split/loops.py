@@ -297,9 +297,17 @@ class LoopsMixin(TranslatorBase):
             val_name = f"py_val_{id(node)}"
             self.output.append(f"{self._indent()}for {val_name} in {iter_expr} {{")
             self._indent_level += 1
+
+            iter_t = getattr(self, "_guess_type", lambda x: "unknown")(node.iter)
+            elt_t = "unknown"
+            if iter_t.startswith("[]"):
+                 elt_t = iter_t[2:]
+            is_tuple = self._is_tuple_struct(elt_t)
+
             for i, elt in enumerate(node.target.elts):
                 elt_name = self.visit(elt)
-                self.output.append(f"{self._indent()}{elt_name} := {val_name}[{i}]")
+                idx_expr = f"{val_name}.it_{i}" if is_tuple else f"{val_name}[{i}]"
+                self.output.append(f"{self._indent()}{elt_name} := {idx_expr}")
             for stmt in node.body:
                 self.visit(stmt)
             self._indent_level -= 1

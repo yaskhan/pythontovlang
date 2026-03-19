@@ -306,7 +306,8 @@ class AssignmentsMixin(TranslatorBase):
                   return
 
              # Use recursive destructuring helper
-             self._visit_destructuring(target, rhs)
+             rhs_type = self._guess_type(node.value)
+             self._visit_destructuring(target, rhs, rhs_type)
              return
 
         if len(node.targets) > 1:
@@ -318,7 +319,7 @@ class AssignmentsMixin(TranslatorBase):
 
             for t in node.targets:
                 # Reset rhs for each target to avoid accumulation of .clone()
-                self._visit_destructuring(t, tmp)
+                self._visit_destructuring(t, tmp, rhs_type)
             return
 
         if not lhs:
@@ -640,11 +641,12 @@ class AssignmentsMixin(TranslatorBase):
                             # if it's going to init(), it shouldn't be := if it's a global
                             emit_fn(f"{self._indent()}{v_lhs} = {rhs}")
 
-    def _visit_destructuring(self, target: ast.AST, source_expr: str) -> None:
+    def _visit_destructuring(self, target: ast.AST, source_expr: str, source_type: str = "unknown") -> None:
         """
         Recursively handles destructuring assignments, including nested tuples/lists.
         target: The AST node for the target (Tuple, List, Name, etc.)
         source_expr: The V expression representing the value to unpack (e.g. `_destruct_0`, `my_list[1]`)
+        source_type: The inferred V type of the source expression.
         """
         if isinstance(target, (ast.Tuple, ast.List)):
              # Assign source to a temporary variable to avoid repeated evaluation
@@ -659,17 +661,21 @@ class AssignmentsMixin(TranslatorBase):
                      starred_idx = i
                      break
 
+             is_tuple = self._is_tuple_struct(source_type)
+
              if starred_idx == -1:
                  # Simple unpacking: a, b = l
                  for i, elt in enumerate(target.elts):
                      # Recursive call for each element
-                     self._visit_destructuring(elt, f"{tmp_var}[{i}]")
+                     idx_expr = f"{tmp_var}.it_{i}" if is_tuple else f"{tmp_var}[{i}]"
+                     self._visit_destructuring(elt, idx_expr)
              else:
                  # Starred unpacking
                  # Pre-star
                  for i in range(starred_idx):
                      elt = target.elts[i]
-                     self._visit_destructuring(elt, f"{tmp_var}[{i}]")
+                     idx_expr = f"{tmp_var}.it_{i}" if is_tuple else f"{tmp_var}[{i}]"
+                     self._visit_destructuring(elt, idx_expr)
 
                  # Star
                  star_elt = target.elts[starred_idx]
@@ -688,7 +694,8 @@ class AssignmentsMixin(TranslatorBase):
                  for i in range(starred_idx + 1, len(target.elts)):
                      elt = target.elts[i]
                      offset = len(target.elts) - i
-                     self._visit_destructuring(elt, f"{tmp_var}[{tmp_var}.len-{offset}]")
+                     idx_expr = f"{tmp_var}.it_{i}" if is_tuple else f"{tmp_var}[{tmp_var}.len-{offset}]"
+                     self._visit_destructuring(elt, idx_expr)
 
         elif isinstance(target, ast.Name):
             lhs = self.visit(target)
