@@ -169,6 +169,13 @@ class TypeUtilsMixin:
             'u32', 'u64', 'i8', 'i16', 'u8', 'u16',
             'Final', 'ClassVar', 'LiteralString', 'Self'
         )
+        
+        # Handle nested classes resolution
+        if v_type not in basic_v_types and struct_name:
+             potential_nested = f"{struct_name}_{v_type}"
+             if hasattr(self, 'defined_classes') and potential_nested in self.defined_classes:
+                  v_type = potential_nested
+
         if v_type in basic_v_types:
             return v_type
 

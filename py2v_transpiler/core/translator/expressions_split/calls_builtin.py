@@ -113,7 +113,7 @@ class BuiltinCallsMixin:
                 return f"{v_type}{{}}"
             if len(args) == 1:
                 arg_type = self._guess_type(node.args[0])
-                if arg_type.startswith("[]") or arg_type == "Any":
+                if arg_type.startswith("[]"):
                     return f"{args[0]}.clone()"
                 # If it is not a known array, it might be an iterator
                 self.used_builtins.add("py_list_from_iter")
