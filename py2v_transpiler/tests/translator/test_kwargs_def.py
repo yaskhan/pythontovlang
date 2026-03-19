@@ -17,7 +17,7 @@ def f(**kwargs):
     pass
 """
     v_code = transpile(code)
-    assert "fn f(kwargs map[string]string)" in v_code
+    assert "fn f(kwargs map[string]Any)" in v_code
 
 def test_kwargs_def_mixed():
     code = """
@@ -25,4 +25,4 @@ def f(a, **kwargs):
     pass
 """
     v_code = transpile(code)
-    assert "fn f(a int, kwargs map[string]string)" in v_code
+    assert "fn f(a int, kwargs map[string]Any)" in v_code
