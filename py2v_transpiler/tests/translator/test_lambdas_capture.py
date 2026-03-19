@@ -47,7 +47,7 @@ def test_lambda_variadic_args_order():
 
     # Variadic (args) must be last in V signature
     # Type inference might return 'Any' for args[0]
-    assert "fn (kwargs map[string]int, args ...int)" in result
+    assert "fn (kwargs map[string]Any, args []Any)" in result
     assert "//##LLM@@ Lambda has both *args and **kwargs" in result
 
 def test_lambda_kwonly_args():

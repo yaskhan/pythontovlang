@@ -44,7 +44,7 @@ class OtherFunctionVisitorsMixin(TranslatorBase):
         if node.args.kwarg:
             arg_name = self._sanitize_name(node.args.kwarg.arg)
             current_scope.add(node.args.kwarg.arg)
-            arg_type = "map[string]int"
+            arg_type = "map[string]Any"
             if hasattr(self, 'type_inference') and hasattr(self.type_inference, 'type_map'):
                 inferred = self.type_inference.type_map.get(arg_name)
                 if inferred:
@@ -54,13 +54,17 @@ class OtherFunctionVisitorsMixin(TranslatorBase):
         if node.args.vararg:
             arg_name = self._sanitize_name(node.args.vararg.arg)
             current_scope.add(node.args.vararg.arg)
-            arg_type = "int"
+            arg_type = "Any"
             if hasattr(self, 'type_inference') and hasattr(self.type_inference, 'type_map'):
                 inferred = self.type_inference.type_map.get(arg_name)
                 if inferred:
                     arg_type = self._map_type(inferred)
-            if arg_type.startswith("[]"): arg_type = arg_type[2:]
-            args_str_list.append(f"{arg_name} ...{arg_type}")
+
+            # Lambdas are closures in V, and V closures do not support variadic parameters.
+            # We use a slice instead.
+            if not arg_type.startswith("[]"):
+                arg_type = f"[]{arg_type}"
+            args_str_list.append(f"{arg_name} {arg_type}")
 
         args_str = ", ".join(args_str_list)
 

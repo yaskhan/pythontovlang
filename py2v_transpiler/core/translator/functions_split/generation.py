@@ -272,7 +272,7 @@ class FunctionGenerationMixin:
 
         if node.args.vararg:
             arg_name = self._sanitize_name(node.args.vararg.arg)
-            arg_type = "int"  # Default
+            arg_type = "Any"  # Default
             if node.args.vararg.annotation:
                 try:
                     type_str = ast.unparse(node.args.vararg.annotation)
@@ -282,11 +282,19 @@ class FunctionGenerationMixin:
             else:
                 inferred = self.type_inference.type_map.get(arg_name)
                 if isinstance(inferred, str):
-                    arg_type = inferred
-            if arg_type.startswith("[]"): arg_type = arg_type[2:]
-            args_str_list.append(f"{arg_name} ...{arg_type}")
+                    arg_type = self._map_type(inferred, struct_name)
+
+            if is_nested:
+                if not arg_type.startswith("[]"):
+                    arg_type = f"[]{arg_type}"
+                args_str_list.append(f"{arg_name} {arg_type}")
+                annotations_data[arg_name] = arg_type
+            else:
+                if arg_type.startswith("[]"):
+                    arg_type = arg_type[2:]
+                args_str_list.append(f"{arg_name} ...{arg_type}")
+                annotations_data[arg_name] = f"...{arg_type}"
             args_names.append(arg_name)
-            annotations_data[arg_name] = f"...{arg_type}"
 
         if getattr(node, "args", None) and getattr(node.args, "vararg", None) and getattr(node.args, "kwarg", None):
             llm_comment = f"//##LLM@@ Function `{original_node_name}` has both *args and **kwargs. V requires the variadic parameter (...args) to be the final parameter. Please reorder the parameters so that the variadic parameter is last, and update all calls to this function accordingly."
@@ -294,7 +302,7 @@ class FunctionGenerationMixin:
 
         if node.args.kwarg:
             arg_name = self._sanitize_name(node.args.kwarg.arg)
-            arg_type = "map[string]string"
+            arg_type = "map[string]Any"
             if node.args.kwarg.annotation:
                 try:
                     type_str = ast.unparse(node.args.kwarg.annotation)
@@ -304,7 +312,7 @@ class FunctionGenerationMixin:
             else:
                 inferred = self.type_inference.type_map.get(arg_name)
                 if isinstance(inferred, str):
-                    arg_type = inferred
+                    arg_type = self._map_type(inferred, struct_name)
             args_str_list.append(f"{arg_name} {arg_type}")
             args_names.append(arg_name)
             annotations_data[arg_name] = arg_type
