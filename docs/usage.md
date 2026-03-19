@@ -40,6 +40,7 @@ py2v --analyze-deps path/to/project/
 | `--warn-dynamic` | | Emit warnings for variables that fell back to `Any` type |
 | `--no-helpers` | | Don't generate helper functions file |
 | `--helpers-only` | | Only generate helpers file, skip transpiled sources |
+| `--run` | | Transpile, compile with V, and run the resulting program |
 | `--help` | `-h` | Show help message |
 
 ## Usage Examples
@@ -81,6 +82,28 @@ py2v --analyze-deps myproject/
 
 # Output shows import graph and identifies unsupported modules
 ```
+
+### Transpile and Run
+
+The `--run` flag transpiles your Python code, compiles it with the V compiler, and immediately runs the resulting executable:
+
+```bash
+# Transpile, compile, and run in one command
+py2v script.py --run
+```
+
+This is useful for quick testing and development iterations. The V compiler must be installed and available in your PATH.
+
+**Requirements:**
+- V compiler installed ([vlang.io](https://vlang.io))
+- V compiler accessible via `v` command in your terminal
+
+**How it works:**
+1. Transpiles `script.py` to `script.v`
+2. Generates `script_helpers.v` with required helper functions
+3. Compiles both V files using `v run`
+4. Executes the compiled program
+5. Cleans up temporary files
 
 ## Programmatic Usage
 
