@@ -4,11 +4,34 @@ from ..base import TranslatorBase
 
 class LoopsMixin(TranslatorBase):
     """Loop handling: for, async for, while"""
+    def _has_break(self, nodes: list[ast.stmt]) -> bool:
+        for node in nodes:
+            if isinstance(node, ast.Break):
+                return True
+            if isinstance(node, ast.If):
+                if self._has_break(node.body) or self._has_break(node.orelse):
+                    return True
+            elif isinstance(node, (ast.With, ast.AsyncWith)):
+                if self._has_break(node.body):
+                    return True
+            elif isinstance(node, ast.Try):
+                if self._has_break(node.body) or self._has_break(node.orelse) or self._has_break(node.finalbody):
+                    return True
+                for handler in node.handlers:
+                    if self._has_break(handler.body):
+                        return True
+            elif isinstance(node, getattr(ast, 'Match', type(None))):
+                for case in getattr(node, "cases", []):
+                    if self._has_break(case.body):
+                        return True
+        return False
+
     
     def visit_While(self, node: ast.While) -> None:
         loop_ctx: Dict[str, Any] = {}
         flag_name = ""
-        if node.orelse:
+        has_break = self._has_break(node.body)
+        if node.orelse and has_break:
             flag_name = f"py_loop_completed_{self.unique_id_counter}"
             self.unique_id_counter += 1
             self.output.append(f"{self._indent()}mut {flag_name} := true")
@@ -48,12 +71,16 @@ class LoopsMixin(TranslatorBase):
         self.loop_stack.pop()
 
         if node.orelse:
-            self.output.append(f"{self._indent()}if {flag_name} {{")
-            self._indent_level += 1
-            for stmt in node.orelse:
-                self.visit(stmt)
-            self._indent_level -= 1
-            self.output.append(f"{self._indent()}}}")
+            if flag_name:
+                self.output.append(f"{self._indent()}if {flag_name} {{")
+                self._indent_level += 1
+                for stmt in node.orelse:
+                    self.visit(stmt)
+                self._indent_level -= 1
+                self.output.append(f"{self._indent()}}}")
+            else:
+                for stmt in node.orelse:
+                    self.visit(stmt)
 
     def visit_AsyncFor(self, node: ast.AsyncFor) -> None:
         # Treat async for similar to for loop over channel
@@ -113,7 +140,8 @@ class LoopsMixin(TranslatorBase):
     def visit_For(self, node: ast.For) -> None:
         loop_ctx: Dict[str, Any] = {}
         flag_name = ""
-        if node.orelse:
+        has_break = self._has_break(node.body)
+        if node.orelse and has_break:
             flag_name = f"py_loop_completed_{self.unique_id_counter}"
             self.unique_id_counter += 1
             self.output.append(f"{self._indent()}mut {flag_name} := true")
@@ -167,12 +195,16 @@ class LoopsMixin(TranslatorBase):
 
                 self.loop_stack.pop()
                 if node.orelse:
-                     self.output.append(f"{self._indent()}if {flag_name} {{")
-                     self._indent_level += 1
-                     for stmt in node.orelse:
-                         self.visit(stmt)
-                     self._indent_level -= 1
-                     self.output.append(f"{self._indent()}}}")
+                     if flag_name:
+                         self.output.append(f"{self._indent()}if {flag_name} {{")
+                         self._indent_level += 1
+                         for stmt in node.orelse:
+                             self.visit(stmt)
+                         self._indent_level -= 1
+                         self.output.append(f"{self._indent()}}}")
+                     else:
+                         for stmt in node.orelse:
+                             self.visit(stmt)
                 return
 
         target = self.visit(node.target)
@@ -217,12 +249,16 @@ class LoopsMixin(TranslatorBase):
 
                      self.loop_stack.pop()
                      if node.orelse:
-                         self.output.append(f"{self._indent()}if {flag_name} {{")
-                         self._indent_level += 1
-                         for stmt in node.orelse:
-                             self.visit(stmt)
-                         self._indent_level -= 1
-                         self.output.append(f"{self._indent()}}}")
+                         if flag_name:
+                             self.output.append(f"{self._indent()}if {flag_name} {{")
+                             self._indent_level += 1
+                             for stmt in node.orelse:
+                                 self.visit(stmt)
+                             self._indent_level -= 1
+                             self.output.append(f"{self._indent()}}}")
+                         else:
+                             for stmt in node.orelse:
+                                 self.visit(stmt)
                      return
                  start = "0"
                  stop = "0"
@@ -272,12 +308,16 @@ class LoopsMixin(TranslatorBase):
 
             # Handle orelse (from feat branch)
             if node.orelse:
-                self.output.append(f"{self._indent()}if {flag_name} {{")
-                self._indent_level += 1
-                for stmt in node.orelse:
-                    self.visit(stmt)
-                self._indent_level -= 1
-                self.output.append(f"{self._indent()}}}")
+                if flag_name:
+                    self.output.append(f"{self._indent()}if {flag_name} {{")
+                    self._indent_level += 1
+                    for stmt in node.orelse:
+                        self.visit(stmt)
+                    self._indent_level -= 1
+                    self.output.append(f"{self._indent()}}}")
+                else:
+                    for stmt in node.orelse:
+                        self.visit(stmt)
             return
 
         # 2. Prepare target for dict.items
@@ -339,9 +379,13 @@ class LoopsMixin(TranslatorBase):
 
         self.loop_stack.pop()
         if node.orelse:
-            self.output.append(f"{self._indent()}if {flag_name} {{")
-            self._indent_level += 1
-            for stmt in node.orelse:
-                self.visit(stmt)
-            self._indent_level -= 1
-            self.output.append(f"{self._indent()}}}")
+            if flag_name:
+                self.output.append(f"{self._indent()}if {flag_name} {{")
+                self._indent_level += 1
+                for stmt in node.orelse:
+                    self.visit(stmt)
+                self._indent_level -= 1
+                self.output.append(f"{self._indent()}}}")
+            else:
+                for stmt in node.orelse:
+                    self.visit(stmt)

@@ -59,7 +59,7 @@ class CompatibilityLayer:
         # But since we use regex on the whole source, it's hard to be perfect without tokenizing.
         # However, PEP 750 t-strings must be at the start of a token.
         # Using a negative lookbehind for quotes might help.
-        return re.sub(r'(?<![\'"])\b(rt|tr|t)(["\']{1,3})', replace_prefix, source, flags=re.IGNORECASE)
+        return re.sub(r'(?<![\\\'\"\w])\b(rt|tr|t)(["\']{1,3})', replace_prefix, source, flags=re.IGNORECASE)
 
     def _preprocess_generic_match(self, source: str) -> str:
         """
