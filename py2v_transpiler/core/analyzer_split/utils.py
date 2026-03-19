@@ -61,6 +61,7 @@ class TypeInferenceUtilsMixin(TypeInferenceBase):
              if isinstance(node.func, ast.Name) and node.func.id == "int": return "int"
              if isinstance(node.func, ast.Name) and node.func.id == "float": return "f64"
              if isinstance(node.func, ast.Name) and node.func.id == "bool": return "bool"
+             if isinstance(node.func, ast.Name) and node.func.id in ("bytearray", "bytes", "memoryview"): return "[]u8"
              if isinstance(node.func, ast.Name) and node.func.id[0].isupper(): return node.func.id
              return "Any"
         elif isinstance(node, ast.List):

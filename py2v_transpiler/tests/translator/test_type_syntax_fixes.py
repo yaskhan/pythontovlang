@@ -12,7 +12,8 @@ def translate(py_code: str) -> str:
     tree = parser.parse(py_code)
     analyzer.analyze(tree)
     translator = VNodeVisitor(analyzer)
-    return translator.visit_Module(cast(ast.Module, tree))
+    translator.visit_Module(cast(ast.Module, tree))
+    return translator.emitter.emit() + "\n" + translator.emitter.emit_helpers()
 
 def test_fixed_size_tuple_mapping():
     py_code = """
@@ -20,7 +21,7 @@ def get_point(p: tuple[int, int]) -> tuple[int, int]:
     return p
 """
     v_code = translate(py_code)
-    assert "fn get_point(p [2]int) [2]int {" in v_code
+    assert "fn get_point(p TupleStruct_IntInt) TupleStruct_IntInt {" in v_code
     assert "return p" in v_code
 
 def test_heterogeneous_tuple_mapping():
@@ -30,7 +31,7 @@ def process_data(data: Tuple[int, str]):
     pass
 """
     v_code = translate(py_code)
-    assert "fn process_data(data [2]Any) {" in v_code
+    assert "fn process_data(data TupleStruct_IntString) {" in v_code
 
 def test_union_to_named_sum_type():
     py_code = """

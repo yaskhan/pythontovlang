@@ -226,3 +226,9 @@ class TranslatorStateMixin:
                                 self.type_inference.type_map[t_elt.id] = arg_type
                             elif isinstance(arg, ast.Call) and isinstance(arg.func, ast.Name) and arg.func.id == "range":
                                 self.type_inference.type_map[t_elt.id] = "int"
+                            elif isinstance(arg, ast.Name):
+                                arg_type = self.type_inference.type_map.get(arg.id, "Any")
+                                if arg_type.startswith("[]"):
+                                     self.type_inference.type_map[t_elt.id] = arg_type[2:]
+                                elif arg_type == "string":
+                                     self.type_inference.type_map[t_elt.id] = "u8"

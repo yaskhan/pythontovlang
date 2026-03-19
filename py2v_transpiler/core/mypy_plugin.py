@@ -1,4 +1,4 @@
-from mypy.plugin import Plugin
+from mypy.plugin import Plugin, ReportConfigContext
 from typing import Any, Dict, Optional, List, Union, cast
 import json
 from mypy.nodes import Var, AssignmentStmt, OperatorAssignmentStmt, CallExpr, MypyFile, ClassDef, FuncDef, Block, IfStmt, WhileStmt, ForStmt, TryStmt, NameExpr, MemberExpr, IndexExpr, TupleExpr, ListExpr, DictExpr, SetExpr, SymbolNode

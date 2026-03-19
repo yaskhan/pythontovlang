@@ -29,7 +29,8 @@ class OperatorsMixin(TranslatorBase):
                 length = self.visit(node.right)
                 elem_type = self._guess_type(init_node)
 
-                if init_val == "none":
+                if init_val == "none" or init_val == "Any(NoneType{})":
+                    init_val = "none"
                     expected_type = getattr(self, "current_assignment_type", None)
                     if expected_type and expected_type.startswith("[]"):
                         elem_type = expected_type[2:]
@@ -51,7 +52,8 @@ class OperatorsMixin(TranslatorBase):
                 length = self.visit(node.left)
                 elem_type = self._guess_type(init_node)
 
-                if init_val == "none":
+                if init_val == "none" or init_val == "Any(NoneType{})":
+                    init_val = "none"
                     expected_type = getattr(self, "current_assignment_type", None)
                     if expected_type and expected_type.startswith("[]"):
                         elem_type = expected_type[2:]

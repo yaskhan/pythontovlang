@@ -12,7 +12,7 @@ class TestUnionTypes(unittest.TestCase):
     def transpile(self, source):
         tree = ast.parse(source)
         self.translator.visit(tree)
-        return self.translator.emitter.emit()
+        return self.translator.emitter.emit() + "\n" + self.translator.emitter.emit_helpers()
 
     def test_union_arg(self):
         source = "def f(x: int | str): pass"

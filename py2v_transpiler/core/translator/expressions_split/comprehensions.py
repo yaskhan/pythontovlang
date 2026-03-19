@@ -167,6 +167,8 @@ class ComprehensionsMixin(TranslatorBase):
         if len(node.generators) > 1 or len(gen.ifs) > 1:
             self.output.append(f"{self._indent()}//##LLM@@ Complex nested comprehension detected. To ensure readability and idiomatic V, please unfold this into explicit 'for' loops or a clean chain of .map() and .filter() calls.")
 
+        self._infer_generator_types(gen)
+
         # Determine capacity for pre-allocation
         cap_str = ""
         if not gen.ifs:

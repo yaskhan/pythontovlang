@@ -16,8 +16,8 @@ class TranspilerTest:
         analyzer.analyze(tree)
         translator = VNodeVisitor(analyzer)
 
-        # Cast to Module to satisfy mypy, assuming parser returns a Module for code string
-        result = translator.visit_Module(cast(ast.Module, tree))
+        translator.visit_Module(cast(ast.Module, tree))
+        result = translator.emitter.emit() + "\n" + translator.emitter.emit_helpers()
 
         # Normalize whitespace for comparison
         result = self._normalize(result)
