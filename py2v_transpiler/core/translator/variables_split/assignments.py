@@ -364,6 +364,37 @@ class AssignmentsMixin(TranslatorBase):
             # Determine type
             v_type = getattr(self, "_guess_type", lambda x: "unknown")(target)
 
+            # Update v_type from mypy if available for better literal translation
+            if isinstance(target, ast.Name) and hasattr(self, 'type_inference'):
+                raw_type_map = getattr(self.type_inference, "raw_type_map", {})
+                type_map = getattr(self.type_inference, "type_map", {})
+
+                # Try multiple lookup strategies:
+                # 1. Target variable name @location (LHS)
+                loc_key_lhs = f"{target.id}@{node.lineno}:{node.col_offset}"
+                mypy_raw_type = raw_type_map.get(loc_key_lhs)
+
+                # 2. RHS expression location
+                if not mypy_raw_type and isinstance(node.value, (ast.Tuple, ast.List)):
+                    loc_key_rhs = f"{node.value.lineno}:{node.value.col_offset}"
+                    mypy_raw_type = raw_type_map.get(loc_key_rhs)
+
+                # 3. Name-only lookup in raw_type_map
+                if not mypy_raw_type:
+                    mypy_raw_type = raw_type_map.get(target.id)
+
+                # 4. V type_map already has the mapped type
+                if not mypy_raw_type:
+                    mapped_from_tm = type_map.get(loc_key_lhs) or type_map.get(target.id)
+                    if mapped_from_tm and (mapped_from_tm.startswith("TupleStruct_") or mapped_from_tm.startswith("LiteralEnum_")):
+                        v_type = mapped_from_tm
+                        mypy_raw_type = None  # already mapped
+
+                if mypy_raw_type:
+                    mapped_v_type = self._map_type(mypy_raw_type, register_sum_types=True)
+                    if mapped_v_type and (mapped_v_type.startswith("LiteralEnum_") or mapped_v_type.startswith("TupleStruct_")):
+                        v_type = mapped_v_type
+
             # Update type map on normal assignment if type is unknown or we have a literal
             if isinstance(target, ast.Name):
                 assigned_type = getattr(self, "_guess_type", lambda x: "unknown")(node.value)
@@ -469,9 +500,19 @@ class AssignmentsMixin(TranslatorBase):
                             local_v_type = f"?{local_v_type}"
                         rhs = f"(none as {local_v_type})"
                 else:
-                    prev_type = self.current_assignment_type
+                    prev_type = getattr(self, "current_assignment_type", None)
                     self.current_assignment_type = v_type
                     rhs = self.visit(node.value)
+                    
+                    # Handle Literal conversion
+                    if v_type.startswith("LiteralEnum_"):
+                        # rhs is likely a literal string or int from visit(node.value)
+                        # We need to map it to the enum field
+                        clean_val = "".join(c for c in rhs if c.isalnum() or c == "_").lower()
+                        if not clean_val: clean_val = "empty"
+                        if clean_val[0].isdigit(): clean_val = "v" + clean_val
+                        rhs = f".{clean_val}"
+                        
                     self.current_assignment_type = prev_type
 
                 # Check if rhs is a call to a function returning void, mapped to none usually?
@@ -665,6 +706,14 @@ class AssignmentsMixin(TranslatorBase):
                         is_mut = (mut_info.get("is_reassigned", False) or mut_info.get("is_mutated", False)) and not mut_info.get("is_final", False)
 
                 v_type = getattr(self, "_guess_type", lambda x: "unknown")(target)
+                if hasattr(self, 'type_inference') and hasattr(self.type_inference, 'raw_type_map'):
+                    loc_key = f"{lhs}@{target.lineno}:{target.col_offset}"
+                    mypy_raw_type = self.type_inference.raw_type_map.get(loc_key)
+                    if mypy_raw_type:
+                        mapped_v_type = self._map_type(mypy_raw_type, register_sum_types=True)
+                        if mapped_v_type:
+                            v_type = mapped_v_type
+
                 if is_mut and self._is_clonable_collection(v_type):
                     # For collections, V requires .clone() when assigning to a mutable variable
                     # unless it's a fresh literal

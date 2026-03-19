@@ -7,6 +7,7 @@ class TypeUtilsMixin:
 
     if TYPE_CHECKING:
         def _register_literal_enum(self, nodes: Sequence[ast.AST]) -> str: ...
+        def _register_tuple_struct(self, tuple_types_str: str) -> str: ...
         def _register_sum_type(self, v_union_type: str) -> str: ...
         def _get_full_self_type(self, struct_name: Optional[str] = None) -> str: ...
         def _get_combined_generic_map(self) -> Dict[str, str]: ...
@@ -140,13 +141,16 @@ class TypeUtilsMixin:
         registrar = self._register_sum_type if register_sum_types else None
         lit_registrar = self._register_literal_enum
 
+        tup_registrar = self._register_tuple_struct if register_sum_types else None
+
         v_type = map_python_type_to_v(
             type_str,
             self_name=self._get_full_self_type(struct_name),
             generic_map=self._get_combined_generic_map(),
             allow_union=allow_union,
             sum_type_registrar=registrar,
-            literal_registrar=lit_registrar
+            literal_registrar=lit_registrar,
+            tuple_registrar=tup_registrar
         )
 
         if "map[Any]" in v_type:

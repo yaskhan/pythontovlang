@@ -84,6 +84,61 @@ class ClassFieldsHandler:
                     return sig_data["dataclass_metadata"]
         return None
 
+    def get_namedtuple_metadata(self, node: ast.ClassDef, struct_name: str) -> Optional[Dict[str, Any]]:
+        """Extract namedtuple metadata from type inference."""
+        if not hasattr(self.translator.type_inference, "call_signatures"):
+            return None
+
+        for k, sig_data in self.translator.type_inference.call_signatures.items():
+            if "namedtuple_metadata" in sig_data:
+                if (
+                    k.startswith(f"{node.name}@")
+                    or k.split("@")[0].endswith(f".{node.name}")
+                    or k.startswith(f"{struct_name}@")
+                ):
+                    return sig_data["namedtuple_metadata"]
+        return None
+
+    def process_namedtuple_fields(
+        self,
+        struct_name: str,
+        namedtuple_metadata: Dict[str, Any],
+        added_fields: Set[str]
+    ) -> List[str]:
+        """Process fields from namedtuple metadata."""
+        fields: List[str] = []
+        nt_fields = namedtuple_metadata.get("fields", [])
+        nt_types = namedtuple_metadata.get("types", [])
+        
+        for i, field_name in enumerate(nt_fields):
+            f_name = self.translator._sanitize_name(field_name)
+            if f_name in added_fields:
+                continue
+            added_fields.add(f_name)
+            
+            raw_type = nt_types[i] if i < len(nt_types) else "Any"
+            norm_typ = raw_type.replace("builtins.", "")
+            try:
+                field_type = self.translator._map_type(norm_typ, struct_name)
+            except Exception:
+                field_type = "Any"
+                
+            if field_type == "int" or norm_typ == "int":
+                field_type = "int"
+            elif field_type == "str" or norm_typ == "str":
+                field_type = "string"
+            elif field_type == "float" or norm_typ == "float":
+                field_type = "f64"
+            elif field_type == "bool" or norm_typ == "bool":
+                field_type = "bool"
+                
+            _ft = field_type
+            if _ft.startswith("fn (") or _ft.startswith("fn("):
+                 _ft += " = unsafe { nil }"
+            fields.append(f"    {f_name} {_ft}")
+            
+        return fields
+
     def collect_init_fields(
         self,
         node: ast.ClassDef,

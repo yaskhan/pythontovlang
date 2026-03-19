@@ -88,6 +88,14 @@ class TypeInferenceMypyMixin(TypeInferenceBase):
                             self.type_map[fullname] = v_type
                         if name not in self.type_map:
                             self.type_map[name] = v_type
+                            
+                        # Also store raw types
+                        self.raw_type_map[f"{fullname}@{location}"] = typ
+                        self.raw_type_map[f"{name}@{location}"] = typ
+                        if fullname not in self.raw_type_map:
+                            self.raw_type_map[fullname] = typ
+                        if name not in self.raw_type_map:
+                            self.raw_type_map[name] = typ
 
                         # Populate location_map for O(1) lookups by location
                         if (

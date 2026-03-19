@@ -66,6 +66,11 @@ class SubscriptsMixin(TranslatorBase):
                  except Exception:
                      pass
 
+        # Check if value is a TupleStruct being indexed
+        if val_type.startswith("TupleStruct_"):
+            if isinstance(node.slice, ast.Constant) and isinstance(node.slice.value, int):
+                return f"{value}.it_{node.slice.value}"
+
         # Handle Ellipsis in slice (e.g. a[...])
         if isinstance(node.slice, ast.Constant) and node.slice.value is Ellipsis:
              return f"{value}[/* ... */]"

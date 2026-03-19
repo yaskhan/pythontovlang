@@ -65,6 +65,8 @@ class AttributesMixin(TranslatorBase):
         # Only do this if we can safely cast without syntax errors.
         elif isinstance(node.value, ast.Name):
             base_type = self.type_inference.type_map.get(node.value.id)
+            if not base_type:
+                base_type = self._guess_type(node.value)
             # Find narrowed type via node location first, fall back to general guess_type
             narrowed_type = None
             if hasattr(node.value, 'lineno') and hasattr(node.value, 'col_offset'):
@@ -77,8 +79,19 @@ class AttributesMixin(TranslatorBase):
             if narrowed_type and base_type and narrowed_type != base_type and narrowed_type not in ("int", "Any", "void"):
                 # Avoid casting to same primitive types or optionals
                 if not (base_type.startswith("?") and base_type[1:] == narrowed_type):
-                    # Emit an explicit cast in V: (obj as NarrowedType)
-                    obj = f"({obj} as {narrowed_type})"
+                    # Ensure narrowed_type is mapped to a V type
+                    v_narrowed_type = self._map_type(narrowed_type)
+                    if v_narrowed_type not in ("Any", "void", "unknown"):
+                        # Special case: don't cast from a named struct (NamedTuple/Class) 
+                        # to a generic collection/TupleStruct if we are accessing an attribute.
+                        # This avoids breaking field access like (p2 as []string).x
+                        v_base_name = base_type.split('.')[-1]
+                        is_named_struct = v_base_name and v_base_name[0].isupper() and not v_base_name.startswith("TupleStruct_")
+                        is_generic_cast = v_narrowed_type.startswith("[]") or v_narrowed_type.startswith("TupleStruct_") or v_narrowed_type == "Any"
+                        
+                        if not (is_named_struct and is_generic_cast):
+                            # Emit an explicit cast in V: (obj as NarrowedType)
+                            obj = f"({obj} as {v_narrowed_type})"
 
         # Mangling for self.__private attributes
         # We need to know if we are accessing self inside a class

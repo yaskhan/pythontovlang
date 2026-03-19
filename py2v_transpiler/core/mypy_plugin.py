@@ -164,12 +164,19 @@ class VlangPlugin(Plugin):
 
             is_class = False
             has_init = False
+            namedtuple_metadata = None
             try:
                 from mypy.types import Instance
                 if isinstance(ctx.default_return_type, Instance):
                     type_info = ctx.default_return_type.type
                     is_class = type_info.fullname == fullname
                     has_init = '__init__' in type_info.names
+                    if 'namedtuple' in type_info.metadata:
+                        nt_meta = type_info.metadata['namedtuple']
+                        namedtuple_metadata = {
+                            "fields": nt_meta.get("fields", []),
+                            "types": [str(t) for t in nt_meta.get("types", [])]
+                        }
             except Exception:
                 pass
 
@@ -179,6 +186,8 @@ class VlangPlugin(Plugin):
                 "is_class": is_class,
                 "has_init": has_init
             }
+            if namedtuple_metadata:
+                sig_data["namedtuple_metadata"] = namedtuple_metadata
 
             self.collected_sigs[fullname][key] = json.dumps(sig_data)
             self.collected_sigs[short_name][key] = json.dumps(sig_data)
@@ -218,20 +227,20 @@ class VlangPlugin(Plugin):
                 if hasattr(expr, 'line'):
                     key = f"{expr.line}:{expr.column}"
 
-                    if isinstance(expr, (CallExpr, ListExpr, DictExpr, SetExpr, TupleExpr)):
-                        # Store by location for direct lookup
-                        self.collected_types[key][key] = str(typ)
+                    # Store types by location if it's a real expression (not synthetic)
+                    if isinstance(expr, (NameExpr, MemberExpr, CallExpr)):
+                         self.collected_types[key][key] = str(typ)
 
                     if isinstance(expr, CallExpr):
                         from mypy.types import Instance, CallableType
 
                         if isinstance(expr.callee, (NameExpr, MemberExpr)) and expr.callee.node and isinstance(expr.callee.node, (FuncDef, Var)):
-                            node = expr.callee.node
+                            node_callee = expr.callee.node
                             f_node: Optional[FuncDef] = None
-                            if isinstance(node, FuncDef):
-                                f_node = node
-                            elif isinstance(node, Var) and hasattr(node, 'type') and isinstance(node.type, CallableType):
-                                c_type = cast(CallableType, node.type)
+                            if isinstance(node_callee, FuncDef):
+                                f_node = node_callee
+                            elif isinstance(node_callee, Var) and hasattr(node_callee, 'type') and isinstance(node_callee.type, CallableType):
+                                c_type = cast(CallableType, node_callee.type)
                                 if c_type.definition and isinstance(c_type.definition, FuncDef):
                                     f_node = c_type.definition
 
@@ -260,26 +269,35 @@ class VlangPlugin(Plugin):
                                 "is_class": False,
                                 "has_init": False
                             }
-                            fullname = f_node.fullname if f_node else (expr.callee.fullname if isinstance(expr.callee, NameExpr) else None)
-                            short_name = f_node.name if f_node else (expr.callee.name if isinstance(expr.callee, MemberExpr) else None)
-                            if fullname: self.collected_sigs[fullname][key] = json.dumps(sig_data)
-                            if short_name: self.collected_sigs[short_name][key] = json.dumps(sig_data)
+                            fullname_node_s = f_node.fullname if f_node else (expr.callee.fullname if isinstance(expr.callee, NameExpr) else None)
+                            short_name_s = f_node.name if f_node else (expr.callee.name if isinstance(expr.callee, MemberExpr) else None)
+                            if fullname_node_s: self.collected_sigs[fullname_node_s][key] = json.dumps(sig_data)
+                            if short_name_s: self.collected_sigs[short_name_s][key] = json.dumps(sig_data)
                             self.collected_sigs[key][key] = json.dumps(sig_data)
 
                         if isinstance(typ, Instance):
                             type_info = typ.type
                             fullname_cls = type_info.fullname
                             short_name_cls = type_info.name
+                            namedtuple_metadata = None
+                            if 'namedtuple' in type_info.metadata:
+                                nt_meta = type_info.metadata['namedtuple']
+                                namedtuple_metadata = {
+                                    "fields": nt_meta.get("fields", []),
+                                    "types": [str(t) for t in nt_meta.get("types", [])]
+                                }
 
-                            sig_data = {
+                            sig_data_cls = {
                                 "args": [], # difficult to recover from type_map easily
                                 "return": str(typ),
-                                "is_class": True, # heuristic: if return type is Instance and we are at CallExpr, it's likely a class call
+                                "is_class": True, 
                                 "has_init": '__init__' in type_info.names
                             }
-                            self.collected_sigs[fullname_cls][key] = json.dumps(sig_data)
-                            self.collected_sigs[short_name_cls][key] = json.dumps(sig_data)
-                            self.collected_sigs[key][key] = json.dumps(sig_data)
+                            if namedtuple_metadata:
+                                sig_data_cls["namedtuple_metadata"] = namedtuple_metadata
+                            self.collected_sigs[fullname_cls][key] = json.dumps(sig_data_cls)
+                            self.collected_sigs[short_name_cls][key] = json.dumps(sig_data_cls)
+                            self.collected_sigs[key][key] = json.dumps(sig_data_cls)
 
                     name: Optional[str] = None
                     fullname_node: Optional[str] = None
@@ -304,6 +322,10 @@ class VlangPlugin(Plugin):
                         if fullname_node:
                             self.collected_types[fullname_node][key] = str(typ)
                             self.collected_types[fullname_node][f"{expr.line}:*"] = str(typ)
+                        
+                        # IMPORTANT: For local variables, fullname might be None or just the name.
+                        # Ensure we store it under the name@location key which is used by analyzer.
+                        self.collected_types[f"{name}@{key}"][key] = str(typ)
 
         # Collect mutability info from processed files
         visitor = MutabilityVisitor(self.collected_mutability, MUTATING_METHODS)

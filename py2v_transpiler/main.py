@@ -120,6 +120,11 @@ def transpile_file(source_file: str, config: TranspilerConfig, global_helpers: O
 
     # Run basic AST visitor for type inference regardless of mypy
     analyzer.analyze(tree)
+    
+    if hasattr(analyzer, 'raw_type_map'):
+        import json
+        with open("raw_type_map_debug.json", "w", encoding="utf-8") as f:
+            json.dump(analyzer.raw_type_map, f, indent=4)
 
     if config.warn_dynamic:
         for key, v_type in analyzer.type_map.items():

@@ -6,6 +6,7 @@ class TypeInferenceBase(ast.NodeVisitor):
     _scope_names: List[str]
     def __init__(self):
         self.type_map: Dict[str, str] = {}
+        self.raw_type_map: Dict[str, str] = {}
         self.mutability_map: Dict[str, Dict[str, Any]] = {}
         self.func_param_mutability: Dict[str, List[int]] = {}
         self.location_map: Dict[str, str] = {}
@@ -16,7 +17,7 @@ class TypeInferenceBase(ast.NodeVisitor):
         self.static_methods: Dict[str, set[str]] = {}
         self.class_methods: Dict[str, set[str]] = {}
         self.is_abc: Dict[str, bool] = {}
-        self._scope_names: List[str] = []
+        self._scope_names = []
 
     def _get_base_node(self, node: ast.AST) -> ast.AST:
         curr = node

@@ -37,14 +37,27 @@ class NamesMixin(TranslatorBase):
                 narrowed_type = self.type_inference.type_map.get(loc_key)
 
             base_type = self.type_inference.type_map.get(node.id)
+            if not base_type:
+                base_type = self._guess_type(node)
 
-            if narrowed_type and narrowed_type not in ("int", "f64", "string", "bool", "Any", "void", "none"):
-                 # Skip narrowing for functions/classes
-                 if base_type and (base_type.startswith("fn") or "fn(" in base_type):
-                      return res
+            if narrowed_type:
+                v_narrowed_type = self._map_type(narrowed_type)
+                v_base_type = self._map_type(base_type) if base_type else None
 
-                 # If base type is unknown or differs from narrowed, apply cast
-                 if not base_type or (narrowed_type != base_type and not (base_type.startswith("?") and base_type[1:] == narrowed_type)):
-                      res = f"({res} as {narrowed_type})"
+                if v_narrowed_type not in ("int", "f64", "string", "bool", "Any", "void", "none", "unknown"):
+                    # Skip narrowing for functions/classes
+                    if v_base_type and (v_base_type.startswith("fn") or "fn(" in v_base_type):
+                        return res
+
+                    # If base type is unknown or differs from narrowed, apply cast
+                    if not v_base_type or (v_narrowed_type != v_base_type and not (v_base_type.startswith("?") and v_base_type[1:] == v_narrowed_type)):
+                        # Special case: don't cast from a named struct (NamedTuple/Class) 
+                        # to a generic collection/TupleStruct or Any.
+                        v_base_name = v_base_type.split('.')[-1] if v_base_type else ""
+                        is_named_struct = v_base_name and v_base_name[0].isupper() and not v_base_name.startswith("TupleStruct_")
+                        is_generic_cast = v_narrowed_type.startswith("[]") or v_narrowed_type.startswith("TupleStruct_") or v_narrowed_type == "Any"
+                        
+                        if not (is_named_struct and is_generic_cast):
+                            res = f"({res} as {v_narrowed_type})"
 
         return res

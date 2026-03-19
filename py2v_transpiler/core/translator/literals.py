@@ -336,6 +336,11 @@ class LiteralsMixin(TranslatorBase):
 
         # Use fixed-size array literal if type is known to be fixed-size array
         v_type = self.current_assignment_type or ""
+        
+        if v_type.startswith("TupleStruct_"):
+             kwargs = [f"it_{i}: {e}" for i, e in enumerate(elements)]
+             return f"{v_type}{{{', '.join(kwargs)}}}"
+             
         if v_type.startswith("[") and "]" in v_type and not v_type.startswith("[]"):
              return f"{v_type}{{{', '.join(elements)}}}"
 

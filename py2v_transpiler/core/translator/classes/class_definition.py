@@ -179,6 +179,10 @@ class ClassDefinitionHandler:
         self.translator.current_class_bases = current_class_bases
         fields.extend(base_fields)
 
+        namedtuple_metadata = None
+        if is_named_tuple:
+            namedtuple_metadata = self.translator.class_fields_handler.get_namedtuple_metadata(node, struct_name)
+
         # Check for abstract base class
         is_abc = self.translator.class_bases_handler.is_abstract_base_class(node, struct_name)
         if is_abc:
@@ -226,6 +230,13 @@ class ClassDefinitionHandler:
                 body, struct_name, dataclass_metadata, added_fields, dataclass_field_order
             )
             fields.extend(dc_fields)
+
+        # Process namedtuple fields from metadata
+        if is_named_tuple and namedtuple_metadata:
+            nt_fields = self.translator.class_fields_handler.process_namedtuple_fields(
+                struct_name, namedtuple_metadata, added_fields
+            )
+            fields.extend(nt_fields)
 
         # Register dataclass
         if is_dataclass or is_typed_dict:

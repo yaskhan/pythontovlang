@@ -14,9 +14,11 @@ class TypeRegistrationMixin:
         _generated_literal_enums: Dict[str, str]
         _literal_enum_values: Dict[str, Dict[Any, str]]
         _generated_sum_types: Dict[str, str]
+        _generated_tuple_structs: Dict[str, str]
         emitter: Any
         config: Any
         def _get_all_active_v_generics(self) -> List[str]: ...
+        def _map_type(self, python_type_str: str) -> str: ...
 
     def _register_literal_enum(self, nodes: Sequence[ast.AST]) -> str:
         """
@@ -64,7 +66,7 @@ class TypeRegistrationMixin:
 
         # Build enum body and value mapping
         enum_lines = [f"pub enum {enum_name} {{"]
-        val_map: dict[Any, str] = {}
+        val_map: Dict[Any, str] = {}
         used_member_names: set[str] = set()
 
         for i, val in enumerate(values):
@@ -83,7 +85,7 @@ class TypeRegistrationMixin:
             val_map[val] = member_name
 
         enum_lines.append("}")
-        self.emitter.add_struct("\n".join(enum_lines))
+        self.emitter.add_helper_struct("\n".join(enum_lines))
 
         # Add .str() method to the enum
         str_lines = [f"pub fn (e {enum_name}) str() string {{", "    match e {"]
@@ -99,7 +101,7 @@ class TypeRegistrationMixin:
                 str_lines.append(f"        .{member} {{ return '{str_val}' }}")
         str_lines.append("    }")
         str_lines.append("}")
-        self.emitter.add_struct("\n".join(str_lines))
+        self.emitter.add_helper_struct("\n".join(str_lines))
 
         self._generated_literal_enums[key] = enum_name
         self._literal_enum_values[enum_name] = val_map
@@ -150,8 +152,31 @@ class TypeRegistrationMixin:
 
         pub = "pub " if self.config and getattr(self.config, 'include_all_symbols', False) else ""
 
-        self.emitter.add_struct(f"{pub}type {type_name}{gen_decl} = {normalized}")
+        self.emitter.add_helper_struct(f"{pub}type {type_name}{gen_decl} = {normalized}")
 
         result = f"{type_name}{gen_args}"
         self._generated_sum_types[normalized] = result
         return result
+
+    def _register_tuple_struct(self, tuple_types_str: str) -> str:
+        """Generates a V struct for a Python fixed-size Tuple and returns its name."""
+        from py2v_transpiler.models.v_types import get_tuple_struct_name
+        struct_name = get_tuple_struct_name(tuple_types_str)
+
+        if struct_name in self._generated_tuple_structs:
+            return struct_name
+
+        field_types = [t.strip() for t in tuple_types_str.split(",")]
+
+        fields = []
+        for i, t in enumerate(field_types):
+            v_type = self._map_type(t)
+            fields.append(f"    it_{i} {v_type}")
+
+        pub = "pub " if self.config and getattr(self.config, "include_all_symbols", False) else ""
+        struct_def = f"{pub}struct {struct_name} {{\n" + "\n".join(fields) + "\n}"
+
+        self.emitter.add_helper_struct(struct_def)
+
+        self._generated_tuple_structs[struct_name] = struct_name
+        return struct_name

@@ -230,13 +230,30 @@ class CallsMixin(
         keyword_args = {}
         original_keyword_append = []
 
+        arg_types_by_name = {}
+        if call_sig and "arg_names" in call_sig and "args" in call_sig:
+             for i, key_name in enumerate(call_sig["arg_names"]):
+                 if i < len(call_sig["args"]):
+                     arg_types_by_name[key_name] = call_sig["args"][i]
+
         for keyword in node.keywords:
             if keyword.arg is None:
                 # **kwargs call -> pass dict as arg
                 val = self.visit(keyword.value)
                 args.append(str(val))
             else:
+                old_type = getattr(self, "current_assignment_type", None)
+                if keyword.arg in arg_types_by_name:
+                    norm_typ = arg_types_by_name[keyword.arg].replace("builtins.", "")
+                    try:
+                        v_arg_type = self._map_type(norm_typ)
+                        self.current_assignment_type = v_arg_type
+                    except:
+                        pass
+                        
                 kw_val_str = str(self.visit(keyword.value))
+                self.current_assignment_type = old_type
+                
                 keyword_args[keyword.arg] = kw_val_str
                 original_keyword_append.append((keyword.arg, kw_val_str))
 

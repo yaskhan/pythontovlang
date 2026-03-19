@@ -52,6 +52,7 @@ class TranslatorStateMixin:
         self.dataclasses: Dict[str, List[str]] = {}
         self._generated_sum_types: Dict[str, str] = {}
         self._generated_literal_enums: Dict[str, str] = {}
+        self._generated_tuple_structs: Dict[str, str] = {}
         self._literal_enum_values: Dict[str, Dict[Any, str]] = {}
         self.global_vars: Set[str] = set()
         self.renamed_functions: Dict[str, str] = {"main": "py_main"}
