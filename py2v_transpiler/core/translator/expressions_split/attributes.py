@@ -75,12 +75,14 @@ class AttributesMixin(TranslatorBase):
             if not narrowed_type:
                 narrowed_type = self._guess_type(node.value)
 
+            # Map types to V equivalents before checking exclusion list
+            v_narrowed_type = self._map_type(narrowed_type) if narrowed_type else None
+            v_base_type = self._map_type(base_type) if base_type else None
+
             # If mypy narrowed the type and it's not a primitive (fallback) or generic "Any"
-            if narrowed_type and base_type and narrowed_type != base_type and narrowed_type not in ("int", "f64", "string", "bool", "Any", "void", "none", "f32", "i64", "i32", "i16", "i8", "u64", "u32", "u16", "u8", "byte", "rune"):
+            if v_narrowed_type and v_base_type and v_narrowed_type != v_base_type and v_narrowed_type not in ("int", "f64", "string", "bool", "Any", "void", "none", "f32", "i64", "i32", "i16", "i8", "u64", "u32", "u16", "u8", "byte", "rune"):
                 # Avoid casting to same primitive types or optionals
-                if not (base_type.startswith("?") and base_type[1:] == narrowed_type):
-                    # Ensure narrowed_type is mapped to a V type
-                    v_narrowed_type = self._map_type(narrowed_type)
+                if not (v_base_type.startswith("?") and v_base_type[1:] == v_narrowed_type):
                     if v_narrowed_type not in ("Any", "void", "unknown"):
                         # Special case: don't cast from a named struct (NamedTuple/Class) 
                         # to a generic collection/TupleStruct if we are accessing an attribute.

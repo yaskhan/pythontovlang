@@ -1,0 +1,166 @@
+<<<<<<< SEARCH
+        class TypeVisitor:
+            def __init__(self, plugin, type_map):
+                self.plugin = plugin
+                self.type_map = type_map
+                self.visited = set()
+
+            def visit(self, node):
+                if node is None:
+                    return
+                if isinstance(node, (list, tuple)):
+                    for item in node:
+                        self.visit(item)
+                    return
+                if id(node) in self.visited:
+                    return
+                self.visited.add(id(node))
+
+                typ = None
+                try:
+                    if node in self.type_map:
+                        typ = self.type_map[node]
+                except TypeError:
+                    pass
+
+
+                if typ:
+                    if hasattr(node, 'line'):
+                        # Include path in key if possible to avoid cross-file collisions
+                        # during the whole mypy session
+                        file_path = getattr(self.plugin.checker, 'path', '')
+                        if not file_path and hasattr(node, 'file'): # Some nodes have .file
+                             file_path = node.file
+
+                        key = f"{node.line}:{node.column}"
+
+                        name: Optional[str] = None
+                        fullname_node: Optional[str] = None
+                        if isinstance(node, (NameExpr, MemberExpr, Var)):
+                            name = node.name
+                            fullname_node = getattr(node, 'fullname', None)
+
+                        # Store by name if possible
+                        if name:
+                            self.plugin.collected_types[name][key] = str(typ)
+
+                        # Also store by location for anonymous expressions
+                        if isinstance(node, (NameExpr, MemberExpr, CallExpr, IndexExpr)):
+                             self.plugin.collected_types["@"][key] = str(typ)
+
+                        if fullname_node:
+                            # Use fullname as primary key for robustness
+                            self.plugin.collected_types[fullname_node][key] = str(typ)
+                        elif hasattr(node, 'name'):
+                            name = getattr(node, 'name')
+                            fullname_node = getattr(node, 'fullname', None)
+
+                        if name:
+                            self.plugin.collected_types[name][key] = str(typ)
+                            if fullname_node:
+                                self.plugin.collected_types[fullname_node][key] = str(typ)
+                                self.plugin.collected_types[fullname_node][f"{node.line}:*"] = str(typ)
+                            self.plugin.collected_types[f"{name}@{key}"][key] = str(typ)
+
+                        # Handle Call signatures
+                        if isinstance(node, CallExpr):
+                             self._collect_call_sig(node, typ, key)
+
+                # Generic traversal (similar to MutabilityVisitor)
+                if isinstance(node, MypyFile):
+                    for sym in node.names.values(): self.visit(sym.node)
+                    if hasattr(node, 'defs'):
+                        for stmt in node.defs: self.visit(stmt)
+                elif isinstance(node, ClassDef):
+                    if node.info:
+                        for sym in node.info.names.values(): self.visit(sym.node)
+                    for stmt in node.defs.body: self.visit(stmt)
+                elif isinstance(node, FuncDef):
+                    for arg in node.arguments: self.visit(arg.variable)
+                    self.visit(node.body)
+                elif isinstance(node, Block):
+                    for stmt in node.body: self.visit(stmt)
+                elif isinstance(node, IfStmt):
+                    for e in node.expr: self.visit(e)
+                    for b in node.body: self.visit(b)
+                    self.visit(node.else_body)
+                elif isinstance(node, WhileStmt):
+                    self.visit(node.expr); self.visit(node.body); self.visit(node.else_body)
+                elif isinstance(node, ForStmt):
+                    self.visit(node.expr); self.visit(node.index); self.visit(node.body); self.visit(node.else_body)
+                elif isinstance(node, TryStmt):
+                    self.visit(node.body)
+                    for h in node.handlers:
+                        if hasattr(h, 'type'): self.visit(h.type)
+                        if hasattr(h, 'name'): self.visit(h.name)
+                        self.visit(h.body)
+                    self.visit(node.else_body); self.visit(node.finally_body)
+                elif isinstance(node, (TupleExpr, ListExpr)):
+                    for item in node.items: self.visit(item)
+                elif isinstance(node, NameExpr):
+                    self.visit(node.node)
+                elif isinstance(node, MemberExpr):
+                    self.visit(node.expr); self.visit(node.node)
+                elif isinstance(node, IndexExpr):
+                    self.visit(node.base); self.visit(node.index)
+
+            def _collect_call_sig(self, expr, typ, key):
+=======
+        def collect_node_type(node, typ):
+            if typ and hasattr(node, 'line'):
+                key = f"{node.line}:{node.column}"
+
+                name: Optional[str] = None
+                fullname_node: Optional[str] = None
+                if isinstance(node, (NameExpr, MemberExpr, Var)):
+                    name = getattr(node, 'name', None)
+                    fullname_node = getattr(node, 'fullname', None)
+
+                # Store by name if possible
+                if name:
+                    self.collected_types[name][key] = str(typ)
+
+                # Also store by location for anonymous expressions
+                if isinstance(node, (NameExpr, MemberExpr, CallExpr, IndexExpr)):
+                     self.collected_types["@"][key] = str(typ)
+
+                if fullname_node:
+                    # Use fullname as primary key for robustness
+                    self.collected_types[fullname_node][key] = str(typ)
+                    self.collected_types[fullname_node][f"{node.line}:*"] = str(typ)
+
+                if name:
+                    self.collected_types[f"{name}@{key}"][key] = str(typ)
+
+                # Handle Call signatures
+                if isinstance(node, CallExpr):
+                     collect_call_sig(node, typ, key)
+
+        def collect_call_sig(expr, typ, key):
+>>>>>>> REPLACE
+<<<<<<< SEARCH
+        # Collect types from checker's type_map for narrowing and calls ONLY for processed files
+        if self.checker:
+            # Try some known locations for type_map in different mypy versions
+            type_map = getattr(self.checker, "type_map", {})
+            if not type_map and hasattr(self.checker, "expr_checker"):
+                type_map = getattr(self.checker.expr_checker, "type_map", {})
+
+            visitor = TypeVisitor(self, type_map)
+            if hasattr(self.checker, 'files'):
+                for file_node in self.checker.files.values():
+                    visitor.visit(file_node)
+            elif self._files_to_process:
+                for file_node in self._files_to_process:
+                    visitor.visit(file_node)
+=======
+        # Collect types from checker's type_map directly to avoid manual AST traversal crashes
+        if self.checker:
+            # Try some known locations for type_map in different mypy versions
+            type_map = getattr(self.checker, "type_map", {})
+            if not type_map and hasattr(self.checker, "expr_checker"):
+                type_map = getattr(self.checker.expr_checker, "type_map", {})
+
+            for node, typ in type_map.items():
+                collect_node_type(node, typ)
+>>>>>>> REPLACE

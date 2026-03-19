@@ -17,7 +17,13 @@ class MutabilityVisitor:
         self.visited = set()
 
     def visit(self, node):
-        if node is None or id(node) in self.visited:
+        if node is None:
+            return
+        if isinstance(node, (list, tuple)):
+            for item in node:
+                self.visit(item)
+            return
+        if id(node) in self.visited:
             return
         self.visited.add(id(node))
 
@@ -151,8 +157,9 @@ class VlangPlugin(Plugin):
                 from mypy.nodes import NameExpr, MemberExpr, CallExpr, IndexExpr, Var
                 from mypy.types import Instance
                 for node, typ in self.type_map.items():
-                    if not hasattr(node, 'line'): continue
+                    if not typ or not hasattr(node, 'line'): continue
                     key = f"{node.line}:{node.column}"
+                    
                     name = getattr(node, 'name', None)
                     fullname = None
                     if isinstance(node, (NameExpr, MemberExpr)) and node.node:
@@ -167,8 +174,9 @@ class VlangPlugin(Plugin):
                     if fullname:
                         self.plugin.collected_types[fullname][key] = str(typ)
                         self.plugin.collected_types[fullname][f"{node.line}:*"] = str(typ)
-                    if name and fullname:
+                    if name:
                         self.plugin.collected_types[f"{name}@{key}"][key] = str(typ)
+                    
                     if isinstance(node, CallExpr): self._collect_call_sig(node, typ, key)
                     if isinstance(typ, Instance): self._collect_instance_sig(typ, key)
 
@@ -176,6 +184,7 @@ class VlangPlugin(Plugin):
                 from mypy.nodes import NameExpr, MemberExpr, FuncDef, Var
                 from mypy.types import CallableType
                 f_node = None
+
                 if isinstance(expr.callee, (NameExpr, MemberExpr)) and expr.callee.node and isinstance(expr.callee.node, (FuncDef, Var)):
                     node_callee = expr.callee.node
                     if isinstance(node_callee, FuncDef):
@@ -192,13 +201,16 @@ class VlangPlugin(Plugin):
                         for arg in f_node.arguments:
                             if hasattr(arg, 'variable') and hasattr(arg.variable, 'type'):
                                 args_data.append(str(arg.variable.type))
-                            else: args_data.append("Any")
+                            else:
+                                args_data.append("Any")
+
                     sig_data = {"args": args_data, "return": ret_type_str, "is_class": False, "has_init": False}
                     fn_name = f_node.fullname if f_node else getattr(expr.callee, 'fullname', None)
                     sh_name = f_node.name if f_node else getattr(expr.callee, 'name', None)
                     if fn_name: self.plugin.collected_sigs[fn_name][key] = json.dumps(sig_data)
                     if sh_name: self.plugin.collected_sigs[sh_name][key] = json.dumps(sig_data)
                     self.plugin.collected_sigs[key][key] = json.dumps(sig_data)
+
 
             def _collect_instance_sig(self, typ, key):
                 type_info = typ.type
@@ -234,10 +246,12 @@ class VlangPlugin(Plugin):
             "add", "discard", "intersection_update"
         }
         mut_visitor = MutabilityVisitor(self.collected_mutability, mutating_methods)
+
         for file_node in self._files_to_process:
             if id(file_node) in self._processed_files: continue
             self._processed_files.add(id(file_node))
             mut_visitor.visit(file_node)
+
 
         for k, v in self.collected_types.items(): _global_collected_types[k].update(v)
         for k, v in self.collected_sigs.items(): _global_collected_sigs[k].update(v)

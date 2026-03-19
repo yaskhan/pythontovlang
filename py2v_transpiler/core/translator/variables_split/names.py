@@ -40,14 +40,14 @@ class NamesMixin(TranslatorBase):
             if not base_type:
                 base_type = self._guess_type(node)
 
-            if narrowed_type and narrowed_type not in ("int", "f64", "string", "bool", "Any", "void", "none", "f32", "i64", "i32", "i16", "i8", "u64", "u32", "u16", "u8", "byte", "rune"):
-                # Skip narrowing for functions/classes
-                if base_type and (base_type.startswith("fn") or "fn(" in base_type):
-                    return res
+            # Map types to V equivalents before checking exclusion list
+            v_narrowed_type = self._map_type(narrowed_type) if narrowed_type else None
+            v_base_type = self._map_type(base_type) if base_type else None
 
-                # Map types to V equivalents
-                v_narrowed_type = self._map_type(narrowed_type)
-                v_base_type = self._map_type(base_type) if base_type else None
+            if v_narrowed_type and v_narrowed_type not in ("int", "f64", "string", "bool", "Any", "void", "none", "f32", "i64", "i32", "i16", "i8", "u64", "u32", "u16", "u8", "byte", "rune"):
+                # Skip narrowing for functions/classes
+                if v_base_type and (v_base_type.startswith("fn") or "fn(" in v_base_type):
+                    return res
 
                 # If base type is unknown or differs from narrowed, apply cast
                 if not v_base_type or (v_narrowed_type != v_base_type and not (v_base_type.startswith("?") and v_base_type[1:] == v_narrowed_type)):

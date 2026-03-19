@@ -1,0 +1,11 @@
+<<<<<<< SEARCH
+        if "[" in py_type:
+            tree = ast.parse(py_type)
+            if tree.body and isinstance(tree.body[0], ast.Expr):
+                return _map_ast_type(tree.body[0].value, self_name or "Self", allow_union, generic_map, sum_type_registrar, literal_registrar, tuple_registrar)
+=======
+        if "[" in py_type:
+            tree = ast.parse(py_type)
+            if tree.body and isinstance(tree.body[0], ast.Expr):
+                return _map_ast_type(tree.body[0].value, self_name or "Self", allow_union, generic_map, sum_type_registrar, literal_registrar, tuple_registrar)
+>>>>>>> REPLACE

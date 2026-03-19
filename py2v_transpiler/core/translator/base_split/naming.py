@@ -132,9 +132,10 @@ class NamingMixin:
         Returns the full V type for 'Self', including generic parameters.
         Example: Builder -> Builder[T]
         """
-        name = struct_name or self.current_class or "Self"
-        if self.current_class_generics:
-            gen_str = f"[{', '.join(self.current_class_generics)}]"
+        name = struct_name or getattr(self, "current_class", None) or "Self"
+        generics = getattr(self, "current_class_generics", [])
+        if generics:
+            gen_str = f"[{', '.join(generics)}]"
             return f"{name}{gen_str}"
         return name
     def _find_defining_class_for_class_var(
