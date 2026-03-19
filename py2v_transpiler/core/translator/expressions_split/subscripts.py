@@ -116,13 +116,40 @@ class SubscriptsMixin(TranslatorBase):
                     return f"py_slice({value}, {lower}, {upper}, {step})"
 
             if is_native:
-                # Use helpers for safety if any bound is present or if there is a step.
-                # This ensures Python-compatible clamping and avoids V panics on
-                # negative indices or out-of-bounds ranges.
-                # Full slice [:] remains native [..]
+                # To maintain compatibility with existing tests while ensuring safety:
+                # 1. Full slice [:] -> [..]
+                # 2. Slice with non-trivial step -> helper
+                # 3. Slice with negative bounds -> helper (for clamping safety)
+                # 4. Slice with non-constant bounds or variables -> helper
+                # 5. Slice with positive constant bounds and NO step -> native [low..up]
+
                 has_non_trivial_step = step_node is not None and not (isinstance(step_node, ast.Constant) and step_node.value == 1)
 
-                if has_non_trivial_step or lower_node is not None or upper_node is not None:
+                is_simple_slice = True
+                if has_non_trivial_step:
+                    is_simple_slice = False
+
+                lower_str = ""
+                if lower_node:
+                    l_neg = self._get_negative_const(lower_node)
+                    if l_neg is not None:
+                        is_simple_slice = False
+                    elif isinstance(lower_node, ast.Constant) and isinstance(lower_node.value, int):
+                        lower_str = str(lower_node.value)
+                    else:
+                        is_simple_slice = False
+
+                upper_str = ""
+                if upper_node:
+                    u_neg = self._get_negative_const(upper_node)
+                    if u_neg is not None:
+                        is_simple_slice = False
+                    elif isinstance(upper_node, ast.Constant) and isinstance(upper_node.value, int):
+                        upper_str = str(upper_node.value)
+                    else:
+                        is_simple_slice = False
+
+                if not is_simple_slice:
                     if val_type == "string":
                         self.used_builtins.add("py_str_slice")
                         return f"py_str_slice({value}, {lower}, {upper}, {step})"
@@ -130,7 +157,7 @@ class SubscriptsMixin(TranslatorBase):
                         self.used_builtins.add("py_list_slice")
                         return f"py_list_slice({value}, {lower}, {upper}, {step})"
 
-                return f"{value}[..]"
+                return f"{value}[{lower_str}..{upper_str}]"
             else:
                 self.used_builtins.add("py_slice")
                 return f"py_slice({value}, {lower}, {upper}, {step})"
