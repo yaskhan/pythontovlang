@@ -85,7 +85,7 @@ class TypeRegistrationMixin:
             val_map[val] = member_name
 
         enum_lines.append("}")
-        self.emitter.add_helper_struct("\n".join(enum_lines))
+        self.emitter.add_struct("\n".join(enum_lines))
 
         # Add .str() method to the enum
         str_lines = [f"pub fn (e {enum_name}) str() string {{", "    match e {"]
@@ -101,7 +101,7 @@ class TypeRegistrationMixin:
                 str_lines.append(f"        .{member} {{ return '{str_val}' }}")
         str_lines.append("    }")
         str_lines.append("}")
-        self.emitter.add_helper_struct("\n".join(str_lines))
+        self.emitter.add_struct("\n".join(str_lines))
 
         self._generated_literal_enums[key] = enum_name
         self._literal_enum_values[enum_name] = val_map
@@ -152,7 +152,7 @@ class TypeRegistrationMixin:
 
         pub = "pub " if self.config and getattr(self.config, 'include_all_symbols', False) else ""
 
-        self.emitter.add_helper_struct(f"{pub}type {type_name}{gen_decl} = {normalized}")
+        self.emitter.add_struct(f"{pub}type {type_name}{gen_decl} = {normalized}")
 
         result = f"{type_name}{gen_args}"
         self._generated_sum_types[normalized] = result
@@ -176,7 +176,7 @@ class TypeRegistrationMixin:
         pub = "pub " if self.config and getattr(self.config, "include_all_symbols", False) else ""
         struct_def = f"{pub}struct {struct_name} {{\n" + "\n".join(fields) + "\n}"
 
-        self.emitter.add_helper_struct(struct_def)
+        self.emitter.add_struct(struct_def)
 
         self._generated_tuple_structs[struct_name] = struct_name
         return struct_name

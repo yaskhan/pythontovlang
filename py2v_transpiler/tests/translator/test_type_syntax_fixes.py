@@ -30,7 +30,7 @@ def process_data(data: Tuple[int, str]):
     pass
 """
     v_code = translate(py_code)
-    assert "fn process_data(data [2]Any) {" in v_code
+    assert "fn process_data(data TupleStruct_IntString) {" in v_code
 
 def test_union_to_named_sum_type():
     py_code = """

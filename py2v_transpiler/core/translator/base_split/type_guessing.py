@@ -95,6 +95,8 @@ class TypeGuessingMixin:
                 if node.args and self._is_literal_string_expr(node.args[0]):
                     return "LiteralString"
                 return "string"
+            if fid == "range":
+                return "range"
             if fid == "int":
                 return "int"
             if fid == "float":
