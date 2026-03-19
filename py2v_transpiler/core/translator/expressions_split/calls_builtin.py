@@ -93,6 +93,15 @@ class BuiltinCallsMixin:
                 v_type = "[]Any"
             if len(args) == 0:
                 return f"{v_type}{{}}"
+            
+            if len(args) == 1:
+                arg_type = self._guess_type(node.args[0])
+                if arg_type.startswith("[]"):
+                    return f"{args[0]}.clone()"
+                # If it is not a known array, it might be an iterator
+                self.used_builtins.add("py_list_from_iter")
+                return f"py_list_from_iter<{v_type}>({args[0]})"
+
             return f"{v_type}({', '.join(args)})"
         
         # tuple()
@@ -104,8 +113,11 @@ class BuiltinCallsMixin:
                 return f"{v_type}{{}}"
             if len(args) == 1:
                 arg_type = self._guess_type(node.args[0])
-                if arg_type.startswith("[]") or arg_type == "Any":
+                if arg_type.startswith("[]"):
                     return f"{args[0]}.clone()"
+                # If it is not a known array, it might be an iterator
+                self.used_builtins.add("py_list_from_iter")
+                return f"py_list_from_iter<{v_type}>({args[0]})"
             return f"{v_type}({', '.join(args)})"
         
         # set()
@@ -120,6 +132,16 @@ class BuiltinCallsMixin:
                     self._emitted_any_map_comment = True
             if len(args) == 0:
                 return f"{v_type}{{}}"
+            
+            if len(args) == 1:
+                arg_type = self._guess_type(node.args[0])
+                if arg_type.startswith("[]"):
+                    self.used_builtins.add("py_set_from_list")
+                    return f"py_set_from_list<{v_type}>({args[0]})"
+                # If it is not a known array, it might be an iterator
+                self.used_builtins.add("py_set_from_iter")
+                return f"py_set_from_iter<{v_type}>({args[0]})"
+
             return f"{v_type}({', '.join(args)})"
         
         # int()

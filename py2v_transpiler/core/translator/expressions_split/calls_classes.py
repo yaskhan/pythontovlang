@@ -46,12 +46,22 @@ class ClassCallsMixin:
         if not (call_sig and "is_class" in call_sig) and \
            not (hasattr(self, 'defined_classes') and base_lookup_name in self.defined_classes):
              # Fallback: check if the visited name is a class (e.g. cls -> UserDict[T])
-             visited_name = self.visit(func_node)
-             v_base_name = re.sub(r'\[.*\]', '', visited_name)
-             if hasattr(self, 'defined_classes') and v_base_name in self.defined_classes:
-                  lookup_name = visited_name
-                  base_lookup_name = v_base_name
-                  func_name_str = visited_name
+            visited_name = self.visit(func_node)
+            # Handle self.Inner or Outer.Inner -> Outer_Inner
+            if visited_name.startswith("self.") and getattr(self, "current_class", None):
+                potential_nested = f"{self.current_class}_{visited_name[5:]}"
+                if hasattr(self, 'defined_classes') and potential_nested in self.defined_classes:
+                    visited_name = potential_nested
+            elif "." in visited_name:
+                potential_nested = visited_name.replace(".", "_")
+                if hasattr(self, 'defined_classes') and potential_nested in self.defined_classes:
+                    visited_name = potential_nested
+
+            v_base_name = re.sub(r'\[.*\]', '', visited_name)
+            if hasattr(self, 'defined_classes') and v_base_name in self.defined_classes:
+                 lookup_name = visited_name
+                 base_lookup_name = v_base_name
+                 func_name_str = visited_name
 
         if call_sig and "is_class" in call_sig:
             is_class = call_sig["is_class"]
@@ -63,6 +73,16 @@ class ClassCallsMixin:
             if lookup_name in self.defined_classes:
                 func_name_str = lookup_name
         
+        # If it's a class call but name is not found, try to resolve as nested class
+        if is_class and hasattr(self, 'current_class') and self.current_class:
+             if base_lookup_name not in self.defined_classes:
+                  potential_nested = f"{self.current_class}_{base_lookup_name}"
+                  if hasattr(self, 'defined_classes') and potential_nested in self.defined_classes:
+                       base_lookup_name = potential_nested
+                       # Also check if the factory/info exists for the nested class
+                       class_info = self.defined_classes[base_lookup_name]
+                       has_factory = class_info.get("has_init", False) or class_info.get("has_new", False)
+
         if not is_class:
             return None
         

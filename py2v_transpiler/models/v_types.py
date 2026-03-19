@@ -1,6 +1,6 @@
 import ast
 from enum import Enum, auto
-from typing import Optional, Callable, List, Sequence, Dict, Any
+from typing import cast, Optional, Callable, List, Sequence, Dict, Any
 
 class VType(Enum):
     INT = auto()
@@ -26,7 +26,7 @@ def get_tuple_struct_name(types_str: str) -> str:
         name_parts.append(clean_t)
     return f"TupleStruct_{''.join(name_parts)}"
 
-def map_python_type_to_v(py_type: str, self_name: Optional[str] = None, allow_union: bool = True, generic_map: Optional[Dict[str, str]] = None, sum_type_registrar: Optional[Callable[[str], str]] = None, literal_registrar: Optional[Callable[[Sequence[ast.AST]], str]] = None, tuple_registrar: Optional[Callable[[str], str]] = None) -> str:
+def map_python_type_to_v(py_type: str, self_name: str = 'Self', allow_union: bool = True, generic_map: Optional[Dict[str, str]] = None, sum_type_registrar: Optional[Callable[[str], str]] = None, literal_registrar: Optional[Callable[[Sequence[ast.AST]], str]] = None, tuple_registrar: Optional[Callable[[str], str]] = None) -> str:
     """Maps a Python type name to its V equivalent."""
     if not py_type:
         return 'void'
@@ -75,10 +75,8 @@ def map_python_type_to_v(py_type: str, self_name: Optional[str] = None, allow_un
     try:
         if "[" in py_type:
             tree = ast.parse(py_type)
-            if tree.body:
-                first_stmt = tree.body[0]
-                if isinstance(first_stmt, ast.Expr):
-                    return _map_ast_type(first_stmt.value, self_name or "Self", allow_union, generic_map, sum_type_registrar, literal_registrar, tuple_registrar)
+            if tree.body and isinstance(tree.body[0], ast.Expr):
+                return _map_ast_type(tree.body[0].value, self_name or "Self", allow_union, generic_map, sum_type_registrar, literal_registrar, tuple_registrar)
 
         # Use AST to parse complex types (for non-bracketed types or if the above didn't return)
         node = ast.parse(py_type, mode='eval').body

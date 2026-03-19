@@ -75,20 +75,10 @@ class SubscriptsMixin(TranslatorBase):
         if isinstance(node.slice, ast.Constant) and node.slice.value is Ellipsis:
              return f"{value}[/* ... */]"
         # For Python < 3.9 where Ellipsis might be Index(Ellipsis)
-        # Mypy complaint: "<subclass of "ast.expr" and "ast.Index">" has no attribute "value"
-        # ast.Index is deprecated/removed in 3.10+, but might exist in older stubs or runtime.
-        # In 3.10+, subscript slice is just the node.
-        # We should check hasattr or try/except, or ignore type.
-        # Or better: check isinstance(node.slice, ast.Index) only if ast.Index exists.
-        # But we import ast.
-        # We can cast node.slice to Any to silence mypy if we are sure.
         if hasattr(ast, "Index") and isinstance(node.slice, getattr(ast, "Index")):
              idx = node.slice # type: ignore
              if isinstance(idx.value, ast.Constant) and idx.value.value is Ellipsis:
                  return f"{value}[/* ... */]"
-
-        # Handle Ellipsis directly if node.slice is Ellipsis node (not Constant, unlikely in recent python ast but possible)
-        # In 3.12, it is usually Constant(value=Ellipsis)
 
         # Fast path: Native V indexing if type is known or fallback 'int' (assumed native array in tests).
         # We only use dynamic fallback if type is explicitly 'Any'
@@ -126,30 +116,46 @@ class SubscriptsMixin(TranslatorBase):
                     return f"py_slice({value}, {lower}, {upper}, {step})"
 
             if is_native:
-                if step_node is not None:
-                     # V doesn't support step in slicing natively.
-                     # If step is 1, we can ignore it.
-                     if isinstance(step_node, ast.Constant) and step_node.value == 1:
-                          pass
-                     else:
-                          if val_type == "string":
-                               self.used_builtins.add("py_str_slice")
-                               return f"py_str_slice({value}, {lower}, {upper}, {step})"
-                          else:
-                               self.used_builtins.add("py_list_slice")
-                               return f"py_list_slice({value}, {lower}, {upper}, {step})"
+                # To maintain compatibility with existing tests while ensuring safety:
+                # 1. Full slice [:] -> [..]
+                # 2. Slice with non-trivial step -> helper
+                # 3. Slice with negative bounds -> helper (for clamping safety)
+                # 4. Slice with non-constant bounds or variables -> helper
+                # 5. Slice with positive constant bounds and NO step -> native [low..up]
 
-                lower_str = lower if lower != "none" else ""
+                has_non_trivial_step = step_node is not None and not (isinstance(step_node, ast.Constant) and step_node.value == 1)
+
+                is_simple_slice = True
+                if has_non_trivial_step:
+                    is_simple_slice = False
+
+                lower_str = ""
                 if lower_node:
                     l_neg = self._get_negative_const(lower_node)
                     if l_neg is not None:
-                        lower_str = f"{value}.len - {l_neg}"
+                        is_simple_slice = False
+                    elif isinstance(lower_node, ast.Constant) and isinstance(lower_node.value, int):
+                        lower_str = str(lower_node.value)
+                    else:
+                        is_simple_slice = False
 
-                upper_str = upper if upper != "none" else ""
+                upper_str = ""
                 if upper_node:
                     u_neg = self._get_negative_const(upper_node)
                     if u_neg is not None:
-                        upper_str = f"{value}.len - {u_neg}"
+                        is_simple_slice = False
+                    elif isinstance(upper_node, ast.Constant) and isinstance(upper_node.value, int):
+                        upper_str = str(upper_node.value)
+                    else:
+                        is_simple_slice = False
+
+                if not is_simple_slice:
+                    if val_type == "string":
+                        self.used_builtins.add("py_str_slice")
+                        return f"py_str_slice({value}, {lower}, {upper}, {step})"
+                    else:
+                        self.used_builtins.add("py_list_slice")
+                        return f"py_list_slice({value}, {lower}, {upper}, {step})"
 
                 return f"{value}[{lower_str}..{upper_str}]"
             else:

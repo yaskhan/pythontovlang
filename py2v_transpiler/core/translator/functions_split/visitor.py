@@ -147,44 +147,44 @@ class FunctionVisitorMixin(TranslatorBase):
         base_struct_name: str = self.current_class if self.current_class else ""
 
         is_mixin = False
-        struct_names = [base_struct_name]
+        struct_names = [base_struct_name] if base_struct_name else ['']
         if is_method and hasattr(self.type_inference, "mixin_to_main"):
             if base_struct_name in self.type_inference.mixin_to_main:
                 struct_names = self.type_inference.mixin_to_main[base_struct_name]
                 is_mixin = True
 
-        is_nested = len(self._scope_stack) > 0
+        is_nested = len(self._scope_stack) > 0 and not is_method
 
-        if is_nested:
-            has_generics = hasattr(node, "type_params") and node.type_params
-            if has_generics:
-                 all_v = self._get_all_active_v_generics()
-                 if all_v: has_generics = True
+        old_output = self.output
+        for struct_name in struct_names:
+            if is_nested:
+                has_generics = hasattr(node, "type_params") and node.type_params
+                if has_generics:
+                    all_v = self._get_all_active_v_generics()
+                    if all_v: has_generics = True
 
-            if has_generics:
-                self._generate_function_for_struct(
-                    node,
-                    is_async,
-                    is_method,
-                    "",
-                    dec_info,
-                    is_generator,
-                    is_abstract,
-                    force_standalone=True
-                )
+                if has_generics:
+                    self._generate_function_for_struct(
+                        node,
+                        is_async,
+                        is_method,
+                        struct_name,
+                        dec_info,
+                        is_generator,
+                        is_abstract,
+                        force_standalone=True
+                    )
+                else:
+                    self._generate_function_for_struct(
+                        node,
+                        is_async,
+                        is_method,
+                        struct_name,
+                        dec_info,
+                        is_generator,
+                        is_abstract,
+                    )
             else:
-                self._generate_function_for_struct(
-                    node,
-                    is_async,
-                    is_method,
-                    "",
-                    dec_info,
-                    is_generator,
-                    is_abstract,
-                )
-        else:
-            old_output = self.output
-            for struct_name in struct_names:
                 self._generate_function_for_struct(
                     node,
                     is_async,
@@ -194,4 +194,4 @@ class FunctionVisitorMixin(TranslatorBase):
                     is_generator,
                     is_abstract,
                 )
-            self.output = old_output
+        self.output = old_output
