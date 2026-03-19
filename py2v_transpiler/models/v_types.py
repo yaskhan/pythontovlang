@@ -299,7 +299,7 @@ def _map_ast_type(node: ast.AST, self_name: str = "Self", allow_union: bool = Tr
             if len(args) == 1 and isinstance(args[0], ast.Constant) and args[0].value is Ellipsis:
                 return "fn (...Any) Any"
 
-            return "fn"
+            return "fn (...Any) Any"
 
         elif value_id == 'Literal':
             if literal_registrar:
@@ -413,9 +413,9 @@ def _map_basic_type(name: str) -> str:
         'Set': 'map[string]bool',
         'Optional': '?Any',
         'Union': 'Any',
-        'Callable': 'fn',
-        'callable': 'fn',
-        'collections.abc.Callable': 'fn',
+        'Callable': 'fn (...Any) Any',
+        'callable': 'fn (...Any) Any',
+        'collections.abc.Callable': 'fn (...Any) Any',
         'Sequence': '[]Any',
         'Iterable': '[]Any',
         'Mapping': 'map[string]Any',
@@ -426,8 +426,8 @@ def _map_basic_type(name: str) -> str:
         'typing.Set': 'map[string]bool',
         'typing.Optional': '?Any',
         'typing.Union': 'Any',
-        'typing.Callable': 'fn',
-        'typing_extensions.Callable': 'fn',
+        'typing.Callable': 'fn (...Any) Any',
+        'typing_extensions.Callable': 'fn (...Any) Any',
         'typing_extensions.Union': 'Any',
         'typing.NoReturn': 'void',
         'typing.Sequence': '[]Any',
