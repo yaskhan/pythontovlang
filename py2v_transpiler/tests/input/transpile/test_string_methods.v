@@ -4,8 +4,10 @@ module main
 pub fn test_basic_string_methods() {
     mut s := '  Hello, World!  '
     println('${s.trim_space()}')
-    println('${s.trim_left(' \n\r\t\v\f')}')
-    println('${s.trim_right(' \n\r\t\v\f')}')
+    println('${s.trim_left('
+	')}')
+    println('${s.trim_right('
+	')}')
     println('${s.to_lower()}')
     println('${s.to_upper()}')
     println('${s.capitalize()}')

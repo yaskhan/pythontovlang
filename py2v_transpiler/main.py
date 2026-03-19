@@ -58,7 +58,7 @@ def generate_all_helpers(output_path: str) -> None:
     translator.used_list_concat = True
     translator.used_dict_merge = True
 
-    translator.used_builtins = {"sorted", "reversed", "round", "py_subscript", "py_slice", "py_repr", "py_ascii", "py_format"}
+    translator.used_builtins = {"sorted", "reversed", "round", "py_subscript", "py_slice", "py_repr", "py_ascii", "py_format", "py_string_format_map"}
 
     modules = [
         "tempfile", "logging", "argparse", "pathlib", "collections",

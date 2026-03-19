@@ -792,12 +792,14 @@ fn (mut ctx PyDecimalContext) close() {
             self.emitter.add_helper_function("""fn py_format(val Any, spec string) string {
     // Basic implementation of Python-style formatting
     // Supports: [fill][align][sign][#][0][width][grouping][.precision][type]
-    mut res := '${val}'
-    if spec == '' { return res }
-
-    // This is a placeholder for a more complete implementation.
-    // For now, we handle basic cases via V's built-in interpolation if possible,
-    // or manual padding.
+    if spec == '' {
+        if val is string { return val }
+        if val is int { return val.str() }
+        if val is i64 { return val.str() }
+        if val is f64 { return val.str() }
+        if val is bool { return val.str() }
+        return '${val}'
+    }
 
     mut fill := ` `
     mut align := `>` // Default for numbers is >, for others is <. Python is complex.
@@ -848,6 +850,10 @@ fn (mut ctx PyDecimalContext) close() {
         formatted = '${val:.${prec}f}'
     } else if val is int {
         formatted = '${val}'
+    } else if val is i64 {
+        formatted = '${val}'
+    } else if val is string {
+        formatted = val
     } else {
         formatted = '${val}'
     }
@@ -866,6 +872,54 @@ fn (mut ctx PyDecimalContext) close() {
     }
 
     return formatted
+}""")
+
+        if "py_string_format_map" in self.used_builtins:
+            self.emitter.add_helper_import("strings")
+            self.emitter.add_helper_function("""fn py_string_format_map(fmt string, mapping map[string]Any) string {
+    mut res := strings.new_builder(fmt.len + 16)
+    mut i := 0
+    for i < fmt.len {
+        if fmt[i] == `{` { // '{'
+            if i + 1 < fmt.len && fmt[i+1] == `{` {
+                res.write_string('{')
+                i += 2
+                continue
+            }
+            mut j := i + 1
+            for j < fmt.len && fmt[j] != `}` && fmt[j] != `:` { // '}', ':'
+                j++
+            }
+            if j < fmt.len {
+                key := fmt[i+1..j]
+                mut spec := ''
+                if fmt[j] == `:` { // ':'
+                    mut k := j + 1
+                    for k < fmt.len && fmt[k] != `}` { // '}'
+                        k++
+                    }
+                    if k < fmt.len {
+                        spec = fmt[j+1..k]
+                        j = k
+                    }
+                }
+
+                val := mapping[key] or { panic('KeyError: ' + key) }
+                res.write_string(py_format(val, spec))
+                i = j + 1
+                continue
+            }
+        } else if fmt[i] == `}` { // '}'
+             if i + 1 < fmt.len && fmt[i+1] == `}` {
+                res.write_string('}')
+                i += 2
+                continue
+            }
+        }
+        res.write_u8(fmt[i])
+        i++
+    }
+    return res.str()
 }""")
 
         if "py_repr" in self.used_builtins:
