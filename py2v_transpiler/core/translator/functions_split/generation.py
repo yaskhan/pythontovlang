@@ -72,7 +72,7 @@ class FunctionGenerationMixin:
         if is_abstract and struct_name != self.current_class:
             return
 
-        is_nested = len(self._scope_stack) > 0 and not force_standalone
+        is_nested = len(self._scope_stack) > 0 and not force_standalone and not is_method
 
         old_output = self.output
         self.output = []
@@ -362,8 +362,10 @@ class FunctionGenerationMixin:
             if not is_method:
                 self.defined_top_level_symbols.add(node.name)
 
-            if func_name == "__next__":
+            if original_node_name == "__next__" or func_name == "next":
                 func_name = "next"
+                if ret_type != "void" and not ret_type.startswith("?"):
+                    ret_type = f"?{ret_type}"
             elif func_name in ("__enter__", "__aenter__"):
                 func_name = "enter"
             elif func_name in ("__exit__", "__aexit__"):
@@ -498,8 +500,10 @@ class FunctionGenerationMixin:
             decl = f"{deprecated_attr}fn {receiver_str}{func_name}() string {{"
         elif func_name == "__str__":
             decl = f"{noreturn_attr}{deprecated_attr}{pub_prefix}fn {receiver_str}str() string {{"
-        elif func_name == "__iter__":
+        elif func_name in ("__iter__", "iter"):
             func_name = "iter"
+            if ret_type == "void" and struct_name:
+                ret_type = self._get_full_self_type(struct_name)
             method_generics = func_generics_str
             if method_generics and self.current_class_generics and method_generics == f"[{', '.join(self.current_class_generics)}]":
                 method_generics = ""

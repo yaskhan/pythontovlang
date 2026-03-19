@@ -44,10 +44,18 @@ class GeneratorCallsMixin:
     def _handle_iterator_functions(self, node: ast.Call, func_name_str: str, args: list) -> str | None:
         """Handle iterator functions: next, sorted, reversed, map, filter, any, all."""
         
+        # iter()
+        if func_name_str == "iter" and len(args) == 1:
+            self.used_builtins.add("py_iter")
+            return f"py_iter({args[0]})"
+
         # next(gen) -> gen.next()
         if func_name_str == "next" and len(args) >= 1:
             gen = args[0]
-            return f"{gen}.next()"
+            if len(args) == 2:
+                 default = args[1]
+                 return f"({gen}.next() or {{ {default} }})"
+            return f"({gen}.next() or {{ panic('StopIteration') }})"
         
         # sorted()
         if func_name_str == "sorted":
