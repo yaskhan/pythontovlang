@@ -18,7 +18,7 @@ def f(*args):
     pass
 """
     v_code = transpile(code)
-    assert "fn f(args ...int)" in v_code
+    assert "fn f(args ...Any)" in v_code
 
 def test_varargs_mixed():
     code = """
@@ -26,7 +26,7 @@ def f(a, *b):
     pass
 """
     v_code = transpile(code)
-    assert "fn f(a Any, b ...int)" in v_code
+    assert "fn f(a Any, b ...Any)" in v_code
 
 def test_varargs_with_type_annotation():
     code = """
@@ -74,4 +74,4 @@ def f(*args: List[int]):
 def test_lambda_varargs():
     code = "sum_all = lambda *args: sum(args)"
     v_code = transpile(code)
-    assert "fn (args ...int) Any" in v_code
+    assert "fn (args []Any) Any" in v_code
