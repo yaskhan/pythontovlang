@@ -560,7 +560,7 @@ class CallsMixin(
 
         for i, arg_str in enumerate(args):
             if i in mutated_indices:
-                if not arg_str.startswith("mut "):
+                if not arg_str.startswith("mut ") and arg_str not in ("none", "true", "false"):
                     if re.match(r'^[a-zA-Z_][a-zA-Z0-9._]*$', arg_str):
                         final_args_list.append(f"mut {arg_str}")
                     else:
