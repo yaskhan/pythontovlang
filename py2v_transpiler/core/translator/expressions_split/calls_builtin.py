@@ -75,7 +75,7 @@ class BuiltinCallsMixin:
                     # Create a copy and update it
                     return f"py_dict_update(mut {v_type}({args[0]}).clone(), {kwargs_dict})"
 
-            return "REPLACEME"
+            return f"{v_type}({", ".join(args)})"
         
         # dict.fromkeys()
         elif full_func_name == "dict.fromkeys":
@@ -108,16 +108,21 @@ class BuiltinCallsMixin:
         
         # set()
         elif func_name_str == "set" or (original_id == "set" and func_name_str == "py_set"):
-            v_type = self.current_assignment_type
+            v_assigned_type = self.current_assignment_type
+            v_type = ""
             if len(args) == 1:
                 arg_type = self._guess_type(node.args[0])
                 if arg_type.startswith("[]"):
                     guessed_v_type = f"map[{arg_type[2:]}]bool"
-                elif arg_type == "range":
-                    guessed_v_type = "map[int]bool"
-                    if not v_type or "map[string]bool" in v_type:
+                    if not v_assigned_type or "map[string]bool" in v_assigned_type:
                         v_type = guessed_v_type
-            if not v_type or not v_type.startswith("map["):
+                elif arg_type == "range":
+                    v_type = "map[int]bool"
+
+            if not v_type:
+                v_type = v_assigned_type or "map[string]bool"
+
+            if not v_type.startswith("map["):
                 v_type = "map[string]bool"
 
             if "map[Any]" in v_type:
