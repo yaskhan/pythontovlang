@@ -313,6 +313,7 @@ class AssignmentsMixin(TranslatorBase):
         if len(node.targets) > 1:
             # chained assignment: a = b = c = 1
             rhs = self.visit(node.value)
+            rhs_type = self._guess_type(node.value)
             tmp = f"py_assign_tmp_{self.unique_id_counter}"
             self.unique_id_counter += 1
             self.output.append(f"{self._indent()}{tmp} := {rhs}")
