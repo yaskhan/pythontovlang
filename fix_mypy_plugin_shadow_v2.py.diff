@@ -1,7 +1,0 @@
-<<<<<<< SEARCH
-        # Collect mutability info from processed files
-        mut_visitor = MutabilityVisitor(self.collected_mutability, MUTATING_METHODS)
-=======
-        # Collect mutability info from processed files
-        mut_visitor = MutabilityVisitor(self.collected_mutability, MUTATING_METHODS)
->>>>>>> REPLACE
