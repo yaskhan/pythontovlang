@@ -20,8 +20,8 @@ a = [3, 1, 2]
 b = sorted(a)
 """
     v_code = translate(source)
-    assert "b := py_sorted(a)" in v_code
-    assert "fn py_sorted[T](a []T) []T" in v_code
+    assert "b := py_sorted(a, false)" in v_code
+    assert "fn py_sorted[T](a []T, reverse bool) []T" in v_code
 
 def test_reversed_builtin():
     source = """
@@ -39,7 +39,7 @@ for x in reversed(sorted(a)):
     pass
 """
     v_code = translate(source)
-    assert "for x in py_reversed(py_sorted(a)) {" in v_code
+    assert "for x in py_reversed(py_sorted(a, false)) {" in v_code
     assert "fn py_sorted" in v_code
     assert "fn py_reversed" in v_code
 
