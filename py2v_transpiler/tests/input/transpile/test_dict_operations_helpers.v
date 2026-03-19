@@ -115,10 +115,65 @@ fn py_bytes_format(fmt []u8, args Any) []u8 {
     // TODO: handle args properly. V's string interpolation/formatting expects distinct args.
     // If args is []u8, treat as string.
     arg_str := if args is []u8 { args.bytestr() } else { '${args}' }
-
+    
     // Manual substitution of %s
     // V does not have sprintf for runtime strings easily available in core without C interop.
     // Simple replace for %s
     res := fmt_str.replace('%s', arg_str)
     return res.bytes()
 }
+fn py_dict_pop[K, V](mut d map[K]V, key K, default V) V {
+    if key in d {
+        val := d[key]
+        d.delete(key)
+        return val
+    }
+    return default
+}
+fn py_dict_update[K, V](mut d map[K]V, other ...map[K]V) map[K]V {
+    for o in other {
+        for k, v in o {
+            d[k] = v
+        }
+    }
+    return d
+}
+fn py_dict_setdefault[K, V](mut d map[K]V, key K, default V) V {
+    if key in d {
+        return d[key]
+    }
+    d[key] = default
+    return default
+}
+fn py_dict_fromkeys[M, K, V](keys []K, val V) M {
+    mut res := M{ }
+    for k in keys {
+        res[k] = val
+    }
+    return res
+}
+fn py_dict_from_pairs[M, K, V](pairs [][]Any) M {
+    mut res := M{ }
+    for p in pairs {
+        if p.len >= 2 {
+            mut key := K{}
+            $if K is string {
+                 key = (p[0] as string)
+            } $else $if K is int {
+                 key = (p[0] as int)
+            } $else {
+                 key = (p[0] as K)
+            }
+            mut value := V{}
+             $if V is Any {
+                 value = p[1]
+            } $else {
+                 value = (p[1] as V)
+            }
+            res[key] = value
+        }
+    }
+    return res
+}
+fn py_list_from_iter[T, U](mut it U) T { mut res := []Any{}; for { val := it.next() or { break }; res << val }; return T(res) }
+fn py_range(args ...int) []int { mut res := []int{}; if args.len == 1 { for i in 0..args[0] { res << i } } else if args.len == 2 { for i in args[0]..args[1] { res << i } } else if args.len == 3 { start := args[0]; stop := args[1]; step := args[2]; if step > 0 { for i := start; i < stop; i += step { res << i } } else if step < 0 { for i := start; i > stop; i += step { res << i } } }; return res }

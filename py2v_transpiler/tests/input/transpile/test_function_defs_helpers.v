@@ -115,10 +115,13 @@ fn py_bytes_format(fmt []u8, args Any) []u8 {
     // TODO: handle args properly. V's string interpolation/formatting expects distinct args.
     // If args is []u8, treat as string.
     arg_str := if args is []u8 { args.bytestr() } else { '${args}' }
-
+    
     // Manual substitution of %s
     // V does not have sprintf for runtime strings easily available in core without C interop.
     // Simple replace for %s
     res := fmt_str.replace('%s', arg_str)
     return res.bytes()
 }
+fn py_min[T](a []T) T { if a.len == 0 { panic('min() arg is an empty sequence') }; mut m := a[0]; for x in a { if x < m { m = x } }; return m }
+fn py_max[T](a []T) T { if a.len == 0 { panic('max() arg is an empty sequence') }; mut m := a[0]; for x in a { if x > m { m = x } }; return m }
+fn py_range(args ...int) []int { mut res := []int{}; if args.len == 1 { for i in 0..args[0] { res << i } } else if args.len == 2 { for i in args[0]..args[1] { res << i } } else if args.len == 3 { start := args[0]; stop := args[1]; step := args[2]; if step > 0 { for i := start; i < stop; i += step { res << i } } else if step < 0 { for i := start; i > stop; i += step { res << i } } }; return res }
