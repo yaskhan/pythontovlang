@@ -26,7 +26,7 @@ def get_tuple_struct_name(types_str: str) -> str:
         name_parts.append(clean_t)
     return f"TupleStruct_{''.join(name_parts)}"
 
-def map_python_type_to_v(py_type: str, self_name: Optional[str] = None, allow_union: bool = True, generic_map: Optional[Dict[str, str]] = None, sum_type_registrar: Optional[Callable[[str], str]] = None, literal_registrar: Optional[Callable[[Sequence[ast.AST]], str]] = None, tuple_registrar: Optional[Callable[[str], str]] = None) -> str:
+def map_python_type_to_v(py_type: str, self_name: Optional[str] = None, allow_union: bool = True, generic_map: Optional[dict[str, str]] = None, sum_type_registrar: Optional[Callable[[str], str]] = None, literal_registrar: Optional[Callable[[Sequence[ast.AST]], str]] = None, tuple_registrar: Optional[Callable[[str], str]] = None) -> str:
     """Maps a Python type name to its V equivalent."""
     if not py_type:
         return 'void'
@@ -143,7 +143,7 @@ def _map_ast_type(node: ast.AST, self_name: str = "Self", allow_union: bool = Tr
         return _map_ast_type(node.value, self_name, allow_union, generic_map, sum_type_registrar, literal_registrar, tuple_registrar)
 
     elif isinstance(node, ast.Subscript):
-        # Handle List[T], Dict[K,V], Optional[T], etc.
+        # Handle List[T], dict[K,V], Optional[T], etc.
         value_id = ''
         if isinstance(node.value, ast.Name):
             value_id = node.value.id
@@ -207,27 +207,23 @@ def _map_ast_type(node: ast.AST, self_name: str = "Self", allow_union: bool = Tr
             if len(mapped_args) == 2 and mapped_args[1] == '...':
                 return f"[]{mapped_args[0]}"
 
-            types_str = ", ".join(mapped_args)
-            if tuple_registrar:
-                 return tuple_registrar(types_str)
-            return get_tuple_struct_name(types_str)
-
             if not mapped_args:
                 return "[]Any"
 
-            # tuple[*Ts] mapping for PEP 695: often comes as Name from _map_ast_type
+            # tuple[*Ts] mapping for PEP 695
             if len(mapped_args) == 1 and not mapped_args[0].startswith("[]") and not mapped_args[0].startswith("["):
-                 # Check if it was a Starred node or maps to a generic name
-                 # In test_typevartuple_unpacking it expects tuple[T]
                  return f"tuple[{mapped_args[0]}]"
 
-            # Tuple[int, int] -> [2]int
+            # Homogeneous tuples map to fixed-size arrays in V
             first = mapped_args[0]
             if all(arg == first for arg in mapped_args):
                 return f"[{len(mapped_args)}]{first}"
 
-            # Tuple[int, str] -> [2]Any
-            return f"[{len(mapped_args)}]Any"
+            # Heterogeneous tuples map to structs for type safety
+            types_str = ", ".join(mapped_args)
+            if tuple_registrar:
+                 return tuple_registrar(types_str)
+            return get_tuple_struct_name(types_str)
 
         elif value_id == 'Optional':
             if mapped_args:

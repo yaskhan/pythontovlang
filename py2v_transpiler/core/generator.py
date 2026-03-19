@@ -44,7 +44,8 @@ class VCodeEmitter:
 
     def add_struct(self, struct_def: str) -> None:
         """Adds a struct definition."""
-        self.structs.append(struct_def)
+        if struct_def not in self.structs:
+            self.structs.append(struct_def)
 
     def add_helper_struct(self, struct_def: str) -> None:
         """Adds a struct definition to helpers."""
@@ -52,7 +53,8 @@ class VCodeEmitter:
 
     def add_function(self, func_def: str) -> None:
         """Adds a function definition."""
-        self.functions.append(func_def)
+        if func_def not in self.functions:
+            self.functions.append(func_def)
 
     def add_helper_function(self, func_def: str) -> None:
         """Adds a function definition to helpers."""

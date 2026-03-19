@@ -75,7 +75,7 @@ class BuiltinCallsMixin:
                     # Create a copy and update it
                     return f"py_dict_update(mut {v_type}({args[0]}).clone(), {kwargs_dict})"
 
-            return f"{v_type}({', '.join(args)})"
+            return "REPLACEME"
         
         # dict.fromkeys()
         elif full_func_name == "dict.fromkeys":
@@ -93,7 +93,8 @@ class BuiltinCallsMixin:
                 v_type = "[]Any"
             if len(args) == 0:
                 return f"{v_type}{{}}"
-            return f"{v_type}({', '.join(args)})"
+            self.used_builtins.add("py_list_cast")
+            return f"py_list_cast<{v_type}>({args[0]})"
         
         # tuple()
         elif func_name_str == "tuple" or (original_id == "tuple" and func_name_str == "py_tuple"):
@@ -102,13 +103,23 @@ class BuiltinCallsMixin:
                 v_type = "[]Any"
             if len(args) == 0:
                 return f"{v_type}{{}}"
-            return f"{v_type}({', '.join(args)})"
+            self.used_builtins.add("py_list_cast")
+            return f"py_list_cast<{v_type}>({args[0]})"
         
         # set()
         elif func_name_str == "set" or (original_id == "set" and func_name_str == "py_set"):
-            v_type = self.current_assignment_type or "map[string]bool"
-            if not v_type.startswith("map["):
+            v_type = self.current_assignment_type
+            if len(args) == 1:
+                arg_type = self._guess_type(node.args[0])
+                if arg_type.startswith("[]"):
+                    guessed_v_type = f"map[{arg_type[2:]}]bool"
+                elif arg_type == "range":
+                    guessed_v_type = "map[int]bool"
+                    if not v_type or "map[string]bool" in v_type:
+                        v_type = guessed_v_type
+            if not v_type or not v_type.startswith("map["):
                 v_type = "map[string]bool"
+
             if "map[Any]" in v_type:
                 v_type = v_type.replace("map[Any]", "map[string]")
                 if not getattr(self, '_emitted_any_map_comment', False):
@@ -116,7 +127,8 @@ class BuiltinCallsMixin:
                     self._emitted_any_map_comment = True
             if len(args) == 0:
                 return f"{v_type}{{}}"
-            return f"{v_type}({', '.join(args)})"
+            self.used_builtins.add("py_set_from_list")
+            return f"py_set_from_list<{v_type}>({args[0]})"
         
         # int()
         elif func_name_str == "int" or (original_id == "int" and func_name_str == "py_int"):
