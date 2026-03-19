@@ -378,6 +378,21 @@ class OperatorsMixin(TranslatorBase):
                       return f"none !in {right}"
                  return f"!{right}.any(it == none)"
 
+            # Set comparison
+            if left_type.startswith("map[") and left_type.endswith("]bool"):
+                if isinstance(op, ast.LtE):
+                    self.used_builtins.add("py_set_subset")
+                    return f"py_set_subset({left}, {right})"
+                elif isinstance(op, ast.Lt):
+                    self.used_builtins.add("py_set_strict_subset")
+                    return f"py_set_strict_subset({left}, {right})"
+                elif isinstance(op, ast.GtE):
+                    self.used_builtins.add("py_set_superset")
+                    return f"py_set_superset({left}, {right})"
+                elif isinstance(op, ast.Gt):
+                    self.used_builtins.add("py_set_strict_superset")
+                    return f"py_set_strict_superset({left}, {right})"
+
             if isinstance(op, ast.Is):
                  self.used_builtins.add("py_is_identical")
                  return f"py_is_identical({left}, {right})"

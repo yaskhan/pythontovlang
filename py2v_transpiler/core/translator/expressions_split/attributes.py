@@ -59,7 +59,7 @@ class AttributesMixin(TranslatorBase):
         obj = self.visit(node.value)
 
         # Avoid double casting if visit(node.value) already applied casting (via NamesMixin)
-        if "(" in obj and " as " in obj:
+        if obj is not None and "(" in obj and " as " in obj:
             pass
         # Apply narrowing if mypy type differs from local type mapping
         # Only do this if we can safely cast without syntax errors.
