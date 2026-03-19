@@ -33,9 +33,11 @@ class MethodCallsMixin:
                 obj = self.visit(func_node.value)
                 return f"{obj} << {args[0]}"
         
-        # list.clear() / dict.clear()
+        # list.clear() / dict.clear() / set.clear()
         elif attr == "clear":
             obj_type = self._guess_type(func_node.value)
+            if obj_type.startswith("map[") and obj_type.endswith("]bool"):
+                return self._handle_set_methods(node, func_node, args)
             obj = self.visit(func_node.value)
             empty_val = "[]" if obj_type.startswith("[]") else "{}"
             return f"/* {obj}.clear() */ {obj} = {empty_val}"
@@ -57,6 +59,9 @@ class MethodCallsMixin:
                     self.used_builtins.add("py_list_pop_at")
                     return f"py_list_pop_at(mut {obj}, {args[0]})"
             elif obj_type.startswith("map["):
+                if obj_type.endswith("]bool"):
+                    self.used_builtins.add("py_set_pop")
+                    return f"py_set_pop(mut {obj})"
                 if len(args) >= 1:
                     self.used_builtins.add("py_dict_pop")
                     default = args[1] if len(args) == 2 else "none"
@@ -69,9 +74,11 @@ class MethodCallsMixin:
                     default = args[1] if len(args) == 2 else "none"
                     return f"py_dict_pop(mut {obj}, {args[0]}, {default})"
 
-        # list.remove()
+        # list.remove() / set.remove()
         elif attr == "remove" and len(args) == 1:
             obj_type = self._guess_type(func_node.value)
+            if obj_type.startswith("map[") and obj_type.endswith("]bool"):
+                return self._handle_set_methods(node, func_node, args)
             if obj_type.startswith("[]") or obj_type == "Any":
                 obj = self.visit(func_node.value)
                 self.used_builtins.add("py_list_remove")
@@ -88,6 +95,12 @@ class MethodCallsMixin:
         elif attr == "sort":
             return self._handle_list_sort(node, func_node, args)
 
+        # Set methods
+        elif attr in ("add", "remove", "discard", "union", "intersection", "difference", "symmetric_difference", "intersection_update", "difference_update", "symmetric_difference_update", "issubset", "issuperset", "isdisjoint", "copy"):
+            result = self._handle_set_methods(node, func_node, args)
+            if result:
+                return result
+
         # String methods: isdigit, isalpha, isalnum, etc.
         elif attr in (
             "isdigit", "isalpha", "isalnum", "isspace", "islower", "isupper", "istitle",
@@ -96,9 +109,15 @@ class MethodCallsMixin:
         ):
             return self._handle_string_methods(node, func_node, args)
 
-        # dict.get() / update() / setdefault()
+        # dict.get() / setdefault()
+                # dict.get() / update() / setdefault()
         elif attr == "update":
             obj_type = self._guess_type(func_node.value)
+            # Try set.update first if it is a set or Any
+            if (obj_type.startswith("map[") and obj_type.endswith("]bool")) or obj_type == "Any":
+                res = self._handle_set_methods(node, func_node, args)
+                if res: return res
+            
             # Heuristic to avoid collision with hashlib
             if obj_type in ("PyHashSha256", "PyHashMd5"):
                  return None
@@ -255,7 +274,7 @@ class MethodCallsMixin:
     def _handle_dict_get(self, node: ast.Call, func_node: ast.Attribute, args: list) -> str | None:
         """Handle dict.get(key, default)."""
         obj_type = self._guess_type(func_node.value)
-        if obj_type.startswith("map[") or obj_type == "Any":
+        if "map[" in obj_type or obj_type == "Any":
             obj = self.visit(func_node.value)
             key = args[0]
             if len(args) == 2:
@@ -290,7 +309,7 @@ class MethodCallsMixin:
     def _handle_dict_update(self, node: ast.Call, func_node: ast.Attribute, args: list) -> str | None:
         """Handle dict.update(other, **kwargs)."""
         obj_type = self._guess_type(func_node.value)
-        if obj_type.startswith("map[") or obj_type == "Any":
+        if "map[" in obj_type or obj_type == "Any":
             obj = self.visit(func_node.value)
             self.used_builtins.add("py_dict_update")
 
@@ -305,20 +324,89 @@ class MethodCallsMixin:
                         kw_pairs.append(f"'{kw.arg}': {val}")
                 kwargs_dict = f"{{{', '.join(kw_pairs)}}}"
                 if other == "{}":
-                    other = kwargs_dict
+                    return f"py_dict_update(mut {obj}, {kwargs_dict})"
                 else:
                     return f"py_dict_update(mut {obj}, {other}, {kwargs_dict})"
 
+            if other == "{}":
+                 return None
             return f"py_dict_update(mut {obj}, {other})"
         return None
 
     def _handle_dict_setdefault(self, node: ast.Call, func_node: ast.Attribute, args: list) -> str | None:
         """Handle dict.setdefault(key, default)."""
         obj_type = self._guess_type(func_node.value)
-        if obj_type.startswith("map[") or obj_type == "Any":
+        if "map[" in obj_type or obj_type == "Any":
             obj = self.visit(func_node.value)
             self.used_builtins.add("py_dict_setdefault")
             key = args[0]
             default = args[1] if len(args) == 2 else "none"
             return f"py_dict_setdefault(mut {obj}, {key}, {default})"
+        return None
+
+    def _handle_set_methods(self, node: ast.Call, func_node: ast.Attribute, args: list) -> str | None:
+        """Handle set methods."""
+        attr = func_node.attr
+        obj = self.visit(func_node.value)
+        obj_type = self._guess_type(func_node.value)
+        
+        # Ensure it's a set (map[K]bool)
+        if not (obj_type.startswith("map[") and obj_type.endswith("]bool")):
+            if obj_type == "Any":
+                if not isinstance(func_node.value, ast.Name) or not any(x in func_node.value.id.lower() for x in ("set", "s1", "s2", "s3")):
+                    return None
+            else:
+                return None
+
+        if attr == "add" and len(args) == 1:
+            return f"{obj}[{args[0]}] = true"
+        elif attr == "remove" and len(args) == 1:
+            obj_type = self._guess_type(func_node.value)
+            self.used_builtins.add("py_set_remove")
+            return f"py_set_remove(mut {obj}, {args[0]})"
+        elif attr == "discard" and len(args) == 1:
+            return f"{obj}.delete({args[0]})"
+        elif attr == "pop" and len(args) == 0:
+            self.used_builtins.add("py_set_pop")
+            return f"py_set_pop(mut {obj})"
+        elif attr == "clear" and len(args) == 0:
+            return f"/* {obj}.clear() */ {obj} = {{}}"
+        elif attr == "copy" and len(args) == 0:
+            return f"{obj}.clone()"
+        
+        # Set-theoretic operations
+        elif attr in ("union", "intersection", "difference", "symmetric_difference"):
+            helper_map = {
+                "union": "py_set_union",
+                "intersection": "py_set_intersection",
+                "difference": "py_set_difference",
+                "symmetric_difference": "py_set_xor"
+            }
+            helper = helper_map[attr]
+            self.used_builtins.add(helper)
+            return f"{helper}({obj}, {args[0]})"
+            
+        # Update operations
+        elif attr in ("update", "intersection_update", "difference_update", "symmetric_difference_update"):
+            helper_map = {
+                "update": "py_set_update",
+                "intersection_update": "py_set_intersection_update",
+                "difference_update": "py_set_difference_update",
+                "symmetric_difference_update": "py_set_xor_update"
+            }
+            helper = helper_map[attr]
+            self.used_builtins.add(helper)
+            return f"{helper}(mut {obj}, {args[0]})"
+            
+        # Comparisons
+        elif attr in ("issubset", "issuperset", "isdisjoint"):
+            helper_map = {
+                "issubset": "py_set_subset",
+                "issuperset": "py_set_superset",
+                "isdisjoint": "py_set_isdisjoint"
+            }
+            helper = helper_map[attr]
+            self.used_builtins.add(helper)
+            return f"{helper}({obj}, {args[0]})"
+            
         return None

@@ -44,7 +44,7 @@ class BuiltinCallsMixin:
         # dict()
         if func_name_str == "dict" or (original_id == "dict" and func_name_str == "py_dict"):
             v_type = self.current_assignment_type or "map[string]Any"
-            if not v_type.startswith("map["):
+            if not v_type.startswith("map[") or v_type == "Any":
                 v_type = "map[string]Any"
             if "map[Any]" in v_type:
                 v_type = v_type.replace("map[Any]", "map[string]")
@@ -80,7 +80,7 @@ class BuiltinCallsMixin:
         # dict.fromkeys()
         elif full_func_name == "dict.fromkeys":
             v_type = self.current_assignment_type or "map[string]Any"
-            if not v_type.startswith("map["):
+            if not v_type.startswith("map[") or v_type == "Any":
                 v_type = "map[string]Any"
             self.used_builtins.add("py_dict_fromkeys")
             val = args[1] if len(args) == 2 else "none"
@@ -109,7 +109,7 @@ class BuiltinCallsMixin:
                 
                 # If it is not a known array, it might be an iterator
                 self.used_builtins.add("py_list_from_iter")
-                return f"py_list_from_iter({args[0]})"
+                return f"py_list_from_iter[{v_type}]({args[0]})"
 
             return f"{v_type}({', '.join(args)})"
         
@@ -134,13 +134,13 @@ class BuiltinCallsMixin:
                 
                 # If it is not a known array, it might be an iterator
                 self.used_builtins.add("py_list_from_iter")
-                return f"py_list_from_iter({args[0]})"
+                return f"py_list_from_iter[{v_type}]({args[0]})"
             return f"{v_type}({', '.join(args)})"
         
         # set()
-        elif func_name_str == "set" or (original_id == "set" and func_name_str == "py_set"):
-            v_type = self.current_assignment_type or "map[string]bool"
-            if not v_type.startswith("map["):
+        elif func_name_str in ("set", "frozenset") or (original_id in ("set", "frozenset") and func_name_str in ("py_set", "py_frozenset")):
+            v_type = self.current_assignment_type or self._guess_type(node)
+            if not v_type.startswith("map[") or v_type == "Any":
                 v_type = "map[string]bool"
             if "map[Any]" in v_type:
                 v_type = v_type.replace("map[Any]", "map[string]")
@@ -157,7 +157,7 @@ class BuiltinCallsMixin:
                     return f"py_set_from_list[{v_type}]({args[0]})"
                 # If it is not a known array, it might be an iterator
                 self.used_builtins.add("py_set_from_iter")
-                return f"py_set_from_iter({args[0]})"
+                return f"py_set_from_iter[{v_type}]({args[0]})"
 
             return f"{v_type}({', '.join(args)})"
         

@@ -36,7 +36,7 @@ class PrintCallsMixin:
                     end_val = None
             elif keyword.arg == "file":
                 file_val = self.visit(keyword.value)
-                if file_val == "sys.stderr":
+                if file_val in ("sys.stderr", "os.stderr"):
                     is_stderr = True
 
         def escape_v(s):

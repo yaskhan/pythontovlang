@@ -294,8 +294,6 @@ class TypeGuessingMixin:
             return inferred
         if hasattr(self.type_inference, "type_map") and node.id in self.type_inference.type_map:
             return self.type_inference.type_map[node.id]
-        if hasattr(self, "defined_classes") and node.id in self.defined_classes:
-            return node.id
         return "int"
 
     def _guess_type_attribute(self, node: ast.Attribute) -> str:
