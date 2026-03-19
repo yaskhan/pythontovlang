@@ -47,7 +47,8 @@ class GenericsMixin:
     def _get_combined_generic_map(self) -> Dict[str, str]:
         """Returns a merged dictionary of all active generic scopes."""
         combined = {}
-        for scope in self.generic_scopes:
+        scopes = getattr(self, "generic_scopes", [])
+        for scope in scopes:
             combined.update(scope)
         return combined
 
