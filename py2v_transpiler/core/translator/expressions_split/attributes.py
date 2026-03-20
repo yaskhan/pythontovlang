@@ -92,14 +92,20 @@ class AttributesMixin(TranslatorBase):
             attr_name = self._sanitize_name(self._mangle_name(node.attr, self.current_class))
 
         # Static/Class methods resolution
-        # If receiver is a class name, check for class variables (constants).
+        # If receiver is a class name, check for class variables (via meta singleton).
         defined_classes = getattr(self, "defined_classes", {})
+        import os
+        if os.environ.get('DEBUG_ATTR') == '1':
+            ctx = 'Load' if isinstance(node.ctx, ast.Load) else 'Store' if isinstance(node.ctx, ast.Store) else 'Del'
+            print(f"DEBUG: visit_Attribute obj='{obj}', attr='{attr_name}', ctx={ctx}, defined_classes={list(defined_classes.keys())}")
         if obj in defined_classes:
             defining_class = self._find_defining_class_for_class_var(obj, attr_name)
+            if os.environ.get('DEBUG_ATTR') == '1':
+                print(f"DEBUG: finding class var for obj='{obj}', attr='{attr_name}' -> '{defining_class}'")
             if defining_class:
-                return f"{defining_class}_{attr_name}"
+                return f"{defining_class}_meta.{attr_name}"
 
-        # If receiver is a class name or its type is a class we know, check for static methods.
+        # If receiver is a class name or its type is a class we know, check for static methods or class variables.
         target_class = None
         if obj in defined_classes:
             target_class = obj
@@ -109,9 +115,10 @@ class AttributesMixin(TranslatorBase):
                 target_class = obj_type
 
         if target_class:
-            defining_class = self._find_defining_class_for_static_method(target_class, node.attr)
-            if defining_class:
-                return f"{defining_class}_{attr_name}"
+            # Check for class variable access on instance or class receiver
+            defining_class_var = self._find_defining_class_for_class_var(target_class, node.attr)
+            if defining_class_var:
+                return f"{defining_class_var}_meta.{attr_name}"
 
             defining_class = self._find_defining_class_for_static_method(target_class, node.attr)
             if defining_class:
@@ -164,7 +171,7 @@ class AttributesMixin(TranslatorBase):
         # Apply narrowing to the result of the attribute access
         # We need to narrow the attribute itself (d.value), not the recevier (d)
         # Use location_map for the attribute node itself
-        if not ("(" in res and " as " in res):
+        if not isinstance(node.ctx, ast.Store) and not ("(" in res and " as " in res):
             # Get the type of the attribute (node) without location-based narrowing
             try:
                 v_attr_base = self._map_type(self._guess_type(node, use_location=False))

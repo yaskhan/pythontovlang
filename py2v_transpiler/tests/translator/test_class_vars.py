@@ -12,13 +12,13 @@ class Vehicle:
     tree = ast.parse(source)
     code = visitor.visit(tree)
 
-    # Should be in struct
+    # Should be in Meta struct
+    assert "pub struct VehicleMeta {" in code
     assert "wheels int = 4" in code
     assert "brand string = 'Generic'" in code
 
-    # Should be constants
-    assert "pub const Vehicle_wheels = 4" in code
-    assert "pub const Vehicle_brand = 'Generic'" in code
+    # Should be singleton instance
+    assert "pub const Vehicle_meta = &VehicleMeta{}" in code
 
 def test_class_variables_access():
     source = """
@@ -33,10 +33,8 @@ print(Vehicle.wheels)
     tree = ast.parse(source)
     code = visitor.visit(tree)
 
-    # Instance access (via struct field)
-    assert "println('${v.wheels}')" in code
-    # Class access (via constant)
-    assert "println('${Vehicle_wheels}')" in code
+    # Both instance and class access should be redirected to Meta singleton
+    assert "println('${Vehicle_meta.wheels}')" in code
 
 def test_inherited_class_variable_access():
     source = """
@@ -52,5 +50,5 @@ print(Car.wheels)
     tree = ast.parse(source)
     code = visitor.visit(tree)
 
-    # Should find wheels in Vehicle and use Vehicle_wheels constant
-    assert "println('${Vehicle_wheels}')" in code
+    # Should find wheels in Vehicle and use Vehicle_meta singleton
+    assert "println('${Vehicle_meta.wheels}')" in code

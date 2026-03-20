@@ -202,12 +202,8 @@ class AssignmentsMixin(TranslatorBase):
                 self.output.append(f"{self._indent()}{obj_expr}.set_{target.attr}({rhs_expr})")
                 return
 
-            # Check for function attribute assignment
-            obj_name = self.visit(target.value)
-            if obj_name in self.function_names:
-                 lhs = f"{obj_name}__{target.attr}"
-            else:
-                 lhs = f"{obj_name}.{target.attr}"
+            # Use visit(target) to get the (potentially redirected) lhs
+            lhs = self.visit(target)
         elif isinstance(target, ast.Subscript):
             # dict["key"] = value (TypedDict)
             obj_type = getattr(self, "_guess_type", lambda x: "unknown")(target.value)

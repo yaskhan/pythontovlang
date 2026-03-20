@@ -386,11 +386,27 @@ class ClassDefinitionHandler:
             struct_parts.append("}")
             self.translator.emitter.add_struct("".join(struct_parts))
 
-            # Emit class variables as constants
+            # Emit class variables as a Meta struct and instance
             class_vars = self.translator.defined_classes.get(orig_struct_name, {}).get("class_vars", [])
-            for var in class_vars:
-                v_name = f"{orig_struct_name}_{var['name']}"
-                self.translator.emitter.add_constant(f"pub {v_name} = {var.get('value')}")
+            if class_vars:
+                meta_struct_name = f"{orig_struct_name}Meta"
+                meta_parts = [f"pub struct {meta_struct_name} {{"]
+                meta_parts.append("pub mut:")
+                
+                init_values = []
+                for var in class_vars:
+                    v_name = var["name"]
+                    v_type = var.get("type", "Any")
+                    v_val = var.get("value", "none")
+                    meta_parts.append(f"    {v_name} {v_type} = {v_val}")
+                    init_values.append(f"{v_name}: {v_val}")
+                
+                meta_parts.append("}")
+                self.translator.emitter.add_struct("\n".join(meta_parts))
+                
+                # Emit the singleton instance
+                meta_const_name = f"{orig_struct_name}_meta"
+                self.translator.emitter.add_constant(f"pub {meta_const_name} = &{meta_struct_name}{{}}")
 
             # Rename dunder methods
             has_str = self.translator.class_methods_handler.has_method(methods, "__str__")
