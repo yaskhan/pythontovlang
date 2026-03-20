@@ -197,6 +197,10 @@ fn (mut p Printer) visit_constant(node &Constant) {
 	p.write('Constant(value=${node.value})')
 }
 
+fn (mut p Printer) visit_none_expr(node &NoneExpr) {
+	p.write('None')
+}
+
 fn (mut p Printer) visit_attribute(node &Attribute) {
 	p.write('Attribute(\n')
 	p.indent_level++
@@ -229,7 +233,26 @@ fn (mut p Printer) visit_call(node &Call) {
 	}
 	p.indent_level--
 	p.write(p.indent() + '],\n')
-	p.write(p.indent() + 'keywords=[])')
+	p.write(p.indent() + 'keywords=[')
+	if node.keywords.len > 0 {
+		p.write('\n')
+		p.indent_level++
+		for i, kw in node.keywords {
+			p.write(p.indent() + 'keyword(')
+			if kw.arg != '' && kw.arg != '**' {
+				p.write('arg=\'${kw.arg}\', ')
+			}
+			p.write('value=')
+			walk_expr(mut p, kw.value)
+			p.write(')')
+			if i < node.keywords.len - 1 {
+				p.write(',\n')
+			}
+		}
+		p.indent_level--
+		p.write('\n' + p.indent())
+	}
+	p.write('])')
 	p.indent_level--
 }
 

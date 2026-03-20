@@ -1109,45 +1109,75 @@ fn (mut p Parser) parse_dict_or_set() ?Expression {
 		p.advance()
 		return Dict{token: tok, keys: [], values: []}
 	}
-	first := p.parse_expression() or { return none }
-	// Dict
-	if p.current_is(.colon) {
+
+	mut keys := []Expression{}
+	mut values := []Expression{}
+
+	// Determine if it's a Dict or a Set by looking at the first element
+	if p.current_is(.operator) && p.current_token.value == '**' {
+		// Starts with **kwargs => it's a Dict
 		p.advance()
-		fval := p.parse_expression() or { return none }
-		// Dict comprehension
-		if p.current_is_keyword('for') {
-			gens := p.parse_comprehensions()
-			p.expect(.rbrace)
-			return DictComp{token: tok, key: first, value: fval, generators: gens}
-		}
-		mut keys := [first]
-		mut values := [fval]
-		for p.current_is(.comma) {
+		v := p.parse_expression() or { return none }
+		keys << NoneExpr{token: tok}
+		values << v
+	} else {
+		first := p.parse_expression() or { return none }
+		if p.current_is(.colon) {
+			// It's a Dict
 			p.advance()
-			if p.current_is(.rbrace) { break }
+			fval := p.parse_expression() or { return none }
+			// Dict comprehension
+			if p.current_is_keyword('for') {
+				gens := p.parse_comprehensions()
+				p.expect(.rbrace)
+				return DictComp{token: tok, key: first, value: fval, generators: gens}
+			}
+			keys << first
+			values << fval
+		} else {
+			// It's a Set or Set comprehension
+			if p.current_is_keyword('for') {
+				gens := p.parse_comprehensions()
+				p.expect(.rbrace)
+				return SetComp{token: tok, elt: first, generators: gens}
+			}
+			mut elems := [first]
+			for p.current_is(.comma) {
+				p.advance()
+				if p.current_is(.rbrace) { break }
+				if e := p.parse_expression() { elems << e }
+			}
+			p.expect(.rbrace)
+			return Set{token: tok, elements: elems}
+		}
+	}
+
+	// Parsing the rest as a Dict
+	if p.current_is(.comma) {
+		p.advance()
+	}
+	for !p.current_is(.rbrace) && !p.current_is(.eof) {
+		if p.current_is(.operator) && p.current_token.value == '**' {
+			p.advance()
+			if v := p.parse_expression() {
+				keys << NoneExpr{token: tok}
+				values << v
+			}
+		} else {
 			k := p.parse_expression() or { break }
 			p.expect(.colon)
 			v := p.parse_expression() or { break }
 			keys << k
 			values << v
 		}
-		p.expect(.rbrace)
-		return Dict{token: tok, keys: keys, values: values}
-	}
-	// Set / set comprehension
-	if p.current_is_keyword('for') {
-		gens := p.parse_comprehensions()
-		p.expect(.rbrace)
-		return SetComp{token: tok, elt: first, generators: gens}
-	}
-	mut elems := [first]
-	for p.current_is(.comma) {
-		p.advance()
-		if p.current_is(.rbrace) { break }
-		if e := p.parse_expression() { elems << e }
+		if p.current_is(.comma) {
+			p.advance()
+		} else {
+			break
+		}
 	}
 	p.expect(.rbrace)
-	return Set{token: tok, elements: elems}
+	return Dict{token: tok, keys: keys, values: values}
 }
 
 fn (mut p Parser) parse_comprehensions() []Comprehension {
@@ -1176,20 +1206,49 @@ fn (mut p Parser) parse_call(func Expression) Expression {
 		// **kwargs
 		if p.current_is(.operator) && p.current_token.value == '**' {
 			p.advance()
-			if e := p.parse_expression() { kwd_args << KeywordArg{arg: '**', value: e} }
+			if e := p.parse_expression() {
+				kwd_args << KeywordArg{
+					arg: ''
+					value: e
+				}
+			}
 		} else if p.current_is(.operator) && p.current_token.value == '*' {
 			p.advance()
-			if e := p.parse_expression() { args << Starred{token: tok, value: e, ctx: .load} }
+			if e := p.parse_expression() {
+				args << Starred{
+					token: tok
+					value: e
+					ctx: .load
+				}
+			}
 		} else if p.current_is(.identifier) && p.peek_is(.operator) && p.peek_tok.value == '=' {
-			kname := p.current_token.value; p.advance(); p.advance()
-			if v := p.parse_expression() { kwd_args << KeywordArg{arg: kname, value: v} }
+			kname := p.current_token.value
+			p.advance()
+			p.advance()
+			if v := p.parse_expression() {
+				kwd_args << KeywordArg{
+					arg: kname
+					value: v
+				}
+			}
 		} else {
-			if e := p.parse_expression() { args << e }
+			if e := p.parse_expression() {
+				args << e
+			}
 		}
-		if p.current_is(.comma) { p.advance() } else { break }
+		if p.current_is(.comma) {
+			p.advance()
+		} else {
+			break
+		}
 	}
 	p.expect(.rparen)
-	return Call{token: tok, func: func, args: args, keywords: kwd_args}
+	return Call{
+		token: tok
+		func: func
+		args: args
+		keywords: kwd_args
+	}
 }
 
 fn (mut p Parser) parse_subscript(value Expression) Expression {

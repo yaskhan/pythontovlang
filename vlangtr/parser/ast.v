@@ -61,6 +61,15 @@ pub:
 fn (n &Constant) get_token() Token { return n.token }
 fn (n &Constant) str() string      { return 'Constant(value=${n.value})' }
 
+// None placeholder for Dict keys with **kwargs
+struct NoneExpr {
+pub:
+	token Token
+}
+
+fn (n &NoneExpr) get_token() Token { return n.token }
+fn (n &NoneExpr) str() string      { return 'None' }
+
 // ──────────────────────────────────────────────────
 
 struct FormattedValue {
