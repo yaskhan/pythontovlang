@@ -404,8 +404,40 @@ fn (mut p Printer) visit_if_exp(node &IfExp) {
 fn (mut p Printer) visit_pass(node &Pass) { p.write('Pass()') }
 fn (mut p Printer) visit_break(node &Break) { p.write('Break()') }
 fn (mut p Printer) visit_continue(node &Continue) { p.write('Continue()') }
-fn (mut p Printer) visit_import(node &Import) { p.write('Import(...)') }
-fn (mut p Printer) visit_import_from(node &ImportFrom) { p.write('ImportFrom(...)') }
+fn (mut p Printer) visit_import(node &Import) {
+	p.write('Import(names=[\n')
+	p.indent_level++
+	for i, alias in node.names {
+		p.write(p.indent() + 'alias(name=\'${alias.name}\'')
+		if asname := alias.asname {
+			p.write(', asname=\'${asname}\'')
+		}
+		p.write(')')
+		if i < node.names.len - 1 { p.write(',\n') }
+	}
+	p.indent_level--
+	p.write('\n' + p.indent() + '])')
+}
+
+fn (mut p Printer) visit_import_from(node &ImportFrom) {
+	p.write('ImportFrom(\n')
+	p.indent_level++
+	p.write(p.indent() + 'module=\'${node.module}\',\n')
+	p.write(p.indent() + 'names=[\n')
+	p.indent_level++
+	for i, alias in node.names {
+		p.write(p.indent() + 'alias(name=\'${alias.name}\'')
+		if asname := alias.asname {
+			p.write(', asname=\'${asname}\'')
+		}
+		p.write(')')
+		if i < node.names.len - 1 { p.write(',\n') }
+	}
+	p.indent_level--
+	p.write('\n' + p.indent() + '],\n')
+	p.write(p.indent() + 'level=${node.level})')
+	p.indent_level--
+}
 fn (mut p Printer) visit_with(node &With) { p.write('With(...)') }
 fn (mut p Printer) visit_try(node &Try) { p.write('Try(...)') }
 fn (mut p Printer) visit_match(node &Match) { p.write('Match(...)') }
