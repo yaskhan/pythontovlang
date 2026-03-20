@@ -190,9 +190,14 @@ class LiteralsMixin(TranslatorBase):
              elif not v_type.startswith("[]"):
                  v_type = "[]Any"
              return f"{v_type}{{}}"
+        
+        # Use LCS for explicit typing if elements have different types
+        inferred_type = self._guess_type(node)
+        if inferred_type.startswith("[]") and inferred_type != "[]Any" and not inferred_type.startswith("[]?"):
+             return f"{inferred_type}{{{', '.join(elements)}}}"
 
         if "none" in elements:
-             v_type = self.current_assignment_type or "[]?Any"
+             v_type = self.current_assignment_type or inferred_type or "[]?Any"
              base_type = "?Any"
              if v_type.startswith("[]?"):
                  base_type = v_type[2:]

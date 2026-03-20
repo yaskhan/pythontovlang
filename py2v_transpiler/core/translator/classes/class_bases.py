@@ -156,7 +156,18 @@ class ClassBasesHandler:
                         self.translator.type_inference, "mixin_to_main", {}
                     ):
                         sanitized_base = self.translator._sanitize_name(base.id, is_type=True)
-                        fields.append(f"    {sanitized_base}")
+                        # Check if base.id is a base class that was split into interface/Impl
+                        is_split_base = False
+                        hierarchy = getattr(self.translator.type_inference, 'class_hierarchy', {})
+                        for derived, bases in hierarchy.items():
+                            if base.id in bases:
+                                is_split_base = True
+                                break
+                        
+                        if is_split_base:
+                            fields.append(f"    {sanitized_base}_Impl")
+                        else:
+                            fields.append(f"    {sanitized_base}")
                     current_class_bases.append(base.id)
                 direct_bases.append(base.id)
             elif isinstance(base, ast.Attribute):
@@ -172,7 +183,17 @@ class ClassBasesHandler:
                         and base.attr
                         not in getattr(self.translator.type_inference, "mixin_to_main", {})
                     ):
-                        fields.append(f"    {val}")
+                        is_split_base = False
+                        hierarchy = getattr(self.translator.type_inference, 'class_hierarchy', {})
+                        for derived, bases in hierarchy.items():
+                            if base.attr in bases:
+                                is_split_base = True
+                                break
+                        
+                        if is_split_base:
+                            fields.append(f"    {val}_Impl")
+                        else:
+                            fields.append(f"    {val}")
                 if val != "builtins.object":
                     current_class_bases.append(base.attr)
                 direct_bases.append(base.attr)

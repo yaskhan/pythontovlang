@@ -440,9 +440,33 @@ class AssignmentsMixin(TranslatorBase):
                 mut_info = self.type_inference.mutability_map.get(loc_key)
                 if not mut_info:
                     mut_info = self.type_inference.mutability_map.get(lhs)
-
                 if mut_info:
                     is_mut = (mut_info.get("is_reassigned", False) or mut_info.get("is_mutated", False)) and not mut_info.get("is_final", False)
+
+            # Check for interface array initialization
+            is_interface_array = False
+            base_v_type = ""
+            if v_type.startswith("[]"):
+                base_v_type = v_type[2:]
+            elif v_type.startswith("?[]"):
+                base_v_type = v_type[3:]
+
+            if base_v_type and base_v_type in self.known_interfaces:
+                is_interface_array = True
+
+            if is_interface_array and isinstance(node.value, (ast.List, ast.Tuple)) and node.value.elts:
+                # To initialize interface arrays, V requires using `mut arr := []Interface{}` then `arr << ...`
+                v_lhs = self._to_snake_case(lhs) if (isinstance(target, ast.Name) and not lhs.islower()) else lhs
+                if not self.in_main and v_lhs in self._local_vars_in_scope:
+                    self.output.append(f"{self._indent()}{v_lhs} = {v_type}{{}}")
+                else:
+                    self.output.append(f"{self._indent()}mut {v_lhs} := {v_type}{{}}")
+                    if not self.in_main: self._local_vars_in_scope.add(v_lhs)
+
+                for elt in node.value.elts:
+                    val = self.visit(elt)
+                    self.output.append(f"{self._indent()}{v_lhs} << {val}")
+                return
 
             if is_simple_list and v_type.startswith("[]") and cap > 0 and is_mut:
                 # To initialize V arrays with exact capacities (`[]int{cap: N}`) during assignments like `arr = [x, y, z]`

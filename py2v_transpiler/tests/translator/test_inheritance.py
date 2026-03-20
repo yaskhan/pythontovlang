@@ -18,18 +18,22 @@ class C(A, B): # Multiple inheritance (embedding)
     # V does not support multiple inheritance in the same way, but multiple embedding is allowed (composition).
 
     expected_fragments = [
-        "struct A {",
-        "struct B {",
-        "    A",
+        "interface A {",
+        "struct A_Impl {",
+        "interface B {",
+        "struct B_Impl {",
+        "    A_Impl",
         "}",
         "struct C {",
-        "    A",
-        "    B",
+        "    A_Impl",
+        "    B_Impl",
         "}"
     ]
 
-    visitor = VNodeVisitor(TypeInference())
+    analyzer = TypeInference()
+    visitor = VNodeVisitor(analyzer)
     tree = ast.parse(source)
+    analyzer.analyze(tree)
     code = visitor.visit(tree)
 
     print(code)

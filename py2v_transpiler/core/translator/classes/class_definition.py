@@ -315,9 +315,43 @@ class ClassDefinitionHandler:
 
         # Handle regular classes
         else:
+            # Identify if this class is a base class for others
+            is_base_class = False
+            hierarchy = getattr(self.translator.type_inference, 'class_hierarchy', {})
+            for derived, bases in hierarchy.items():
+                if node.name in bases:
+                    is_base_class = True
+                    break
+            
+            orig_struct_name = struct_name
+
             # Collect fields from __init__
             init_fields = self.translator.class_fields_handler.collect_init_fields(node, added_fields, struct_name)
             fields.extend(init_fields)
+
+            if is_base_class:
+                # If it's a base class, we generate an interface with the original name
+                # and a struct with _Impl suffix for the implementation.
+                impl_name = f"{struct_name}_Impl"
+                self.translator.current_class = impl_name
+                struct_name = impl_name
+                
+                if not hasattr(self.translator, 'class_to_impl'):
+                    self.translator.class_to_impl = {}
+                self.translator.class_to_impl[orig_struct_name] = impl_name
+
+                # Generate interface
+                generics_str = self.translator._get_generics_with_variance_str(self.translator.current_class_generics)
+                is_exported = self.translator._is_exported(node.name)
+                source_mapping = getattr(self.translator.config, 'source_mapping', False)
+                
+                # We need to include fields in the interface for V polymorphism to work easily with field access
+                # V interfaces can have fields in recent versions.
+                interface_def = self.translator.special_classes_handler.generate_interface_definition(
+                    orig_struct_name, methods, doc_comment, decorators, generics_str,
+                    is_exported, source_mapping, node, fields=fields
+                )
+                self.translator.emitter.add_struct(interface_def)
 
             # Generate struct definition
             struct_parts = []
@@ -350,9 +384,9 @@ class ClassDefinitionHandler:
             self.translator.emitter.add_struct("".join(struct_parts))
 
             # Emit class variables as constants
-            class_vars = self.translator.defined_classes.get(struct_name, {}).get("class_vars", [])
+            class_vars = self.translator.defined_classes.get(orig_struct_name, {}).get("class_vars", [])
             for var in class_vars:
-                v_name = f"{struct_name}_{var['name']}"
+                v_name = f"{orig_struct_name}_{var['name']}"
                 self.translator.emitter.add_constant(f"pub {v_name} = {var.get('value')}")
 
             # Rename dunder methods

@@ -106,6 +106,8 @@ class ClassMethodsHandler:
         has_str = self.has_method(methods, "__str__")
 
         for method in methods:
+            if method.name == "__init__":
+                continue
             m_name = self.translator._sanitize_name(method.name)
             if m_name == "__next__":
                 m_name = "next"

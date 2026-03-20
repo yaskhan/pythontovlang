@@ -93,6 +93,31 @@ class AnnotationsMixin(TranslatorBase):
                 self.output.append(f"{self._indent()}{target} := {rhs}")
 
             else:
+                # Check for interface array initialization
+                is_interface_array = False
+                base_v_type = ""
+                if v_type.startswith("[]"):
+                    base_v_type = v_type[2:]
+                elif v_type.startswith("?[]"):
+                    base_v_type = v_type[3:]
+
+
+                if base_v_type and base_v_type in self.known_interfaces:
+                    is_interface_array = True
+
+                if is_interface_array and isinstance(node.value, (ast.List, ast.Tuple)) and node.value.elts:
+                    # To initialize interface arrays, V requires using `mut arr := []Interface{}` then `arr << ...`
+                    if not self.in_main and target in self._local_vars_in_scope:
+                        self.output.append(f"{self._indent()}{target} = {v_type}{{}}")
+                    else:
+                        self.output.append(f"{self._indent()}mut {target} := {v_type}{{}}")
+                        if not self.in_main: self._local_vars_in_scope.add(target)
+
+                    for elt in node.value.elts:
+                        val = self.visit(elt)
+                        self.output.append(f"{self._indent()}{target} << {val}")
+                    return
+
                 if isinstance(node.value, ast.Dict) and not node.value.keys and v_type.startswith("map["):
                     rhs = f"{v_type}{{}}"
                 elif isinstance(node.value, (ast.List, ast.Tuple)) and not node.value.elts and v_type.startswith("[]"):

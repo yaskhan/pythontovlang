@@ -46,7 +46,19 @@ class NamingMixin:
         """Returns a snake_case factory name for a given struct name."""
         # Strip generic parameters if present (e.g. Box[int] -> Box)
         base_name = struct_name.split('[')[0]
-        return f"new_{self._to_snake_case(base_name)}"
+        sanitized = self._to_snake_case(base_name)
+        
+        is_split_base = False
+        hierarchy = getattr(self.type_inference, 'class_hierarchy', {})
+        for derived, bases in hierarchy.items():
+            if base_name in bases:
+                is_split_base = True
+                break
+        
+        if is_split_base:
+            return f"new_{sanitized}_impl"
+            
+        return f"new_{sanitized}"
 
     def _sanitize_name(self, name: str, is_type: bool = False) -> str:
         """

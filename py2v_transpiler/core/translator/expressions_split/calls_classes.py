@@ -253,7 +253,17 @@ class ClassCallsMixin:
             return f"/* super().{method_name} call without known parent */"
         
         parent = self.current_class_bases[0]
-        field_name = self.current_class_generic_bases.get(parent) or self._sanitize_name(parent, is_type=True)
+        sanitized_parent = self._sanitize_name(parent, is_type=True)
+        
+        # Check if parent is a split base class
+        is_split_base = False
+        hierarchy = getattr(self.type_inference, 'class_hierarchy', {})
+        for derived, bases in hierarchy.items():
+            if parent in bases:
+                is_split_base = True
+                break
+        
+        field_name = self.current_class_generic_bases.get(parent) or (f"{sanitized_parent}_Impl" if is_split_base else sanitized_parent)
         
         if method_name == "__init__":
             factory_name = self._get_factory_name(parent)
@@ -281,7 +291,16 @@ class ClassCallsMixin:
 
         base_args = args[1:]
         factory_name = self._get_factory_name(class_name)
-        field_name = self.current_class_generic_bases.get(class_name) or self._sanitize_name(class_name, is_type=True)
+        sanitized_class = self._sanitize_name(class_name, is_type=True)
+        
+        is_split_base = False
+        hierarchy = getattr(self.type_inference, 'class_hierarchy', {})
+        for derived, bases in hierarchy.items():
+            if class_name in bases:
+                is_split_base = True
+                break
+        
+        field_name = self.current_class_generic_bases.get(class_name) or (f"{sanitized_class}_Impl" if is_split_base else sanitized_class)
 
         return f"self.{field_name} = {factory_name}({', '.join(base_args)})"
 

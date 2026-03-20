@@ -5,6 +5,48 @@ from py2v_transpiler.models.v_types import map_python_type_to_v
 
 
 class TypeInferenceUtilsMixin(TypeInferenceBase):
+    def _find_lcs(self, types: list[str]) -> str:
+        if not types:
+            return "Any"
+        if len(set(types)) == 1:
+            return types[0]
+        
+        # Build all ancestor paths for each type
+        def get_ancestors(t):
+            ancestors = [t]
+            if t in self.class_hierarchy:
+                for base in self.class_hierarchy[t]:
+                    ancestors.extend(get_ancestors(base))
+            return ancestors
+
+        ancestor_lists = [get_ancestors(t) for t in types]
+        
+        # Find common ancestors
+        common = set(ancestor_lists[0])
+        for other in ancestor_lists[1:]:
+            common &= set(other)
+            
+        if not common:
+            return "Any"
+            
+        # Return the one that is closest to the original types (least general)
+        # We can pick the one that has the shortest average distance, 
+        # but since it's a hierarchy, usually we want the one that is not an ancestor of another common ancestor.
+        lcs = "Any"
+        max_depth = -1
+        
+        def get_depth(t, current_depth=0):
+            if t not in self.class_hierarchy or not self.class_hierarchy[t]:
+                return current_depth
+            return max(get_depth(base, current_depth + 1) for base in self.class_hierarchy[t])
+
+        for candidate in common:
+            d = get_depth(candidate)
+            if d > max_depth:
+                max_depth = d
+                lcs = candidate
+                
+        return lcs
     def _mark_mutated(self, node: ast.AST):
         if isinstance(node, ast.Name):
             name = node.id
@@ -67,11 +109,9 @@ class TypeInferenceUtilsMixin(TypeInferenceBase):
         elif isinstance(node, ast.List):
             if not node.elts:
                 return "[]Any"
-            element_types = set()
-            for elt in node.elts:
-                element_types.add(self._guess_node_type(elt))
-            if len(element_types) == 1:
-                return f"[]{list(element_types)[0]}"
+            element_types = [self._guess_node_type(elt) for elt in node.elts]
+            lcs = self._find_lcs(element_types)
+            return f"[]{lcs}"
             return "[]Any"
         elif isinstance(node, ast.Dict):
             if not node.keys:

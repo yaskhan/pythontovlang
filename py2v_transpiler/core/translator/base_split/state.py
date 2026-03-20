@@ -99,6 +99,17 @@ class TranslatorStateMixin:
         self.in_pydantic_validator: bool = False
         self.current_node: Optional[ast.AST] = None
 
+        # Build hierarchy from type inference
+        if hasattr(self.type_inference, "class_hierarchy"):
+            for child, parents in self.type_inference.class_hierarchy.items():
+                for parent in parents:
+                    if parent not in self.class_hierarchy:
+                        self.class_hierarchy[parent] = []
+                    if child not in self.class_hierarchy[parent]:
+                        self.class_hierarchy[parent].append(child)
+                    # Any class that has a child is a potential interface
+                    self.known_interfaces.add(parent)
+
     def _get_source_info(self, node: Optional[ast.AST] = None) -> str:
         """Returns formatted source information for the given node or current_node."""
         n = node or self.current_node

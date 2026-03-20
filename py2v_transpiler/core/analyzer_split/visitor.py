@@ -64,6 +64,7 @@ class TypeInferenceVisitorMixin(TypeInferenceBase):
 
     def visit_ClassDef(self, node: ast.ClassDef) -> Any:
         self._scope_names.append(node.name)
+        self.class_hierarchy[node.name] = [base.id for base in node.bases if isinstance(base, ast.Name)]
         for stmt in node.body:
             if isinstance(stmt, ast.Assign):
                 for target in stmt.targets:

@@ -120,7 +120,8 @@ class SpecialClassesHandler:
         generics_str: str,
         is_exported: bool,
         source_mapping: bool,
-        node: ast.ClassDef
+        node: ast.ClassDef,
+        fields: List[str] = None
     ) -> str:
         """Generate V interface definition."""
         interface_parts = []
@@ -134,6 +135,15 @@ class SpecialClassesHandler:
         pub = "pub " if is_exported else ""
 
         interface_parts.append(f"{pub}interface {struct_name}{generics_str} {{")
+        if fields:
+            # Modern V interfaces can have fields. We should sanitize them if they contain "mut" or "pub".
+            clean_fields = []
+            for field in fields:
+                clean_field = field.replace('pub mut:', '').replace('pub:', '').replace('mut:', '').strip()
+                if clean_field:
+                    clean_fields.append(f"    {clean_field}")
+            interface_parts.extend(clean_fields)
+        
         interface_methods = self.translator.class_methods_handler.process_interface_methods(methods)
         interface_parts.extend(interface_methods)
         interface_parts.append("}")

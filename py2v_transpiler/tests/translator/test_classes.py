@@ -75,8 +75,8 @@ class Derived(Base):
 
     # Check anonymous embedding
     assert "struct Derived {" in result
-    assert "    Base" in result
+    assert "    Base_Impl" in result
     assert "    y int" in result
 
-    # Check super().__init__ calls anonymous Base
-    assert "self.Base = new_base(x)" in result
+    # Check super().__init__ calls anonymous Base_Impl
+    assert "self.Base_Impl = new_base_impl(x)" in result
