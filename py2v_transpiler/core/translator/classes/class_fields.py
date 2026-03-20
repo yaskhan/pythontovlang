@@ -1,17 +1,33 @@
-"""Handler for class fields extraction and processing."""
+"""Class field and attribute processing."""
 
 import ast
-from typing import TYPE_CHECKING, List, Set, Dict, Any, Optional
+from typing import Any, Dict, List, Optional, Set, TYPE_CHECKING
 
 if TYPE_CHECKING:
-    pass
+    from ..base import TranslatorBase
 
 
-class ClassFieldsHandler:
-    """Handles extraction and processing of class fields."""
+class ClassFieldsMixin:
+    """Mixin for processing class fields and attributes."""
 
-    def __init__(self, translator):
-        self.translator = translator
+    if TYPE_CHECKING:
+        def visit(self, node: ast.AST) -> str: ...
+        def _guess_type(self, node: ast.AST) -> str: ...
+        def _map_type(self, type_str: str, struct_name: Optional[str] = None) -> str: ...
+        def _sanitize_name(self, name: str, is_type: bool = False) -> str: ...
+        def _is_exported(self, name: str) -> bool: ...
+        def _get_factory_name(self, struct_name: str) -> str: ...
+        def _get_source_info(self, node: Optional[ast.AST] = None) -> str: ...
+        def _get_generics_with_variance_str(self, generics: List[str]) -> str: ...
+        current_class_generics: List[str]
+        readonly_fields: Dict[str, Set[str]]
+        defined_classes: Dict[str, Dict[str, Any]]
+        config: Any
+        emitter: Any
+        type_inference: Any
+        class_methods_handler: Any
+        special_classes_handler: Any
+        translator: Any
 
     def collect_mixin_fields(
         self,
@@ -25,7 +41,10 @@ class ClassFieldsHandler:
             return fields
 
         mixin_nodes = getattr(self.translator.type_inference, "mixin_nodes", {})
-        for mixin_name in self.translator.type_inference.main_to_mixins[struct_name]:
+        if not hasattr(self.translator.type_inference, "main_to_mixins"):
+            return fields
+
+        for mixin_name in self.translator.type_inference.main_to_mixins.get(struct_name, []):
             if mixin_name in mixin_nodes:
                 mixin_node = mixin_nodes[mixin_name]
                 for stmt in mixin_node.body:
@@ -48,95 +67,18 @@ class ClassFieldsHandler:
                                 fields.append(
                                     f"    {field_name} {field_type} = {default_val}"
                                 )
-                            else:
-                                _ft = field_type
-                                if _ft.startswith("fn (") or _ft.startswith("fn("):
-                                    _ft += " = unsafe { nil }"
-                                fields.append(f"    {field_name} {_ft}")
                     elif isinstance(stmt, ast.Assign):
                         for target in stmt.targets:
-                            if (
-                                isinstance(target, ast.Name)
-                                and target.id != "__slots__"
-                            ):
+                            if isinstance(target, ast.Name):
                                 field_name = self.translator._sanitize_name(target.id)
                                 if field_name not in added_fields:
                                     added_fields.add(field_name)
                                     field_type = self.translator._guess_type(stmt.value)
+                                    field_type = self.translator._map_type(field_type, struct_name)
                                     default_val = self.translator.visit(stmt.value)
                                     fields.append(
                                         f"    {field_name} {field_type} = {default_val}"
                                     )
-        return fields
-
-    def get_dataclass_metadata(self, node: ast.ClassDef, struct_name: str) -> Optional[Dict[str, Any]]:
-        """Extract dataclass metadata from type inference."""
-        if not hasattr(self.translator.type_inference, "call_signatures"):
-            return None
-
-        for k, sig_data in self.translator.type_inference.call_signatures.items():
-            if "dataclass_metadata" in sig_data:
-                if (
-                    k.startswith(f"{node.name}@")
-                    or k.split("@")[0].endswith(f".{node.name}")
-                    or k.startswith(f"{struct_name}@")
-                ):
-                    return sig_data["dataclass_metadata"]
-        return None
-
-    def get_namedtuple_metadata(self, node: ast.ClassDef, struct_name: str) -> Optional[Dict[str, Any]]:
-        """Extract namedtuple metadata from type inference."""
-        if not hasattr(self.translator.type_inference, "call_signatures"):
-            return None
-
-        for k, sig_data in self.translator.type_inference.call_signatures.items():
-            if "namedtuple_metadata" in sig_data:
-                if (
-                    k.startswith(f"{node.name}@")
-                    or k.split("@")[0].endswith(f".{node.name}")
-                    or k.startswith(f"{struct_name}@")
-                ):
-                    return sig_data["namedtuple_metadata"]
-        return None
-
-    def process_namedtuple_fields(
-        self,
-        struct_name: str,
-        namedtuple_metadata: Dict[str, Any],
-        added_fields: Set[str]
-    ) -> List[str]:
-        """Process fields from namedtuple metadata."""
-        fields: List[str] = []
-        nt_fields = namedtuple_metadata.get("fields", [])
-        nt_types = namedtuple_metadata.get("types", [])
-        
-        for i, field_name in enumerate(nt_fields):
-            f_name = self.translator._sanitize_name(field_name)
-            if f_name in added_fields:
-                continue
-            added_fields.add(f_name)
-            
-            raw_type = nt_types[i] if i < len(nt_types) else "Any"
-            norm_typ = raw_type.replace("builtins.", "")
-            try:
-                field_type = self.translator._map_type(norm_typ, struct_name)
-            except Exception:
-                field_type = "Any"
-                
-            if field_type == "int" or norm_typ == "int":
-                field_type = "int"
-            elif field_type == "str" or norm_typ == "str":
-                field_type = "string"
-            elif field_type == "float" or norm_typ == "float":
-                field_type = "f64"
-            elif field_type == "bool" or norm_typ == "bool":
-                field_type = "bool"
-                
-            _ft = field_type
-            if _ft.startswith("fn (") or _ft.startswith("fn("):
-                 _ft += " = unsafe { nil }"
-            fields.append(f"    {f_name} {_ft}")
-            
         return fields
 
     def collect_init_fields(
@@ -151,6 +93,15 @@ class ClassFieldsHandler:
             if isinstance(stmt, (ast.FunctionDef, ast.AsyncFunctionDef)) and stmt.name == "__init__":
                 if stmt.args.args:
                     init_self_name = stmt.args.args[0].arg
+                    # Build arg name to annotation map for __init__
+                    arg_type_map = {}
+                    for arg in stmt.args.args[1:]: # Skip self
+                        if arg.annotation:
+                            try:
+                                arg_type_map[arg.arg] = ast.unparse(arg.annotation)
+                            except:
+                                pass
+
                     for sub_node in ast.walk(stmt):
                         if isinstance(sub_node, ast.Assign):
                             for target in sub_node.targets:
@@ -161,7 +112,12 @@ class ClassFieldsHandler:
                                             added_fields.add(field_name)
                                             f_type = "Any"
                                             if len(sub_node.targets) == 1 and isinstance(sub_node.targets[0], ast.Attribute):
-                                                f_type = self.translator._guess_type(sub_node.value)
+                                                # Check if assigning from an argument with annotation
+                                                if isinstance(sub_node.value, ast.Name) and sub_node.value.id in arg_type_map:
+                                                    f_type = arg_type_map[sub_node.value.id]
+                                                else:
+                                                    f_type = self.translator._guess_type(sub_node.value)
+                                            f_type = self.translator._map_type(f_type, struct_name)
                                             _ft = f_type
                                             if _ft.startswith("fn (") or _ft.startswith("fn("):
                                                 _ft += " = unsafe { nil }"
@@ -219,9 +175,7 @@ class ClassFieldsHandler:
                             field_type = self.translator._map_type(type_str, struct_name)
 
                             if is_typed_dict:
-                                if "ReadOnly[" in type_str or type_str.startswith("ReadOnly") or \
-                                   "typing.ReadOnly[" in type_str or type_str.startswith("typing.ReadOnly") or \
-                                   "typing_extensions.ReadOnly[" in type_str or type_str.startswith("typing_extensions.ReadOnly"):
+                                if "ReadOnly[" in type_str or type_str.startswith("ReadOnly") or                                    "typing.ReadOnly[" in type_str or type_str.startswith("typing.ReadOnly") or                                    "typing_extensions.ReadOnly[" in type_str or type_str.startswith("typing_extensions.ReadOnly"):
                                     is_readonly = True
                                     readonly_fields.setdefault(struct_name, set()).add(field_name)
                         except Exception:
@@ -285,14 +239,19 @@ class ClassFieldsHandler:
                                 if slot not in added_fields:
                                     fields.append(f"    {slot} int")
                                     added_fields.add(slot)
-                        else:
-                            # Class variable
+                        elif (
+                            not isinstance(stmt.value, ast.Call)
+                            or not isinstance(stmt.value.func, ast.Name)
+                            or stmt.value.func.id not in ("TypeVar", "ParamSpec", "TypeVarTuple")
+                            and target.id != "__slots__"
+                        ):
                             field_name = self.translator._sanitize_name(target.id)
                             if field_name in added_fields:
                                 continue
 
                             added_fields.add(field_name)
                             field_type = self.translator._guess_type(stmt.value)
+                            field_type = self.translator._map_type(field_type, struct_name)
                             default_val = self.translator.visit(stmt.value)
 
                             # Add to fields list for struct definition
@@ -443,3 +402,123 @@ class ClassFieldsHandler:
             f"}}"
         ]
         return "\n".join(factory_code)
+
+    def get_namedtuple_metadata(self, node: ast.ClassDef, struct_name: str) -> Optional[Dict[str, Any]]:
+        """Extract namedtuple metadata from call signatures."""
+        for k, sig_data in self.translator.type_inference.call_signatures.items():
+            if "namedtuple_metadata" in sig_data:
+                if (
+                    k.startswith(f"{node.name}@")
+                    or k.split("@")[0].endswith(f".{node.name}")
+                    or k.startswith(f"{struct_name}@")
+                ):
+                    return sig_data["namedtuple_metadata"]
+        return None
+
+    def get_dataclass_metadata(self, node: ast.ClassDef, struct_name: str) -> Optional[Dict[str, Any]]:
+        """Extract dataclass metadata from call signatures."""
+        for k, sig_data in self.translator.type_inference.call_signatures.items():
+            if "dataclass_metadata" in sig_data:
+                if (
+                    k.startswith(f"{node.name}@")
+                    or k.split("@")[0].endswith(f".{node.name}")
+                    or k.startswith(f"{struct_name}@")
+                ):
+                    return sig_data["dataclass_metadata"]
+        return None
+
+    def process_namedtuple_fields(
+        self,
+        struct_name: str,
+        namedtuple_metadata: Dict[str, Any],
+        added_fields: Set[str]
+    ) -> List[str]:
+        """Process fields from namedtuple metadata."""
+        fields: List[str] = []
+        nt_fields = namedtuple_metadata.get("fields", [])
+        nt_types = namedtuple_metadata.get("types", [])
+
+        for i, field_name in enumerate(nt_fields):
+            f_name = self.translator._sanitize_name(field_name)
+            if f_name in added_fields:
+                continue
+            added_fields.add(f_name)
+
+            raw_type = nt_types[i] if i < len(nt_types) else "Any"
+            norm_typ = raw_type.replace("builtins.", "")
+            try:
+                field_type = self.translator._map_type(norm_typ, struct_name)
+            except Exception:
+                field_type = "Any"
+
+            if field_type == "int" or norm_typ == "int":
+                field_type = "int"
+            elif field_type == "str" or norm_typ == "str":
+                field_type = "string"
+            elif field_type == "float" or norm_typ == "float":
+                field_type = "f64"
+            elif field_type == "bool" or norm_typ == "bool":
+                field_type = "bool"
+
+            _ft = field_type
+            if _ft.startswith("fn (") or _ft.startswith("fn("):
+                 _ft += " = unsafe { nil }"
+            fields.append(f"    {f_name} {_ft}")
+
+        return fields
+
+class ClassFieldsHandler(ClassFieldsMixin):
+    def __init__(self, translator):
+        self.translator = translator
+
+    def collect_mixin_fields(
+        self,
+        struct_name: str,
+        added_fields: Set[str],
+        is_main_struct: bool
+    ) -> List[str]:
+        """Collect fields from mixin classes."""
+        fields: List[str] = []
+        if not is_main_struct:
+            return fields
+
+        mixin_nodes = getattr(self.translator.type_inference, "mixin_nodes", {})
+        if not hasattr(self.translator.type_inference, "main_to_mixins"):
+            return fields
+
+        for mixin_name in self.translator.type_inference.main_to_mixins.get(struct_name, []):
+            if mixin_name in mixin_nodes:
+                mixin_node = mixin_nodes[mixin_name]
+                for stmt in mixin_node.body:
+                    if isinstance(stmt, ast.AnnAssign) and isinstance(
+                        stmt.target, ast.Name
+                    ):
+                        field_name = self.translator._sanitize_name(stmt.target.id)
+                        if field_name not in added_fields:
+                            added_fields.add(field_name)
+                            field_type = "int"
+                            if stmt.annotation:
+                                try:
+                                    type_str = ast.unparse(stmt.annotation)
+                                    field_type = self.translator._map_type(type_str, struct_name)
+                                except Exception:
+                                    if isinstance(stmt.annotation, ast.Name):
+                                        field_type = stmt.annotation.id
+                            if getattr(stmt, "value", None) is not None:
+                                default_val = self.translator.visit(stmt.value)
+                                fields.append(
+                                    f"    {field_name} {field_type} = {default_val}"
+                                )
+                    elif isinstance(stmt, ast.Assign):
+                        for target in stmt.targets:
+                            if isinstance(target, ast.Name):
+                                field_name = self.translator._sanitize_name(target.id)
+                                if field_name not in added_fields:
+                                    added_fields.add(field_name)
+                                    field_type = self.translator._guess_type(stmt.value)
+                                    field_type = self.translator._map_type(field_type, struct_name)
+                                    default_val = self.translator.visit(stmt.value)
+                                    fields.append(
+                                        f"    {field_name} {field_type} = {default_val}"
+                                    )
+        return fields

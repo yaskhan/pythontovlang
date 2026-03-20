@@ -17,7 +17,7 @@
 13. generics_monomorphization.py
 
 ---
-
+****************
 ## Issue #1: Decorator functions with *args and **kwargs generate invalid V code
 
 **File:** test_more_features.py
@@ -279,58 +279,8 @@ match_status(500)  # This will fail in V
 
 ---
 
-## Issue #8: Try/except requires external library `div72.vexc` and C interop
 
-**File:** test_advenced.py
-
-**Python code:**
-```python
-try:
-    if isinstance(num, str):
-        result.append(int(num))
-    else:
-        result.append(num)
-except ValueError:
-    print(f"Failed to convert: {num}")
-finally:
-    print("Processing complete for element.")
-```
-
-**Generated V code:**
-```v
-import div72.vexc
-
-{
-    defer {
-        println('Processing complete for element.')
-    }
-if C.try() {
-    if num is str {
-        result << int(num)
-    } else {
-        result << num
-    }
-    vexc.end_try()
-} else {
-    py_exc_1 := vexc.get_curr_exc()
-    if py_exc_1.name == 'ValueError' {
-        println('Failed to convert: ${num}')
-    }
-    else {
-        vexc.raise(py_exc_1.name, py_exc_1.msg)
-    }
-}
-}
-```
-
-**Problems:**
-- Requires external library `div72.vexc` which may not be available.
-- Uses `C.try()` which requires C interop and is not idiomatic V.
-- V prefers `Result`/`Option` types and `or { ... }` syntax for error handling.
-- The transpiler emits a warning comment suggesting refactoring to V's error handling patterns.
-
----
-
+*******************
 ## Issue #9: Tuple destructuring uses invalid indexing syntax
 
 **File:** test_function_annotations.py, test_type_annotations.py, test_string_literals.py
@@ -352,7 +302,7 @@ y := py_destruct_0[1]
 - The generated code will not compile in V.
 
 ---
-
+*****************************
 ## Issue #10: `mut none` is invalid V syntax
 
 **File:** test_function_annotations.py
@@ -389,7 +339,7 @@ process('test', mut none, 1)
 - V does not support default parameter values in the same way as Python.
 
 ---
-
+****************************
 ## Issue #11: `extend()` translated as `<<` which adds list as single element
 
 **File:** test_type_annotations.py
@@ -420,7 +370,7 @@ pub fn complex_dict(data map[string][]int) []int {
 - The correct V code would need a nested loop or array spreading.
 
 ---
-
+******************************
 ## Issue #12: `callable` type annotation generates untyped `fn`
 
 **File:** test_type_annotations.py
@@ -457,32 +407,9 @@ pub fn apply_function(f fn, values []int) []int {
 - The function `f` cannot be called without knowing its parameter and return types.
 - V requires explicit function signatures like `fn (int) int`.
 
----
-
-## Issue #13: `partition()` and `rpartition()` use invalid tuple indexing
-
-**File:** test_string_literals.py
-
-**Python code:**
-```python
-s = "user@example.com"
-before, sep, after = s.partition("@")
-```
-
-**Generated V code:**
-```v
-py_destruct_0 := s.partition('@')
-before := py_destruct_0[0]
-sep := py_destruct_0[1]
-after := py_destruct_0[2]
-```
-
-**Problem:**
-- V's `partition()` returns a tuple that does not support `[]` indexing.
-- V tuples use named fields, not positional indexing.
 
 ---
-
+**************************
 ## Issue #14: `format_map()` method does not exist in V
 
 **File:** test_string_literals.py
@@ -584,7 +511,7 @@ mut get_value := fn (mut x Any) Any {
 - The function parameter should not be mutable unless explicitly needed.
 
 ---
-
+*************************
 ## Issue #18: SumType methods not available without type narrowing
 
 **File:** test_transpile.py
@@ -647,7 +574,7 @@ println('Remaining: ${remaining}')
 - The generic type `[]Any` loses type information from the original `List[int]`.
 
 ---
-
+**********************
 ## Issue #20: Generic class field type not preserved
 
 **File:** generics_monomorphization.py
