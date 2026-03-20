@@ -65,7 +65,7 @@ class TypeGuessingMixin:
             return self._guess_type_dict(node)
 
         elif isinstance(node, ast.Name):
-            return self._guess_type_name(node)
+            return self._guess_type_name(node, use_location=use_location)
 
         elif isinstance(node, ast.Attribute):
             return self._guess_type_attribute(node)
@@ -274,7 +274,7 @@ class TypeGuessingMixin:
 
         return f"map[{k_type}]{v_type}"
 
-    def _guess_type_name(self, node: ast.Name) -> str:
+    def _guess_type_name(self, node: ast.Name, use_location: bool = True) -> str:
         """Guess type for a Name node."""
         if hasattr(self, "known_v_types"):
             actual_name = getattr(self, "name_remap", {}).get(node.id, node.id)
@@ -284,7 +284,7 @@ class TypeGuessingMixin:
                 return self.known_v_types[node.id]
 
         # Check for location-based type mapping
-        if hasattr(node, 'lineno') and hasattr(node, 'col_offset'):
+        if use_location and hasattr(node, 'lineno') and hasattr(node, 'col_offset'):
             loc_key = f"{node.id}@{node.lineno}:{node.col_offset}"
             if hasattr(self.type_inference, "type_map") and loc_key in self.type_inference.type_map:
                 return self.type_inference.type_map[loc_key]

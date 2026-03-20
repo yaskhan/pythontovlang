@@ -166,7 +166,10 @@ class AttributesMixin(TranslatorBase):
         # Use location_map for the attribute node itself
         if not ("(" in res and " as " in res):
             # Get the type of the attribute (node) without location-based narrowing
-            v_attr_base = self._map_type(self._guess_type(node, use_location=False))
+            try:
+                v_attr_base = self._map_type(self._guess_type(node, use_location=False))
+            except TypeError:
+                v_attr_base = self._map_type(self._guess_type(node))
             # Get the narrowed type of the attribute from location_map
             # Use the position of the attribute node itself
             v_attr_narrowed = None
@@ -174,6 +177,10 @@ class AttributesMixin(TranslatorBase):
                 loc_key = f"{node.lineno}:{node.col_offset}"
                 if hasattr(self.type_inference, "location_map"):
                     narrowed = self.type_inference.location_map.get(loc_key)
+                    if not narrowed:
+                        # Try with stripped key or shifted key if needed
+                        narrowed = self.type_inference.location_map.get(loc_key.strip())
+                    
                     if narrowed:
                         v_attr_narrowed = self._map_type(narrowed)
             

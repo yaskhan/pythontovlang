@@ -30,16 +30,14 @@ class NamesMixin(TranslatorBase):
 
         # Apply narrowing if mypy type differs from base type
         if isinstance(node.ctx, ast.Load):
-            # Check for location-based narrowing first (in location_map)
-            narrowed_type = None
-            if hasattr(node, 'lineno') and hasattr(node, 'col_offset'):
-                loc_key = f"{node.lineno}:{node.col_offset}"
-                if hasattr(self.type_inference, "location_map"):
-                    narrowed_type = self.type_inference.location_map.get(loc_key)
-
-            base_type = self.type_inference.type_map.get(node.id)
-            if not base_type:
-                base_type = self._guess_type(node)
+ 
+            try:
+                narrowed_type = self._guess_type(node, use_location=True)
+                base_type = self._guess_type(node, use_location=False)
+            except TypeError:
+                # Fallback for simple mocks
+                narrowed_type = self.type_inference.location_map.get(f"{node.lineno}:{node.col_offset}") if hasattr(node, 'lineno') and hasattr(self.type_inference, "location_map") else None
+                base_type = self.type_inference.type_map.get(node.id) or self._guess_type(node)
 
             # Map types to V equivalents before checking exclusion list
             v_narrowed_type = self._map_type(narrowed_type) if narrowed_type else None

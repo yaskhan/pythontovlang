@@ -484,6 +484,7 @@ class AssignmentsMixin(TranslatorBase):
                 for elt in value_node.elts:
                     val = self.visit(elt)
                     self.output.append(f"{self._indent()}{v_lhs} << {val}")
+                return
             elif hasattr(self, 'dataclasses') and v_type in self.dataclasses and isinstance(node.value, ast.Dict):
                 # TypedDict assignment
                 pairs = []
@@ -500,6 +501,7 @@ class AssignmentsMixin(TranslatorBase):
                 else:
                     self.output.append(f"{self._indent()}{v_lhs} := {rhs}")
                     if not self.in_main: self._local_vars_in_scope.add(v_lhs)
+                return
 
             else:
                 is_void_call = False

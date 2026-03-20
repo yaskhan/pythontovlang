@@ -88,8 +88,12 @@ class OperatorsMixin(TranslatorBase):
         if op_type in ("int", "f64", "i64"):
              # For 'Any' or SumTypes, we use a sum type assertion `(x as type)`.
              # For other unknown/primitive types, we use functional casting `type(x)`.
-             l_base_type = self._guess_type(node.left, use_location=False)
-             r_base_type = self._guess_type(node.right, use_location=False)
+             try:
+                 l_base_type = self._guess_type(node.left, use_location=False)
+                 r_base_type = self._guess_type(node.right, use_location=False)
+             except TypeError:
+                 l_base_type = self._guess_type(node.left)
+                 r_base_type = self._guess_type(node.right)
 
              if l_base_type == "Any" or l_base_type.startswith("SumType_"):
                   # Avoid double casting if already casted

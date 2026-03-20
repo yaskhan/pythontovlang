@@ -136,6 +136,11 @@ class MixinInferer(ast.NodeVisitor):
                         bases.append(base.id)
                     elif isinstance(base, ast.Attribute):
                         bases.append(base.attr)
+                    elif isinstance(base, ast.Subscript):
+                        if isinstance(base.value, ast.Name):
+                            bases.append(base.value.id)
+                        elif isinstance(base.value, ast.Attribute):
+                            bases.append(base.value.attr)
                 self.class_hierarchy[node.name] = bases
 
         explicit_abcs = set()

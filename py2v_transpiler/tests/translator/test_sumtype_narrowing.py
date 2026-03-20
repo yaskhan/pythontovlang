@@ -36,22 +36,30 @@ def test_attribute_narrowing_mock():
 def main() -> None:
     d = Data()
     d.value = "hello"
-    print(d.value.upper())
+    print(
+        d.value.upper()
+    )
 """
     tree = ast.parse(source)
     analyzer = TypeInference()
     
-    # Based on previous run, d.value in d.value.upper() is at 5:10
-    # The receiver d in d.value.upper() is at 5:10
-    
-    # Attribute(value=Name(id='d', ...), attr='value')
-    # node.lineno=5, node.col_offset=10
-    # node.value.lineno=5, node.value.col_offset=10
-    
-    # For narrowing d.value to string, we need to set location_map for the Attribute node itself
-    # The Attribute node d.value is at position 5:10
-    analyzer.location_map["5:10"] = "string"
-    # Base type of d.value (for SumType detection)
+    # d.value in d.value.upper() is now at line 6
+    # Indentation 8 spaces + 'd' (col 8) + '.' (col 9) + 'value' (col 10)
+    # So 'd.value' as an attribute starts at 6:8 or 6:10.
+    # In VNodeVisitor, _guess_type for Attribute node uses its own lineno:col_offset.
+    # We found earlier that for print(d.value.upper()), it's 6:8 for d.value and 6:8 for d.
+    # Wait, let's use a unique column by adding spaces!
+    source = """
+def main() -> None:
+    d = Data()
+    d.value = "hello"
+    print(
+        (d).value.upper()
+    )
+"""
+    tree = ast.parse(source)
+    # (d).value is at line 6, col 8.
+    analyzer.location_map["6:8"] = "string"
     analyzer.type_map["d.value"] = "SumType_IntString"
     
     translator = VNodeVisitor(analyzer)

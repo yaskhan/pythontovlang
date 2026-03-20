@@ -120,8 +120,7 @@ class ClassBasesHandler:
                     continue
                 else:
                     if (
-                        base_name not in self.translator.known_interfaces
-                        and base_name
+                        base_name
                         not in getattr(self.translator.type_inference, "mixin_to_main", {})
                     ):
                         type_str = ast.unparse(base)
@@ -133,12 +132,27 @@ class ClassBasesHandler:
                             else:
                                 num_params = 1
 
+                            # Avoid embedding mixins as they are flattened
+                            if base_name.endswith("Mixin"):
+                                continue
+
                             if num_params > 1:
                                 field_name = f"base_{base_name}"
-                                fields.append(f"pub mut:\n    {field_name} {v_type}")
-                                self.translator.current_class_generic_bases[base_name] = field_name
+                                # Check if base_name is a split class
+                                if (base_name in self.translator.known_interfaces or 
+                                    any(base_name in bases for bases in getattr(self.translator.type_inference, 'class_hierarchy', {}).values())):
+                                    fields.append(f"pub mut:\n    {field_name} {v_type.replace(base_name, base_name + '_Impl', 1)}")
+                                    self.translator.current_class_generic_bases[base_name + "_Impl"] = field_name
+                                else:
+                                    fields.append(f"pub mut:\n    {field_name} {v_type}")
+                                    self.translator.current_class_generic_bases[base_name] = field_name
                             else:
-                                fields.append(f"    {v_type}")
+                                # Check if base_name is a split class
+                                if (base_name in self.translator.known_interfaces or 
+                                    any(base_name in bases for bases in getattr(self.translator.type_inference, 'class_hierarchy', {}).values())):
+                                    fields.append(f"    {v_type.replace(base_name, base_name + '_Impl', 1)}")
+                                else:
+                                    fields.append(f"    {v_type}")
 
                     self.translator.current_class_generic_bases.setdefault(base_name, None)
                     current_class_bases.append(base_name)
@@ -152,22 +166,25 @@ class ClassBasesHandler:
                     "object",
                     "ABC",
                 ):
-                    if base.id not in self.translator.known_interfaces and base.id not in getattr(
-                        self.translator.type_inference, "mixin_to_main", {}
-                    ):
-                        sanitized_base = self.translator._sanitize_name(base.id, is_type=True)
-                        # Check if base.id is a base class that was split into interface/Impl
+                    if base.id.endswith("Mixin"):
+                        # Skip embedding Mixins (already flattened)
+                        pass
+                    else:
                         is_split_base = False
-                        hierarchy = getattr(self.translator.type_inference, 'class_hierarchy', {})
-                        for derived, bases in hierarchy.items():
-                            if base.id in bases:
-                                is_split_base = True
-                                break
+                        if base.id in self.translator.known_interfaces:
+                            is_split_base = True
+                        else:
+                            hierarchy = getattr(self.translator.type_inference, 'class_hierarchy', {})
+                            for derived, bases in hierarchy.items():
+                                if base.id in bases:
+                                    is_split_base = True
+                                    break
                         
+                        sanitized_base = self.translator._sanitize_name(base.id, is_type=True)
                         if is_split_base:
                             fields.append(f"    {sanitized_base}_Impl")
-                        else:
-                            fields.append(f"    {sanitized_base}")
+                        elif base.id not in getattr(self.translator.type_inference, "mixin_to_main", {}):
+                             fields.append(f"    {sanitized_base}")
                     current_class_bases.append(base.id)
                 direct_bases.append(base.id)
             elif isinstance(base, ast.Attribute):
@@ -184,11 +201,14 @@ class ClassBasesHandler:
                         not in getattr(self.translator.type_inference, "mixin_to_main", {})
                     ):
                         is_split_base = False
-                        hierarchy = getattr(self.translator.type_inference, 'class_hierarchy', {})
-                        for derived, bases in hierarchy.items():
-                            if base.attr in bases:
-                                is_split_base = True
-                                break
+                        if base.attr in self.translator.known_interfaces:
+                            is_split_base = True
+                        else:
+                            hierarchy = getattr(self.translator.type_inference, 'class_hierarchy', {})
+                            for derived, bases in hierarchy.items():
+                                if base.attr in bases:
+                                    is_split_base = True
+                                    break
                         
                         if is_split_base:
                             fields.append(f"    {val}_Impl")

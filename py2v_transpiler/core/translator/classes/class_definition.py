@@ -316,12 +316,15 @@ class ClassDefinitionHandler:
         # Handle regular classes
         else:
             # Identify if this class is a base class for others
-            is_base_class = False
-            hierarchy = getattr(self.translator.type_inference, 'class_hierarchy', {})
-            for derived, bases in hierarchy.items():
-                if node.name in bases:
-                    is_base_class = True
-                    break
+            if node.name.endswith("Mixin"):
+                is_base_class = False
+            else:
+                is_base_class = False
+                hierarchy = getattr(self.translator.type_inference, 'class_hierarchy', {})
+                for derived, bases in hierarchy.items():
+                    if node.name in bases:
+                        is_base_class = True
+                        break
             
             orig_struct_name = struct_name
 

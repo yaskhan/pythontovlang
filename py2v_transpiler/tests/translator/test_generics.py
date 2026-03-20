@@ -27,10 +27,11 @@ class Derived(Base[K, V]):
     pass
 """
     v_code = transpile_source(source)
-    assert "struct Base[K, V]" in v_code
+    assert "interface Base[K, V]" in v_code
+    assert "struct Base_Impl[K, V]" in v_code
     assert "struct Derived[K, V]" in v_code
     # Multi-parameter generic bases should use named field
-    assert "base_Base Base[K, V]" in v_code
+    assert "base_Base Base_Impl[K, V]" in v_code
 
 def test_generic_inheritance_single_param():
     source = """
@@ -45,10 +46,11 @@ class Derived(Base[T]):
     pass
 """
     v_code = transpile_source(source)
-    assert "struct Base[T]" in v_code
+    assert "interface Base[T]" in v_code
+    assert "struct Base_Impl[T]" in v_code
     assert "struct Derived[T]" in v_code
     # Single-parameter generic bases should use anonymous embedding
-    assert "    Base[T]" in v_code
+    assert "    Base_Impl[T]" in v_code
 
 def test_generic_inheritance_super_init():
     source = """
@@ -68,9 +70,9 @@ class Derived(Base[int]):
     v_code = transpile_source(source)
     assert "struct Derived {" in v_code
     # Single-parameter generic base -> anonymous embedding
-    assert "    Base[int]" in v_code
+    assert "    Base_Impl[int]" in v_code
     # Anonymous embedding initialization in V uses base name
-    assert "self.Base = new_base(x)" in v_code
+    assert "self.Base_Impl = new_base_impl(x)" in v_code
 
 def test_non_generic_inheritance():
     source = """
@@ -81,10 +83,11 @@ class Derived(Base):
     pass
 """
     v_code = transpile_source(source)
-    assert "struct Base" in v_code
+    assert "interface Base" in v_code
+    assert "struct Base_Impl" in v_code
     assert "struct Derived" in v_code
     # Non-generic should use anonymous embedding (indented name on its own line)
-    assert "    Base" in v_code
+    assert "    Base_Impl" in v_code
 
 @pytest.mark.skipif(sys.version_info < (3, 12), reason="Modern generic syntax [T] requires Python 3.12+")
 def test_modern_generic_syntax():
@@ -96,10 +99,11 @@ class Derived[T](Base[T]):
     pass
 """
     v_code = transpile_source(source)
-    assert "struct Base[T]" in v_code
+    assert "interface Base[T]" in v_code
+    assert "struct Base_Impl[T]" in v_code
     assert "struct Derived[T]" in v_code
     # Single-parameter generic base -> anonymous embedding
-    assert "    Base[T]" in v_code
+    assert "    Base_Impl[T]" in v_code
 
 def test_generic_inheritance_multi_params_super_init():
     source = """
@@ -120,5 +124,6 @@ class Derived(Base[str, int]):
     v_code = transpile_source(source)
     assert "struct Derived {" in v_code
     # Multi-parameter generic base -> named field
-    assert "base_Base Base[string, int]" in v_code
-    assert "self.base_Base = new_base(k, v)" in v_code
+    assert "base_Base" in v_code
+    assert "Base_Impl[string, int]" in v_code
+    assert "new_base_impl(k, v)" in v_code

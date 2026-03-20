@@ -43,6 +43,7 @@ class TypeInference(
         self.main_to_mixins = mixin_inferer.main_to_mixins
         self.mixin_nodes = mixin_inferer.mixin_nodes
         self.is_abc = mixin_inferer.is_abc
+        self.class_hierarchy = mixin_inferer.class_hierarchy
         self.static_methods = mixin_inferer.static_methods
         self.class_methods = mixin_inferer.class_methods
 

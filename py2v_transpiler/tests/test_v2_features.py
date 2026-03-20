@@ -27,11 +27,11 @@ class Child(Base[int]):
         return x
 """
     v_code = transpile(code)
-    assert "type U = int | string" in v_code
-    assert "struct Base[T] {" in v_code
+    assert "interface Base[T] {" in v_code
+    assert "struct Base_Impl[T] {" in v_code
     assert "struct Child {" in v_code
-    assert "Base[int]" in v_code
-    assert "fn new_base[T](val T) Base[T]" in v_code
+    assert "Base_Impl[int]" in v_code
+    assert "fn new_base_impl[T](val T) Base_Impl[T]" in v_code
     assert "fn (self Child) method(x U) U" in v_code
 
 def test_comparisons():
@@ -57,7 +57,7 @@ def check(x):
     v_code = transpile(code)
     assert "struct Child {" in v_code
     assert "Parent" in v_code # Embedding
-    assert "self.Parent.greet()" in v_code
+    assert "self.Parent_Impl.greet()" in v_code
     assert "is NoneType" in v_code
     assert "!is NoneType" in v_code
     assert "typeof(x).name" in v_code
