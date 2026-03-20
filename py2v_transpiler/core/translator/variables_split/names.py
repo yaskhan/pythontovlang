@@ -1,4 +1,5 @@
 import ast
+from typing import Optional
 from ..base import TranslatorBase
 
 
@@ -32,16 +33,16 @@ class NamesMixin(TranslatorBase):
         if isinstance(node.ctx, ast.Load):
  
             try:
-                narrowed_type = self._guess_type(node, use_location=True)
-                base_type = self._guess_type(node, use_location=False)
+                narrowed_type: Optional[str] = self._guess_type(node, use_location=True)
+                base_type: Optional[str] = self._guess_type(node, use_location=False)
             except TypeError:
                 # Fallback for simple mocks
                 narrowed_type = self.type_inference.location_map.get(f"{node.lineno}:{node.col_offset}") if hasattr(node, 'lineno') and hasattr(self.type_inference, "location_map") else None
                 base_type = self.type_inference.type_map.get(node.id) or self._guess_type(node)
 
             # Map types to V equivalents before checking exclusion list
-            v_narrowed_type = self._map_type(narrowed_type) if narrowed_type else None
-            v_base_type = self._map_type(base_type) if base_type else None
+            v_narrowed_type: Optional[str] = self._map_type(narrowed_type) if narrowed_type else None
+            v_base_type: Optional[str] = self._map_type(base_type) if base_type else None
 
             # Apply narrowing if narrowed type differs from base type
             # For SumTypes, we need to cast even to primitive types

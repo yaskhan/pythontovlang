@@ -24,6 +24,8 @@ class ClassCallsMixin:
         current_class_generic_bases: Dict[str, str]
         current_class: Optional[str]
         current_class_body: List[ast.AST]
+        type_inference: Any
+        class_hierarchy: Dict[str, List[str]]
     def _handle_class_call(self, node: ast.Call, func_node: ast.AST, func_name_str: str,
                            args: list, call_sig: dict | None) -> str | None:
         """Handle class instantiation calls."""

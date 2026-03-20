@@ -121,7 +121,7 @@ class SpecialClassesHandler:
         is_exported: bool,
         source_mapping: bool,
         node: ast.ClassDef,
-        fields: List[str] = None
+        fields: Optional[List[str]] = None
     ) -> str:
         """Generate V interface definition."""
         interface_parts = []

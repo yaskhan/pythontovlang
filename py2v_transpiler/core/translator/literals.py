@@ -194,7 +194,7 @@ class LiteralsMixin(TranslatorBase):
         # Use LCS for explicit typing if elements have different types
 
         if "none" in elements:
-             v_type = self.current_assignment_type or inferred_type or "[]?Any"
+             v_type = self.current_assignment_type or self._guess_type(node) or "[]?Any"
              base_type = "?Any"
              if v_type.startswith("[]?"):
                  base_type = v_type[2:]
