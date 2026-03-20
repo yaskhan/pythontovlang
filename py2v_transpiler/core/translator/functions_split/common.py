@@ -145,3 +145,28 @@ class FunctionCommonMixin:
             else:
                 result.append(name)
         return result
+    def _is_empty_body(self, body: List[ast.stmt]) -> bool:
+        """Check if a function body is effectively empty (pass, ..., NotImplementedError)."""
+        for stmt in body:
+            if isinstance(stmt, ast.Pass):
+                continue
+            if (
+                isinstance(stmt, ast.Expr)
+                and isinstance(stmt.value, ast.Constant)
+            ):
+                if stmt.value.value is Ellipsis or isinstance(stmt.value.value, str):
+                    continue
+            if isinstance(stmt, ast.Raise):
+                if (
+                    isinstance(stmt.exc, ast.Name)
+                    and stmt.exc.id == "NotImplementedError"
+                ):
+                    continue
+                if (
+                    isinstance(stmt.exc, ast.Call)
+                    and isinstance(stmt.exc.func, ast.Name)
+                    and stmt.exc.func.id == "NotImplementedError"
+                ):
+                    continue
+            return False
+        return True

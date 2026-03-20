@@ -144,6 +144,15 @@ class ClassMethodsHandler:
                         a_type = self.translator._map_type(type_str)
                     except Exception:
                         pass
+                else:
+                    # Try type inference for arg
+                    inferred_arg = self.translator.type_inference.type_map.get(arg.arg)
+                    if not inferred_arg:
+                         # Try with method prefix if possible, though arg name is usually enough in local context
+                         pass
+                    if inferred_arg:
+                         a_type = self.translator._map_type(inferred_arg)
+
                 m_args.append(f"{a_name} {a_type}")
 
             m_ret = "void"
@@ -153,6 +162,12 @@ class ClassMethodsHandler:
                     m_ret = self.translator._map_type(type_str)
                 except Exception:
                     pass
+            else:
+                 # Try type inference for return type
+                 # Heuristic: method_name@return
+                 inferred_ret = self.translator.type_inference.type_map.get(f"{method.name}@return")
+                 if inferred_ret:
+                      m_ret = self.translator._map_type(inferred_ret)
 
             if m_ret == "void":
                 interface_methods.append(f"    {m_name}({', '.join(m_args)})")

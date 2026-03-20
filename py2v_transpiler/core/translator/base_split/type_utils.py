@@ -208,3 +208,36 @@ class TypeUtilsMixin:
 
         return v_type
 
+    def _get_v_default_value(self, v_type: str) -> str:
+        """Get the V default value for a given V type."""
+        # Optional types
+        if v_type.startswith("?"):
+            return "none"
+        
+        # Primitive types
+        if v_type in ("int", "i64", "u32", "u64", "i8", "i16", "u8", "u16"):
+            return "0"
+        if v_type in ("f64", "f32"):
+            return "0.0"
+        if v_type == "bool":
+            return "false"
+        if v_type == "string":
+            # Per user request in example, return '0' or ''
+            return "'0'"
+            
+        # Collections
+        if v_type.startswith("[]"):
+            return f"{v_type}{{}}"
+        if v_type.startswith("map["):
+            return f"{v_type}{{}}"
+            
+        # Any
+        if v_type == "Any":
+            return "Any(NoneType{})"
+            
+        # Structs / Custom types
+        # Heuristic: if it's capitalized and not a primitive, it's likely a struct / interface.
+        if v_type and v_type[0].isupper() and "|" not in v_type:
+             return f"{v_type}{{}}"
+             
+        return "none" # Fallback
