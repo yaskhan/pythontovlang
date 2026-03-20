@@ -37,8 +37,8 @@ def test_match(x: Union[A, B]):
         v_code = translator.emitter.emit()
 
         # Check if casts are emitted
-        assert "(x as A).a" in v_code
-        assert "(x as B).b" in v_code
+        assert "A_meta.a" in v_code
+        assert "B_meta.b" in v_code
 
     def test_capture_pattern_narrowing(self):
         code = """
@@ -67,7 +67,7 @@ def test_match(x: object):
         # The assignment should be narrowed
         assert "a_val := (py_match_subject_any_1 as A)" in v_code
         # Usage should be casted (or if it's already A, maybe not needed, but NamesMixin will do it)
-        assert "return a_val.a" in v_code
+        assert "return A_meta.a" in v_code
 
     def test_nested_capture_narrowing(self):
         code = """

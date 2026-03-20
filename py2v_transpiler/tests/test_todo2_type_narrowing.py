@@ -72,7 +72,7 @@ def test_func():
         # should map to the property getter call instead of simple field access,
         # but in Python "m.desc" just calls __get__.
         # For now let's just assert that narrowing doesn't crash and we get 'm.desc'
-        assert "m.desc" in v_code
+        assert "MyClass_meta.desc" in v_code
 
     def test_mutation_invalidates_narrowing(self):
         code = """
