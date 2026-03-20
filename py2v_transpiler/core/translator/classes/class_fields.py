@@ -48,21 +48,14 @@ class ClassFieldsHandler:
                                 fields.append(
                                     f"    {field_name} {field_type} = {default_val}"
                                 )
-                            else:
-                                _ft = field_type
-                                if _ft.startswith("fn (") or _ft.startswith("fn("):
-                                    _ft += " = unsafe { nil }"
-                                fields.append(f"    {field_name} {_ft}")
                     elif isinstance(stmt, ast.Assign):
                         for target in stmt.targets:
-                            if (
-                                isinstance(target, ast.Name)
-                                and target.id != "__slots__"
-                            ):
+                            if isinstance(target, ast.Name):
                                 field_name = self.translator._sanitize_name(target.id)
                                 if field_name not in added_fields:
                                     added_fields.add(field_name)
                                     field_type = self.translator._guess_type(stmt.value)
+                                    field_type = self.translator._map_type(field_type, struct_name)
                                     default_val = self.translator.visit(stmt.value)
                                     fields.append(
                                         f"    {field_name} {field_type} = {default_val}"
@@ -70,10 +63,7 @@ class ClassFieldsHandler:
         return fields
 
     def get_dataclass_metadata(self, node: ast.ClassDef, struct_name: str) -> Optional[Dict[str, Any]]:
-        """Extract dataclass metadata from type inference."""
-        if not hasattr(self.translator.type_inference, "call_signatures"):
-            return None
-
+        """Extract dataclass metadata from call signatures."""
         for k, sig_data in self.translator.type_inference.call_signatures.items():
             if "dataclass_metadata" in sig_data:
                 if (
@@ -85,10 +75,7 @@ class ClassFieldsHandler:
         return None
 
     def get_namedtuple_metadata(self, node: ast.ClassDef, struct_name: str) -> Optional[Dict[str, Any]]:
-        """Extract namedtuple metadata from type inference."""
-        if not hasattr(self.translator.type_inference, "call_signatures"):
-            return None
-
+        """Extract namedtuple metadata from call signatures."""
         for k, sig_data in self.translator.type_inference.call_signatures.items():
             if "namedtuple_metadata" in sig_data:
                 if (
@@ -151,6 +138,15 @@ class ClassFieldsHandler:
             if isinstance(stmt, (ast.FunctionDef, ast.AsyncFunctionDef)) and stmt.name == "__init__":
                 if stmt.args.args:
                     init_self_name = stmt.args.args[0].arg
+                    # Build arg name to annotation map for __init__
+                    arg_type_map = {}
+                    for arg in stmt.args.args[1:]: # Skip self
+                        if arg.annotation:
+                            try:
+                                arg_type_map[arg.arg] = ast.unparse(arg.annotation)
+                            except:
+                                pass
+
                     for sub_node in ast.walk(stmt):
                         if isinstance(sub_node, ast.Assign):
                             for target in sub_node.targets:
@@ -161,7 +157,11 @@ class ClassFieldsHandler:
                                             added_fields.add(field_name)
                                             f_type = "Any"
                                             if len(sub_node.targets) == 1 and isinstance(sub_node.targets[0], ast.Attribute):
-                                                f_type = self.translator._guess_type(sub_node.value)
+                                                if isinstance(sub_node.value, ast.Name) and sub_node.value.id in arg_type_map:
+                                                    f_type = arg_type_map[sub_node.value.id]
+                                                else:
+                                                    f_type = self.translator._guess_type(sub_node.value)
+                                            f_type = self.translator._map_type(f_type, struct_name)
                                             _ft = f_type
                                             if _ft.startswith("fn (") or _ft.startswith("fn("):
                                                 _ft += " = unsafe { nil }"
@@ -219,9 +219,7 @@ class ClassFieldsHandler:
                             field_type = self.translator._map_type(type_str, struct_name)
 
                             if is_typed_dict:
-                                if "ReadOnly[" in type_str or type_str.startswith("ReadOnly") or \
-                                   "typing.ReadOnly[" in type_str or type_str.startswith("typing.ReadOnly") or \
-                                   "typing_extensions.ReadOnly[" in type_str or type_str.startswith("typing_extensions.ReadOnly"):
+                                if "ReadOnly[" in type_str or type_str.startswith("ReadOnly") or                                    "typing.ReadOnly[" in type_str or type_str.startswith("typing.ReadOnly") or                                    "typing_extensions.ReadOnly[" in type_str or type_str.startswith("typing_extensions.ReadOnly"):
                                     is_readonly = True
                                     readonly_fields.setdefault(struct_name, set()).add(field_name)
                         except Exception:
@@ -285,14 +283,19 @@ class ClassFieldsHandler:
                                 if slot not in added_fields:
                                     fields.append(f"    {slot} int")
                                     added_fields.add(slot)
-                        else:
-                            # Class variable
+                        elif (
+                            not isinstance(stmt.value, ast.Call)
+                            or not isinstance(stmt.value.func, ast.Name)
+                            or stmt.value.func.id not in ("TypeVar", "ParamSpec", "TypeVarTuple")
+                            and target.id != "__slots__"
+                        ):
                             field_name = self.translator._sanitize_name(target.id)
                             if field_name in added_fields:
                                 continue
 
                             added_fields.add(field_name)
                             field_type = self.translator._guess_type(stmt.value)
+                            field_type = self.translator._map_type(field_type, struct_name)
                             default_val = self.translator.visit(stmt.value)
 
                             # Add to fields list for struct definition

@@ -13,6 +13,10 @@ class TypeGuessingMixin:
     if TYPE_CHECKING:
         defined_classes: Dict[str, Dict[str, Any]]
         type_inference: Any
+        type_vars: Set[str]
+        type_vars: Set[str]
+        type_vars: Set[str]
+        type_vars: Set[str]
         def _is_literal_string_expr(self, node: ast.AST) -> bool: ...
         def _is_string_type(self, type_str: str) -> bool: ...
 
@@ -293,7 +297,10 @@ class TypeGuessingMixin:
         if inferred != "void":
             return inferred
         if hasattr(self.type_inference, "type_map") and node.id in self.type_inference.type_map:
-            return self.type_inference.type_map[node.id]
+            t = self.type_inference.type_map.get(node.id, "void")
+            if t == "int" and node.id in self.type_vars:
+                return node.id
+            return t
         return "int"
 
     def _guess_type_attribute(self, node: ast.Attribute) -> str:
