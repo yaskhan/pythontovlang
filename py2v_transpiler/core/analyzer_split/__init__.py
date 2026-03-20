@@ -24,7 +24,7 @@ class TypeInference(
 
         # Preliminary pass for function parameter mutability
         mut_scanner = FunctionMutabilityScanner()
-        self.func_param_mutability = mut_scanner.analyze(tree)
+        self.func_param_mutability = mut_scanner.analyze(tree, self.mutability_map)
 
         # Pre-seed stdlib mutability
         self.func_param_mutability.update({

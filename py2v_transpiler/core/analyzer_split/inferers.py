@@ -1,5 +1,5 @@
 import ast
-from typing import Dict, List, Set, Optional
+from typing import Dict, List, Set, Optional, Any
 
 
 class AliasInferer(ast.NodeVisitor):
@@ -230,6 +230,9 @@ class FunctionMutabilityScanner(ast.NodeVisitor):
         self.current_func: Optional[str] = None
         self.current_params: List[str] = []
         self.mutated_params: Set[str] = set()
+        self.reassigned_params: Set[str] = set()
+        self._scope_stack: List[str] = []
+        self.mutability_map: Dict[str, Dict[str, Any]] = {}
 
     def _get_base_node(self, node: ast.AST) -> ast.AST:
         curr = node
@@ -237,29 +240,67 @@ class FunctionMutabilityScanner(ast.NodeVisitor):
             curr = curr.value
         return curr
 
-    def analyze(self, tree: ast.AST):
+    def analyze(self, tree: ast.AST, mutability_map: Optional[Dict[str, Dict[str, Any]]] = None):
+        if mutability_map is not None:
+            self.mutability_map = mutability_map
         self.visit(tree)
         return self.func_param_mutability
+
+    def visit_ClassDef(self, node: ast.ClassDef):
+        self._scope_stack.append(node.name)
+        self.generic_visit(node)
+        self._scope_stack.pop()
 
     def visit_FunctionDef(self, node: ast.FunctionDef):
         old_func = self.current_func
         old_params = self.current_params
         old_mutated = self.mutated_params
+        old_reassigned = self.reassigned_params
 
         self.current_func = node.name
         self.current_params = [arg.arg for arg in node.args.args]
+        if hasattr(node.args, "posonlyargs"):
+            self.current_params = [arg.arg for arg in node.args.posonlyargs] + self.current_params
+        if hasattr(node.args, "kwonlyargs"):
+            self.current_params = self.current_params + [arg.arg for arg in node.args.kwonlyargs]
+
         self.mutated_params = set()
+        self.reassigned_params = set()
 
         self.generic_visit(node)
 
+        # Update mutability_map with qualified names
+        prefix = ".".join(self._scope_stack)
+        func_qual_name = f"{prefix}.{node.name}" if prefix else node.name
+
+        for p in self.current_params:
+            is_m = p in self.mutated_params
+            is_r = p in self.reassigned_params
+            if is_m or is_r:
+                key = f"{func_qual_name}.{p}"
+                if key not in self.mutability_map:
+                    self.mutability_map[key] = {"is_reassigned": False, "is_final": False, "is_mutated": False}
+
+                if is_m: self.mutability_map[key]["is_mutated"] = True
+                if is_r: self.mutability_map[key]["is_reassigned"] = True
+
+                # Also update the simple name for current function context
+                if p not in self.mutability_map:
+                     self.mutability_map[p] = {"is_reassigned": False, "is_final": False, "is_mutated": False}
+                if is_m: self.mutability_map[p]["is_mutated"] = True
+                if is_r: self.mutability_map[p]["is_reassigned"] = True
+
         mutated_indices = [
-            i for i, p in enumerate(self.current_params) if p in self.mutated_params
+            i for i, p in enumerate(self.current_params) if p in self.mutated_params or p in self.reassigned_params
         ]
         self.func_param_mutability[node.name] = mutated_indices
+        if prefix:
+             self.func_param_mutability[func_qual_name] = mutated_indices
 
         self.current_func = old_func
         self.current_params = old_params
         self.mutated_params = old_mutated
+        self.reassigned_params = old_reassigned
 
     def visit_AsyncFunctionDef(self, node: ast.AsyncFunctionDef):
         self.visit_FunctionDef(node) # type: ignore
@@ -273,19 +314,26 @@ class FunctionMutabilityScanner(ast.NodeVisitor):
         elif isinstance(node, ast.Subscript):
             self._mark_mutated(node.value)
 
+    def _mark_reassigned(self, node: ast.AST):
+        if isinstance(node, ast.Name) and node.id in self.current_params:
+            self.reassigned_params.add(node.id)
+        elif isinstance(node, (ast.Tuple, ast.List)):
+            for elt in node.elts:
+                self._mark_reassigned(elt)
+
     def visit_Assign(self, node: ast.Assign):
         for target in node.targets:
             if isinstance(target, (ast.Subscript, ast.Attribute)):
                 self._mark_mutated(self._get_base_node(target.value))
             elif isinstance(target, ast.Name):
-                self._mark_mutated(target)
+                self._mark_reassigned(target)
         self.generic_visit(node)
 
     def visit_AugAssign(self, node: ast.AugAssign):
         if isinstance(node.target, (ast.Subscript, ast.Attribute)):
             self._mark_mutated(self._get_base_node(node.target.value))
         elif isinstance(node.target, ast.Name):
-            self._mark_mutated(node.target)
+            self._mark_reassigned(node.target)
         self.generic_visit(node)
 
     def visit_Delete(self, node: ast.Delete):

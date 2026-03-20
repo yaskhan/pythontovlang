@@ -231,6 +231,20 @@ class FunctionGenerationMixin:
         if node.body and isinstance(node.body[0], ast.Expr) and isinstance(node.body[0].value, ast.Constant) and node.body[0].value.value is Ellipsis:
              is_stub_function = True
 
+        args_len = len(node.args.args)
+        defaults_len = len(node.args.defaults)
+        defaults_map = {}
+        for i, d in enumerate(node.args.defaults):
+             arg_idx = args_len - defaults_len + i
+             if arg_idx >= 0 and arg_idx < args_len:
+                  defaults_map[node.args.args[arg_idx].arg] = d
+
+        for i, kwarg in enumerate(node.args.kwonlyargs):
+             if i < len(node.args.kw_defaults) and node.args.kw_defaults[i] is not None:
+                  defaults_map[kwarg.arg] = node.args.kw_defaults[i]
+
+        local_mut_copies = []
+
         for arg in args:
             arg_name = self._sanitize_name(arg.arg)
             if arg.annotation:
@@ -253,19 +267,35 @@ class FunctionGenerationMixin:
             args_names.append(arg_name)
 
             is_mut = False
+            is_reassigned = False
+            is_mutated_only = False
             if hasattr(self, 'type_inference') and hasattr(self.type_inference, 'mutability_map'):
-                mut_info = self.type_inference.mutability_map.get(arg_name)
+                prefix = ".".join(self._scope_names)
+                qual_func_name = f"{prefix}.{node.name}" if prefix else node.name
+                mut_info = self.type_inference.mutability_map.get(f"{qual_func_name}.{arg.arg}")
                 if not mut_info:
-                    mut_info = self.type_inference.mutability_map.get(f"{node.name}.{arg_name}")
+                     mut_info = self.type_inference.mutability_map.get(arg.arg)
 
                 if mut_info:
-                    is_mut = mut_info.get("is_reassigned", False) or mut_info.get("is_mutated", False)
+                    is_reassigned = mut_info.get("is_reassigned", False)
+                    is_mutated_only = mut_info.get("is_mutated", False)
+                    is_mut = is_reassigned or is_mutated_only
 
-            if is_mut:
-                clean_type = arg_type.lstrip('?')
-                primitives = {"int", "string", "bool", "f32", "f64", "i64", "i16", "i8", "u8", "u16", "u32", "u64", "byte", "rune", "void", "any"}
-                if clean_type in primitives:
-                    is_mut = False
+            clean_type = arg_type.lstrip('?')
+            primitives = {"int", "string", "bool", "f32", "f64", "i64", "i16", "i8", "u8", "u16", "u32", "u64", "byte", "rune", "void", "any"}
+            is_primitive = clean_type in primitives
+
+            has_default = arg.arg in defaults_map
+
+            # Use local mut copy if:
+            # 1. Parameter has a default value and is mutated or reassigned (V doesn't allow 'mut' with default)
+            # 2. Parameter is a primitive and is reassigned (standard V practice to avoid 'mut' in signature for primitives)
+            if (has_default and is_mut) or (is_primitive and is_reassigned):
+                local_mut_copies.append(arg_name)
+                is_mut = False
+
+            if is_mut and is_primitive:
+                is_mut = False
 
             mut_prefix = "mut " if is_mut else ""
             args_str_list.append(f"{mut_prefix}{arg_name} {arg_type}")
@@ -610,6 +640,9 @@ class FunctionGenerationMixin:
                 self.output.append(
                     f"{self._indent()}_ := <-{self.coroutine_handler.active_in_channel}"
                 )
+
+            for arg_copy_name in local_mut_copies:
+                self.output.append(f"{self._indent()}mut {arg_copy_name} := {arg_copy_name}")
 
             for stmt in body:
                 self.visit(stmt)
