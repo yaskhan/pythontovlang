@@ -564,23 +564,6 @@ fn (mut p Printer) visit_match(node &Match) {
 	p.write('\n' + p.indent() + '])')
 	p.indent_level--
 }
-fn (mut p Printer) visit_aug_assign(node &AugAssign) { p.write('AugAssign(...)') }
-fn (mut p Printer) visit_return(node &Return) { p.write('Return(...)') }
-fn (mut p Printer) visit_global(node &Global) { p.write('Global(...)') }
-fn (mut p Printer) visit_nonlocal(node &Nonlocal) { p.write('Nonlocal(...)') }
-fn (mut p Printer) visit_assert(node &Assert) { p.write('Assert(...)') }
-fn (mut p Printer) visit_raise(node &Raise) { p.write('Raise(...)') }
-fn (mut p Printer) visit_delete(node &Delete) { p.write('Delete(...)') }
-fn (mut p Printer) visit_subscript(node &Subscript) { p.write('Subscript(...)') }
-fn (mut p Printer) visit_slice(node &Slice) { p.write('Slice(...)') }
-fn (mut p Printer) visit_lambda(node &Lambda) { p.write('Lambda(...)') }
-fn (mut p Printer) visit_list_comp(node &ListComp) { p.write('ListComp(...)') }
-fn (mut p Printer) visit_dict_comp(node &DictComp) { p.write('DictComp(...)') }
-fn (mut p Printer) visit_set_comp(node &SetComp) { p.write('SetComp(...)') }
-fn (mut p Printer) visit_generator(node &GeneratorExp) { p.write('GeneratorExp(...)') }
-fn (mut p Printer) visit_await(node &Await) { p.write('Await(...)') }
-fn (mut p Printer) visit_yield(node &Yield) { p.write('Yield(...)') }
-fn (mut p Printer) visit_yield_from(node &YieldFrom) { p.write('YieldFrom(...)') }
 
 // Patterns
 fn (mut p Printer) visit_match_value(node &MatchValue) {
@@ -707,4 +690,223 @@ fn (mut p Printer) visit_starred(node &Starred) {
 		.del   { 'Del()' }
 	}
 	p.write(', ctx=${ctx_str})')
+}
+
+fn (mut p Printer) visit_list_comp(node &ListComp) {
+	p.write('ListComp(elt=')
+	walk_expr(mut p, node.elt)
+	p.write(', generators=[\n')
+	p.indent_level++
+	for i, gen in node.generators {
+		p.print_comprehension(gen)
+		if i < node.generators.len - 1 { p.write(',\n') }
+	}
+	p.indent_level--
+	p.write('\n' + p.indent() + '])')
+}
+
+fn (mut p Printer) visit_dict_comp(node &DictComp) {
+	p.write('DictComp(key=')
+	walk_expr(mut p, node.key)
+	p.write(', value=')
+	walk_expr(mut p, node.value)
+	p.write(', generators=[\n')
+	p.indent_level++
+	for i, gen in node.generators {
+		p.print_comprehension(gen)
+		if i < node.generators.len - 1 { p.write(',\n') }
+	}
+	p.indent_level--
+	p.write('\n' + p.indent() + '])')
+}
+
+fn (mut p Printer) visit_set_comp(node &SetComp) {
+	p.write('SetComp(elt=')
+	walk_expr(mut p, node.elt)
+	p.write(', generators=[\n')
+	p.indent_level++
+	for i, gen in node.generators {
+		p.print_comprehension(gen)
+		if i < node.generators.len - 1 { p.write(',\n') }
+	}
+	p.indent_level--
+	p.write('\n' + p.indent() + '])')
+}
+
+fn (mut p Printer) visit_generator(node &GeneratorExp) {
+	p.write('GeneratorExp(elt=')
+	walk_expr(mut p, node.elt)
+	p.write(', generators=[\n')
+	p.indent_level++
+	for i, gen in node.generators {
+		p.print_comprehension(gen)
+		if i < node.generators.len - 1 { p.write(',\n') }
+	}
+	p.indent_level--
+	p.write('\n' + p.indent() + '])')
+}
+
+fn (mut p Printer) print_comprehension(node Comprehension) {
+	p.write(p.indent() + 'comprehension(target=')
+	walk_expr(mut p, node.target)
+	p.write(', iter=')
+	walk_expr(mut p, node.iter)
+	p.write(', ifs=[\n')
+	p.indent_level++
+	for j, if_ in node.ifs {
+		p.write(p.indent())
+		walk_expr(mut p, if_)
+		if j < node.ifs.len - 1 { p.write(',\n') }
+	}
+	p.indent_level--
+	p.write('\n' + p.indent() + '], is_async=${node.is_async})')
+}
+
+fn (mut p Printer) visit_slice(node &Slice) {
+	p.write('Slice(')
+	if l := node.lower {
+		p.write('lower=')
+		walk_expr(mut p, l)
+		p.write(', ')
+	} else {
+		p.write('lower=None, ')
+	}
+	if u := node.upper {
+		p.write('upper=')
+		walk_expr(mut p, u)
+		p.write(', ')
+	} else {
+		p.write('upper=None, ')
+	}
+	if s := node.step {
+		p.write('step=')
+		walk_expr(mut p, s)
+	} else {
+		p.write('step=None')
+	}
+	p.write(')')
+}
+
+fn (mut p Printer) visit_lambda(node &Lambda) {
+	p.write('Lambda(args=arguments(args=[\n')
+	p.indent_level++
+	for i, arg in node.args.args {
+		p.write(p.indent() + 'arg(arg=\'${arg.arg}\')')
+		if i < node.args.args.len - 1 { p.write(',\n') }
+	}
+	p.indent_level--
+	p.write('\n' + p.indent() + ']), body=')
+	walk_expr(mut p, node.body)
+	p.write(')')
+}
+
+fn (mut p Printer) visit_aug_assign(node &AugAssign) {
+	p.write('AugAssign(target=')
+	walk_expr(mut p, node.target)
+	op_name := match node.op.value {
+		'+=' { 'Add()' }
+		'-=' { 'Sub()' }
+		'*=' { 'Mult()' }
+		'/=' { 'Div()' }
+		'//=' { 'FloorDiv()' }
+		'%=' { 'Mod()' }
+		'**=' { 'Pow()' }
+		'<<=' { 'LShift()' }
+		'>>=' { 'RShift()' }
+		'&=' { 'BitAnd()' }
+		'|=' { 'BitOr()' }
+		'^=' { 'BitXor()' }
+		else { node.op.value }
+	}
+	p.write(', op=${op_name}, value=')
+	walk_expr(mut p, node.value)
+	p.write(')')
+}
+
+fn (mut p Printer) visit_return(node &Return) {
+	p.write('Return(value=')
+	if v := node.value {
+		walk_expr(mut p, v)
+	} else {
+		p.write('None')
+	}
+	p.write(')')
+}
+
+fn (mut p Printer) visit_global(node &Global) {
+	p.write('Global(names=${node.names})')
+}
+
+fn (mut p Printer) visit_nonlocal(node &Nonlocal) {
+	p.write('Nonlocal(names=${node.names})')
+}
+
+fn (mut p Printer) visit_assert(node &Assert) {
+	p.write('Assert(test=')
+	walk_expr(mut p, node.test)
+	if msg := node.msg {
+		p.write(', msg=')
+		walk_expr(mut p, msg)
+	}
+	p.write(')')
+}
+
+fn (mut p Printer) visit_raise(node &Raise) {
+	p.write('Raise(')
+	if exc := node.exc {
+		p.write('exc=')
+		walk_expr(mut p, exc)
+		if cause := node.cause {
+			p.write(', cause=')
+			walk_expr(mut p, cause)
+		}
+	}
+	p.write(')')
+}
+
+fn (mut p Printer) visit_delete(node &Delete) {
+	p.write('Delete(targets=[\n')
+	p.indent_level++
+	for i, target in node.targets {
+		p.write(p.indent())
+		walk_expr(mut p, target)
+		if i < node.targets.len - 1 { p.write(',\n') }
+	}
+	p.indent_level--
+	p.write('\n' + p.indent() + '])')
+}
+
+fn (mut p Printer) visit_subscript(node &Subscript) {
+	p.write('Subscript(value=')
+	walk_expr(mut p, node.value)
+	p.write(', slice=')
+	walk_expr(mut p, node.slice)
+	ctx_str := match node.ctx {
+		.load  { 'Load()' }
+		.store { 'Store()' }
+		.del   { 'Del()' }
+	}
+	p.write(', ctx=${ctx_str})')
+}
+
+fn (mut p Printer) visit_await(node &Await) {
+	p.write('Await(value=')
+	walk_expr(mut p, node.value)
+	p.write(')')
+}
+
+fn (mut p Printer) visit_yield(node &Yield) {
+	p.write('Yield(value=')
+	if v := node.value {
+		walk_expr(mut p, v)
+	} else {
+		p.write('None')
+	}
+	p.write(')')
+}
+
+fn (mut p Printer) visit_yield_from(node &YieldFrom) {
+	p.write('YieldFrom(value=')
+	walk_expr(mut p, node.value)
+	p.write(')')
 }
