@@ -857,22 +857,9 @@ fn (mut p Parser) parse_binary_expr(precedence int, allow_in bool, allow_ternary
 			continue
 		}
 
-		// 'not in' and 'is not'
+		// 'not in' and 'is not' (special case for precedence)
 		if !allow_in && (p.current_is_keyword('in') || (p.current_is_keyword('not') && p.peek_is_keyword('in'))) {
 			return left
-		}
-
-		if p.current_is_keyword('not') && p.peek_is_keyword('in') {
-			op1 := p.current_token; p.advance(); p.advance()
-			right := p.parse_unary_expr() or { break }
-			left = BinaryOp{token: op1, left: left, op: Token{typ: .keyword, value: 'not in'}, right: right}
-			continue
-		}
-		if p.current_is_keyword('is') && p.peek_is_keyword('not') {
-			op1 := p.current_token; p.advance(); p.advance()
-			right := p.parse_unary_expr() or { break }
-			left = BinaryOp{token: op1, left: left, op: Token{typ: .keyword, value: 'is not'}, right: right}
-			continue
 		}
 
 		next_prec := token_precedence(p.current_token)
@@ -880,29 +867,82 @@ fn (mut p Parser) parse_binary_expr(precedence int, allow_in bool, allow_ternary
 			break
 		}
 
-		op := p.current_token
+		mut op := p.current_token
 		p.advance()
 
-		// Comparisons: a == b == c
-		if op.value in ['==', '!=', '<', '>', '<=', '>=', 'in', 'is'] {
+		// Comparisons: a == b == c, a is not b, a not in b
+		if op.value in ['==', '!=', '<', '>', '<=', '>=', 'in', 'is', 'not'] {
+			// Handle 'is not' and 'not in'
+			if op.value == 'is' && p.current_is_keyword('not') {
+				p.advance()
+				op = Token{
+					typ: .keyword
+					value: 'is not'
+					line: op.line
+					column: op.column
+					filename: op.filename
+				}
+			} else if op.value == 'not' && p.current_is_keyword('in') {
+				p.advance()
+				op = Token{
+					typ: .keyword
+					value: 'not in'
+					line: op.line
+					column: op.column
+					filename: op.filename
+				}
+			} else if op.value == 'not' {
+				// Standalone 'not' is handled by parse_unary_expr or it's an error here if precedence is high
+				// But we should just return if it's not 'not in'
+				return left
+			}
+
 			mut ops := [op]
 			mut comparators := []Expression{}
 			right := p.parse_binary_expr(next_prec, allow_in, allow_ternary) or { break }
 			comparators << right
 			
-			for p.current_token.value in ['==', '!=', '<', '>', '<=', '>=', 'in', 'is'] {
-				next_op := p.current_token
-				p.advance()
-				next_right := p.parse_binary_expr(next_prec, allow_in, allow_ternary) or { break }
-				ops << next_op
-				comparators << next_right
+			for {
+				mut next_op := p.current_token
+				if next_op.value in ['==', '!=', '<', '>', '<=', '>=', 'in', 'is', 'not'] {
+					p.advance()
+					if next_op.value == 'is' && p.current_is_keyword('not') {
+						p.advance()
+						next_op = Token{
+							typ: .keyword
+							value: 'is not'
+							line: next_op.line
+							column: next_op.column
+							filename: next_op.filename
+						}
+					} else if next_op.value == 'not' && p.current_is_keyword('in') {
+						p.advance()
+						next_op = Token{
+							typ: .keyword
+							value: 'not in'
+							line: next_op.line
+							column: next_op.column
+							filename: next_op.filename
+						}
+					} else if next_op.value == 'not' {
+						// Error? or just break
+						break
+					}
+					
+					next_right := p.parse_binary_expr(next_prec, allow_in, allow_ternary) or { break }
+					ops << next_op
+					comparators << next_right
+				} else {
+					break
+				}
 			}
 			left = Compare{token: op, left: left, ops: ops, comparators: comparators}
 			continue
 		}
 
+		op_tok := op
 		right := p.parse_binary_expr(next_prec, allow_in, allow_ternary) or { break }
-		left = BinaryOp{token: op, left: left, op: op, right: right}
+		left = BinaryOp{token: op_tok, left: left, op: op_tok, right: right}
 	}
 	return left
 }

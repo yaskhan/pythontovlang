@@ -307,9 +307,11 @@ fn op_to_ast(tok Token) string {
 		'<=' { return 'LtE()' }
 		'>'  { return 'Gt()' }
 		'>=' { return 'GtE()' }
-		'is' { return 'Is()' }
-		'in' { return 'In()' }
-		else { return 'UnknownOp()' }
+		'is'     { return 'Is()' }
+		'is not' { return 'IsNot()' }
+		'in'     { return 'In()' }
+		'not in' { return 'NotIn()' }
+		else     { return 'UnknownOp()' }
 	}
 }
 
