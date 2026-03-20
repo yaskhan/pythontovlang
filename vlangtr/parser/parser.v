@@ -224,12 +224,15 @@ fn (mut p Parser) parse_decorated() ?Statement {
 	if p.current_is_keyword('def') {
 		mut fd := p.parse_function_def(false)?
 		if mut fd is FunctionDef {
-			return FunctionDef{...fd, decorators: decorators}
+			return FunctionDef{...fd, decorator_list: decorators}
 		}
 		return fd
 	}
 	if p.current_is_keyword('class') {
 		mut cd := p.parse_class_def()?
+		if mut cd is ClassDef {
+			return ClassDef{...cd, decorator_list: decorators}
+		}
 		return cd
 	}
 	p.errors << ParseError{message: 'expected def or class after decorator', token: p.current_token}
@@ -267,7 +270,7 @@ fn (mut p Parser) parse_function_def(is_async bool) ?Statement {
 	return FunctionDef{
 		token:    tok
 		name:     name
-		params:   params
+		args:     Arguments{args: params}
 		body:     body
 		returns:  returns
 		is_async: is_async
@@ -281,25 +284,22 @@ fn (mut p Parser) parse_parameters() []Parameter {
 		p.advance()
 		return params
 	}
-	mut kind := ParamKind.positional_or_keyword
 	for !p.current_is(.rparen) && !p.current_is(.eof) {
 		if p.current_is(.operator) && p.current_token.value == '*' {
 			p.advance()
 			if p.current_is(.comma) {
-				// bare * => next params are keyword-only
-				kind = .keyword_only
+				// bare * => skip
 				p.advance()
 				continue
 			}
 			name := p.current_token.value
 			p.advance()
-			params << Parameter{name: name, kind: .var_positional}
-			kind = .keyword_only
+			params << Parameter{arg: name}
 		} else if p.current_is(.operator) && p.current_token.value == '**' {
 			p.advance()
 			name := p.current_token.value
 			p.advance()
-			params << Parameter{name: name, kind: .var_keyword}
+			params << Parameter{arg: name}
 		} else {
 			name := p.current_token.value
 			p.advance()
@@ -314,10 +314,9 @@ fn (mut p Parser) parse_parameters() []Parameter {
 				default_ = p.parse_expression()
 			}
 			params << Parameter{
-				name:       name
+				arg:        name
 				annotation: annotation
 				default_:   default_
-				kind:       kind
 			}
 		}
 		if p.current_is(.comma) {
@@ -345,7 +344,7 @@ fn (mut p Parser) parse_class_def() ?Statement {
 				kw_name := p.current_token.value
 				p.advance(); p.advance()
 				if val := p.parse_expression() {
-					kwd_args << KeywordArg{name: kw_name, value: val}
+					kwd_args << KeywordArg{arg: kw_name, value: val}
 				}
 			} else {
 				if expr := p.parse_expression() {
@@ -605,7 +604,7 @@ fn (mut p Parser) parse_raise() ?Statement {
 		if p.current_is_keyword('from') { p.advance(); cause = p.parse_expression() }
 	}
 	p.skip_newlines()
-	return Raise{token: tok, exception: exception, cause: cause}
+	return Raise{token: tok, exc: exception, cause: cause}
 }
 
 fn (mut p Parser) parse_delete() ?Statement {
@@ -619,7 +618,7 @@ fn (mut p Parser) parse_delete() ?Statement {
 
 fn (mut p Parser) parse_expression_stmt() ?Statement {
 	tok := p.current_token
-	expr := p.parse_expression() or { return none }
+	mut expr := p.parse_expression() or { return none }
 
 	// Augmented assignment: x += 1
 	if p.current_is(.operator) {
@@ -629,7 +628,8 @@ fn (mut p Parser) parse_expression_stmt() ?Statement {
 			p.advance()
 			val := p.parse_expression() or { return none }
 			p.skip_newlines()
-			return AugmentedAssignment{token: tok, target: expr, operator: op, value: val}
+			p.set_ctx(mut expr, .store)
+			return AugAssign{token: tok, target: expr, op: op, value: val}
 		}
 	}
 
@@ -643,7 +643,8 @@ fn (mut p Parser) parse_expression_stmt() ?Statement {
 			value = p.parse_expression()
 		}
 		p.skip_newlines()
-		return AnnAssignment{token: tok, target: expr, annotation: ann, value: value}
+		p.set_ctx(mut expr, .store)
+		return AnnAssign{token: tok, target: expr, annotation: ann, value: value, simple: 1}
 	}
 
 	// Regular assignment: a = b = expr
@@ -658,11 +659,33 @@ fn (mut p Parser) parse_expression_stmt() ?Statement {
 			}
 		}
 		p.skip_newlines()
-		return Assignment{token: tok, targets: targets, value: val}
+		for mut t in targets {
+			p.set_ctx(mut t, .store)
+		}
+		return Assign{token: tok, targets: targets, value: val}
 	}
 
 	p.skip_newlines()
-	return ExpressionStmt{token: tok, expression: expr}
+	return Expr{token: tok, value: expr}
+}
+
+fn (mut p Parser) set_ctx(mut expr Expression, ctx ExprContext) {
+	if mut expr is Name {
+		expr.ctx = ctx
+	} else if mut expr is Attribute {
+		expr.ctx = ctx
+	} else if mut expr is Subscript {
+		expr.ctx = ctx
+	} else if mut expr is List {
+		for mut elt in expr.elements { p.set_ctx(mut elt, ctx) }
+		expr.ctx = ctx
+	} else if mut expr is Tuple {
+		for mut elt in expr.elements { p.set_ctx(mut elt, ctx) }
+		expr.ctx = ctx
+	} else if mut expr is Starred {
+		p.set_ctx(mut expr.value, ctx)
+		expr.ctx = ctx
+	}
 }
 
 // ──────────────────────────────────────────────────
@@ -712,7 +735,7 @@ fn (mut p Parser) parse_binary_expr(precedence int) ?Expression {
 			test := p.parse_expression() or { return left }
 			p.expect_keyword('else')
 			orelse := p.parse_expression() or { return left }
-			left = IfExpr{token: left.get_token(), test: test, body: left, orelse: orelse}
+			left = IfExp{token: left.get_token(), test: test, body: left, orelse: orelse}
 			continue
 		}
 
@@ -720,13 +743,13 @@ fn (mut p Parser) parse_binary_expr(precedence int) ?Expression {
 		if p.current_is_keyword('not') && p.peek_is_keyword('in') {
 			op1 := p.current_token; p.advance(); p.advance()
 			right := p.parse_unary_expr() or { break }
-			left = BinaryOp{token: op1, left: left, operator: Token{typ: .keyword, value: 'not in'}, right: right}
+			left = BinaryOp{token: op1, left: left, op: Token{typ: .keyword, value: 'not in'}, right: right}
 			continue
 		}
 		if p.current_is_keyword('is') && p.peek_is_keyword('not') {
 			op1 := p.current_token; p.advance(); p.advance()
 			right := p.parse_unary_expr() or { break }
-			left = BinaryOp{token: op1, left: left, operator: Token{typ: .keyword, value: 'is not'}, right: right}
+			left = BinaryOp{token: op1, left: left, op: Token{typ: .keyword, value: 'is not'}, right: right}
 			continue
 		}
 
@@ -735,8 +758,27 @@ fn (mut p Parser) parse_binary_expr(precedence int) ?Expression {
 
 		op := p.current_token
 		p.advance()
+
+		// Comparisons: a == b == c
+		if op.value in ['==', '!=', '<', '>', '<=', '>=', 'in', 'is'] {
+			mut ops := [op]
+			mut comparators := []Expression{}
+			right := p.parse_binary_expr(prec) or { break }
+			comparators << right
+			
+			for p.current_token.value in ['==', '!=', '<', '>', '<=', '>=', 'in', 'is'] {
+				next_op := p.current_token
+				p.advance()
+				next_right := p.parse_binary_expr(prec) or { break }
+				ops << next_op
+				comparators << next_right
+			}
+			left = Compare{token: op, left: left, ops: ops, comparators: comparators}
+			continue
+		}
+
 		right := p.parse_binary_expr(prec) or { break }
-		left = BinaryOp{token: op, left: left, operator: op, right: right}
+		left = BinaryOp{token: op, left: left, op: op, right: right}
 	}
 	return left
 }
@@ -746,12 +788,12 @@ fn (mut p Parser) parse_unary_expr() ?Expression {
 	if p.current_is_keyword('not') {
 		p.advance()
 		operand := p.parse_unary_expr() or { return none }
-		return UnaryOp{token: tok, operator: tok, operand: operand}
+		return UnaryOp{token: tok, op: tok, operand: operand}
 	}
 	if p.current_is(.operator) && (tok.value == '-' || tok.value == '+' || tok.value == '~') {
 		p.advance()
 		operand := p.parse_unary_expr() or { return none }
-		return UnaryOp{token: tok, operator: tok, operand: operand}
+		return UnaryOp{token: tok, op: tok, operand: operand}
 	}
 	if p.current_is_keyword('await') {
 		p.advance()
@@ -766,7 +808,7 @@ fn (mut p Parser) parse_unary_expr() ?Expression {
 			return YieldFrom{token: tok, value: val}
 		}
 		mut yval := ?Expression(none)
-		if !p.current_is(.newline) && !p.current_is(.rparen) && !p.current_is(.eof) {
+		if !p.current_is(.newline) && !p.current_is(.rparen) && !p.current_is(.eof) && !p.current_is(.comma) {
 			yval = p.parse_expression()
 		}
 		return Yield{token: tok, value: yval}
@@ -801,26 +843,19 @@ fn (mut p Parser) parse_primary_expr() ?Expression {
 		p.current_is(.identifier) {
 			p.advance()
 			match tok.value {
-				'True'  { return BoolLiteral{token: tok, value: true} }
-				'False' { return BoolLiteral{token: tok, value: false} }
-				'None'  { return NoneLiteral{token: tok} }
-				else    { return Identifier{token: tok, name: tok.value} }
+				'True'  { return Constant{token: tok, value: 'True'} }
+				'False' { return Constant{token: tok, value: 'False'} }
+				'None'  { return Constant{token: tok, value: 'None'} }
+				else    { return Name{token: tok, id: tok.value, ctx: .load} }
 			}
 		}
 		p.current_is(.keyword) && tok.value in ['True', 'False', 'None'] {
 			p.advance()
-			match tok.value {
-				'True'  { return BoolLiteral{token: tok, value: true} }
-				'False' { return BoolLiteral{token: tok, value: false} }
-				else    { return NoneLiteral{token: tok} }
-			}
+			return Constant{token: tok, value: tok.value}
 		}
 		p.current_is(.number) {
 			p.advance()
-			raw := tok.value
-			is_int := !raw.contains('.') && !raw.to_lower().contains('e') && !raw.ends_with('j')
-			val := raw.f64()
-			return NumberLiteral{token: tok, value: val, is_int: is_int, raw: raw}
+			return Constant{token: tok, value: tok.value}
 		}
 		p.current_is(.string_tok) {
 			mut val := tok.value
@@ -830,11 +865,11 @@ fn (mut p Parser) parse_primary_expr() ?Expression {
 				val += p.current_token.value
 				p.advance()
 			}
-			return StringLiteral{token: tok, value: val, raw: val}
+			return Constant{token: tok, value: "'${val}'"}
 		}
 		p.current_is(.ellipsis) {
 			p.advance()
-			return NoneLiteral{token: tok} // represent Ellipsis as NoneLiteral for simplicity
+			return Constant{token: tok, value: '...'}
 		}
 		p.current_is(.lbracket) { return p.parse_list() }
 		p.current_is(.lbrace)   { return p.parse_dict_or_set() }
@@ -842,7 +877,7 @@ fn (mut p Parser) parse_primary_expr() ?Expression {
 		p.current_is(.operator) && tok.value == '*' {
 			p.advance()
 			val := p.parse_expression() or { return none }
-			return StarredExpr{token: tok, value: val}
+			return Starred{token: tok, value: val, ctx: .load}
 		}
 		else {
 			p.errors << ParseError{message: 'unexpected token in expression: ${tok.value}', token: tok}
@@ -856,7 +891,7 @@ fn (mut p Parser) parse_paren_expr() ?Expression {
 	p.advance() // (
 	if p.current_is(.rparen) {
 		p.advance()
-		return TupleLiteral{token: tok, elements: []}
+		return Tuple{token: tok, elements: [], ctx: .load}
 	}
 	expr := p.parse_expression() or { return none }
 
@@ -876,7 +911,7 @@ fn (mut p Parser) parse_paren_expr() ?Expression {
 			if e := p.parse_expression() { elems << e }
 		}
 		p.expect(.rparen)
-		return TupleLiteral{token: tok, elements: elems}
+		return Tuple{token: tok, elements: elems, ctx: .load}
 	}
 	p.expect(.rparen)
 	return expr
@@ -887,7 +922,7 @@ fn (mut p Parser) parse_list() ?Expression {
 	p.advance() // [
 	if p.current_is(.rbracket) {
 		p.advance()
-		return ListLiteral{token: tok, elements: []}
+		return List{token: tok, elements: [], ctx: .load}
 	}
 	first := p.parse_expression() or { return none }
 	// List comprehension
@@ -903,7 +938,7 @@ fn (mut p Parser) parse_list() ?Expression {
 		if e := p.parse_expression() { elems << e }
 	}
 	p.expect(.rbracket)
-	return ListLiteral{token: tok, elements: elems}
+	return List{token: tok, elements: elems, ctx: .load}
 }
 
 fn (mut p Parser) parse_dict_or_set() ?Expression {
@@ -911,7 +946,7 @@ fn (mut p Parser) parse_dict_or_set() ?Expression {
 	p.advance() // {
 	if p.current_is(.rbrace) {
 		p.advance()
-		return DictLiteral{token: tok, pairs: []}
+		return Dict{token: tok, keys: [], values: []}
 	}
 	first := p.parse_expression() or { return none }
 	// Dict
@@ -924,17 +959,19 @@ fn (mut p Parser) parse_dict_or_set() ?Expression {
 			p.expect(.rbrace)
 			return DictComp{token: tok, key: first, value: fval, generators: gens}
 		}
-		mut pairs := [DictEntry{key: first, value: fval}]
+		mut keys := [first]
+		mut values := [fval]
 		for p.current_is(.comma) {
 			p.advance()
 			if p.current_is(.rbrace) { break }
 			k := p.parse_expression() or { break }
 			p.expect(.colon)
 			v := p.parse_expression() or { break }
-			pairs << DictEntry{key: k, value: v}
+			keys << k
+			values << v
 		}
 		p.expect(.rbrace)
-		return DictLiteral{token: tok, pairs: pairs}
+		return Dict{token: tok, keys: keys, values: values}
 	}
 	// Set / set comprehension
 	if p.current_is_keyword('for') {
@@ -949,7 +986,7 @@ fn (mut p Parser) parse_dict_or_set() ?Expression {
 		if e := p.parse_expression() { elems << e }
 	}
 	p.expect(.rbrace)
-	return SetLiteral{token: tok, elements: elems}
+	return Set{token: tok, elements: elems}
 }
 
 fn (mut p Parser) parse_comprehensions() []Comprehension {
@@ -978,13 +1015,13 @@ fn (mut p Parser) parse_call(func Expression) Expression {
 		// **kwargs
 		if p.current_is(.operator) && p.current_token.value == '**' {
 			p.advance()
-			if e := p.parse_expression() { kwd_args << KeywordArg{name: '**', value: e} }
+			if e := p.parse_expression() { kwd_args << KeywordArg{arg: '**', value: e} }
 		} else if p.current_is(.operator) && p.current_token.value == '*' {
 			p.advance()
-			if e := p.parse_expression() { args << StarredExpr{token: tok, value: e} }
+			if e := p.parse_expression() { args << Starred{token: tok, value: e, ctx: .load} }
 		} else if p.current_is(.identifier) && p.peek_is(.operator) && p.peek_tok.value == '=' {
 			kname := p.current_token.value; p.advance(); p.advance()
-			if v := p.parse_expression() { kwd_args << KeywordArg{name: kname, value: v} }
+			if v := p.parse_expression() { kwd_args << KeywordArg{arg: kname, value: v} }
 		} else {
 			if e := p.parse_expression() { args << e }
 		}
@@ -1006,7 +1043,7 @@ fn (mut p Parser) parse_subscript(value Expression) Expression {
 		if p.current_is(.colon) { p.advance(); if !p.current_is(.rbracket) { step = p.parse_expression() } }
 		p.expect(.rbracket)
 		sl := Slice{token: tok, lower: none, upper: upper, step: step}
-		return Subscript{token: tok, value: value, slice: sl}
+		return Subscript{token: tok, value: value, slice: sl, ctx: .load}
 	}
 	idx := p.parse_expression() or { return value }
 	if p.current_is(.colon) {
@@ -1017,10 +1054,10 @@ fn (mut p Parser) parse_subscript(value Expression) Expression {
 		if p.current_is(.colon) { p.advance(); if !p.current_is(.rbracket) { step = p.parse_expression() } }
 		p.expect(.rbracket)
 		sl := Slice{token: tok, lower: idx, upper: upper, step: step}
-		return Subscript{token: tok, value: value, slice: sl}
+		return Subscript{token: tok, value: value, slice: sl, ctx: .load}
 	}
 	p.expect(.rbracket)
-	return Subscript{token: tok, value: value, slice: idx}
+	return Subscript{token: tok, value: value, slice: idx, ctx: .load}
 }
 
 fn (mut p Parser) parse_attribute(value Expression) Expression {
@@ -1028,7 +1065,7 @@ fn (mut p Parser) parse_attribute(value Expression) Expression {
 	p.advance() // .
 	attr := p.current_token.value
 	p.advance()
-	return Attribute{token: tok, value: value, attr: attr}
+	return Attribute{token: tok, value: value, attr: attr, ctx: .load}
 }
 
 fn (mut p Parser) parse_lambda() ?Expression {
@@ -1039,12 +1076,12 @@ fn (mut p Parser) parse_lambda() ?Expression {
 		name := p.current_token.value; p.advance()
 		mut def_ := ?Expression(none)
 		if p.current_is(.operator) && p.current_token.value == '=' { p.advance(); def_ = p.parse_expression() }
-		params << Parameter{name: name, kind: .positional_or_keyword, default_: def_}
+		params << Parameter{arg: name, default_: def_}
 		if p.current_is(.comma) { p.advance() } else { break }
 	}
 	p.expect(.colon)
 	body := p.parse_expression() or { return none }
-	return Lambda{token: tok, params: params, body: body}
+	return Lambda{token: tok, args: Arguments{args: params}, body: body}
 }
 
 // ──────────────────────────────────────────────────
@@ -1089,7 +1126,7 @@ fn (mut p Parser) parse_pattern_atom() Pattern {
 		name := tok.value; p.advance()
 		// Class pattern: Name(...)
 		if p.current_is(.lparen) {
-			cls := Identifier{token: tok, name: name}
+			cls := Name{token: tok, id: name, ctx: .load}
 			p.advance()
 			mut patterns := []Pattern{}
 			mut kwd_attrs := []string{}
@@ -1109,11 +1146,11 @@ fn (mut p Parser) parse_pattern_atom() Pattern {
 		}
 		// Dotted name => MatchValue
 		if p.current_is(.dot) {
-			mut expr := Expression(Identifier{token: tok, name: name})
+			mut expr := Expression(Name{token: tok, id: name, ctx: .load})
 			for p.current_is(.dot) {
 				p.advance()
-				attr := p.current_token.value; p.advance()
-				expr = Attribute{token: tok, value: expr, attr: attr}
+				attr_name := p.current_token.value; p.advance()
+				expr = Attribute{token: tok, value: expr, attr: attr_name, ctx: .load}
 			}
 			return MatchValue{token: tok, value: expr}
 		}
@@ -1189,7 +1226,7 @@ fn (mut p Parser) parse_pattern_atom() Pattern {
 	if p.current_is(.operator) && tok.value == '-' {
 		p.advance()
 		if expr := p.parse_expression() {
-			neg := UnaryOp{token: tok, operator: tok, operand: expr}
+			neg := UnaryOp{token: tok, op: tok, operand: expr}
 			return MatchValue{token: tok, value: neg}
 		}
 	}

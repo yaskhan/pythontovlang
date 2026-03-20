@@ -19,81 +19,60 @@ interface Statement {
 	ASTNode
 }
 
-// ==================== PATTERNS ====================
+// ==================== PATTERN ====================
 
 interface Pattern {
 	ASTNode
 }
 
 // ──────────────────────────────────────────────────
+// Enums
+// ──────────────────────────────────────────────────
+
+enum ExprContext {
+	load
+	store
+	del
+}
+
+// ──────────────────────────────────────────────────
 // Expressions
 // ──────────────────────────────────────────────────
 
-struct Identifier {
+struct Name {
 pub:
 	token Token
-	name  string
+	id    string
+pub mut:
+	ctx   ExprContext
 }
 
-fn (n &Identifier) get_token() Token { return n.token }
-fn (n &Identifier) str() string      { return 'Identifier(${n.name})' }
+fn (n &Name) get_token() Token { return n.token }
+fn (n &Name) str() string      { return 'Name(id=\'${n.id}\', ctx=${n.ctx})' }
 
 // ──────────────────────────────────────────────────
 
-struct NumberLiteral {
-pub:
-	token  Token
-	value  f64
-	is_int bool
-	raw    string
-}
-
-fn (n &NumberLiteral) get_token() Token { return n.token }
-fn (n &NumberLiteral) str() string      { return 'NumberLiteral(${n.raw})' }
-
-// ──────────────────────────────────────────────────
-
-struct StringLiteral {
+struct Constant {
 pub:
 	token Token
-	value string
-	raw   string
+	value string // Store as string for simplicity in debug output, or use any
 }
 
-fn (n &StringLiteral) get_token() Token { return n.token }
-fn (n &StringLiteral) str() string      { return "StringLiteral('${n.value}')" }
+fn (n &Constant) get_token() Token { return n.token }
+fn (n &Constant) str() string      { return 'Constant(value=${n.value})' }
 
 // ──────────────────────────────────────────────────
 
-struct BoolLiteral {
-pub:
-	token Token
-	value bool
-}
-
-fn (n &BoolLiteral) get_token() Token { return n.token }
-fn (n &BoolLiteral) str() string      { return 'BoolLiteral(${n.value})' }
-
-// ──────────────────────────────────────────────────
-
-struct NoneLiteral {
-pub:
-	token Token
-}
-
-fn (n &NoneLiteral) get_token() Token { return n.token }
-fn (n &NoneLiteral) str() string      { return 'NoneLiteral' }
-
-// ──────────────────────────────────────────────────
-
-struct ListLiteral {
+struct List {
 pub:
 	token    Token
 	elements []Expression
+pub mut:
+	ctx      ExprContext
 }
 
-fn (n &ListLiteral) get_token() Token { return n.token }
-fn (n &ListLiteral) str() string      { return 'ListLiteral(len=${n.elements.len})' }
+fn (n &List) get_token() Token { return n.token }
+fn (n &List) str() string      { return 'List(elts=[...], ctx=${n.ctx})' }
 
 // ──────────────────────────────────────────────────
 
@@ -103,36 +82,39 @@ pub:
 	value Expression
 }
 
-struct DictLiteral {
+struct Dict {
 pub:
 	token Token
-	pairs []DictEntry
+	keys  []Expression
+	values []Expression
 }
 
-fn (n &DictLiteral) get_token() Token { return n.token }
-fn (n &DictLiteral) str() string      { return 'DictLiteral(len=${n.pairs.len})' }
+fn (n &Dict) get_token() Token { return n.token }
+fn (n &Dict) str() string      { return 'Dict(keys=[...], values=[...])' }
 
 // ──────────────────────────────────────────────────
 
-struct TupleLiteral {
+struct Tuple {
+pub:
+	token    Token
+	elements []Expression
+pub mut:
+	ctx      ExprContext
+}
+
+fn (n &Tuple) get_token() Token { return n.token }
+fn (n &Tuple) str() string      { return 'Tuple(elts=[...], ctx=${n.ctx})' }
+
+// ──────────────────────────────────────────────────
+
+struct Set {
 pub:
 	token    Token
 	elements []Expression
 }
 
-fn (n &TupleLiteral) get_token() Token { return n.token }
-fn (n &TupleLiteral) str() string      { return 'TupleLiteral(len=${n.elements.len})' }
-
-// ──────────────────────────────────────────────────
-
-struct SetLiteral {
-pub:
-	token    Token
-	elements []Expression
-}
-
-fn (n &SetLiteral) get_token() Token { return n.token }
-fn (n &SetLiteral) str() string      { return 'SetLiteral(len=${n.elements.len})' }
+fn (n &Set) get_token() Token { return n.token }
+fn (n &Set) str() string      { return 'Set(elts=[...])' }
 
 // ──────────────────────────────────────────────────
 
@@ -140,24 +122,24 @@ struct BinaryOp {
 pub:
 	token    Token
 	left     Expression
-	operator Token
+	op       Token
 	right    Expression
 }
 
 fn (n &BinaryOp) get_token() Token { return n.token }
-fn (n &BinaryOp) str() string      { return 'BinaryOp(${n.operator.value})' }
+fn (n &BinaryOp) str() string      { return 'BinOp(op=${n.op.value})' }
 
 // ──────────────────────────────────────────────────
 
 struct UnaryOp {
 pub:
 	token    Token
-	operator Token
+	op       Token
 	operand  Expression
 }
 
 fn (n &UnaryOp) get_token() Token { return n.token }
-fn (n &UnaryOp) str() string      { return 'UnaryOp(${n.operator.value})' }
+fn (n &UnaryOp) str() string      { return 'UnaryOp(op=${n.op.value})' }
 
 // ──────────────────────────────────────────────────
 
@@ -165,7 +147,7 @@ struct Compare {
 pub:
 	token       Token
 	left        Expression
-	operators   []Token
+	ops         []Token
 	comparators []Expression
 }
 
@@ -176,7 +158,7 @@ fn (n &Compare) str() string      { return 'Compare' }
 
 struct KeywordArg {
 pub:
-	name  string
+	arg   string
 	value Expression
 }
 
@@ -189,7 +171,7 @@ pub:
 }
 
 fn (n &Call) get_token() Token { return n.token }
-fn (n &Call) str() string      { return 'Call(${n.func.str()})' }
+fn (n &Call) str() string      { return 'Call(func=${n.func.str()})' }
 
 // ──────────────────────────────────────────────────
 
@@ -198,10 +180,12 @@ pub:
 	token Token
 	value Expression
 	attr  string
+pub mut:
+	ctx   ExprContext
 }
 
 fn (n &Attribute) get_token() Token { return n.token }
-fn (n &Attribute) str() string      { return 'Attribute(${n.attr})' }
+fn (n &Attribute) str() string      { return 'Attribute(attr=\'${n.attr}\', ctx=${n.ctx})' }
 
 // ──────────────────────────────────────────────────
 
@@ -210,10 +194,12 @@ pub:
 	token Token
 	value Expression
 	slice Expression
+pub mut:
+	ctx   ExprContext
 }
 
 fn (n &Subscript) get_token() Token { return n.token }
-fn (n &Subscript) str() string      { return 'Subscript' }
+fn (n &Subscript) str() string      { return 'Subscript(ctx=${n.ctx})' }
 
 // ──────────────────────────────────────────────────
 
@@ -233,7 +219,7 @@ fn (n &Slice) str() string      { return 'Slice' }
 struct Lambda {
 pub:
 	token  Token
-	params []Parameter
+	args   Arguments
 	body   Expression
 }
 
@@ -247,6 +233,7 @@ pub:
 	target Expression
 	iter   Expression
 	ifs    []Expression
+	is_async bool
 }
 
 struct ListComp {
@@ -331,18 +318,20 @@ fn (n &YieldFrom) str() string      { return 'YieldFrom' }
 
 // ──────────────────────────────────────────────────
 
-struct StarredExpr {
+struct Starred {
 pub:
 	token Token
+pub mut:
 	value Expression
+	ctx   ExprContext
 }
 
-fn (n &StarredExpr) get_token() Token { return n.token }
-fn (n &StarredExpr) str() string      { return 'StarredExpr' }
+fn (n &Starred) get_token() Token { return n.token }
+fn (n &Starred) str() string      { return 'Starred(ctx=${n.ctx})' }
 
 // ──────────────────────────────────────────────────
 
-struct IfExpr {
+struct IfExp {
 pub:
 	token  Token
 	test   Expression
@@ -350,8 +339,8 @@ pub:
 	orelse Expression
 }
 
-fn (n &IfExpr) get_token() Token { return n.token }
-fn (n &IfExpr) str() string      { return 'IfExpr' }
+fn (n &IfExp) get_token() Token { return n.token }
+fn (n &IfExp) str() string      { return 'IfExp' }
 
 // ──────────────────────────────────────────────────
 // Statements
@@ -365,57 +354,57 @@ pub:
 }
 
 fn (n &Module) get_token() Token { return n.token }
-fn (n &Module) str() string      { return 'Module(${n.filename}, stmts=${n.body.len})' }
+fn (n &Module) str() string      { return 'Module(body=[...])' }
 
 // ──────────────────────────────────────────────────
 
-struct ExpressionStmt {
+struct Expr {
 pub:
-	token      Token
-	expression Expression
+	token Token
+	value Expression
 }
 
-fn (n &ExpressionStmt) get_token() Token { return n.token }
-fn (n &ExpressionStmt) str() string      { return 'ExpressionStmt' }
+fn (n &Expr) get_token() Token { return n.token }
+fn (n &Expr) str() string      { return 'Expr' }
 
 // ──────────────────────────────────────────────────
 
-struct Assignment {
+struct Assign {
 pub:
-	token           Token
-	targets         []Expression
-	value           Expression
-	annotated_type  ?Expression
+	token   Token
+	targets []Expression
+	value   Expression
 }
 
-fn (n &Assignment) get_token() Token { return n.token }
-fn (n &Assignment) str() string      { return 'Assignment' }
+fn (n &Assign) get_token() Token { return n.token }
+fn (n &Assign) str() string      { return 'Assign' }
 
 // ──────────────────────────────────────────────────
 
-struct AugmentedAssignment {
+struct AugAssign {
 pub:
 	token    Token
 	target   Expression
-	operator Token
+	op       Token
 	value    Expression
 }
 
-fn (n &AugmentedAssignment) get_token() Token { return n.token }
-fn (n &AugmentedAssignment) str() string      { return 'AugmentedAssignment(${n.operator.value})' }
+fn (n &AugAssign) get_token() Token { return n.token }
+fn (n &AugAssign) str() string      { return 'AugAssign' }
 
 // ──────────────────────────────────────────────────
 
-struct AnnAssignment {
+struct AnnAssign {
 pub:
 	token      Token
 	target     Expression
 	annotation Expression
 	value      ?Expression
+	simple     int
 }
 
-fn (n &AnnAssignment) get_token() Token { return n.token }
-fn (n &AnnAssignment) str() string      { return 'AnnAssignment' }
+fn (n &AnnAssign) get_token() Token { return n.token }
+fn (n &AnnAssign) str() string      { return 'AnnAssign' }
 
 // ──────────────────────────────────────────────────
 
@@ -479,35 +468,33 @@ fn (n &With) str() string      { return 'With' }
 
 // ──────────────────────────────────────────────────
 
-enum ParamKind {
-	positional
-	positional_or_keyword
-	var_positional
-	keyword_only
-	var_keyword
+struct Arguments {
+pub:
+	args []Parameter
+	// Add more (vararg, kwarg, etc) if needed
 }
 
 struct Parameter {
 pub:
-	name       string
+	arg        string
 	annotation ?Expression
 	default_   ?Expression
-	kind       ParamKind
+	// kind       ParamKind // Python AST uses separate lists for different kinds
 }
 
 struct FunctionDef {
 pub:
 	token      Token
 	name       string
-	params     []Parameter
+	args       Arguments
 	body       []Statement
-	decorators []Expression
+	decorator_list []Expression
 	returns    ?Expression
 	is_async   bool
 }
 
 fn (n &FunctionDef) get_token() Token { return n.token }
-fn (n &FunctionDef) str() string      { return 'FunctionDef(${n.name})' }
+fn (n &FunctionDef) str() string      { return 'FunctionDef(name=\'${n.name}\')' }
 
 // ──────────────────────────────────────────────────
 
@@ -524,16 +511,16 @@ fn (n &Return) str() string      { return 'Return' }
 
 struct ClassDef {
 pub:
-	token      Token
-	name       string
-	bases      []Expression
-	keywords   []KeywordArg
-	body       []Statement
-	decorators []Expression
+	token          Token
+	name           string
+	bases          []Expression
+	keywords       []KeywordArg
+	body           []Statement
+	decorator_list []Expression
 }
 
 fn (n &ClassDef) get_token() Token { return n.token }
-fn (n &ClassDef) str() string      { return 'ClassDef(${n.name})' }
+fn (n &ClassDef) str() string      { return 'ClassDef(name=\'${n.name}\')' }
 
 // ──────────────────────────────────────────────────
 
@@ -563,7 +550,7 @@ pub:
 }
 
 fn (n &ImportFrom) get_token() Token { return n.token }
-fn (n &ImportFrom) str() string      { return 'ImportFrom(${n.module})' }
+fn (n &ImportFrom) str() string      { return 'ImportFrom' }
 
 // ──────────────────────────────────────────────────
 
@@ -574,7 +561,7 @@ pub:
 }
 
 fn (n &Global) get_token() Token { return n.token }
-fn (n &Global) str() string      { return 'Global(${n.names})' }
+fn (n &Global) str() string      { return 'Global' }
 
 // ──────────────────────────────────────────────────
 
@@ -585,7 +572,7 @@ pub:
 }
 
 fn (n &Nonlocal) get_token() Token { return n.token }
-fn (n &Nonlocal) str() string      { return 'Nonlocal(${n.names})' }
+fn (n &Nonlocal) str() string      { return 'Nonlocal' }
 
 // ──────────────────────────────────────────────────
 
@@ -604,7 +591,7 @@ fn (n &Assert) str() string      { return 'Assert' }
 struct Raise {
 pub:
 	token     Token
-	exception ?Expression
+	exc       ?Expression
 	cause     ?Expression
 }
 
@@ -694,18 +681,6 @@ fn (n &Match) get_token() Token { return n.token }
 fn (n &Match) str() string      { return 'Match' }
 
 // ──────────────────────────────────────────────────
-
-struct TypeAlias {
-pub:
-	token Token
-	name  Expression
-	value Expression
-}
-
-fn (n &TypeAlias) get_token() Token { return n.token }
-fn (n &TypeAlias) str() string      { return 'TypeAlias' }
-
-// ──────────────────────────────────────────────────
 // Patterns
 // ──────────────────────────────────────────────────
 
@@ -727,7 +702,7 @@ pub:
 }
 
 fn (n &MatchSingleton) get_token() Token { return n.token }
-fn (n &MatchSingleton) str() string      { return 'MatchSingleton(${n.value.value})' }
+fn (n &MatchSingleton) str() string      { return 'MatchSingleton' }
 
 // ──────────────────────────────────────────────────
 
