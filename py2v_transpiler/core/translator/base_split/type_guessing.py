@@ -13,6 +13,9 @@ class TypeGuessingMixin:
     if TYPE_CHECKING:
         defined_classes: Dict[str, Dict[str, Any]]
         type_inference: Any
+        type_vars: Set[str]
+        known_v_types: Dict[str, str]
+        name_remap: Dict[str, str]
         def _is_literal_string_expr(self, node: ast.AST) -> bool: ...
         def _is_string_type(self, type_str: str) -> bool: ...
 
