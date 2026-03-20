@@ -260,7 +260,7 @@ fn (mut p Parser) parse_function_def(is_async bool) ?Statement {
 	p.advance() // skip 'def'
 	name := p.current_token.value
 	p.expect(.identifier)
-	params := p.parse_parameters()
+	args := p.parse_parameters(.rparen, true)
 	mut returns := ?Expression(none)
 	if p.current_is(.arrow) {
 		p.advance()
@@ -270,42 +270,83 @@ fn (mut p Parser) parse_function_def(is_async bool) ?Statement {
 	return FunctionDef{
 		token:    tok
 		name:     name
-		args:     Arguments{args: params}
+		args:     args
 		body:     body
 		returns:  returns
 		is_async: is_async
 	}
 }
 
-fn (mut p Parser) parse_parameters() []Parameter {
-	mut params := []Parameter{}
-	p.expect(.lparen)
-	if p.current_is(.rparen) {
-		p.advance()
-		return params
+fn (mut p Parser) parse_parameters(terminator TokenType, allow_annotations bool) Arguments {
+	mut res := Arguments{}
+	mut current_args := []Parameter{}
+	mut is_kwonly := false
+
+	if terminator == .rparen {
+		p.expect(.lparen)
 	}
-	for !p.current_is(.rparen) && !p.current_is(.eof) {
-		if p.current_is(.operator) && p.current_token.value == '*' {
+
+	if p.current_is(terminator) {
+		if terminator == .rparen { p.advance() }
+		return res
+	}
+
+	for !p.current_is(terminator) && !p.current_is(.eof) {
+		tok := p.current_token
+		if p.current_is(.operator) && tok.value == '/' {
+			// All current_args are positional-only
 			p.advance()
-			if p.current_is(.comma) {
-				// bare * => skip
-				p.advance()
-				continue
+			res.posonlyargs = current_args
+			current_args = []Parameter{}
+		} else if p.current_is(.operator) && tok.value == '*' {
+			p.advance()
+			if p.current_is(.comma) || p.current_is(terminator) {
+				// Bare * => switch to kwonly
+				is_kwonly = true
+				if !is_kwonly { // Already kwonly? Should be an error but we just continue
+				}
+				res.args << current_args
+				current_args = []Parameter{}
+			} else {
+				// *vararg
+				name := p.current_token.value
+				p.expect(.identifier)
+				mut annotation := ?Expression(none)
+				if allow_annotations && p.current_is(.colon) {
+					p.advance()
+					annotation = p.parse_expression()
+				}
+				res.vararg = Parameter{
+					token: tok
+					arg: name
+					annotation: annotation
+				}
+				is_kwonly = true
+				res.args << current_args
+				current_args = []Parameter{}
 			}
-			name := p.current_token.value
-			p.advance()
-			params << Parameter{arg: name}
-		} else if p.current_is(.operator) && p.current_token.value == '**' {
+		} else if p.current_is(.operator) && tok.value == '**' {
 			p.advance()
 			name := p.current_token.value
-			p.advance()
-			params << Parameter{arg: name}
+			p.expect(.identifier)
+			mut annotation := ?Expression(none)
+			if allow_annotations && p.current_is(.colon) {
+				p.advance()
+				annotation = p.parse_expression()
+			}
+			res.kwarg = Parameter{
+				token: tok
+				arg: name
+				annotation: annotation
+			}
+			// **kwargs must be last
 		} else {
+			// Normal argument
 			name := p.current_token.value
-			p.advance()
+			p.expect(.identifier)
 			mut annotation := ?Expression(none)
 			mut default_ := ?Expression(none)
-			if p.current_is(.colon) {
+			if allow_annotations && p.current_is(.colon) {
 				p.advance()
 				annotation = p.parse_expression()
 			}
@@ -313,20 +354,33 @@ fn (mut p Parser) parse_parameters() []Parameter {
 				p.advance()
 				default_ = p.parse_expression()
 			}
-			params << Parameter{
-				arg:        name
+			current_args << Parameter{
+				token: tok
+				arg: name
 				annotation: annotation
-				default_:   default_
+				default_: default_
 			}
 		}
+
 		if p.current_is(.comma) {
 			p.advance()
+			if p.current_is(terminator) { break }
 		} else {
 			break
 		}
 	}
-	p.expect(.rparen)
-	return params
+
+	if terminator == .rparen {
+		p.expect(.rparen)
+	}
+
+	if is_kwonly {
+		res.kwonlyargs = current_args
+	} else {
+		res.args << current_args
+	}
+
+	return res
 }
 
 fn (mut p Parser) parse_class_def() ?Statement {
@@ -1520,17 +1574,10 @@ fn (mut p Parser) parse_attribute(value Expression) Expression {
 fn (mut p Parser) parse_lambda() ?Expression {
 	tok := p.current_token
 	p.advance() // skip 'lambda'
-	mut params := []Parameter{}
-	for !p.current_is(.colon) && !p.current_is(.eof) {
-		name := p.current_token.value; p.advance()
-		mut def_ := ?Expression(none)
-		if p.current_is(.operator) && p.current_token.value == '=' { p.advance(); def_ = p.parse_expression() }
-		params << Parameter{arg: name, default_: def_}
-		if p.current_is(.comma) { p.advance() } else { break }
-	}
+	args := p.parse_parameters(.colon, false)
 	p.expect(.colon)
 	body := p.parse_expression() or { return none }
-	return Lambda{token: tok, args: Arguments{args: params}, body: body}
+	return Lambda{token: tok, args: args, body: body}
 }
 
 // ──────────────────────────────────────────────────

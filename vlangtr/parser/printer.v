@@ -50,21 +50,9 @@ fn (mut p Printer) visit_function_def(node &FunctionDef) {
 	p.write('FunctionDef(\n')
 	p.indent_level++
 	p.write(p.indent() + 'name=\'${node.name}\',\n')
-	p.write(p.indent() + 'args=arguments(args=[\n')
-	p.indent_level++
-	for i, arg in node.args.args {
-		p.write(p.indent() + 'arg(arg=\'${arg.arg}\'')
-		if ann := arg.annotation {
-			p.write(', annotation=')
-			walk_expr(mut p, ann)
-		}
-		p.write(')')
-		if i < node.args.args.len - 1 {
-			p.write(',\n')
-		}
-	}
-	p.indent_level--
-	p.write('\n' + p.indent() + ']),\n')
+	p.write(p.indent() + 'args=')
+	p.visit_arguments(node.args)
+	p.write(',\n')
 	p.write(p.indent() + 'body=[\n')
 	p.indent_level++
 	for i, s in node.body {
@@ -876,15 +864,74 @@ fn (mut p Printer) visit_slice(node &Slice) {
 }
 
 fn (mut p Printer) visit_lambda(node &Lambda) {
-	p.write('Lambda(args=arguments(args=[\n')
+	p.write('Lambda(args=')
+	p.visit_arguments(node.args)
+	p.write(', body=')
+	walk_expr(mut p, node.body)
+	p.write(')')
+}
+
+fn (mut p Printer) visit_arguments(args Arguments) {
+	p.write('arguments(\n')
 	p.indent_level++
-	for i, arg in node.args.args {
-		p.write(p.indent() + 'arg(arg=\'${arg.arg}\')')
-		if i < node.args.args.len - 1 { p.write(',\n') }
+	
+	p.write(p.indent() + 'posonlyargs=[\n')
+	p.indent_level++
+	for i, arg in args.posonlyargs {
+		p.write(p.indent())
+		p.visit_parameter(arg)
+		if i < args.posonlyargs.len - 1 { p.write(',\n') }
 	}
 	p.indent_level--
-	p.write('\n' + p.indent() + ']), body=')
-	walk_expr(mut p, node.body)
+	p.write('\n' + p.indent() + '],\n')
+
+	p.write(p.indent() + 'args=[\n')
+	p.indent_level++
+	for i, arg in args.args {
+		p.write(p.indent())
+		p.visit_parameter(arg)
+		if i < args.args.len - 1 { p.write(',\n') }
+	}
+	p.indent_level--
+	p.write('\n' + p.indent() + '],\n')
+	p.write(p.indent() + 'vararg=')
+	if va := args.vararg {
+		p.visit_parameter(va)
+	} else {
+		p.write('None')
+	}
+	p.write(',\n')
+
+	p.write(p.indent() + 'kwonlyargs=[\n')
+	p.indent_level++
+	for i, arg in args.kwonlyargs {
+		p.write(p.indent())
+		p.visit_parameter(arg)
+		if i < args.kwonlyargs.len - 1 { p.write(',\n') }
+	}
+	p.indent_level--
+	p.write('\n' + p.indent() + '],\n')
+
+	p.write(p.indent() + 'kwarg=')
+	if kwa := args.kwarg {
+		p.visit_parameter(kwa)
+	} else {
+		p.write('None')
+	}
+	p.write(')')
+	p.indent_level--
+}
+
+fn (mut p Printer) visit_parameter(arg Parameter) {
+	p.write('arg(arg=\'${arg.arg}\'')
+	if ann := arg.annotation {
+		p.write(', annotation=')
+		walk_expr(mut p, ann)
+	}
+	if def_ := arg.default_ {
+		p.write(', default=')
+		walk_expr(mut p, def_)
+	}
 	p.write(')')
 }
 

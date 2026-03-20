@@ -514,17 +514,20 @@ fn (n &With) str() string      { return 'With' }
 // ──────────────────────────────────────────────────
 
 struct Arguments {
-pub:
-	args []Parameter
-	// Add more (vararg, kwarg, etc) if needed
+pub mut:
+	posonlyargs []Parameter
+	args        []Parameter
+	vararg      ?Parameter
+	kwonlyargs  []Parameter
+	kwarg       ?Parameter
 }
 
 struct Parameter {
 pub:
+	token      Token
 	arg        string
 	annotation ?Expression
 	default_   ?Expression
-	// kind       ParamKind // Python AST uses separate lists for different kinds
 }
 
 struct FunctionDef {
