@@ -413,9 +413,9 @@ fn (mut p Parser) parse_while() ?Statement {
 fn (mut p Parser) parse_for(is_async bool) ?Statement {
 	tok := p.current_token
 	p.advance() // skip 'for'
-	target := p.parse_expression_no_in() or { return none }
+	target := p.parse_expression_limited(false, false) or { return none }
 	p.expect_keyword('in')
-	iter := p.parse_expression() or { return none }
+	iter := p.parse_expression_limited(true, false) or { return none }
 	body := p.parse_block()
 	mut orelse := []Statement{}
 	p.skip_newlines()
@@ -732,24 +732,33 @@ fn token_precedence(tok Token) int {
 }
 
 fn (mut p Parser) parse_expression() ?Expression {
-	return p.parse_binary_expr(prec_lowest, true)
+	return p.parse_binary_expr(prec_lowest, true, true)
 }
 
 fn (mut p Parser) parse_expression_no_in() ?Expression {
-	return p.parse_binary_expr(prec_lowest, false)
+	return p.parse_binary_expr(prec_lowest, false, true)
 }
 
-fn (mut p Parser) parse_binary_expr(precedence int, allow_in bool) ?Expression {
+fn (mut p Parser) parse_expression_limited(allow_in bool, allow_ternary bool) ?Expression {
+	return p.parse_binary_expr(prec_lowest, allow_in, allow_ternary)
+}
+
+fn (mut p Parser) parse_binary_expr(precedence int, allow_in bool, allow_ternary bool) ?Expression {
 	mut left := p.parse_unary_expr() or { return none }
 
 	for {
 		// Ternary (if-expr): x if cond else y
-		if p.current_is_keyword('if') {
+		if allow_ternary && p.current_is_keyword('if') {
 			p.advance()
 			test := p.parse_expression() or { return left }
 			p.expect_keyword('else')
 			orelse := p.parse_expression() or { return left }
-			left = IfExp{token: left.get_token(), test: test, body: left, orelse: orelse}
+			left = IfExp{
+				token: left.get_token()
+				test: test
+				body: left
+				orelse: orelse
+			}
 			continue
 		}
 
@@ -783,13 +792,13 @@ fn (mut p Parser) parse_binary_expr(precedence int, allow_in bool) ?Expression {
 		if op.value in ['==', '!=', '<', '>', '<=', '>=', 'in', 'is'] {
 			mut ops := [op]
 			mut comparators := []Expression{}
-			right := p.parse_binary_expr(next_prec, allow_in) or { break }
+			right := p.parse_binary_expr(next_prec, allow_in, allow_ternary) or { break }
 			comparators << right
 			
 			for p.current_token.value in ['==', '!=', '<', '>', '<=', '>=', 'in', 'is'] {
 				next_op := p.current_token
 				p.advance()
-				next_right := p.parse_binary_expr(next_prec, allow_in) or { break }
+				next_right := p.parse_binary_expr(next_prec, allow_in, allow_ternary) or { break }
 				ops << next_op
 				comparators << next_right
 			}
@@ -797,7 +806,7 @@ fn (mut p Parser) parse_binary_expr(precedence int, allow_in bool) ?Expression {
 			continue
 		}
 
-		right := p.parse_binary_expr(next_prec, allow_in) or { break }
+		right := p.parse_binary_expr(next_prec, allow_in, allow_ternary) or { break }
 		left = BinaryOp{token: op, left: left, op: op, right: right}
 	}
 	return left
@@ -1184,15 +1193,21 @@ fn (mut p Parser) parse_comprehensions() []Comprehension {
 	mut gens := []Comprehension{}
 	for p.current_is_keyword('for') {
 		p.advance()
-		target := p.parse_expression() or { break }
+		target := p.parse_expression_limited(false, false) or { break }
 		p.expect_keyword('in')
-		iter := p.parse_expression() or { break }
+		iter := p.parse_expression_limited(true, false) or { break }
 		mut ifs := []Expression{}
 		for p.current_is_keyword('if') {
 			p.advance()
-			if cond := p.parse_expression() { ifs << cond }
+			if cond := p.parse_expression_limited(true, false) {
+				ifs << cond
+			}
 		}
-		gens << Comprehension{target: target, iter: iter, ifs: ifs}
+		gens << Comprehension{
+			target: target
+			iter: iter
+			ifs: ifs
+		}
 	}
 	return gens
 }
