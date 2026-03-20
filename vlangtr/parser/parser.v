@@ -413,9 +413,10 @@ fn (mut p Parser) parse_while() ?Statement {
 fn (mut p Parser) parse_for(is_async bool) ?Statement {
 	tok := p.current_token
 	p.advance() // skip 'for'
-	target := p.parse_expression_limited(false, false) or { return none }
+	mut target := p.parse_expression_list(false, false) or { return none }
+	p.set_ctx(mut target, .store)
 	p.expect_keyword('in')
-	iter := p.parse_expression_limited(true, false) or { return none }
+	iter := p.parse_expression_list(true, false) or { return none }
 	body := p.parse_block()
 	mut orelse := []Statement{}
 	p.skip_newlines()
@@ -435,9 +436,15 @@ fn (mut p Parser) parse_with(is_async bool) ?Statement {
 		mut opt_vars := ?Expression(none)
 		if p.current_is_keyword('as') {
 			p.advance()
-			opt_vars = p.parse_expression()
+			if mut v := p.parse_expression() {
+				p.set_ctx(mut v, .store)
+				opt_vars = v
+			}
 		}
-		items << WithItem{context_expr: ctx, optional_vars: opt_vars}
+		items << WithItem{
+			context_expr: ctx
+			optional_vars: opt_vars
+		}
 		if p.current_is(.comma) { p.advance() } else { break }
 	}
 	body := p.parse_block()
@@ -515,10 +522,13 @@ fn (mut p Parser) parse_return() ?Statement {
 	p.advance()
 	mut value := ?Expression(none)
 	if !p.current_is(.newline) && !p.current_is(.semicolon) && !p.current_is(.eof) {
-		value = p.parse_expression()
+		value = p.parse_expression_list(true, true)
 	}
 	p.skip_newlines()
-	return Return{token: tok, value: value}
+	return Return{
+		token: tok
+		value: value
+	}
 }
 
 fn (mut p Parser) parse_dotted_name() string {
@@ -618,28 +628,88 @@ fn (mut p Parser) parse_raise() ?Statement {
 }
 
 fn (mut p Parser) parse_delete() ?Statement {
-	tok := p.current_token; p.advance()
+	tok := p.current_token
+	p.advance()
 	mut targets := []Expression{}
-	if expr := p.parse_expression() { targets << expr }
-	for p.current_is(.comma) { p.advance(); if e := p.parse_expression() { targets << e } }
+	if expr := p.parse_expression() {
+		targets << expr
+	}
+	for p.current_is(.comma) {
+		p.advance()
+		if e := p.parse_expression() {
+			targets << e
+		}
+	}
 	p.skip_newlines()
-	return Delete{token: tok, targets: targets}
+	for mut t in targets {
+		p.set_ctx(mut t, .del)
+	}
+	return Delete{
+		token: tok
+		targets: targets
+	}
+}
+
+fn (mut p Parser) parse_expression_list(allow_in bool, allow_ternary bool) ?Expression {
+	mut expr := p.parse_binary_expr(prec_lowest, allow_in, allow_ternary) or { return none }
+	if p.current_is(.comma) {
+		mut elts := [expr]
+		for p.current_is(.comma) {
+			p.advance()
+			// Optional trailing comma support
+			if p.current_is(.newline) || p.current_is(.eof) || p.current_is(.rbracket) ||
+				p.current_is(.rparen) || p.current_is(.rbrace) || p.current_is(.colon) ||
+				(p.current_is(.operator) && p.current_token.value == '=') {
+				break
+			}
+			if next_expr := p.parse_binary_expr(prec_lowest, allow_in, allow_ternary) {
+				elts << next_expr
+			} else {
+				break
+			}
+		}
+		return Tuple{
+			token: expr.get_token()
+			elements: elts
+			ctx: .load
+		}
+	}
+	return expr
 }
 
 fn (mut p Parser) parse_expression_stmt() ?Statement {
 	tok := p.current_token
-	mut expr := p.parse_expression() or { return none }
+	mut expr := p.parse_expression_list(true, true) or { return none }
 
 	// Augmented assignment: x += 1
 	if p.current_is(.operator) {
-		aug_ops := ['+=', '-=', '*=', '/=', '//=', '%=', '**=', '&=', '|=', '^=', '>>=', '<<=', '@=']
+		aug_ops := [
+			'+=',
+			'-=',
+			'*=',
+			'/=',
+			'//=',
+			'%=',
+			'**=',
+			'&=',
+			'|=',
+			'^=',
+			'>>=',
+			'<<=',
+			'@=',
+		]
 		if p.current_token.value in aug_ops {
 			op := p.current_token
 			p.advance()
-			val := p.parse_expression() or { return none }
+			val := p.parse_expression_list(true, true) or { return none }
 			p.skip_newlines()
 			p.set_ctx(mut expr, .store)
-			return AugAssign{token: tok, target: expr, op: op, value: val}
+			return AugAssign{
+				token: tok
+				target: expr
+				op: op
+				value: val
+			}
 		}
 	}
 
@@ -650,11 +720,17 @@ fn (mut p Parser) parse_expression_stmt() ?Statement {
 		mut value := ?Expression(none)
 		if p.current_is(.operator) && p.current_token.value == '=' {
 			p.advance()
-			value = p.parse_expression()
+			value = p.parse_expression_list(true, true)
 		}
 		p.skip_newlines()
 		p.set_ctx(mut expr, .store)
-		return AnnAssign{token: tok, target: expr, annotation: ann, value: value, simple: 1}
+		return AnnAssign{
+			token: tok
+			target: expr
+			annotation: ann
+			value: value
+			simple: 1
+		}
 	}
 
 	// Regular assignment: a = b = expr
@@ -663,7 +739,9 @@ fn (mut p Parser) parse_expression_stmt() ?Statement {
 		mut val := expr
 		for p.current_is(.operator) && p.current_token.value == '=' {
 			p.advance()
-			val = p.parse_expression() or { return none }
+			val = p.parse_expression_list(true, true) or { return none }
+
+			// If it's another '=', then the current val is actually another target
 			if p.current_is(.operator) && p.current_token.value == '=' {
 				targets << val
 			}
@@ -672,7 +750,11 @@ fn (mut p Parser) parse_expression_stmt() ?Statement {
 		for mut t in targets {
 			p.set_ctx(mut t, .store)
 		}
-		return Assign{token: tok, targets: targets, value: val}
+		return Assign{
+			token: tok
+			targets: targets
+			value: val
+		}
 	}
 
 	p.skip_newlines()
@@ -1193,9 +1275,10 @@ fn (mut p Parser) parse_comprehensions() []Comprehension {
 	mut gens := []Comprehension{}
 	for p.current_is_keyword('for') {
 		p.advance()
-		target := p.parse_expression_limited(false, false) or { break }
+		mut target := p.parse_expression_list(false, false) or { break }
+		p.set_ctx(mut target, .store)
 		p.expect_keyword('in')
-		iter := p.parse_expression_limited(true, false) or { break }
+		iter := p.parse_expression_list(true, false) or { break }
 		mut ifs := []Expression{}
 		for p.current_is_keyword('if') {
 			p.advance()
