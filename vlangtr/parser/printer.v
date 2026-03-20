@@ -50,7 +50,21 @@ fn (mut p Printer) visit_function_def(node &FunctionDef) {
 	p.write('FunctionDef(\n')
 	p.indent_level++
 	p.write(p.indent() + 'name=\'${node.name}\',\n')
-	p.write(p.indent() + 'args=arguments(),\n') // simplifed
+	p.write(p.indent() + 'args=arguments(args=[\n')
+	p.indent_level++
+	for i, arg in node.args.args {
+		p.write(p.indent() + 'arg(arg=\'${arg.arg}\'')
+		if ann := arg.annotation {
+			p.write(', annotation=')
+			walk_expr(mut p, ann)
+		}
+		p.write(')')
+		if i < node.args.args.len - 1 {
+			p.write(',\n')
+		}
+	}
+	p.indent_level--
+	p.write('\n' + p.indent() + ']),\n')
 	p.write(p.indent() + 'body=[\n')
 	p.indent_level++
 	for i, s in node.body {
@@ -76,8 +90,31 @@ fn (mut p Printer) visit_class_def(node &ClassDef) {
 	p.write('ClassDef(\n')
 	p.indent_level++
 	p.write(p.indent() + 'name=\'${node.name}\',\n')
-	p.write(p.indent() + 'bases=[],\n')
-	p.write(p.indent() + 'keywords=[],\n')
+	p.write(p.indent() + 'bases=[\n')
+	p.indent_level++
+	for i, b in node.bases {
+		p.write(p.indent())
+		walk_expr(mut p, b)
+		if i < node.bases.len - 1 {
+			p.write(',')
+		}
+		p.write('\n')
+	}
+	p.indent_level--
+	p.write(p.indent() + '],\n')
+	p.write(p.indent() + 'keywords=[\n')
+	p.indent_level++
+	for i, kw in node.keywords {
+		p.write(p.indent() + 'keyword(arg=\'${kw.arg}\', value=')
+		walk_expr(mut p, kw.value)
+		p.write(')')
+		if i < node.keywords.len - 1 {
+			p.write(',')
+		}
+		p.write('\n')
+	}
+	p.indent_level--
+	p.write(p.indent() + '],\n')
 	p.write(p.indent() + 'body=[\n')
 	p.indent_level++
 	for i, s in node.body {

@@ -1195,30 +1195,80 @@ fn (mut p Parser) parse_call(func Expression) Expression {
 fn (mut p Parser) parse_subscript(value Expression) Expression {
 	tok := p.current_token
 	p.advance() // [
-	// Slice
-	if p.current_is(.colon) {
-		p.advance()
+
+	mut elements := []Expression{}
+	mut seen_comma := false
+
+	for !p.current_is(.rbracket) && !p.current_is(.eof) {
 		mut upper := ?Expression(none)
 		mut step := ?Expression(none)
-		if !p.current_is(.colon) && !p.current_is(.rbracket) { upper = p.parse_expression() }
-		if p.current_is(.colon) { p.advance(); if !p.current_is(.rbracket) { step = p.parse_expression() } }
-		p.expect(.rbracket)
-		sl := Slice{token: tok, lower: none, upper: upper, step: step}
-		return Subscript{token: tok, value: value, slice: sl, ctx: .load}
-	}
-	idx := p.parse_expression() or { return value }
-	if p.current_is(.colon) {
-		p.advance()
-		mut upper := ?Expression(none)
-		mut step := ?Expression(none)
-		if !p.current_is(.colon) && !p.current_is(.rbracket) { upper = p.parse_expression() }
-		if p.current_is(.colon) { p.advance(); if !p.current_is(.rbracket) { step = p.parse_expression() } }
-		p.expect(.rbracket)
-		sl := Slice{token: tok, lower: idx, upper: upper, step: step}
-		return Subscript{token: tok, value: value, slice: sl, ctx: .load}
+
+		if p.current_is(.colon) {
+			p.advance()
+			if !p.current_is(.colon) && !p.current_is(.rbracket) && !p.current_is(.comma) {
+				upper = p.parse_expression()
+			}
+			if p.current_is(.colon) {
+				p.advance()
+				if !p.current_is(.rbracket) && !p.current_is(.comma) {
+					step = p.parse_expression()
+				}
+			}
+			elements << Slice{
+				token: tok
+				lower: none
+				upper: upper
+				step: step
+			}
+		} else {
+			expr := p.parse_expression() or { break }
+			if p.current_is(.colon) {
+				p.advance()
+				if !p.current_is(.colon) && !p.current_is(.rbracket) && !p.current_is(.comma) {
+					upper = p.parse_expression()
+				}
+				if p.current_is(.colon) {
+					p.advance()
+					if !p.current_is(.rbracket) && !p.current_is(.comma) {
+						step = p.parse_expression()
+					}
+				}
+				elements << Slice{
+					token: tok
+					lower: expr
+					upper: upper
+					step: step
+				}
+			} else {
+				elements << expr
+			}
+		}
+
+		if p.current_is(.comma) {
+			p.advance()
+			seen_comma = true
+		} else {
+			break
+		}
 	}
 	p.expect(.rbracket)
-	return Subscript{token: tok, value: value, slice: idx, ctx: .load}
+
+	mut slice_expr := if elements.len == 1 && !seen_comma {
+		elements[0]
+	} else {
+		Expression(Tuple{
+			token: tok
+			elements: elements
+			ctx: .load
+		})
+	}
+
+	return Subscript{
+		token: tok
+		value: value
+		slice: slice_expr
+		ctx: .load
+	}
 }
 
 fn (mut p Parser) parse_attribute(value Expression) Expression {
