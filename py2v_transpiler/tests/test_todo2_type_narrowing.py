@@ -47,7 +47,7 @@ class Descriptor:
         return 42
 
 class MyClass:
-    desc: Descriptor
+    desc = Descriptor()
 
 def test_func():
     m = MyClass()

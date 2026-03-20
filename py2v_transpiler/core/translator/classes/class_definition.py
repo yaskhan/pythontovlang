@@ -392,7 +392,7 @@ class ClassDefinitionHandler:
                 meta_struct_name = f"{orig_struct_name}Meta"
                 meta_parts = [f"pub struct {meta_struct_name} {{"]
                 meta_parts.append("pub mut:")
-                
+
                 init_values = []
                 for var in class_vars:
                     v_name = var["name"]
@@ -400,10 +400,10 @@ class ClassDefinitionHandler:
                     v_val = var.get("value", "none")
                     meta_parts.append(f"    {v_name} {v_type} = {v_val}")
                     init_values.append(f"{v_name}: {v_val}")
-                
+
                 meta_parts.append("}")
                 self.translator.emitter.add_struct("\n".join(meta_parts))
-                
+
                 # Emit the singleton instance
                 meta_const_name = f"{orig_struct_name}_meta"
                 self.translator.emitter.add_constant(f"pub {meta_const_name} = &{meta_struct_name}{{}}")

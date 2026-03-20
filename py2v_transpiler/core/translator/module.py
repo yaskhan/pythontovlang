@@ -1543,33 +1543,6 @@ mut:
         if 'py_list_from_iter' in self.used_builtins:
              self.emitter.add_helper_function("pub fn py_list_from_iter[U](mut it U) []Any { mut res := []Any{}; for { val := it.next() or { break }; res << val }; return res }")
 
-        if 'py_zero' in self.used_builtins:
-             self.emitter.add_helper_function("""pub fn py_zero[T]() T {
-    $if T is bool {
-        return false
-    } $else $if T is int {
-        return 0
-    } $else $if T is i64 {
-        return i64(0)
-    } $else $if T is f64 {
-        return 0.0
-    } $else $if T is string {
-        return ''
-    } $else $if T is Any {
-        return Any(NoneType{})
-    } $else $if T is $struct {
-        return T{}
-    } $else $if T is $interface {
-        return none
-    } $else $if T is $array {
-        return []
-    } $else $if T is $map {
-        return {}
-    } $else {
-        return T{}
-    }
-}""")
-
         if 'py_set_from_iter' in self.used_builtins:
              self.emitter.add_helper_function("pub fn py_set_from_iter[U](mut it U) map[string]bool { mut res := map[string]bool{}; for { val := it.next() or { break }; res[val.str()] = true }; return res }")
 

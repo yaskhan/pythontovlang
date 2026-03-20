@@ -14,12 +14,16 @@ class Vehicle:
     visitor = VNodeVisitor(analyzer)
     code = visitor.visit_Module(tree)
 
+    # Should NOT be in struct anymore as instance field
+    # We check that the main struct is empty
+    assert "struct Vehicle {\n}" in code
+
     # Should be in Meta struct
     assert "pub struct VehicleMeta {" in code
     assert "wheels int = 4" in code
     assert "brand string = 'Generic'" in code
 
-    # Should be singleton instance
+    # Should be meta constant
     assert "pub const Vehicle_meta = &VehicleMeta{}" in code
 
 def test_class_variables_access():
@@ -38,7 +42,6 @@ print(Vehicle.wheels)
     code = visitor.visit_Module(tree)
 
     # All access should be via Vehicle_meta
-    # Both instance and class access should be redirected to Meta singleton
     assert "println('${Vehicle_meta.wheels}')" in code
 
 def test_inherited_class_variable_access():
@@ -68,6 +71,7 @@ class Vehicle:
 Vehicle.wheels = 5
 v = Vehicle()
 v.wheels = 6
+print(Vehicle.wheels)
 """
     analyzer = TypeInference()
     tree = ast.parse(source)
@@ -75,5 +79,8 @@ v.wheels = 6
     visitor = VNodeVisitor(analyzer)
     code = visitor.visit_Module(tree)
 
+    # Assignments should be redirected to Vehicle_meta
+    assert "Vehicle_meta.wheels = 5" in code
+    assert "Vehicle_meta.wheels = 6" in code
     # Should find wheels in Vehicle and use Vehicle_meta singleton
     assert "println('${Vehicle_meta.wheels}')" in code

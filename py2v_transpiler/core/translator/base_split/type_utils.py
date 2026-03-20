@@ -238,11 +238,6 @@ class TypeUtilsMixin:
         # Structs / Custom types
         # Heuristic: if it's capitalized and not a primitive, it's likely a struct / interface.
         if v_type and v_type[0].isupper() and "|" not in v_type:
-             # Check if it is a generic type parameter
-             active_generics = self._get_all_active_v_generics()
-             if v_type in active_generics:
-                  self.used_builtins.add("py_zero")
-                  return f"py_zero[{v_type}]()"
              return f"{v_type}{{}}"
              
         return "none" # Fallback

@@ -10,10 +10,10 @@ class TestMatchNarrowing(TranspilerTest):
 from typing import Union
 
 class A:
-    a: int
+    a: int = 1
 
 class B:
-    b: str
+    b: str = "b"
 
 def test_match(x: Union[A, B]):
     match x:
@@ -45,7 +45,7 @@ def test_match(x: Union[A, B]):
 from typing import Union
 
 class A:
-    a: int
+    a: int = 1
 
 def test_match(x: object):
     match x:
