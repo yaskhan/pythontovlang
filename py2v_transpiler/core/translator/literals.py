@@ -283,6 +283,10 @@ class LiteralsMixin(TranslatorBase):
         # Check for starred elements
         has_starred = any(isinstance(elt, ast.Starred) for elt in node.elts)
         if has_starred:
+            # For simplicity, we fallback to our helper which might need update
+            # or just use datatypes.Set features.
+            # However, py_dict_merge returns map[K]bool.
+            # Let's keep existing logic for complex merging for now but use Set wrapper.
             self.used_dict_merge = True
             chunks: List[str] = []
             current_chunk: List[str] = []
@@ -299,19 +303,18 @@ class LiteralsMixin(TranslatorBase):
             if current_chunk:
                 chunks.append(f"{{{', '.join(current_chunk)}}}")
 
-            return f"py_dict_merge({', '.join(chunks)})"
+            self.emitter.add_import("datatypes")
+            v_type = self._guess_type(node)
+            return f"{v_type}{{elements: py_dict_merge({', '.join(chunks)})}}"
 
-        # {1, 2} -> {1: true, 2: true}
+        self.emitter.add_import("datatypes")
         elements = []
         for elt in node.elts:
             val = self.visit(elt)
             elements.append(f"{val}: true")
 
         v_type = self._guess_type(node)
-        if "Any" in v_type and not v_type.startswith("SumType"):
-            return f"{v_type}{{{', '.join(elements)}}}"
-
-        return f"{{{', '.join(elements)}}}"
+        return f"{v_type}{{elements: {{{', '.join(elements)}}}}}"
 
     def visit_Tuple(self, node: ast.Tuple) -> str:
         # Translate Tuple (a, b) to Array [a, b]

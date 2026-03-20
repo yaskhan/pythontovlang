@@ -119,8 +119,8 @@ class TypeGuessingMixin:
                 if node.args:
                     arg_type = self._guess_type(node.args[0])
                     if arg_type.startswith("[]"):
-                        return f"map[{arg_type[2:]}]bool"
-                return "map[string]bool"
+                        return f"datatypes.Set[{arg_type[2:]}]"
+                return "datatypes.Set[string]"
             if fid == "Counter":
                 return "map[string]int"
             if fid == "defaultdict":
@@ -226,7 +226,7 @@ class TypeGuessingMixin:
     def _guess_type_set(self, node: ast.Set) -> str:
         """Guess type for a Set node."""
         if not node.elts:
-            return "map[string]bool"
+            return "datatypes.Set[string]"
 
         element_types: Set[str] = set()
         for elt in node.elts:
@@ -238,9 +238,9 @@ class TypeGuessingMixin:
         if len(element_types) == 1:
             t = list(element_types)[0]
             if t == "Any":
-                return "map[string]bool"
-            return f"map[{t}]bool"
-        return "map[string]bool"
+                return "datatypes.Set[string]"
+            return f"datatypes.Set[{t}]"
+        return "datatypes.Set[string]"
 
     def _guess_type_dict(self, node: ast.Dict) -> str:
         """Guess type for a Dict node."""
@@ -353,8 +353,8 @@ class TypeGuessingMixin:
         """Guess type for a SetComp node."""
         elt_type = self._guess_type(node.elt)
         if elt_type == "Any" or elt_type == "unknown":
-            return "map[string]bool"
-        return f"map[{elt_type}]bool"
+            return "datatypes.Set[string]"
+        return f"datatypes.Set[{elt_type}]"
 
     def _guess_type_dictcomp(self, node: ast.DictComp) -> str:
         """Guess type for a DictComp node."""

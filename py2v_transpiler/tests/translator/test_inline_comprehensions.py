@@ -35,9 +35,9 @@ class TestInlineComprehensions(TranspilerTest):
     def test_inline_set_comp(self):
         code = "s = {x * 2 for x in [1, 2, 3]}"
         expected = """
-        mut s := map[int]bool{}
+        mut s := datatypes.Set[int]{}
         for x in [1, 2, 3] {
-            s[x * 2] = true
+            s.add(x * 2)
         }
         """
         self.assert_transpilation(code, expected)

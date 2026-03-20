@@ -118,8 +118,8 @@ class OperatorsMixin(TranslatorBase):
              return f"{left}.matmul({right})"
 
         # Handle set operations
-        is_left_set = left_type.startswith("map[") and left_type.endswith("]bool")
-        is_right_set = right_type.startswith("map[") and right_type.endswith("]bool")
+        is_left_set = (left_type.startswith("map[") and left_type.endswith("]bool")) or left_type.startswith("datatypes.Set[")
+        is_right_set = (right_type.startswith("map[") and right_type.endswith("]bool")) or right_type.startswith("datatypes.Set[")
 
         if is_left_set and is_right_set:
             if isinstance(node.op, ast.BitOr):
@@ -390,7 +390,7 @@ class OperatorsMixin(TranslatorBase):
                  return f"!{right}.any(it == none)"
 
             # Set comparison
-            if left_type.startswith("map[") and left_type.endswith("]bool"):
+            if (left_type.startswith("map[") and left_type.endswith("]bool")) or left_type.startswith("datatypes.Set["):
                 if isinstance(op, ast.LtE):
                     self.used_builtins.add("py_set_subset")
                     return f"py_set_subset({left}, {right})"

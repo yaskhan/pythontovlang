@@ -294,15 +294,16 @@ class ComprehensionsMixin(TranslatorBase):
 
         self._infer_generator_types(gen)
 
+        self.emitter.add_import("datatypes")
         key_type = self._guess_type(node.elt)
         is_decl = target_var.isidentifier()
         op = ":=" if is_decl else "="
         mut_prefix = "mut " if is_decl else ""
-        self.output.append(f"{self._indent()}{mut_prefix}{target_var} {op} map[{key_type}]bool{{}}")
+        self.output.append(f"{self._indent()}{mut_prefix}{target_var} {op} datatypes.Set[{key_type}]{{}}")
 
         def body():
             elt = self.visit(node.elt)
-            self.output.append(f"{self._indent()}{target_var}[{elt}] = true")
+            self.output.append(f"{self._indent()}{target_var}.add({elt})")
 
         self._emit_generators(node.generators, body)
         return target_var if is_inline else None

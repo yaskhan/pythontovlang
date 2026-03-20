@@ -11,7 +11,7 @@ from unittest.mock import MagicMock
 class MockTypeInference:
     def __init__(self):
         self.type_map = {}
-        self.location_map = {}
+        self.location_map = {}; self.static_methods = {}; self.class_methods = {}
 
     def resolve_type(self, node):
         if isinstance(node, ast.Name):
@@ -21,6 +21,7 @@ class MockTypeInference:
 from py2v_transpiler.core.translator.base import TranslatorBase
 
 class _TestTranslator(ClassesMixin, VariablesMixin, FunctionsMixin, ExpressionsMixin, LiteralsMixin, TranslatorBase):
+    readonly_fields = {}
     def __init__(self):
         super().__init__(type_inference=MockTypeInference())
         self.output = []

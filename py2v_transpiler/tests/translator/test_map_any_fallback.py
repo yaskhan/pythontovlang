@@ -19,7 +19,7 @@ def test_dict_any_fallback():
 def test_set_any_fallback():
     code = "s = set()"
     output = _transpile(code)
-    assert "map[string]bool{}" in output
+    assert "datatypes.Set[string]{}" in output
 
 def test_dict_literal_any_fallback():
     code = """
@@ -38,4 +38,4 @@ def foo(a: Any):
     s = {a}
 """
     output = _transpile(code)
-    assert "map[string]bool" in output or "{" in output
+    assert "datatypes.Set[string]" in output or "{" in output
