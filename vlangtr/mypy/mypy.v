@@ -1,0 +1,3 @@
+module mypy
+
+import models

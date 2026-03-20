@@ -63,7 +63,7 @@ println('Dog is subclass of Animal: ${/* issubclass(Dog, Animal) */ true}')
 - The actual runtime check is lost.
 
 ---
-
+*****************************
 ## Issue #3: Class variables not supported in V
 
 **File:** test_classes_inheritance.py

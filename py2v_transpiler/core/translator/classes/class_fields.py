@@ -193,7 +193,7 @@ class ClassFieldsMixin:
 
                     if stmt.value:
                         default_val = self.translator.visit(stmt.value)
-
+                        
                         # Store for Meta struct generation instead of instance field
                         if not hasattr(self.translator, 'defined_classes'):
                             self.translator.defined_classes = {}
@@ -291,7 +291,7 @@ class ClassFieldsMixin:
                     field_type = self.translator._map_type(norm_typ, struct_name)
                 except Exception:
                     field_type = "Any"
-
+                
                 # Try to find default value
                 default_val = "none"
                 for stmt in body:
@@ -304,7 +304,7 @@ class ClassFieldsMixin:
                             if isinstance(target, ast.Name) and target.id == attr["name"]:
                                 default_val = self.translator.visit(stmt.value)
                                 break
-
+                
                 if not hasattr(self.translator, "defined_classes"):
                     self.translator.defined_classes = {}
                 if struct_name not in self.translator.defined_classes:
