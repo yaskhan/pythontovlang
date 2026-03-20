@@ -415,6 +415,18 @@ class ClassFieldsMixin:
                     return sig_data["namedtuple_metadata"]
         return None
 
+    def get_dataclass_metadata(self, node: ast.ClassDef, struct_name: str) -> Optional[Dict[str, Any]]:
+        """Extract dataclass metadata from call signatures."""
+        for k, sig_data in self.translator.type_inference.call_signatures.items():
+            if "dataclass_metadata" in sig_data:
+                if (
+                    k.startswith(f"{node.name}@")
+                    or k.split("@")[0].endswith(f".{node.name}")
+                    or k.startswith(f"{struct_name}@")
+                ):
+                    return sig_data["dataclass_metadata"]
+        return None
+
     def process_namedtuple_fields(
         self,
         struct_name: str,

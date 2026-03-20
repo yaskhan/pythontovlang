@@ -224,6 +224,23 @@ class VlangPlugin(Plugin):
                         "fields": nt_meta.get("fields", []),
                         "types": [str(t) for t in nt_meta.get("types", [])]
                     }
+                if 'dataclass' in type_info.metadata:
+                    dc_meta = type_info.metadata['dataclass']
+                    # We need to extract the attributes from the dataclass metadata
+                    # Mypy's dataclass plugin stores specialized objects here, so we convert them to dicts
+                    sig_data_cls["dataclass_metadata"] = {
+                        "attributes": [
+                            {
+                                "name": attr.name,
+                                "type": str(attr.type),
+                                "is_in_init": attr.is_in_init,
+                                "has_default": attr.has_default,
+                                "is_classvar": attr.is_classvar,
+                                "is_init_var": attr.is_init_var
+                            } for attr in dc_meta.get("attributes", [])
+                        ],
+                        "has_post_init": dc_meta.get("has_post_init", False)
+                    }
                 fn_cls = type_info.fullname
                 sh_cls = type_info.name
                 self.plugin.collected_sigs[fn_cls][key] = json.dumps(sig_data_cls)
