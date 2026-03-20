@@ -12,6 +12,7 @@ mut:
 	indent_stack    []int
 	pending_dedents  int
 	peeked          ?Token
+	grouping_level  int
 }
 
 fn new_lexer(source string, filename string) Lexer {
@@ -315,6 +316,9 @@ fn (mut l Lexer) next_token() Token {
 		// Newline => handle indentation on next line
 		if ch == `\n` {
 			l.advance_char()
+			if l.grouping_level > 0 {
+				continue
+			}
 			tok := l.make_token(.newline, '\\n')
 			// handle indentation at start of next line
 			if indent_tok := l.handle_indentation() {
@@ -376,12 +380,12 @@ fn (mut l Lexer) next_token() Token {
 
 		// Single-char tokens
 		match ch {
-			`(` { l.advance_char(); return l.make_token(.lparen, '(') }
-			`)` { l.advance_char(); return l.make_token(.rparen, ')') }
-			`[` { l.advance_char(); return l.make_token(.lbracket, '[') }
-			`]` { l.advance_char(); return l.make_token(.rbracket, ']') }
-			`{` { l.advance_char(); return l.make_token(.lbrace, '{') }
-			`}` { l.advance_char(); return l.make_token(.rbrace, '}') }
+			`(` { l.grouping_level++; l.advance_char(); return l.make_token(.lparen, '(') }
+			`)` { l.grouping_level--; l.advance_char(); return l.make_token(.rparen, ')') }
+			`[` { l.grouping_level++; l.advance_char(); return l.make_token(.lbracket, '[') }
+			`]` { l.grouping_level--; l.advance_char(); return l.make_token(.rbracket, ']') }
+			`{` { l.grouping_level++; l.advance_char(); return l.make_token(.lbrace, '{') }
+			`}` { l.grouping_level--; l.advance_char(); return l.make_token(.rbrace, '}') }
 			`:` {
 				if l.peek_char_at(1) == `=` {
 					l.advance_char(); l.advance_char()

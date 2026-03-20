@@ -960,8 +960,50 @@ fn (mut p Parser) parse_postfix_expr() ?Expression {
 	return expr
 }
 
-fn (mut p Parser) parse_joined_str() ?Expression {
+fn (mut p Parser) parse_string_literal() ?Expression {
 	tok := p.current_token
+	mut parts := []Expression{}
+	mut has_fstring := false
+
+	for p.current_is(.fstring_tok) || p.current_is(.string_tok) {
+		if p.current_is(.fstring_tok) {
+			has_fstring = true
+			fparts := p.parse_joined_str(p.current_token)?
+			parts << fparts
+		} else {
+			parts << Constant{
+				token: p.current_token
+				value: "'${p.current_token.value}'"
+			}
+			p.advance()
+		}
+	}
+
+	if !has_fstring {
+		// Concatenate all constant parts into one
+		mut val := ''
+		for part in parts {
+			if part is Constant {
+				// Strip the added single quotes
+				v := part.value
+				if v.len >= 2 {
+					val += v[1..v.len-1]
+				}
+			}
+		}
+		return Constant{
+			token: tok
+			value: "'${val}'"
+		}
+	}
+
+	return JoinedStr{
+		token: tok
+		values: parts
+	}
+}
+
+fn (mut p Parser) parse_joined_str(tok Token) ?[]Expression {
 	content := tok.value
 	p.advance()
 
@@ -1048,11 +1090,10 @@ fn (mut p Parser) parse_joined_str() ?Expression {
 						column: tok.column
 						filename: tok.filename
 					}
-					mut tmp_parser := Parser{
-						lexer: p.lexer
-						current_token: tmp_tok
+					format_spec = JoinedStr{
+						token: tok
+						values: p.parse_joined_str(tmp_tok)?
 					}
-					format_spec = tmp_parser.parse_joined_str()
 				} else {
 					format_spec = JoinedStr{
 						token: tok
@@ -1092,10 +1133,7 @@ fn (mut p Parser) parse_joined_str() ?Expression {
 		}
 	}
 
-	return JoinedStr{
-		token: tok
-		values: values
-	}
+	return values
 }
 
 fn (mut p Parser) parse_primary_expr() ?Expression {
@@ -1119,18 +1157,8 @@ fn (mut p Parser) parse_primary_expr() ?Expression {
 			p.advance()
 			return Constant{token: tok, value: tok.value}
 		}
-		p.current_is(.fstring_tok) {
-			return p.parse_joined_str()
-		}
-		p.current_is(.string_tok) {
-			mut val := tok.value
-			p.advance()
-			// Concatenate adjacent strings
-			for p.current_is(.string_tok) {
-				val += p.current_token.value
-				p.advance()
-			}
-			return Constant{token: tok, value: "'${val}'"}
+		p.current_is(.fstring_tok) || p.current_is(.string_tok) {
+			return p.parse_string_literal()
 		}
 		p.current_is(.ellipsis) {
 			p.advance()
