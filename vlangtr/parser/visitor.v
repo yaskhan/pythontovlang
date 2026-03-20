@@ -63,6 +63,7 @@ mut:
 	visit_match_star(node &MatchStar)
 	visit_match_as(node &MatchAs)
 	visit_match_or(node &MatchOr)
+	visit_named_expr(node &NamedExpr)
 }
 
 // walk dispatches a Statement node to the appropriate visitor method
@@ -125,6 +126,7 @@ fn walk_expr(mut v Visitor, node Expression) {
 		NoneExpr       { v.visit_none_expr(node) }
 		JoinedStr      { v.visit_joined_str(node) }
 		FormattedValue { v.visit_formatted_value(node) }
+		NamedExpr      { v.visit_named_expr(node) }
 		else           {}
 	}
 }

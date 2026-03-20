@@ -605,6 +605,14 @@ fn (mut p Printer) visit_try(node &Try) {
 	p.indent_level--
 }
 
+fn (mut p Printer) visit_named_expr(node &NamedExpr) {
+	p.write('NamedExpr(target=')
+	walk_expr(mut p, node.target)
+	p.write(', value=')
+	walk_expr(mut p, node.value)
+	p.write(')')
+}
+
 fn (mut p Printer) visit_match(node &Match) {
 	p.write('Match(\n')
 	p.indent_level++

@@ -376,6 +376,18 @@ fn (n &IfExp) get_token() Token { return n.token }
 fn (n &IfExp) str() string      { return 'IfExp' }
 
 // ──────────────────────────────────────────────────
+
+struct NamedExpr {
+pub:
+	token  Token
+	target Expression
+	value  Expression
+}
+
+fn (n &NamedExpr) get_token() Token { return n.token }
+fn (n &NamedExpr) str() string      { return 'NamedExpr' }
+
+// ──────────────────────────────────────────────────
 // Statements
 // ──────────────────────────────────────────────────
 

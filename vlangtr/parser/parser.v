@@ -828,6 +828,19 @@ fn (mut p Parser) parse_expression_limited(allow_in bool, allow_ternary bool) ?E
 fn (mut p Parser) parse_binary_expr(precedence int, allow_in bool, allow_ternary bool) ?Expression {
 	mut left := p.parse_unary_expr() or { return none }
 
+	// Walrus: n := expr
+	if p.current_is(.walrus) {
+		tok := p.current_token
+		p.advance()
+		value := p.parse_expression() or { return left }
+		p.set_ctx(mut left, .store)
+		return NamedExpr{
+			token: tok
+			target: left
+			value: value
+		}
+	}
+
 	for {
 		// Ternary (if-expr): x if cond else y
 		if allow_ternary && p.current_is_keyword('if') {
@@ -1503,9 +1516,9 @@ fn (mut p Parser) parse_pattern_atom() Pattern {
 				if p.current_is(.identifier) && p.peek_is(.operator) && p.peek_tok.value == '=' {
 					kname := p.current_token.value; p.advance(); p.advance()
 					kwd_attrs << kname
-					kwd_patterns << p.parse_pattern_atom()
+					kwd_patterns << p.parse_pattern()
 				} else {
-					patterns << p.parse_pattern_atom()
+					patterns << p.parse_pattern()
 				}
 				if p.current_is(.comma) { p.advance() } else { break }
 			}
@@ -1527,7 +1540,7 @@ fn (mut p Parser) parse_pattern_atom() Pattern {
 
 	// Literals
 	if p.current_is(.number) || p.current_is(.string_tok) {
-		if expr := p.parse_expression() {
+		if expr := p.parse_primary_expr() {
 			return MatchValue{token: tok, value: expr}
 		}
 	}
