@@ -86,15 +86,22 @@ class OperatorsMixin(TranslatorBase):
         # we can statically type the operator call by casting the operands.
         # This prevents boxing into 'Any' and relies on direct V operator calls.
         if op_type in ("int", "f64", "i64"):
-             # For 'Any', we use a sum type assertion `(x as type)`.
+             # For 'Any' or SumTypes, we use a sum type assertion `(x as type)`.
              # For other unknown/primitive types, we use functional casting `type(x)`.
-             if left_type == "Any":
-                  left = f"({left} as {op_type})"
+             l_base_type = self._guess_type(node.left, use_location=False)
+             r_base_type = self._guess_type(node.right, use_location=False)
+
+             if l_base_type == "Any" or l_base_type.startswith("SumType_"):
+                  # Avoid double casting if already casted
+                  if not ("(" in left and " as " in left):
+                       left = f"({left} as {op_type})"
              elif left_type != op_type:
                   left = f"{op_type}({left})"
 
-             if right_type == "Any":
-                  right = f"({right} as {op_type})"
+             if r_base_type == "Any" or r_base_type.startswith("SumType_"):
+                  # Avoid double casting if already casted
+                  if not ("(" in right and " as " in right):
+                       right = f"({right} as {op_type})"
              elif right_type != op_type:
                   right = f"{op_type}({right})"
 

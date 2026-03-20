@@ -13,16 +13,13 @@ class TypeGuessingMixin:
     if TYPE_CHECKING:
         defined_classes: Dict[str, Dict[str, Any]]
         type_inference: Any
-        type_vars: Set[str]
-        known_v_types: Dict[str, str]
-        name_remap: Dict[str, str]
         def _is_literal_string_expr(self, node: ast.AST) -> bool: ...
         def _is_string_type(self, type_str: str) -> bool: ...
 
-    def _guess_type(self, node: ast.AST) -> str:
+    def _guess_type(self, node: ast.AST, use_location: bool = True) -> str:
         """Guess the V type from an AST node."""
         # Check location map first for high-precision results
-        if hasattr(node, "lineno") and hasattr(node, "col_offset") and hasattr(self.type_inference, "location_map"):
+        if use_location and hasattr(node, "lineno") and hasattr(node, "col_offset") and hasattr(self.type_inference, "location_map"):
             loc_key = f"{node.lineno}:{node.col_offset}"
             if loc_key in self.type_inference.location_map:
                 res = self.type_inference.location_map[loc_key]
@@ -202,28 +199,29 @@ class TypeGuessingMixin:
         if not elts:
             return "[]Any"
 
-        element_types: Set[str] = set()
+        element_types: List[str] = []
         has_none = False
         for elt in elts:
             if isinstance(elt, ast.Starred):
-                element_types.add("Any")
+                element_types.append("Any")
             elif isinstance(elt, ast.Constant) and elt.value is None:
                 has_none = True
             elif isinstance(elt, ast.Name) and elt.id in ("None", "none"):
                 has_none = True
             else:
-                element_types.add(self._guess_type(elt))
+                element_types.append(self._guess_type(elt))
+
+        lcs = "Any"
+        if element_types:
+            if hasattr(self.type_inference, '_find_lcs'):
+                lcs = self.type_inference._find_lcs(element_types)
+            elif len(set(element_types)) == 1:
+                lcs = element_types[0]
 
         if has_none:
-            if not element_types or element_types == {"Any"}:
-                return "[]?Any"
-            if len(element_types) == 1:
-                return f"[]?{list(element_types)[0]}"
-            return "[]?Any"
+            return f"[]?{lcs}"
 
-        if len(element_types) == 1:
-            return f"[]{list(element_types)[0]}"
-        return "[]Any"
+        return f"[]{lcs}" 
 
     def _guess_type_set(self, node: ast.Set) -> str:
         """Guess type for a Set node."""
@@ -296,10 +294,7 @@ class TypeGuessingMixin:
         if inferred != "void":
             return inferred
         if hasattr(self.type_inference, "type_map") and node.id in self.type_inference.type_map:
-            t = self.type_inference.type_map.get(node.id, "void")
-            if t == "int" and node.id in self.type_vars:
-                return node.id
-            return t
+            return self.type_inference.type_map[node.id]
         return "int"
 
     def _guess_type_attribute(self, node: ast.Attribute) -> str:

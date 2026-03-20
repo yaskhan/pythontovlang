@@ -72,39 +72,6 @@ class AttributesMixin(TranslatorBase):
         # Avoid double casting if visit(node.value) already applied casting (via NamesMixin)
         if obj is not None and "(" in obj and " as " in obj:
             pass
-        # Apply narrowing if mypy type differs from local type mapping
-        # Only do this if we can safely cast without syntax errors.
-        elif isinstance(node.value, ast.Name):
-            base_type = self.type_inference.type_map.get(node.value.id)
-            if not base_type:
-                base_type = self._guess_type(node.value)
-            # Find narrowed type via node location first, fall back to general guess_type
-            narrowed_type = None
-            if hasattr(node.value, 'lineno') and hasattr(node.value, 'col_offset'):
-                loc_key = f"{node.value.id}@{node.value.lineno}:{node.value.col_offset}"
-                narrowed_type = self.type_inference.type_map.get(loc_key)
-            if not narrowed_type:
-                narrowed_type = self._guess_type(node.value)
-
-            # Map types to V equivalents before checking exclusion list
-            v_narrowed_type = self._map_type(narrowed_type) if narrowed_type else None
-            v_base_type = self._map_type(base_type) if base_type else None
-
-            # If mypy narrowed the type and it's not a primitive (fallback) or generic "Any"
-            if v_narrowed_type and v_base_type and v_narrowed_type != v_base_type and v_narrowed_type not in ("int", "f64", "string", "bool", "Any", "void", "none", "f32", "i64", "i32", "i16", "i8", "u64", "u32", "u16", "u8", "byte", "rune"):
-                # Avoid casting to same primitive types or optionals
-                if not (v_base_type.startswith("?") and v_base_type[1:] == v_narrowed_type):
-                    if v_narrowed_type not in ("Any", "void", "unknown"):
-                        # Special case: don't cast from a named struct (NamedTuple/Class) 
-                        # to a generic collection/TupleStruct if we are accessing an attribute.
-                        # This avoids breaking field access like (p2 as []string).x
-                        v_base_name = base_type.split('.')[-1]
-                        is_named_struct = v_base_name and v_base_name[0].isupper() and not v_base_name.startswith("TupleStruct_")
-                        is_generic_cast = v_narrowed_type.startswith("[]") or v_narrowed_type.startswith("TupleStruct_") or v_narrowed_type == "Any"
-                        
-                        if not (is_named_struct and is_generic_cast) and v_narrowed_type != "none":
-                            # Emit an explicit cast in V: (obj as NarrowedType)
-                            obj = f"({obj} as {v_narrowed_type})"
 
         # Mangling for self.__private attributes
         # We need to know if we are accessing self inside a class
@@ -192,4 +159,27 @@ class AttributesMixin(TranslatorBase):
             if scc_file:
                 return f"{prefix}__{attr_name}"
 
-        return f"{obj}.{attr_name}"
+        res = f"{obj}.{attr_name}"
+        
+        # Apply narrowing to the result of the attribute access
+        # We need to narrow the attribute itself (d.value), not the recevier (d)
+        # Use location_map for the attribute node itself
+        if not ("(" in res and " as " in res):
+            # Get the type of the attribute (node) without location-based narrowing
+            v_attr_base = self._map_type(self._guess_type(node, use_location=False))
+            # Get the narrowed type of the attribute from location_map
+            # Use the position of the attribute node itself
+            v_attr_narrowed = None
+            if hasattr(node, 'lineno') and hasattr(node, 'col_offset'):
+                loc_key = f"{node.lineno}:{node.col_offset}"
+                if hasattr(self.type_inference, "location_map"):
+                    narrowed = self.type_inference.location_map.get(loc_key)
+                    if narrowed:
+                        v_attr_narrowed = self._map_type(narrowed)
+            
+            if v_attr_narrowed and v_attr_base and v_attr_narrowed != v_attr_base:
+                 if v_attr_base.startswith("SumType_") or v_attr_base == "Any":
+                      if v_attr_narrowed not in ("Any", "void", "unknown", "none"):
+                           res = f"({res} as {v_attr_narrowed})"
+
+        return res

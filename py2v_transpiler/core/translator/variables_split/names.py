@@ -30,11 +30,12 @@ class NamesMixin(TranslatorBase):
 
         # Apply narrowing if mypy type differs from base type
         if isinstance(node.ctx, ast.Load):
-            # Check for location-based narrowing first
+            # Check for location-based narrowing first (in location_map)
             narrowed_type = None
             if hasattr(node, 'lineno') and hasattr(node, 'col_offset'):
-                loc_key = f"{node.id}@{node.lineno}:{node.col_offset}"
-                narrowed_type = self.type_inference.type_map.get(loc_key)
+                loc_key = f"{node.lineno}:{node.col_offset}"
+                if hasattr(self.type_inference, "location_map"):
+                    narrowed_type = self.type_inference.location_map.get(loc_key)
 
             base_type = self.type_inference.type_map.get(node.id)
             if not base_type:
@@ -44,20 +45,24 @@ class NamesMixin(TranslatorBase):
             v_narrowed_type = self._map_type(narrowed_type) if narrowed_type else None
             v_base_type = self._map_type(base_type) if base_type else None
 
-            if v_narrowed_type and v_narrowed_type not in ("int", "f64", "string", "bool", "Any", "void", "none", "f32", "i64", "i32", "i16", "i8", "u64", "u32", "u16", "u8", "byte", "rune"):
+            # Apply narrowing if narrowed type differs from base type
+            # For SumTypes, we need to cast even to primitive types
+            if v_narrowed_type and v_base_type and v_narrowed_type != v_base_type:
                 # Skip narrowing for functions/classes
                 if v_base_type and (v_base_type.startswith("fn") or "fn(" in v_base_type):
                     return res
 
-                # If base type is unknown or differs from narrowed, apply cast
-                if not v_base_type or (v_narrowed_type != v_base_type and not (v_base_type.startswith("?") and v_base_type[1:] == v_narrowed_type)):
+                # Check if base type is a SumType or Any (needs narrowing)
+                if v_base_type.startswith("SumType_") or v_base_type == "Any":
                     # Special case: don't cast from a named struct (NamedTuple/Class) 
                     # to a generic collection/TupleStruct or Any.
                     v_base_name = v_base_type.split('.')[-1] if v_base_type else ""
                     is_named_struct = v_base_name and v_base_name[0].isupper() and not v_base_name.startswith("TupleStruct_")
                     is_generic_cast = v_narrowed_type.startswith("[]") or v_narrowed_type.startswith("TupleStruct_") or v_narrowed_type == "Any"
                     
-                    if not (is_named_struct and is_generic_cast) and v_narrowed_type != "none":
-                        res = f"({res} as {v_narrowed_type})"
+                    if not (is_named_struct and is_generic_cast) and v_narrowed_type not in ("none", "void", "unknown"):
+                        # Avoid double casting
+                        if not ("(" in res and " as " in res):
+                            res = f"({res} as {v_narrowed_type})"
 
         return res
