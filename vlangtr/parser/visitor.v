@@ -51,6 +51,8 @@ mut:
 	visit_yield(node &Yield)
 	visit_yield_from(node &YieldFrom)
 	visit_starred(node &Starred)
+	visit_joined_str(node &JoinedStr)
+	visit_formatted_value(node &FormattedValue)
 	// Patterns
 	visit_match_value(node &MatchValue)
 	visit_match_singleton(node &MatchSingleton)
@@ -119,6 +121,8 @@ fn walk_expr(mut v Visitor, node Expression) {
 		Yield          { v.visit_yield(node) }
 		YieldFrom      { v.visit_yield_from(node) }
 		Starred        { v.visit_starred(node) }
+		JoinedStr      { v.visit_joined_str(node) }
+		FormattedValue { v.visit_formatted_value(node) }
 		else           {}
 	}
 }

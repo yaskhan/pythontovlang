@@ -63,6 +63,30 @@ fn (n &Constant) str() string      { return 'Constant(value=${n.value})' }
 
 // ──────────────────────────────────────────────────
 
+struct FormattedValue {
+pub:
+	token        Token
+	value        Expression
+	conversion   int // -1 (none), 115 (s), 114 (r), 97 (a)
+	format_spec  ?Expression // JoinedStr
+}
+
+fn (n &FormattedValue) get_token() Token { return n.token }
+fn (n &FormattedValue) str() string      { return 'FormattedValue' }
+
+// ──────────────────────────────────────────────────
+
+struct JoinedStr {
+pub:
+	token  Token
+	values []Expression // Constant or FormattedValue
+}
+
+fn (n &JoinedStr) get_token() Token { return n.token }
+fn (n &JoinedStr) str() string      { return 'JoinedStr' }
+
+// ──────────────────────────────────────────────────
+
 struct List {
 pub:
 	token    Token

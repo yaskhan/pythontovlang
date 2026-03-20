@@ -521,13 +521,23 @@ fn (mut p Parser) parse_return() ?Statement {
 	return Return{token: tok, value: value}
 }
 
+fn (mut p Parser) parse_dotted_name() string {
+	mut name := p.current_token.value
+	p.expect(.identifier)
+	for p.current_is(.dot) {
+		p.advance()
+		name += '.' + p.current_token.value
+		p.expect(.identifier)
+	}
+	return name
+}
+
 fn (mut p Parser) parse_import() ?Statement {
 	tok := p.current_token
 	p.advance()
 	mut names := []Alias{}
 	for {
-		name := p.current_token.value
-		p.advance()
+		name := p.parse_dotted_name()
 		mut asname := ?string(none)
 		if p.current_is_keyword('as') {
 			p.advance()
@@ -546,7 +556,7 @@ fn (mut p Parser) parse_import_from() ?Statement {
 	p.advance() // skip 'from'
 	mut level := 0
 	for p.current_is(.dot) { level++; p.advance() }
-	module_name := if p.current_is(.identifier) { n := p.current_token.value; p.advance(); n } else { '' }
+	module_name := if p.current_is(.identifier) { p.parse_dotted_name() } else { '' }
 	p.expect_keyword('import')
 	mut names := []Alias{}
 	if p.current_is(.operator) && p.current_token.value == '*' {
@@ -846,6 +856,144 @@ fn (mut p Parser) parse_postfix_expr() ?Expression {
 	return expr
 }
 
+fn (mut p Parser) parse_joined_str() ?Expression {
+	tok := p.current_token
+	content := tok.value
+	p.advance()
+
+	mut values := []Expression{}
+	mut i := 0
+	mut last_pos := 0
+	for i < content.len {
+		if content[i] == `{` {
+			if i + 1 < content.len && content[i + 1] == `{` {
+				i += 2
+				continue
+			}
+			if i > last_pos {
+				values << Constant{
+					token: tok
+					value: "'${content[last_pos..i]}'"
+				}
+			}
+			i++
+			start := i
+			mut brace_depth := 1
+			for i < content.len && brace_depth > 0 {
+				if content[i] == `{` {
+					brace_depth++
+				} else if content[i] == `}` {
+					brace_depth--
+				}
+				i++
+			}
+			expr_and_spec := content[start..i - 1]
+
+			mut part_split_idx := -1
+			mut format_split_idx := -1
+			mut depth := 0
+			for j, ch in expr_and_spec {
+				if ch == `[` || ch == `(` || ch == `{` {
+					depth++
+				} else if ch == `]` || ch == `)` || ch == `}` {
+					depth--
+				} else if depth == 0 {
+					if ch == `!` && part_split_idx == -1 {
+						part_split_idx = j
+					} else if ch == `:` && format_split_idx == -1 {
+						format_split_idx = j
+					}
+				}
+			}
+
+			mut expr_str := expr_and_spec
+			mut conversion := -1
+			mut format_spec_str := ''
+
+			if format_split_idx != -1 {
+				expr_str = expr_and_spec[..format_split_idx]
+				format_spec_str = expr_and_spec[format_split_idx + 1..]
+			}
+			if part_split_idx != -1 && (format_split_idx == -1 || part_split_idx < format_split_idx) {
+				expr_str = expr_and_spec[..part_split_idx]
+				conv_char := if format_split_idx != -1 {
+					expr_and_spec[part_split_idx + 1..format_split_idx]
+				} else {
+					expr_and_spec[part_split_idx + 1..]
+				}
+				conversion = if conv_char.len > 0 { int(conv_char[0]) } else { -1 }
+			}
+
+			mut sub_lexer := new_lexer(expr_str, p.lexer.filename)
+			mut sub_parser := new_parser(sub_lexer)
+			parsed_expr := sub_parser.parse_expression() or {
+				p.errors << ParseError{
+					message: 'failed to parse f-string expression: ${expr_str}'
+					token: tok
+				}
+				return none
+			}
+
+			mut format_spec := ?Expression(none)
+			if format_spec_str != '' {
+				if format_spec_str.contains('{') {
+					tmp_tok := Token{
+						typ: .fstring_tok
+						value: format_spec_str
+						line: tok.line
+						column: tok.column
+						filename: tok.filename
+					}
+					mut tmp_parser := Parser{
+						lexer: p.lexer
+						current_token: tmp_tok
+					}
+					format_spec = tmp_parser.parse_joined_str()
+				} else {
+					format_spec = JoinedStr{
+						token: tok
+						values: [Expression(Constant{
+							token: tok
+							value: "'${format_spec_str}'"
+						})]
+					}
+				}
+			}
+
+			values << FormattedValue{
+				token: tok
+				value: parsed_expr
+				conversion: conversion
+				format_spec: format_spec
+			}
+			last_pos = i
+		} else if content[i] == `}` {
+			if i + 1 < content.len && content[i + 1] == `}` {
+				i += 2
+				continue
+			}
+			p.errors << ParseError{
+				message: 'f-string: single "}" is not allowed'
+				token: tok
+			}
+			i++
+		} else {
+			i++
+		}
+	}
+	if last_pos < content.len {
+		values << Constant{
+			token: tok
+			value: "'${content[last_pos..]}'"
+		}
+	}
+
+	return JoinedStr{
+		token: tok
+		values: values
+	}
+}
+
 fn (mut p Parser) parse_primary_expr() ?Expression {
 	tok := p.current_token
 
@@ -866,6 +1014,9 @@ fn (mut p Parser) parse_primary_expr() ?Expression {
 		p.current_is(.number) {
 			p.advance()
 			return Constant{token: tok, value: tok.value}
+		}
+		p.current_is(.fstring_tok) {
+			return p.parse_joined_str()
 		}
 		p.current_is(.string_tok) {
 			mut val := tok.value

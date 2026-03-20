@@ -910,3 +910,34 @@ fn (mut p Printer) visit_yield_from(node &YieldFrom) {
 	walk_expr(mut p, node.value)
 	p.write(')')
 }
+
+fn (mut p Printer) visit_joined_str(node &JoinedStr) {
+	p.write('JoinedStr(values=[\n')
+	p.indent_level++
+	for i, val in node.values {
+		p.write(p.indent())
+		walk_expr(mut p, val)
+		if i < node.values.len - 1 { p.write(',\n') }
+	}
+	p.indent_level--
+	p.write('\n' + p.indent() + '])')
+}
+
+fn (mut p Printer) visit_formatted_value(node &FormattedValue) {
+	p.write('FormattedValue(value=')
+	walk_expr(mut p, node.value)
+	conversion_str := match node.conversion {
+		115 { "'s'" }
+		114 { "'r'" }
+		97  { "'a'" }
+		else { '-1' }
+	}
+	p.write(', conversion=${conversion_str}')
+	if spec := node.format_spec {
+		p.write(', format_spec=')
+		walk_expr(mut p, spec)
+	} else {
+		p.write(', format_spec=None')
+	}
+	p.write(')')
+}

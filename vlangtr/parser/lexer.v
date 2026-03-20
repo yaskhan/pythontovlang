@@ -213,11 +213,11 @@ fn (mut l Lexer) scan_number() Token {
 	return Token{typ: .number, value: l.source[start..l.pos], line: l.line, column: start_col, filename: l.filename}
 }
 
-fn (mut l Lexer) scan_string() Token {
-	start_col := l.column
+fn (mut l Lexer) scan_string(prefix string) Token {
+	start_col := l.column - prefix.len
 	quote := l.peek_char()
-	mut prefix := ''
-	// Already consumed prefix characters before calling - handled in next_token
+	mut typ := if prefix.to_lower().contains('f') { TokenType.fstring_tok } else { TokenType.string_tok }
+	
 	// Check for triple quote
 	if l.pos + 2 < l.source.len && l.peek_char() == quote && l.peek_char_at(1) == quote && l.peek_char_at(2) == quote {
 		// Triple quoted string
@@ -235,11 +235,12 @@ fn (mut l Lexer) scan_string() Token {
 			l.advance_char()
 		}
 		value := l.source[start..l.pos]
-		l.advance_char()
-		l.advance_char()
-		l.advance_char()
-		_ = prefix
-		return Token{typ: .string_tok, value: value, line: l.line, column: start_col, filename: l.filename}
+		if l.pos < l.source.len {
+			l.advance_char()
+			l.advance_char()
+			l.advance_char()
+		}
+		return Token{typ: typ, value: value, line: l.line, column: start_col, filename: l.filename}
 	}
 	// Single quoted
 	l.advance_char()
@@ -252,7 +253,8 @@ fn (mut l Lexer) scan_string() Token {
 		if ch == `\\` {
 			l.advance_char()
 		}
-		if ch == `\n` {
+		if ch == `\n` && (prefix.to_lower() != 'f' && prefix.to_lower() != 'r') {
+			// Actually Python strings can't have raw newlines unless triple quoted
 			break
 		}
 		l.advance_char()
@@ -261,7 +263,7 @@ fn (mut l Lexer) scan_string() Token {
 	if l.pos < l.source.len {
 		l.advance_char() // closing quote
 	}
-	return Token{typ: .string_tok, value: value, line: l.line, column: start_col, filename: l.filename}
+	return Token{typ: typ, value: value, line: l.line, column: start_col, filename: l.filename}
 }
 
 fn (mut l Lexer) scan_operator() Token {
@@ -342,15 +344,17 @@ fn (mut l Lexer) next_token() Token {
 		if ch == `r` || ch == `b` || ch == `f` || ch == `u` {
 			next := l.peek_char_at(1)
 			if next == `'` || next == `"` {
+				p := ch.ascii_str()
 				l.advance_char() // skip prefix
-				return l.scan_string()
+				return l.scan_string(p)
 			}
 			if (ch == `r` || ch == `b` || ch == `f`) && (next == `b` || next == `r` || next == `f`) {
 				next2 := l.peek_char_at(2)
 				if next2 == `'` || next2 == `"` {
+					p := l.source[l.pos..l.pos + 2]
 					l.advance_char()
 					l.advance_char()
-					return l.scan_string()
+					return l.scan_string(p)
 				}
 			}
 		}
@@ -367,7 +371,7 @@ fn (mut l Lexer) next_token() Token {
 
 		// String
 		if ch == `'` || ch == `"` {
-			return l.scan_string()
+			return l.scan_string('')
 		}
 
 		// Single-char tokens
