@@ -212,3 +212,4 @@ v/
 # Debug folder for temporary test files
 debug/
 /jules_session_extracted
+*.exe

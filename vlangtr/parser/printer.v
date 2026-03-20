@@ -47,7 +47,8 @@ fn (mut p Printer) visit_expr(node &Expr) {
 }
 
 fn (mut p Printer) visit_function_def(node &FunctionDef) {
-	p.write('FunctionDef(\n')
+	name := if node.is_async { 'AsyncFunctionDef' } else { 'FunctionDef' }
+	p.write('${name}(\n')
 	p.indent_level++
 	p.write(p.indent() + 'name=\'${node.name}\',\n')
 	p.write(p.indent() + 'args=')
