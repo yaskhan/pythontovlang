@@ -51,6 +51,15 @@ mut:
 	visit_yield(node &Yield)
 	visit_yield_from(node &YieldFrom)
 	visit_starred(node &Starred)
+	// Patterns
+	visit_match_value(node &MatchValue)
+	visit_match_singleton(node &MatchSingleton)
+	visit_match_sequence(node &MatchSequence)
+	visit_match_mapping(node &MatchMapping)
+	visit_match_class(node &MatchClass)
+	visit_match_star(node &MatchStar)
+	visit_match_as(node &MatchAs)
+	visit_match_or(node &MatchOr)
 }
 
 // walk dispatches a Statement node to the appropriate visitor method
@@ -110,6 +119,21 @@ fn walk_expr(mut v Visitor, node Expression) {
 		Yield          { v.visit_yield(node) }
 		YieldFrom      { v.visit_yield_from(node) }
 		Starred        { v.visit_starred(node) }
+		else           {}
+	}
+}
+
+// walk_pattern dispatches a Pattern node to the appropriate visitor method
+fn walk_pattern(mut v Visitor, node Pattern) {
+	match node {
+		MatchValue     { v.visit_match_value(node) }
+		MatchSingleton { v.visit_match_singleton(node) }
+		MatchSequence  { v.visit_match_sequence(node) }
+		MatchMapping   { v.visit_match_mapping(node) }
+		MatchClass     { v.visit_match_class(node) }
+		MatchStar      { v.visit_match_star(node) }
+		MatchAs        { v.visit_match_as(node) }
+		MatchOr        { v.visit_match_or(node) }
 		else           {}
 	}
 }
