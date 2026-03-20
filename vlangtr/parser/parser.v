@@ -512,10 +512,27 @@ fn (mut p Parser) parse_try() ?Statement {
 	mut handlers := []ExceptHandler{}
 	mut orelse := []Statement{}
 	mut finalbody := []Statement{}
+	mut is_star := false
+	
 	p.skip_newlines()
+	
+	// Check if the first handler is except*
+	if p.current_is_keyword('except') && p.peek_is(.operator) && p.peek_tok.value == '*' {
+		is_star = true
+	}
+
 	for p.current_is_keyword('except') {
 		htok := p.current_token
 		p.advance()
+		
+		if is_star {
+			if p.current_is(.operator) && p.current_token.value == '*' {
+				p.advance()
+			} else {
+				// Error: mixing except and except* (handled by returning Try)
+			}
+		}
+
 		mut typ := ?Expression(none)
 		mut hname := ?string(none)
 		if !p.current_is(.colon) {
@@ -530,6 +547,7 @@ fn (mut p Parser) parse_try() ?Statement {
 		handlers << ExceptHandler{token: htok, typ: typ, name: hname, body: hbody}
 		p.skip_newlines()
 	}
+	
 	if p.current_is_keyword('else') {
 		p.advance()
 		orelse = p.parse_block()
@@ -539,7 +557,24 @@ fn (mut p Parser) parse_try() ?Statement {
 		p.advance()
 		finalbody = p.parse_block()
 	}
-	return Try{token: tok, body: body, handlers: handlers, orelse: orelse, finalbody: finalbody}
+
+	if is_star {
+		return TryStar{
+			token: tok
+			body: body
+			handlers: handlers
+			orelse: orelse
+			finalbody: finalbody
+		}
+	}
+
+	return Try{
+		token: tok
+		body: body
+		handlers: handlers
+		orelse: orelse
+		finalbody: finalbody
+	}
 }
 
 fn (mut p Parser) parse_match() ?Statement {

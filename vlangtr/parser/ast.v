@@ -668,6 +668,18 @@ pub:
 fn (n &Try) get_token() Token { return n.token }
 fn (n &Try) str() string      { return 'Try' }
 
+struct TryStar {
+pub:
+	token     Token
+	body      []Statement
+	handlers  []ExceptHandler
+	orelse    []Statement
+	finalbody []Statement
+}
+
+fn (n &TryStar) get_token() Token { return n.token }
+fn (n &TryStar) str() string      { return 'TryStar' }
+
 // ──────────────────────────────────────────────────
 
 struct Pass {

@@ -13,6 +13,7 @@ mut:
 	visit_while(node &While)
 	visit_with(node &With)
 	visit_try(node &Try)
+	visit_try_star(node &TryStar)
 	visit_match(node &Match)
 	visit_assign(node &Assign)
 	visit_aug_assign(node &AugAssign)
@@ -78,6 +79,7 @@ fn walk_stmt(mut v Visitor, node Statement) {
 		While              { v.visit_while(node) }
 		With               { v.visit_with(node) }
 		Try                { v.visit_try(node) }
+		TryStar            { v.visit_try_star(node) }
 		Match              { v.visit_match(node) }
 		Assign             { v.visit_assign(node) }
 		AugAssign          { v.visit_aug_assign(node) }

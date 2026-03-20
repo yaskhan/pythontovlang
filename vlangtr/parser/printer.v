@@ -595,6 +595,63 @@ fn (mut p Printer) visit_try(node &Try) {
 	p.indent_level--
 }
 
+fn (mut p Printer) visit_try_star(node &TryStar) {
+	p.write('TryStar(\n')
+	p.indent_level++
+	p.write(p.indent() + 'body=[\n')
+	p.indent_level++
+	for i, stmt in node.body {
+		p.write(p.indent())
+		walk_stmt(mut p, stmt)
+		if i < node.body.len - 1 { p.write(',\n') }
+	}
+	p.indent_level--
+	p.write('\n' + p.indent() + '],\n')
+	p.write(p.indent() + 'handlers=[\n')
+	p.indent_level++
+	for i, h in node.handlers {
+		p.write(p.indent() + 'ExceptHandler(')
+		if t := h.typ {
+			p.write('type=')
+			walk_expr(mut p, t)
+			if n := h.name {
+				p.write(', name=\'${n}\'')
+			}
+		}
+		p.write(', body=[\n')
+		p.indent_level++
+		for j, stmt in h.body {
+			p.write(p.indent())
+			walk_stmt(mut p, stmt)
+			if j < h.body.len - 1 { p.write(',\n') }
+		}
+		p.indent_level--
+		p.write('\n' + p.indent() + '])')
+		if i < node.handlers.len - 1 { p.write(',\n') }
+	}
+	p.indent_level--
+	p.write('\n' + p.indent() + '],\n')
+	p.write(p.indent() + 'orelse=[\n')
+	p.indent_level++
+	for i, stmt in node.orelse {
+		p.write(p.indent())
+		walk_stmt(mut p, stmt)
+		if i < node.orelse.len - 1 { p.write(',\n') }
+	}
+	p.indent_level--
+	p.write('\n' + p.indent() + '],\n')
+	p.write(p.indent() + 'finalbody=[\n')
+	p.indent_level++
+	for i, stmt in node.finalbody {
+		p.write(p.indent())
+		walk_stmt(mut p, stmt)
+		if i < node.finalbody.len - 1 { p.write(',\n') }
+	}
+	p.indent_level--
+	p.write('\n' + p.indent() + '])')
+	p.indent_level--
+}
+
 fn (mut p Printer) visit_named_expr(node &NamedExpr) {
 	p.write('NamedExpr(target=')
 	walk_expr(mut p, node.target)
