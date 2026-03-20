@@ -7,6 +7,8 @@ from py2v_transpiler.core.translator.variables_split.names import NamesMixin
 class MockTypeInference:
     def __init__(self):
         self.type_map = {}
+        self.static_methods = {}
+        self.class_methods = {}
     def resolve_type(self, node):
         return "void"
 

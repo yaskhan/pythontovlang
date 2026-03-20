@@ -35,6 +35,11 @@ class ExpressionUtilsMixin:
             return self.visit(node), []
 
         elif isinstance(node, ast.Attribute):
+            # Check if this attribute access is redirected (e.g. class variable)
+            visited = self.visit(node)
+            if "_meta." in visited:
+                return visited, []
+
             if isinstance(node.value, (ast.Name, ast.Attribute, ast.Subscript)):
                 base_expr, base_setup = self._capture_target(node.value)
             else:

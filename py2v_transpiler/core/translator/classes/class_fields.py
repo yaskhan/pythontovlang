@@ -193,10 +193,8 @@ class ClassFieldsMixin:
 
                     if stmt.value:
                         default_val = self.translator.visit(stmt.value)
-                        fields.append(
-                            f"    {field_name} {field_type} = {default_val}"
-                        )
-                        # Store for constant generation
+
+                        # Store for Meta struct generation instead of instance field
                         if not hasattr(self.translator, 'defined_classes'):
                             self.translator.defined_classes = {}
                         if struct_name not in self.translator.defined_classes:
@@ -254,10 +252,7 @@ class ClassFieldsMixin:
                             field_type = self.translator._map_type(field_type, struct_name)
                             default_val = self.translator.visit(stmt.value)
 
-                            # Add to fields list for struct definition
-                            fields.append(f"    {field_name} {field_type} = {default_val}")
-
-                            # Store for constant generation
+                            # Store for Meta struct generation instead of instance field
                             if not hasattr(self.translator, "defined_classes"):
                                 self.translator.defined_classes = {}
                             if struct_name not in self.translator.defined_classes:
@@ -288,7 +283,47 @@ class ClassFieldsMixin:
         """Process fields from dataclass metadata."""
         fields: List[str] = []
         for attr in dataclass_metadata.get("attributes", []):
-            if attr.get("is_classvar", False) or attr.get("is_init_var", False):
+            if attr.get("is_classvar", False):
+                field_name = self.translator._sanitize_name(attr["name"])
+                raw_type = attr.get("type", "Any")
+                norm_typ = raw_type.replace("builtins.", "")
+                try:
+                    field_type = self.translator._map_type(norm_typ, struct_name)
+                except Exception:
+                    field_type = "Any"
+
+                # Try to find default value
+                default_val = "none"
+                for stmt in body:
+                    if isinstance(stmt, ast.AnnAssign) and isinstance(stmt.target, ast.Name) and stmt.target.id == attr["name"]:
+                        if stmt.value:
+                            default_val = self.translator.visit(stmt.value)
+                        break
+                    elif isinstance(stmt, ast.Assign):
+                        for target in stmt.targets:
+                            if isinstance(target, ast.Name) and target.id == attr["name"]:
+                                default_val = self.translator.visit(stmt.value)
+                                break
+
+                if not hasattr(self.translator, "defined_classes"):
+                    self.translator.defined_classes = {}
+                if struct_name not in self.translator.defined_classes:
+                    self.translator.defined_classes[struct_name] = {
+                        "has_init": False, "has_new": False,
+                        "static_methods": set(), "class_methods": set(),
+                        "class_vars": []
+                    }
+                if "class_vars" not in self.translator.defined_classes[struct_name]:
+                    self.translator.defined_classes[struct_name]["class_vars"] = []
+
+                self.translator.defined_classes[struct_name]["class_vars"].append({
+                    "name": field_name,
+                    "type": field_type,
+                    "value": default_val
+                })
+                continue
+
+            if attr.get("is_init_var", False):
                 continue
 
             is_init_var = attr.get("is_init_var", False)

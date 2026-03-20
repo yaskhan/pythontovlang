@@ -12,6 +12,8 @@ class MockTypeInference:
     def __init__(self):
         self.type_map = {}
         self.location_map = {}
+        self.static_methods = {}
+        self.class_methods = {}
 
     def resolve_type(self, node):
         if isinstance(node, ast.Name):
