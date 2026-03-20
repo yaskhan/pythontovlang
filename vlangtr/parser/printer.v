@@ -330,8 +330,63 @@ fn (mut p Printer) visit_set(node &Set) {
 	p.indent_level--
 }
 // Fallback for other nodes to keep it compiling
-fn (mut p Printer) visit_for(node &For) { p.write('For(...)') }
-fn (mut p Printer) visit_while(node &While) { p.write('While(...)') }
+fn (mut p Printer) visit_for(node &For) {
+	name := if node.is_async { 'AsyncFor' } else { 'For' }
+	p.write('${name}(\n')
+	p.indent_level++
+	p.write(p.indent() + 'target=')
+	walk_expr(mut p, node.target)
+	p.write(',\n')
+	p.write(p.indent() + 'iter=')
+	walk_expr(mut p, node.iter)
+	p.write(',\n')
+	p.write(p.indent() + 'body=[\n')
+	p.indent_level++
+	for i, stmt in node.body {
+		p.write(p.indent())
+		walk_stmt(mut p, stmt)
+		if i < node.body.len - 1 { p.write(',\n') }
+	}
+	p.indent_level--
+	p.write('\n' + p.indent() + '],\n')
+	p.write(p.indent() + 'orelse=[\n')
+	p.indent_level++
+	for i, stmt in node.orelse {
+		p.write(p.indent())
+		walk_stmt(mut p, stmt)
+		if i < node.orelse.len - 1 { p.write(',\n') }
+	}
+	p.indent_level--
+	p.write('\n' + p.indent() + '])')
+	p.indent_level--
+}
+
+fn (mut p Printer) visit_while(node &While) {
+	p.write('While(\n')
+	p.indent_level++
+	p.write(p.indent() + 'test=')
+	walk_expr(mut p, node.test)
+	p.write(',\n')
+	p.write(p.indent() + 'body=[\n')
+	p.indent_level++
+	for i, stmt in node.body {
+		p.write(p.indent())
+		walk_stmt(mut p, stmt)
+		if i < node.body.len - 1 { p.write(',\n') }
+	}
+	p.indent_level--
+	p.write('\n' + p.indent() + '],\n')
+	p.write(p.indent() + 'orelse=[\n')
+	p.indent_level++
+	for i, stmt in node.orelse {
+		p.write(p.indent())
+		walk_stmt(mut p, stmt)
+		if i < node.orelse.len - 1 { p.write(',\n') }
+	}
+	p.indent_level--
+	p.write('\n' + p.indent() + '])')
+	p.indent_level--
+}
 fn (mut p Printer) visit_with(node &With) { p.write('With(...)') }
 fn (mut p Printer) visit_try(node &Try) { p.write('Try(...)') }
 fn (mut p Printer) visit_match(node &Match) { p.write('Match(...)') }

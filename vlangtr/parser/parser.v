@@ -413,7 +413,7 @@ fn (mut p Parser) parse_while() ?Statement {
 fn (mut p Parser) parse_for(is_async bool) ?Statement {
 	tok := p.current_token
 	p.advance() // skip 'for'
-	target := p.parse_expression() or { return none }
+	target := p.parse_expression_no_in() or { return none }
 	p.expect_keyword('in')
 	iter := p.parse_expression() or { return none }
 	body := p.parse_block()
@@ -722,10 +722,14 @@ fn token_precedence(tok Token) int {
 }
 
 fn (mut p Parser) parse_expression() ?Expression {
-	return p.parse_binary_expr(prec_lowest)
+	return p.parse_binary_expr(prec_lowest, true)
 }
 
-fn (mut p Parser) parse_binary_expr(precedence int) ?Expression {
+fn (mut p Parser) parse_expression_no_in() ?Expression {
+	return p.parse_binary_expr(prec_lowest, false)
+}
+
+fn (mut p Parser) parse_binary_expr(precedence int, allow_in bool) ?Expression {
 	mut left := p.parse_unary_expr() or { return none }
 
 	for {
@@ -740,6 +744,10 @@ fn (mut p Parser) parse_binary_expr(precedence int) ?Expression {
 		}
 
 		// 'not in' and 'is not'
+		if !allow_in && (p.current_is_keyword('in') || (p.current_is_keyword('not') && p.peek_is_keyword('in'))) {
+			return left
+		}
+
 		if p.current_is_keyword('not') && p.peek_is_keyword('in') {
 			op1 := p.current_token; p.advance(); p.advance()
 			right := p.parse_unary_expr() or { break }
@@ -753,8 +761,10 @@ fn (mut p Parser) parse_binary_expr(precedence int) ?Expression {
 			continue
 		}
 
-		prec := token_precedence(p.current_token)
-		if prec <= precedence { break }
+		next_prec := token_precedence(p.current_token)
+		if next_prec <= precedence {
+			break
+		}
 
 		op := p.current_token
 		p.advance()
@@ -763,13 +773,13 @@ fn (mut p Parser) parse_binary_expr(precedence int) ?Expression {
 		if op.value in ['==', '!=', '<', '>', '<=', '>=', 'in', 'is'] {
 			mut ops := [op]
 			mut comparators := []Expression{}
-			right := p.parse_binary_expr(prec) or { break }
+			right := p.parse_binary_expr(next_prec, allow_in) or { break }
 			comparators << right
 			
 			for p.current_token.value in ['==', '!=', '<', '>', '<=', '>=', 'in', 'is'] {
 				next_op := p.current_token
 				p.advance()
-				next_right := p.parse_binary_expr(prec) or { break }
+				next_right := p.parse_binary_expr(next_prec, allow_in) or { break }
 				ops << next_op
 				comparators << next_right
 			}
@@ -777,7 +787,7 @@ fn (mut p Parser) parse_binary_expr(precedence int) ?Expression {
 			continue
 		}
 
-		right := p.parse_binary_expr(prec) or { break }
+		right := p.parse_binary_expr(next_prec, allow_in) or { break }
 		left = BinaryOp{token: op, left: left, op: op, right: right}
 	}
 	return left
