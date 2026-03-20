@@ -235,6 +235,100 @@ fn op_to_ast(tok Token) string {
 	}
 }
 
+
+fn (mut p Printer) visit_binary_op(node &BinaryOp) {
+	p.write('BinOp(\n')
+	p.indent_level++
+	p.write(p.indent() + 'left=')
+	walk_expr(mut p, node.left)
+	p.write(',\n')
+	p.write(p.indent() + 'op=${node.op.value}(),\n')
+	p.write(p.indent() + 'right=')
+	walk_expr(mut p, node.right)
+	p.write(')')
+	p.indent_level--
+}
+fn (mut p Printer) visit_unary_op(node &UnaryOp) { p.write('UnaryOp(...)') }
+fn (mut p Printer) visit_list(node &List) {
+	p.write('List(\n')
+	p.indent_level++
+	p.write(p.indent() + 'elts=[\n')
+	p.indent_level++
+	for i, elt in node.elements {
+		p.write(p.indent())
+		walk_expr(mut p, elt)
+		if i < node.elements.len - 1 { p.write(',\n') }
+	}
+	p.indent_level--
+	p.write('\n' + p.indent() + '],\n')
+	ctx_str := match node.ctx {
+		.load  { 'Load()' }
+		.store { 'Store()' }
+		.del   { 'Del()' }
+	}
+	p.write(p.indent() + 'ctx=${ctx_str})')
+	p.indent_level--
+}
+
+fn (mut p Printer) visit_dict(node &Dict) {
+	p.write('Dict(\n')
+	p.indent_level++
+	p.write(p.indent() + 'keys=[\n')
+	p.indent_level++
+	for i, k in node.keys {
+		p.write(p.indent())
+		walk_expr(mut p, k)
+		if i < node.keys.len - 1 { p.write(',\n') }
+	}
+	p.indent_level--
+	p.write('\n' + p.indent() + '],\n')
+	p.write(p.indent() + 'values=[\n')
+	p.indent_level++
+	for i, v in node.values {
+		p.write(p.indent())
+		walk_expr(mut p, v)
+		if i < node.values.len - 1 { p.write(',\n') }
+	}
+	p.indent_level--
+	p.write('\n' + p.indent() + '])')
+	p.indent_level--
+}
+
+fn (mut p Printer) visit_tuple(node &Tuple) {
+	p.write('Tuple(\n')
+	p.indent_level++
+	p.write(p.indent() + 'elts=[\n')
+	p.indent_level++
+	for i, elt in node.elements {
+		p.write(p.indent())
+		walk_expr(mut p, elt)
+		if i < node.elements.len - 1 { p.write(',\n') }
+	}
+	p.indent_level--
+	p.write('\n' + p.indent() + '],\n')
+	ctx_str := match node.ctx {
+		.load  { 'Load()' }
+		.store { 'Store()' }
+		.del   { 'Del()' }
+	}
+	p.write(p.indent() + 'ctx=${ctx_str})')
+	p.indent_level--
+}
+
+fn (mut p Printer) visit_set(node &Set) {
+	p.write('Set(\n')
+	p.indent_level++
+	p.write(p.indent() + 'elts=[\n')
+	p.indent_level++
+	for i, elt in node.elements {
+		p.write(p.indent())
+		walk_expr(mut p, elt)
+		if i < node.elements.len - 1 { p.write(',\n') }
+	}
+	p.indent_level--
+	p.write('\n' + p.indent() + '])')
+	p.indent_level--
+}
 // Fallback for other nodes to keep it compiling
 fn (mut p Printer) visit_for(node &For) { p.write('For(...)') }
 fn (mut p Printer) visit_while(node &While) { p.write('While(...)') }
@@ -253,12 +347,6 @@ fn (mut p Printer) visit_delete(node &Delete) { p.write('Delete(...)') }
 fn (mut p Printer) visit_pass(node &Pass) { p.write('Pass()') }
 fn (mut p Printer) visit_break(node &Break) { p.write('Break()') }
 fn (mut p Printer) visit_continue(node &Continue) { p.write('Continue()') }
-fn (mut p Printer) visit_binary_op(node &BinaryOp) { p.write('BinOp(...)') }
-fn (mut p Printer) visit_unary_op(node &UnaryOp) { p.write('UnaryOp(...)') }
-fn (mut p Printer) visit_list(node &List) { p.write('List(...)') }
-fn (mut p Printer) visit_dict(node &Dict) { p.write('Dict(...)') }
-fn (mut p Printer) visit_tuple(node &Tuple) { p.write('Tuple(...)') }
-fn (mut p Printer) visit_set(node &Set) { p.write('Set(...)') }
 fn (mut p Printer) visit_subscript(node &Subscript) { p.write('Subscript(...)') }
 fn (mut p Printer) visit_slice(node &Slice) { p.write('Slice(...)') }
 fn (mut p Printer) visit_lambda(node &Lambda) { p.write('Lambda(...)') }
