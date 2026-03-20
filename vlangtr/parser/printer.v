@@ -387,21 +387,35 @@ fn (mut p Printer) visit_while(node &While) {
 	p.write('\n' + p.indent() + '])')
 	p.indent_level--
 }
+fn (mut p Printer) visit_if_exp(node &IfExp) {
+	p.write('IfExp(\n')
+	p.indent_level++
+	p.write(p.indent() + 'test=')
+	walk_expr(mut p, node.test)
+	p.write(',\n')
+	p.write(p.indent() + 'body=')
+	walk_expr(mut p, node.body)
+	p.write(',\n')
+	p.write(p.indent() + 'orelse=')
+	walk_expr(mut p, node.orelse)
+	p.write(')')
+	p.indent_level--
+}
+fn (mut p Printer) visit_pass(node &Pass) { p.write('Pass()') }
+fn (mut p Printer) visit_break(node &Break) { p.write('Break()') }
+fn (mut p Printer) visit_continue(node &Continue) { p.write('Continue()') }
+fn (mut p Printer) visit_import(node &Import) { p.write('Import(...)') }
+fn (mut p Printer) visit_import_from(node &ImportFrom) { p.write('ImportFrom(...)') }
 fn (mut p Printer) visit_with(node &With) { p.write('With(...)') }
 fn (mut p Printer) visit_try(node &Try) { p.write('Try(...)') }
 fn (mut p Printer) visit_match(node &Match) { p.write('Match(...)') }
 fn (mut p Printer) visit_aug_assign(node &AugAssign) { p.write('AugAssign(...)') }
 fn (mut p Printer) visit_return(node &Return) { p.write('Return(...)') }
-fn (mut p Printer) visit_import(node &Import) { p.write('Import(...)') }
-fn (mut p Printer) visit_import_from(node &ImportFrom) { p.write('ImportFrom(...)') }
 fn (mut p Printer) visit_global(node &Global) { p.write('Global(...)') }
 fn (mut p Printer) visit_nonlocal(node &Nonlocal) { p.write('Nonlocal(...)') }
 fn (mut p Printer) visit_assert(node &Assert) { p.write('Assert(...)') }
 fn (mut p Printer) visit_raise(node &Raise) { p.write('Raise(...)') }
 fn (mut p Printer) visit_delete(node &Delete) { p.write('Delete(...)') }
-fn (mut p Printer) visit_pass(node &Pass) { p.write('Pass()') }
-fn (mut p Printer) visit_break(node &Break) { p.write('Break()') }
-fn (mut p Printer) visit_continue(node &Continue) { p.write('Continue()') }
 fn (mut p Printer) visit_subscript(node &Subscript) { p.write('Subscript(...)') }
 fn (mut p Printer) visit_slice(node &Slice) { p.write('Slice(...)') }
 fn (mut p Printer) visit_lambda(node &Lambda) { p.write('Lambda(...)') }
@@ -409,7 +423,6 @@ fn (mut p Printer) visit_list_comp(node &ListComp) { p.write('ListComp(...)') }
 fn (mut p Printer) visit_dict_comp(node &DictComp) { p.write('DictComp(...)') }
 fn (mut p Printer) visit_set_comp(node &SetComp) { p.write('SetComp(...)') }
 fn (mut p Printer) visit_generator(node &GeneratorExp) { p.write('GeneratorExp(...)') }
-fn (mut p Printer) visit_if_exp(node &IfExp) { p.write('IfExp(...)') }
 fn (mut p Printer) visit_await(node &Await) { p.write('Await(...)') }
 fn (mut p Printer) visit_yield(node &Yield) { p.write('Yield(...)') }
 fn (mut p Printer) visit_yield_from(node &YieldFrom) { p.write('YieldFrom(...)') }
