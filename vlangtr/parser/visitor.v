@@ -65,6 +65,8 @@ mut:
 	visit_match_as(node &MatchAs)
 	visit_match_or(node &MatchOr)
 	visit_named_expr(node &NamedExpr)
+	visit_type_alias(node &TypeAlias)
+	visit_type_param(node &TypeParam)
 }
 
 // walk dispatches a Statement node to the appropriate visitor method
@@ -95,6 +97,7 @@ fn walk_stmt(mut v Visitor, node Statement) {
 		Pass               { v.visit_pass(node) }
 		Break              { v.visit_break(node) }
 		Continue           { v.visit_continue(node) }
+		TypeAlias          { v.visit_type_alias(node) }
 		else               {}
 	}
 }

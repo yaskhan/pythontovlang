@@ -539,6 +539,7 @@ pub:
 	decorator_list []Expression
 	returns    ?Expression
 	is_async   bool
+	type_params []TypeParam
 }
 
 fn (n &FunctionDef) get_token() Token { return n.token }
@@ -565,6 +566,7 @@ pub:
 	keywords       []KeywordArg
 	body           []Statement
 	decorator_list []Expression
+	type_params    []TypeParam
 }
 
 fn (n &ClassDef) get_token() Token { return n.token }
@@ -679,6 +681,35 @@ pub:
 
 fn (n &TryStar) get_token() Token { return n.token }
 fn (n &TryStar) str() string      { return 'TryStar' }
+
+enum TypeParamKind {
+	typevar
+	typevartuple
+	paramspec
+}
+
+struct TypeParam {
+pub:
+	token   Token
+	name    string
+	bound   ?Expression
+	default_ ?Expression
+	kind    TypeParamKind
+}
+
+fn (n &TypeParam) get_token() Token { return n.token }
+fn (n &TypeParam) str() string      { return 'TypeParam(name=\'${n.name}\')' }
+
+struct TypeAlias {
+pub:
+	token       Token
+	name        string
+	type_params []TypeParam
+	value       Expression
+}
+
+fn (n &TypeAlias) get_token() Token { return n.token }
+fn (n &TypeAlias) str() string      { return 'TypeAlias(name=\'${n.name}\')' }
 
 // ──────────────────────────────────────────────────
 

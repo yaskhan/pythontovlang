@@ -79,7 +79,17 @@ fn (mut p Printer) visit_function_def(node &FunctionDef) {
 	} else {
 		p.write('None')
 	}
-	p.write(')')
+	p.write(',\n')
+	p.write(p.indent() + 'type_params=[\n')
+	p.indent_level++
+	for i, tp in node.type_params {
+		p.write(p.indent())
+		p.visit_type_param(tp)
+		if i < node.type_params.len - 1 { p.write(',') }
+		p.write('\n')
+	}
+	p.indent_level--
+	p.write(p.indent() + '])')
 	p.indent_level--
 }
 
@@ -128,6 +138,16 @@ fn (mut p Printer) visit_class_def(node &ClassDef) {
 		p.write(p.indent())
 		walk_expr(mut p, dec)
 		if i < node.decorator_list.len - 1 { p.write(',') }
+		p.write('\n')
+	}
+	p.indent_level--
+	p.write(p.indent() + '],\n')
+	p.write(p.indent() + 'type_params=[\n')
+	p.indent_level++
+	for i, tp in node.type_params {
+		p.write(p.indent())
+		p.visit_type_param(tp)
+		if i < node.type_params.len - 1 { p.write(',') }
 		p.write('\n')
 	}
 	p.indent_level--
@@ -1130,6 +1150,43 @@ fn (mut p Printer) visit_formatted_value(node &FormattedValue) {
 		walk_expr(mut p, spec)
 	} else {
 		p.write(', format_spec=None')
+	}
+	p.write(')')
+}
+fn (mut p Printer) visit_type_alias(node &TypeAlias) {
+	p.write('TypeAlias(\n')
+	p.indent_level++
+	p.write(p.indent() + 'name=\'${node.name}\',\n')
+	p.write(p.indent() + 'type_params=[\n')
+	p.indent_level++
+	for i, tp in node.type_params {
+		p.write(p.indent())
+		p.visit_type_param(tp)
+		if i < node.type_params.len - 1 { p.write(',') }
+		p.write('\n')
+	}
+	p.indent_level--
+	p.write(p.indent() + '],\n')
+	p.write(p.indent() + 'value=')
+	walk_expr(mut p, node.value)
+	p.write(')')
+	p.indent_level--
+}
+
+fn (mut p Printer) visit_type_param(node &TypeParam) {
+	kind_str := match node.kind {
+		.typevar { 'TypeVar' }
+		.typevartuple { 'TypeVarTuple' }
+		.paramspec { 'ParamSpec' }
+	}
+	p.write('${kind_str}(name=\'${node.name}\'')
+	if b := node.bound {
+		p.write(', bound=')
+		walk_expr(mut p, b)
+	}
+	if d := node.default_ {
+		p.write(', default=')
+		walk_expr(mut p, d)
 	}
 	p.write(')')
 }

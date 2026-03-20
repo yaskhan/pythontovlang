@@ -75,6 +75,18 @@ fn (mut p Parser) expect_keyword(kw string) bool {
 	return false
 }
 
+fn (mut p Parser) expect_op(op string) bool {
+	if p.current_token.is_op(op) {
+		p.advance()
+		return true
+	}
+	p.errors << ParseError{
+		message: 'expected operator "${op}", got "${p.current_token.value}"'
+		token:   p.current_token
+	}
+	return false
+}
+
 fn (p &Parser) current_is(typ TokenType) bool {
 	return p.current_token.typ == typ
 }
@@ -148,6 +160,10 @@ fn (mut p Parser) parse_statement() ?Statement {
 		p.current_is_keyword('for')      { return p.parse_for(false) }
 		p.current_is_keyword('with')     { return p.parse_with(false) }
 		p.current_is_keyword('try')      { return p.parse_try() }
+		p.current_token.value == 'type' && p.peek_tok.typ == .identifier {
+			res := p.parse_type_alias() or { return none }
+			return Statement(res)
+		}
 		p.current_is_keyword('match')    { return p.parse_match() }
 		p.current_is_keyword('return')   { return p.parse_return() }
 		p.current_is_keyword('import')   { return p.parse_import() }
@@ -255,11 +271,65 @@ fn (mut p Parser) parse_async_stmt() ?Statement {
 	return none
 }
 
+fn (mut p Parser) parse_type_params() []TypeParam {
+	mut params := []TypeParam{}
+	if p.current_is(.lbracket) {
+		p.advance()
+		for !p.current_is(.rbracket) && !p.current_is(.eof) {
+			tok := p.current_token
+			mut kind := TypeParamKind.typevar
+			
+			if p.current_is(.operator) && p.current_token.value == '*' {
+				p.advance()
+				if p.current_is(.operator) && p.current_token.value == '*' {
+					p.advance()
+					kind = .paramspec
+				} else {
+					kind = .typevartuple
+				}
+			}
+			
+			name := p.current_token.value
+			p.expect(.identifier)
+			
+			mut bound := ?Expression(none)
+			mut def_val := ?Expression(none)
+			
+			if p.current_is(.colon) {
+				p.advance()
+				bound = p.parse_expression()
+			}
+			
+			if p.current_is(.operator) && p.current_token.value == '=' {
+				p.advance()
+				def_val = p.parse_expression()
+			}
+			
+			params << TypeParam{
+				token: tok
+				name: name
+				bound: bound
+				default_: def_val
+				kind: kind
+			}
+			
+			if p.current_is(.comma) {
+				p.advance()
+			} else {
+				break
+			}
+		}
+		p.expect(.rbracket)
+	}
+	return params
+}
+
 fn (mut p Parser) parse_function_def(is_async bool) ?Statement {
 	tok := p.current_token
 	p.advance() // skip 'def'
 	name := p.current_token.value
 	p.expect(.identifier)
+	type_params := p.parse_type_params()
 	args := p.parse_parameters(.rparen, true)
 	mut returns := ?Expression(none)
 	if p.current_is(.arrow) {
@@ -274,6 +344,23 @@ fn (mut p Parser) parse_function_def(is_async bool) ?Statement {
 		body:     body
 		returns:  returns
 		is_async: is_async
+		type_params: type_params
+	}
+}
+
+fn (mut p Parser) parse_type_alias() ?TypeAlias {
+	tok := p.current_token
+	p.advance() // skip 'type'
+	name := p.current_token.value
+	p.expect(.identifier)
+	type_params := p.parse_type_params()
+	p.expect_op('=')
+	value := p.parse_expression() or { return none }
+	return TypeAlias{
+		token: tok
+		name: name
+		type_params: type_params
+		value: value
 	}
 }
 
@@ -388,6 +475,7 @@ fn (mut p Parser) parse_class_def() ?Statement {
 	p.advance() // skip 'class'
 	name := p.current_token.value
 	p.expect(.identifier)
+	type_params := p.parse_type_params()
 	mut bases := []Expression{}
 	mut kwd_args := []KeywordArg{}
 	if p.current_is(.lparen) {
@@ -410,7 +498,7 @@ fn (mut p Parser) parse_class_def() ?Statement {
 		p.expect(.rparen)
 	}
 	body := p.parse_block()
-	return ClassDef{token: tok, name: name, bases: bases, keywords: kwd_args, body: body}
+	return ClassDef{token: tok, name: name, bases: bases, keywords: kwd_args, body: body, type_params: type_params}
 }
 
 fn (mut p Parser) parse_if() ?Statement {
