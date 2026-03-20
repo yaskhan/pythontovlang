@@ -1589,7 +1589,16 @@ fn (mut p Parser) parse_call(func Expression) Expression {
 			}
 		} else {
 			if e := p.parse_expression() {
-				args << e
+				if p.current_is_keyword('for') && args.len == 0 && kwd_args.len == 0 {
+					gens := p.parse_comprehensions()
+					args << GeneratorExp{
+						token: tok
+						elt: e
+						generators: gens
+					}
+				} else {
+					args << e
+				}
 			}
 		}
 		if p.current_is(.comma) {
