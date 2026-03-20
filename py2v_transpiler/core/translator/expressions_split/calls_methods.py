@@ -11,6 +11,7 @@ class MethodCallsMixin:
         def _guess_type(self, node: ast.AST) -> str: ...
         def visit(self, node: ast.AST) -> str: ...
         used_builtins: Set[str]
+        emitter: Any
 
     def _handle_object_method_call(self, node: ast.Call, func_node: ast.AST, func_name_str: str, args: list) -> str | None:
         """Handle object method calls."""
@@ -364,14 +365,12 @@ class MethodCallsMixin:
 
         if attr == "add" and len(args) == 1:
             self.emitter.add_import("datatypes")
-            self.emitter.add_import("datatypes")
             return f"{obj}.add({args[0]})"
         elif attr == "remove" and len(args) == 1:
             obj_type = self._guess_type(func_node.value)
             self.used_builtins.add("py_set_remove")
             return f"py_set_remove(mut {obj}, {args[0]})"
         elif attr == "discard" and len(args) == 1:
-            self.emitter.add_import("datatypes")
             self.emitter.add_import("datatypes")
             return f"{obj}.elements.delete({args[0]})"
         elif attr == "pop" and len(args) == 0:

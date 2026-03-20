@@ -18,11 +18,12 @@ class TypeUtilsMixin:
         imported_symbols: Dict[str, str]
         scc_files: Set[str]
         used_builtins: Set[str]
+        def _get_all_active_v_generics(self) -> List[str]: ...
 
     def _is_collection_type(self, v_type: str) -> bool:
         return (
             v_type.startswith("[]") or
-            v_type.startswith("map[") or
+            v_type.startswith("map[") or v_type.startswith("datatypes.Set[") or
             v_type == "string" or
             v_type == "LiteralString"
         )
@@ -72,13 +73,6 @@ class TypeUtilsMixin:
             elif inner_type == "Any":
                 self.used_builtins.add("py_bool")
                 inner_cond = f"!py_bool({expr})" if invert else f"py_bool({expr})"
-            elif inner_type == "Any":
-                self.used_builtins.add("py_bool")
-                inner_cond = f"!py_bool({expr})" if invert else f"py_bool({expr})"
-            elif inner_type == "Any":
-                self.used_builtins.add("py_bool")
-                inner_cond = f"!py_bool({expr})" if invert else f"py_bool({expr})"
-            elif inner_type == "Any":
                 self.used_builtins.add("py_bool")
                 inner_cond = f"!py_bool({expr})" if invert else f"py_bool({expr})"
             else:
