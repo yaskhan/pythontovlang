@@ -75,7 +75,16 @@ fn (mut p Printer) visit_function_def(node &FunctionDef) {
 	}
 	p.indent_level--
 	p.write(p.indent() + '],\n')
-	p.write(p.indent() + 'decorator_list=[],\n')
+	p.write(p.indent() + 'decorator_list=[\n')
+	p.indent_level++
+	for i, dec in node.decorator_list {
+		p.write(p.indent())
+		walk_expr(mut p, dec)
+		if i < node.decorator_list.len - 1 { p.write(',') }
+		p.write('\n')
+	}
+	p.indent_level--
+	p.write(p.indent() + '],\n')
 	p.write(p.indent() + 'returns=')
 	if ret := node.returns {
 		walk_expr(mut p, ret)
@@ -125,7 +134,16 @@ fn (mut p Printer) visit_class_def(node &ClassDef) {
 	}
 	p.indent_level--
 	p.write(p.indent() + '],\n')
-	p.write(p.indent() + 'decorator_list=[])')
+	p.write(p.indent() + 'decorator_list=[\n')
+	p.indent_level++
+	for i, dec in node.decorator_list {
+		p.write(p.indent())
+		walk_expr(mut p, dec)
+		if i < node.decorator_list.len - 1 { p.write(',') }
+		p.write('\n')
+	}
+	p.indent_level--
+	p.write(p.indent() + '])')
 	p.indent_level--
 }
 
