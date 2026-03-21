@@ -717,7 +717,7 @@ pub fn (self SimpleContext) exit(args ...int) bool {
 
 ---
 
-## Issue #29: `for/else` loses else semantics
+## * Issue #29: `for/else` loses else semantics
 
 **File:** test_for_loop.py
 
