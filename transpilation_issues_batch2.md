@@ -841,26 +841,6 @@ sorted_pairs := py_sorted(pairs)
 
 ---
 
-## Issue #34: Lambda capture syntax may not work
-
-**File:** test_lambda_functions.py
-
-**Python code:**
-```python
-composed = lambda x: g(f(x))
-```
-
-**Generated V code:**
-```v
-composed := fn [f, g] (x int) Any { return g(f(x)) }
-```
-
-**Problem:**
-- The `[f, g]` capture syntax is not valid V.
-- V closures cannot capture variables from outer scope in this way.
-
----
-
 ## Issue #35: Lambda list comprehension with late binding
 
 **File:** test_lambda_functions.py
@@ -943,26 +923,6 @@ println('${py_str_slice(s, -3, none, none)}')
 **Problem:**
 - V does not support negative string indexing natively.
 - The helper function `py_str_slice` may not exist or work correctly.
-
----
-
-## Issue #39: String reverse uses helper function
-
-**File:** test_string_methods.py
-
-**Python code:**
-```python
-print(s[::-1])  # Reverse
-```
-
-**Generated V code:**
-```v
-println('${py_str_reverse(s)}')
-```
-
-**Problem:**
-- `py_str_reverse()` may not exist in V.
-- V does not have built-in string reversal.
 
 ---
 
