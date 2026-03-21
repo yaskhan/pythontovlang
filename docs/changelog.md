@@ -12,6 +12,31 @@ Latest commits not yet grouped into a release tag. See [commits on GitHub](https
 
 ---
 
+## [0.10.0] — 2026-03-19 to 2026-03-22
+
+> ~30 commits · PRs #464–#498
+
+### Added
+- **Mypy Bootstrapping Prep**: Optimizations for large project transpilation and initial Mypy self-transpiler support.
+- **LLM Code Hints**: Support for `_pending_llm_call_comments` in `VNodeVisitor` to inject AI-generated refactoring hints directly into generated V code.
+- **Top-level Splitting**: Automated splitting of module top-level code between `init()` and `main()` to resolve `duplicate fn main()` errors in V.
+- **Unit Testing Framework**: Added comprehensive unit tests for the AST module and core transpiler components.
+
+### Fixed
+- **Base Class Detection**: Fixed `_Impl` struct and interface generation for `Node`, `SymbolNode`, and other base classes by using global class hierarchy instead of local type inference maps.
+- **Lambda Capture-by-Value**: Fixed `i=i` default argument pattern in lambdas (Issue #35).
+- **Lambda Default Arguments**: Fixed missing default argument injection in generated lambda calls (Issue #32).
+- **For/Else Semantics**: Properly mapped Python's `for/else` blocks to V using state flags (Issue #29).
+- **Emitter Shadowing**: Resolved critical bug where `VNodeVisitor` property for `emitter` shadowed derived class attributes.
+- **Vlang Naming Conventions**: Enforced strict V naming rules (snake_case for variables, PascalCase for types) through the generator.
+- **Property Setters**: Corrected return types for `@property.setter` methods to match V requirements.
+- **Core Stability**: Resolved all 811 tests in the transpiler test suite.
+
+### Refactored
+- **AST Module**: Renamed `py2v_transpiler/parser` to `py2v_transpiler/ast` for better alignment with project goals.
+
+---
+
 ## [0.9.0] — 2026-03-17 to 2026-03-18
 
 > ~50 commits · PRs #450–#463
