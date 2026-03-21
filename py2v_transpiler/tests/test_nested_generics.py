@@ -40,7 +40,7 @@ class Outer[T]:
         other: U
 """
     v_code = transpile_code(code)
-    assert "struct Outer_Inner[T, U] {" in v_code
+    assert "struct OuterInner[T, U] {" in v_code
     assert "val T" in v_code
     assert "other U" in v_code
     assert "struct Outer[T] {" in v_code

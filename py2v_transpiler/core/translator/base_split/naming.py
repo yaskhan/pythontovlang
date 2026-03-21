@@ -1,4 +1,5 @@
 from typing import Optional, TYPE_CHECKING, Any, Set, Dict, List
+import re
 
 if TYPE_CHECKING:
     from py2v_transpiler.core.compatibility import CompatibilityLayer
@@ -19,34 +20,28 @@ class NamingMixin:
         def _get_scc_prefix(self, file_path: str) -> str: ...
 
     def _to_snake_case(self, name: str) -> str:
-        """Converts CamelCase or UPPER_CASE to snake_case and strips leading underscores."""
-        if not name:
+        """Converts CamelCase or UPPER_CASE to snake_case. Preserves internal markers."""
+        if not name or name == "_":
             return name
 
-        if name == "_":
-            return "_"
+        # Preserve internal markers used for generics/mangling
+        if "__py2v_gen" in name:
+            return name
 
-        # Strip leading underscores for V compliance
-        # (V does not allow identifiers starting with underscore except for single '_')
-        name = name.lstrip('_')
-        if not name:
-            return "_"
+        # Handle UPPER_CASE constants
+        if name.isupper():
+            return name
 
         # Handle already separated names
         if '_' in name:
             parts = [self._to_snake_case(p) for p in name.split('_') if p]
             return "_".join(parts) if parts else "_"
 
-        if name.isupper():
-            return name.lower()
-
         res = []
         for i, char in enumerate(name):
             if char.isupper() and i > 0:
-                # Underscore if previous was lowercase
                 if name[i - 1].islower():
                     res.append('_')
-                # Or if next is lowercase (handling HTTPClient -> http_client)
                 elif i + 1 < len(name) and name[i + 1].islower():
                     res.append('_')
             res.append(char.lower())
@@ -54,7 +49,6 @@ class NamingMixin:
 
     def _get_factory_name(self, struct_name: str) -> str:
         """Returns a snake_case factory name for a given struct name."""
-        # Strip generic parameters if present (e.g. Box[int] -> Box)
         base_name = struct_name.split('[')[0]
         sanitized = self._to_snake_case(base_name)
         
@@ -72,73 +66,78 @@ class NamingMixin:
 
     def _sanitize_name(self, name: str, is_type: bool = False) -> str:
         """
-        Sanitizes Python identifiers that collide with V lang reserved keywords
-        or other files in the same SCC cluster. Enforces V naming conventions.
+        Sanitizes Python identifiers for V compliance.
+        Types: PascalCase. Others: snake_case.
         """
         if not name:
             return name
 
-        if is_type:
-            # V types (structs) must be PascalCase and no leading underscore
-            name = name.lstrip('_')
-            if not name:
-                 return "UnderscoreType" # Fallback
-
-            # Convert snake_case or already PascalCase to proper PascalCase
-            parts = [p[0].upper() + p[1:] if len(p) > 1 else p.upper() for p in name.split('_') if p]
-            if not parts:
-                name = name[0].upper() + name[1:] if name else ""
-            else:
-                name = "".join(parts)
-
-            # Handle reserved type names
-            if name == "Any":
-                return "Any"
-
-            compatibility = getattr(self, 'compatibility', None)
-            if compatibility and compatibility.is_v_reserved(name):
-                 return f"Py{name}"
-
+        # Reserved types in V should be preserved as-is
+        if name in ("int", "string", "bool", "f64", "f32", "i64", "byte", "rune", "void", "Any", "none", "i8", "i16", "i32", "u16", "u32", "u64"):
             return name
 
-        # For variables, functions, methods: use snake_case and no leading underscore
-        if name != "_":
-            name = self._to_snake_case(name)
+        # Internal markers are preserved as-is
+        if "__py2v_gen" in name:
+            return name
+
+        # V compliance: no leading underscores (except single '_')
+        # Leading underscores are moved to the end to maintain uniqueness
+        prefix_count = 0
+        while name.startswith('_') and name != "_":
+            prefix_count += 1
+            name = name[1:]
+        
+        if not name:
+            return "_" * prefix_count
+
+        if is_type:
+            # PascalCase for types
+            parts = [p[0].upper() + p[1:] if p else "" for p in name.split('_') if p]
+            res = "".join(parts) if parts else (name[0].upper() + name[1:])
+            # V structs cannot have underscores.
+            res = res.replace("_", "")
+            res += "_" * prefix_count
+            
+            compatibility = getattr(self, 'compatibility', None)
+            if compatibility and compatibility.is_v_reserved(res):
+                 return f"Py{res}"
+            return res
+
+        # Others: snake_case
+        sanitized = self._to_snake_case(name)
+        sanitized += "_" * prefix_count
 
         compatibility = getattr(self, 'compatibility', None)
-        if compatibility and compatibility.is_v_reserved(name):
-            return f"py_{name}"
+        if compatibility and compatibility.is_v_reserved(sanitized):
+            return f"py_{sanitized}"
 
-        # Naming collision resolution for SCC flattened modules
+        # SCC collision
         current_file_name = getattr(self, 'current_file_name', '')
         scc_files: set = getattr(self, 'scc_files', set())
         if current_file_name and len(scc_files) > 1 and not getattr(self, 'current_class', None):
-            if not name.startswith("__") and name not in self._local_vars_in_scope:
+            if not sanitized.startswith("py_") and sanitized not in self._local_vars_in_scope:
                 prefix = self._get_scc_prefix(current_file_name)
-                # Note: prefix should also be snake_case without leading underscore
                 prefix = self._to_snake_case(prefix)
-                if not name.startswith(prefix + "__"):
-                    return f"{prefix}__{name}"
+                if not sanitized.startswith(prefix + "__"):
+                    return f"{prefix}__{sanitized}"
 
-        return name
+        return sanitized
 
     @property
     def _local_vars_in_scope(self) -> Set[str]:
         """Returns all local variables in the current function scope."""
-        # This is typically provided by TranslatorStateMixin but accessed here
         return getattr(self, "_scope_stack", [set()])[-1]
 
     def _mangle_name(self, name: str, class_name: Optional[str]) -> str:
         """
         Implements Python's name mangling rules for private attributes.
-        Returns a snake_case name without leading underscores for V compatibility.
-        Instead of __ClassName_attr, we use ClassName_attr or class_name_attr.
+        Returns a name without leading underscores for V compatibility.
         """
         if class_name and name.startswith("__") and not name.endswith("__"):
-            # Use a V-safe format: {sanitized_class}_{sanitized_name}
-            # Both will be snake_case
-            s_class = self._to_snake_case(class_name)
-            s_name = self._to_snake_case(name)
+            # Use original class name for mangling, sanitized for type
+            s_class = self._sanitize_name(class_name, is_type=True)
+            s_class = s_class.rstrip('_')
+            s_name = self._sanitize_name(name)
             return f"{s_class}_{s_name}"
         return name
 
@@ -166,19 +165,17 @@ class NamingMixin:
 
             # Check analyzer if available
             if hasattr(self, "type_inference"):
-                if method_name in self.type_inference.static_methods.get(curr, set()):
-                    return curr
-                if method_name in self.type_inference.class_methods.get(curr, set()):
+                if method_name in self.type_inference.static_methods.get(curr, set()) or \
+                   method_name in self.type_inference.class_methods.get(curr, set()):
                     return curr
 
-            if curr in self.class_hierarchy:
+            if curr in getattr(self, "class_hierarchy", {}):
                 stack.extend(self.class_hierarchy[curr])
         return None
 
     def _get_full_self_type(self, struct_name: Optional[str] = None) -> str:
         """
         Returns the full V type for 'Self', including generic parameters.
-        Example: Builder -> Builder[T]
         """
         name = struct_name or getattr(self, "current_class", None) or "Self"
         generics = getattr(self, "current_class_generics", [])
@@ -206,6 +203,6 @@ class NamingMixin:
                 if var["name"] == var_name:
                     return curr
 
-            if curr in self.class_hierarchy:
+            if curr in getattr(self, "class_hierarchy", {}):
                 stack.extend(self.class_hierarchy[curr])
         return None

@@ -62,8 +62,8 @@ match x:
     print(v_code)
     # This should generate conditional binding for y
     assert "y := if" in v_code
-    assert "as int" in v_code
-    assert "as string" in v_code
+    assert "as Int" in v_code
+    assert "as String" in v_code
 
 def test_deeply_nested_or():
     source = """

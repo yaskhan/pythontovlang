@@ -119,14 +119,14 @@ a = A(1)
 b = B("s")
 """
     v_code = translate(source)
-    assert "fn new_a_int(x int) A {" in v_code
-    assert "fn new_b_string(y string) B {" in v_code
+    assert "fn new_A_int(x int) A {" in v_code
+    assert "fn new_B_string(y string) B {" in v_code
     # Ensure no cross-pollination of overloads
     assert "fn new_a_string" not in v_code
     assert "fn new_b_int" not in v_code
     # Check call sites
-    assert "a := new_a_int(1)" in v_code
-    assert "b := new_b_string('s')" in v_code
+    assert "a := new_A_int(1)" in v_code
+    assert "b := new_B_string('s')" in v_code
 
 def test_overloaded_new_and_init():
     source = """

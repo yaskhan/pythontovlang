@@ -57,7 +57,7 @@ d.b = "world"
     print(v_code)
 
     # This should trigger a compile error
-    assert "$compile_error('Cannot assign to ReadOnly TypedDict field \\'b\\'')" in v_code
+    assert "$compile_error(\"Cannot assign to ReadOnly TypedDict field 'b'\")" in v_code
 
 def test_pep705_readonly_subscript_assignment_error():
     code = """
@@ -81,7 +81,7 @@ d["b"] = "world"
     print(v_code)
 
     # This should trigger a compile error
-    assert "$compile_error('Cannot assign to ReadOnly TypedDict field \\'b\\'')" in v_code
+    assert "$compile_error(\"Cannot assign to ReadOnly TypedDict field 'b'\")" in v_code
 
 def test_pep705_typing_readonly_detection():
     code = """

@@ -51,7 +51,7 @@ p.move(3, 4)
     analyzer.analyze(tree)
     result = translator.visit_Module(tree)
 
-    assert "p := point(1, 2)" in result
+    assert "p := Point(1, 2)" in result
     assert "p.move(3, 4)" in result
 
 def test_translator_inheritance():

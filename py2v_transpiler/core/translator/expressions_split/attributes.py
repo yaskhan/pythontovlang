@@ -83,13 +83,13 @@ class AttributesMixin(TranslatorBase):
         # Apply mangling regardless of receiver, if we are inside a class.
         if self.current_class:
             attr_name = self._mangle_name(attr_name, self.current_class)
-
+        
         attr_name = self._sanitize_name(attr_name)
 
         # Static/Class methods resolution
         # If receiver is a class name, check for class variables (via meta singleton).
         defined_classes = getattr(self, "defined_classes", {})
-
+        
         obj_base = obj.split('[')[0] # handle ClassName[T]
         if obj_base in defined_classes:
             defining_class = self._find_defining_class_for_class_var(obj_base, attr_name)
@@ -148,7 +148,7 @@ class AttributesMixin(TranslatorBase):
                 v_attr_base = self._map_type(self._guess_type(node, use_location=False))
             except TypeError:
                 v_attr_base = self._map_type(self._guess_type(node))
-
+            
             v_attr_narrowed = None
             if hasattr(node, 'lineno') and hasattr(node, 'col_offset'):
                 loc_key = f"{node.lineno}:{node.col_offset}"

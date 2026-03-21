@@ -123,7 +123,7 @@ class TestTodoFeatures(TranspilerTest):
                     pass
             """,
             """
-            struct Outer_Inner {
+            struct OuterInner {
             }
             struct Outer {
             }

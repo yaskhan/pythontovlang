@@ -16,7 +16,7 @@ class MyClass:
 
     assert "pub struct MyClassMeta {" in code
     assert "class_var int = 10" in code
-    assert "private_var string = 'secret'" in code
+    assert "private_var_ string = 'secret'" in code
     assert "pub const my_class_meta = &MyClassMeta{}" in code
 
 def test_class_variables_access():

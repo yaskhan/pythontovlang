@@ -15,7 +15,7 @@ class PydanticModelProcessor:
 
     def process_model(self, node: ast.ClassDef) -> str:
         """Generates a Vlang struct from a Pydantic BaseModel."""
-        struct_name = self.visitor._sanitize_name(node.name)
+        struct_name = self.visitor._sanitize_name(node.name, is_type=True)
 
         # Check for BaseModel[T]
         for base in node.bases:

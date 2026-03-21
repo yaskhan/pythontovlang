@@ -87,7 +87,7 @@ def test_main():
 
         # Verify that we have separate if blocks for the same pattern 'int'
         # because we refactored it to separate blocks.
-        assert v_code.count("is int") >= 2
+        assert v_code.count("is Int") >= 2
 
     finally:
         if os.path.exists("temp_fallthrough.py"): os.remove("temp_fallthrough.py")

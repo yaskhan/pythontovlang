@@ -21,7 +21,6 @@ class MockTypeInference:
 from py2v_transpiler.core.translator.base import TranslatorBase
 
 class _TestTranslator(ClassesMixin, VariablesMixin, FunctionsMixin, ExpressionsMixin, LiteralsMixin, TranslatorBase):
-    readonly_fields = {}
     def __init__(self):
         super().__init__(type_inference=MockTypeInference())
         self.output = []
@@ -150,4 +149,4 @@ d["b"] = "world"
 
     assert "d := MyDict{a: 1, b: 'hello'}" in v_code
     assert "d.a = 2" in v_code
-    assert "$compile_error('Cannot assign to ReadOnly TypedDict field \\'b\\'')" in v_code
+    assert "$compile_error(\"Cannot assign to ReadOnly TypedDict field 'b'\")" in v_code

@@ -29,7 +29,6 @@ class ExpressionUtilsMixin:
     def _capture_target(self, node: ast.AST) -> Tuple[str, List[str]]:
         """
         Prepares a target for AugAssign by capturing its components.
-        Recurses on L-value bases (Attribute, Subscript) to preserve reference path.
         Returns (new_target_string, setup_statements).
         """
         if isinstance(node, ast.Name):

@@ -27,7 +27,7 @@ class Config:
 """
     expected_fragments = [
         "fn (self Config) value() int {",
-        "return self._value",
+        "return self.value_",
         "}",
         # Union type is now preserved in setter
         "fn (mut self Config) set_value(new_value SumType_IntString) {",
@@ -167,6 +167,7 @@ class Simple:
     # Without annotations, void is used for return and int for arguments by default
     assert "fn (self Simple) x() {" in code
     assert "fn (mut self Simple) set_x(value int) {" in code
+    assert "self.x_ = value" in code
 
 
 def test_property_float_int_conversion():
