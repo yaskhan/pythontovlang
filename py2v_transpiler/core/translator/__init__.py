@@ -58,7 +58,6 @@ class VNodeVisitor(
         self.config = config
         self.decorator_processor = DecoratorProcessor(self)
         self.coroutine_handler = CoroutineHandler()
-        # Use emitter for structured output
         self.emitter = VCodeEmitter()
         # Internal buffer for visiting blocks (functions, loops, etc.)
         self.output: List[str] = []
@@ -68,7 +67,7 @@ class VNodeVisitor(
         self.current_class_generics: List[str] = [] # Track generics of current class
         self.current_class_bases: List[str] = [] # Track bases of current class
         self.current_class_generic_bases: Dict[str, str] = {}
-        self.current_class_is_unittest = False
+        self.is_unittest_class = False
         self._zip_counter = 0 # Counter for unique variable names in zip loops
         self.used_builtins = set() # Track used built-in helpers (sorted, reversed, etc)
         self.used_complex = False
@@ -85,7 +84,7 @@ class VNodeVisitor(
         self.unique_id_counter: int = 0
         self.vexc_depth: int = 0
         self.parent_stack: List[ast.AST] = []
-
+        self.parent_stack: List[ast.AST] = []
         self.mapper = StdLibMapper()
-        self.imported_modules: Dict[str, str] = {} # alias -> module_name
         self.imported_symbols: Dict[str, str] = {} # alias -> module_name.symbol
+

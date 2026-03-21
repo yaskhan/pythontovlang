@@ -15,7 +15,7 @@ class ModuleMixin(TranslatorBase):
     def visit_Module(self, node: ast.Module) -> str:
         # Pre-scan for __all__ and symbols
         self.module_all = None
-        for stmt in node.body:
+        for i, stmt in enumerate(node.body):
             # Track imported symbols for re-export
             if isinstance(stmt, ast.Import):
                 for alias in stmt.names:
@@ -59,7 +59,7 @@ class ModuleMixin(TranslatorBase):
         else:
             body = node.body
 
-        for stmt in body:
+        for i, stmt in enumerate(body):
             # Skip __all__ assignment in output
             if isinstance(stmt, ast.Assign):
                 is_all = False
@@ -69,7 +69,7 @@ class ModuleMixin(TranslatorBase):
                         break
                 if is_all:
                     continue
-
+ 
             # Check if statement is top-level expression or assignment
             if isinstance(stmt, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef, ast.Import, ast.ImportFrom)):
                 self.in_main = False
@@ -83,7 +83,7 @@ class ModuleMixin(TranslatorBase):
                 if getattr(self.config, 'source_mapping', False):
                     self.output.append(f"// @line: {self._get_source_info(stmt)}")
                 self.visit(stmt)
-
+ 
                 # Append buffer to init() by default, unless it's the __name__ == "__main__" block
                 if isinstance(stmt, ast.If) and self._is_name_main(stmt):
                     # For __name__ == "__main__", children have already been visited by _visit_if
@@ -95,6 +95,8 @@ class ModuleMixin(TranslatorBase):
                         # Remove indentation if added by _indent() for init body
                         self.emitter.add_init_statement(line.strip())
                 self.output = []
+
+
 
         # Post-scan validation for __all__
         if self.module_all is not None:

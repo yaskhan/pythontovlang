@@ -26,7 +26,6 @@ class ClassDefinitionHandler:
             processor.process_model(node)
             return
 
-        # Initialize class stack for nested classes
         if not self.class_stack:
             self.class_stack = []
 
@@ -51,13 +50,12 @@ class ClassDefinitionHandler:
             "class_methods": class_methods
         }
 
-        # Save previous state
         prev_class = self.translator.current_class
         prev_generics = self.translator.current_class_generics
         prev_generic_map = getattr(self.translator, "current_class_generic_map", {})
         prev_bases = self.translator.current_class_bases
         prev_generic_bases = self.translator.current_class_generic_bases
-        prev_is_unittest = self.translator.current_class_is_unittest
+        prev_is_unittest = self.translator.is_unittest_class
         prev_body = getattr(self.translator, "current_class_body", [])
 
         self.translator.current_class = struct_name
@@ -67,6 +65,13 @@ class ClassDefinitionHandler:
         self.translator.current_class_generic_bases = {}
         self.translator.current_class_is_unittest = False
         self.translator.current_class_body = node.body
+
+        # Identify if this class is a base class for others
+        is_base_class = False
+        if not node.name.endswith("Mixin"):
+            hierarchy = self.translator.class_hierarchy
+            if node.name in hierarchy:
+                is_base_class = True
 
         # Process type parameters (generics)
         py_generics = []
@@ -166,6 +171,8 @@ class ClassDefinitionHandler:
             dataclass_metadata = self.translator.class_fields_handler.get_dataclass_metadata(node, struct_name)
 
         # Process bases and inheritance
+        # Process bases and inheritance
+        res = self.translator.class_bases_handler.process_bases(node, struct_name)
         (
             base_fields,
             current_class_bases,
@@ -176,7 +183,7 @@ class ClassDefinitionHandler:
             is_protocol,
             is_named_tuple,
             is_typed_dict
-        ) = self.translator.class_bases_handler.process_bases(node, struct_name)
+        ) = res
         self.translator.current_class_bases = current_class_bases
         fields.extend(base_fields)
 
@@ -189,7 +196,6 @@ class ClassDefinitionHandler:
         if is_abc:
             is_protocol = True
             self.translator.known_interfaces.add(struct_name)
-
         # Initialize readonly_fields
         if not hasattr(self.translator, "readonly_fields"):
             self.translator.readonly_fields = {}
@@ -270,9 +276,28 @@ class ClassDefinitionHandler:
 
             interface_def = self.translator.special_classes_handler.generate_interface_definition(
                 struct_name, methods, doc_comment, decorators, generics_str,
-                is_exported, source_mapping, node
+                is_exported, source_mapping, node, fields=fields
             )
             self.translator.emitter.add_struct(interface_def)
+
+            if is_base_class:
+                impl_name = f"{struct_name}_Impl"
+                self.translator.current_class = impl_name
+                
+                if not hasattr(self.translator, 'class_to_impl'):
+                    self.translator.class_to_impl = {}
+                self.translator.class_to_impl[struct_name] = impl_name
+
+                struct_parts = []
+                if doc_comment:
+                    struct_parts.append(doc_comment)
+                
+                struct_parts.append(f"pub struct {impl_name}{generics_str} {{\n")
+                if fields:
+                    struct_parts.append("\n".join(fields))
+                    struct_parts.append("\n")
+                struct_parts.append("}\n")
+                self.translator.emitter.add_struct("".join(struct_parts))
 
             # If also a mixin, visit methods
             if is_mixin:
@@ -316,17 +341,6 @@ class ClassDefinitionHandler:
 
         # Handle regular classes
         else:
-            # Identify if this class is a base class for others
-            if node.name.endswith("Mixin"):
-                is_base_class = False
-            else:
-                is_base_class = False
-                hierarchy = getattr(self.translator.type_inference, 'class_hierarchy', {})
-                for derived, bases in hierarchy.items():
-                    if node.name in bases:
-                        is_base_class = True
-                        break
-            
             orig_struct_name = struct_name
 
             # Collect fields from __init__
