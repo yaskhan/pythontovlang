@@ -799,7 +799,7 @@ for py_val_2175032263952 in pairs {
 
 ---
 
-## Issue #32: Lambda default values lost
+## * Issue #32: Lambda default values lost
 
 **File:** test_lambda_functions.py
 
