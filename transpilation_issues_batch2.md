@@ -329,7 +329,7 @@ if C.try() {
 
 ---
 
-## Issue #13: `assert` message lost
+## * Issue #13: `assert` message lost
 
 **File:** test_exceptions.py
 
