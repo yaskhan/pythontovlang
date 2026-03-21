@@ -85,3 +85,10 @@ def test_step_default_stop_is_len():
     """lst[::4] = [...] with no explicit stop defaults to lst.len."""
     result = transpile("lst[::4] = [1, 2]")
     assert "py_step_idx_0 < lst.len" in result
+
+
+def test_non_constant_step_emits_llm_comment():
+    """lst[::n] = [...] (variable step) emits an LLM comment fallback."""
+    result = transpile("lst[::n] = [1, 2, 3]")
+    assert "//##LLM@@" in result
+    assert "Non-constant step" in result
