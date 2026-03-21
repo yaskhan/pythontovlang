@@ -92,6 +92,7 @@ class TranslatorStateMixin:
         self.module_all: Optional[List[str]] = None
         self.defined_top_level_symbols: Set[str] = set()
         self.warnings: List[str] = []
+        self._pending_llm_call_comments: List[str] = []
         self.type_vars: Set[str] = set()
         self._scope_names: List[str] = []
         self.constrained_typevars: Set[str] = set()

@@ -43,36 +43,42 @@ class CallsMixin(
         args = self._process_call_args(node, call_sig)
 
         # === Stage 3: Process keyword arguments ===
-        keyword_args, original_keyword_append = self._process_keywords(node, call_sig, args)
+        keyword_args, original_keyword_append, needs_llm_comment = self._process_keywords(node, call_sig, args)
+
+        if needs_llm_comment:
+            self._pending_llm_call_comments.append("//##LLM@@ unresolved **kwargs unpacking")
+
+        def _ret(val: str) -> str:
+            return val
 
         # === Stage 4: Resolve module and function name ===
         module_name, func_name = self._resolve_module_and_func(node, func_name_str_lookup)
 
         # === Stage 5: Handle special cases by module/function ===
         if func_name_str_lookup in ("get_type_hints", "get_annotations"):
-             return self._handle_get_type_hints(node, args)
+             return _ret(self._handle_get_type_hints(node, args))
 
         result = self._handle_special_cases(
             node, module_name, func_name, func_name_str_lookup, args, call_sig
         )
         if result:
-            return result
+            return _ret(result)
 
         # === Stage 6: Handle via mapper ===
         if module_name and func_name:
             result = self._handle_via_mapper(node, module_name, func_name, args)
             if result:
-                return result
+                return _ret(result)
 
         # === Stage 7: Handle overloads ===
         result = self._handle_overloads(node, call_sig, args)
         if result:
-            return result
+            return _ret(result)
 
         # === Stage 8: Handle SCC calls ===
         result = self._handle_scc_call(node, node.func, func_name_str_lookup, args)
         if result:
-            return result
+            return _ret(result)
 
         # === Stage 9: Handle typing.assert_type and assert_never ===
         original_id = node.func.id if isinstance(node.func, ast.Name) else None
@@ -80,46 +86,46 @@ class CallsMixin(
             node, func_name_str_lookup, original_id, args
         )
         if result:
-            return result
+            return _ret(result)
 
         # === Stage 10: Handle built-in type cast functions ===
         result = self._handle_builtin_type_cast(node, str(func_name_str_lookup), original_id, args)
         if result:
-            return result
+            return _ret(result)
 
         # === Stage 11: Handle object methods ===
         result = self._handle_object_method_call(node, node.func, func_name_str_lookup, args)
         if result:
-            return result
+            return _ret(result)
 
         # === Stage 12: Handle classes and dataclass ===
         result = self._handle_dataclass_call(node, func_name_str_lookup, args, call_sig)
         if result:
-            return result
+            return _ret(result)
 
         result = self._handle_class_call(node, node.func, func_name_str_lookup, args, call_sig)
         if result:
-            return result
+            return _ret(result)
 
         # === Stage 13: Handle iterators and generators ===
         result = self._handle_iterator_functions(node, func_name_str_lookup, args)
         if result:
-            return result
+            return _ret(result)
 
         result = self._handle_generator_call(node, func_name_str_lookup, args)
         if result:
-            return result
+            return _ret(result)
 
         # === Stage 14: Handle print/input ===
         if func_name_str_lookup == "print":
             result = self._handle_print_call(node, args)
             if result:
-                return result
+                return _ret(result)
 
         if func_name_str_lookup == "input":
             result = self._handle_input_call(node, args)
             if result:
-                return result
+                return _ret(result)
 
         # === Stage 15: Handle unittest.main() ===
         if module_name == "unittest" and func_name == "main":
@@ -134,16 +140,16 @@ class CallsMixin(
                   v_func_name = f"{v_imports[0]}.{func_name}"
                   if v_func_name == "rand.sample":
                        self.used_builtins.add("py_random_sample")
-                       return f"py_random_sample({ ', '.join(args) })"
+                       return _ret(f"py_random_sample({ ', '.join(args) })")
                   if v_func_name == "os.path.split":
                        self.used_builtins.add("py_os_path_split")
-                       return f"py_os_path_split({ ', '.join(args) })"
+                       return _ret(f"py_os_path_split({ ', '.join(args) })")
                   if v_func_name == "os.path.splitext":
                        self.used_builtins.add("py_os_path_splitext")
-                       return f"py_os_path_splitext({ ', '.join(args) })"
-                  return f"{v_func_name}({ ', '.join(args) })"
+                       return _ret(f"py_os_path_splitext({ ', '.join(args) })")
+                  return _ret(f"{v_func_name}({ ', '.join(args) })")
 
-        return self._handle_fallback_call(node, func_name_str_lookup, args, call_sig)
+        return _ret(self._handle_fallback_call(node, func_name_str_lookup, args, call_sig))
 
     def _extract_func_info(self, node: ast.Call) -> tuple:
         """Extract function info for lookup."""
@@ -243,9 +249,10 @@ class CallsMixin(
         return args
 
     def _process_keywords(self, node: ast.Call, call_sig: dict | None, args: list) -> tuple:
-        """Process keyword arguments."""
+        """Process keyword arguments. Returns (keyword_args, original_keyword_append, needs_llm_comment)."""
         keyword_args = {}
         original_keyword_append = []
+        needs_llm_comment = False
 
         arg_types_by_name = {}
         if call_sig and "arg_names" in call_sig and "args" in call_sig:
@@ -255,9 +262,45 @@ class CallsMixin(
 
         for keyword in node.keywords:
             if keyword.arg is None:
-                # **kwargs call -> pass dict as arg
-                val = self.visit(keyword.value)
-                args.append(str(val))
+                # **kwargs unpacking call
+                kw_value = keyword.value
+                has_kwarg_sig = call_sig and call_sig.get("has_kwarg")
+                sig_arg_names = call_sig.get("arg_names") if call_sig else None
+
+                if has_kwarg_sig:
+                    # Callee accepts **kwargs — pass the map directly
+                    val = self.visit(kw_value)
+                    args.append(str(val))
+                elif sig_arg_names and isinstance(kw_value, ast.Dict):
+                    # Known signature + dict literal: all keys must be resolvable string constants
+                    key_to_val = {}
+                    all_resolvable = True
+                    for k, v in zip(kw_value.keys, kw_value.values):
+                        if isinstance(k, ast.Constant) and isinstance(k.value, str):
+                            key_to_val[k.value] = v
+                        else:
+                            all_resolvable = False
+                            break
+                    if all_resolvable:
+                        for aname in sig_arg_names[len(args):]:
+                            if aname in key_to_val:
+                                args.append(str(self.visit(key_to_val[aname])))
+                    else:
+                        # Non-constant key in dict — cannot expand statically
+                        val = self.visit(kw_value)
+                        args.append(str(val))
+                        needs_llm_comment = True
+                elif sig_arg_names and isinstance(kw_value, ast.Name):
+                    # Known signature + variable name: emit subscript access per arg
+                    var_name = kw_value.id
+                    for aname in sig_arg_names[len(args):]:
+                        args.append(f"{var_name}['{aname}']")
+                else:
+                    # Unknown signature or complex expression — pass dict as-is and
+                    # flag for manual review via a trailing comment on the call
+                    val = self.visit(kw_value)
+                    args.append(str(val))
+                    needs_llm_comment = True
             else:
                 old_type = getattr(self, "current_assignment_type", None)
                 if keyword.arg in arg_types_by_name:
@@ -297,7 +340,7 @@ class CallsMixin(
                 args.append('{' + ', '.join(kw_items) + '}')
                 keyword_args.clear()
 
-        return keyword_args, original_keyword_append
+        return keyword_args, original_keyword_append, needs_llm_comment
     def _resolve_module_and_func(self, node: ast.Call, func_name_str: str) -> tuple:
         """Resolve module and function name."""
         module_name = None
