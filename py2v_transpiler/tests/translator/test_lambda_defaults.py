@@ -35,11 +35,18 @@ def test_lambda_explicit_arg_not_overridden():
 
 
 def test_lambda_string_default_injected():
-    """sep default injection for a string default value."""
+    """sep default injection for a string default value.
+
+    join_fn(['a', 'b']) must emit join_fn(['a', 'b'], '-') with the injected default.
+    """
     code = "join_fn = lambda items, sep='-': sep.join(items)\nprint(join_fn(['a', 'b']))"
     result = make_translator(code)
-    assert "join_fn(" in result
-    assert "'-'" in result or '"-"' in result, f"Expected sep default '-' in:\n{result}"
+    # The injected call must include the default as the second argument
+    assert "join_fn([" in result and "'-'" in result, f"Expected call with injected sep='-' in:\n{result}"
+    # Verify default appears as the call's second arg (not just anywhere in output)
+    assert "join_fn(['a', 'b'], '-')" in result or "join_fn(['a','b'],'-')" in result or \
+           "join_fn(['a', 'b'],'-')" in result or "join_fn(['a','b'], '-')" in result, \
+        f"Expected join_fn call with injected '-' argument in:\n{result}"
 
 
 def test_lambda_no_default_unchanged():
@@ -75,3 +82,14 @@ def test_lambda_partial_explicit_args():
     code = "fn = lambda x, a=1, b=2: x + a + b\nprint(fn(10, 5))"
     result = make_translator(code)
     assert "fn(10, 5, 2)" in result, f"Expected 'fn(10, 5, 2)' in:\n{result}"
+
+
+def test_lambda_kwonly_default_injected():
+    """Kwonly default: `lambda x, *, k=99: x + k; f(1)` must inject 99.
+
+    Regression guard for kw_defaults injection path.
+    """
+    code = "f = lambda x, *, k=99: x + k\nprint(f(1))"
+    result = make_translator(code)
+    assert "f(1" in result, f"Expected call with f(1...) in:\n{result}"
+    assert "99" in result, f"Expected kwonly default 99 injected in:\n{result}"
