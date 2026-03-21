@@ -393,11 +393,11 @@ class AssignmentsMixin(TranslatorBase):
                  star_elt = target.elts[starred_idx]
                  if isinstance(star_elt, ast.Starred):
                      trailing = len(target.elts) - 1 - starred_idx
-                     slice_expr = f"{tmp_var}[{starred_idx}..]" if trailing == 0 else f"{tmp_var}[{starred_idx}..{tmp_var}.len-{trailing}]"
+                     slice_expr = f"{tmp_var}[{starred_idx}..]" if trailing == 0 else f"{tmp_var}[{starred_idx}..({tmp_var}.len - {trailing})]"
                      self._visit_destructuring(star_elt.value, slice_expr)
                  for i in range(starred_idx + 1, len(target.elts)):
                      offset = len(target.elts) - i
-                     self._visit_destructuring(target.elts[i], f"{tmp_var}.it_{i}" if is_tuple else f"{tmp_var}[{tmp_var}.len-{offset}]")
+                     self._visit_destructuring(target.elts[i], f"{tmp_var}.it_{i}" if is_tuple else f"{tmp_var}[({tmp_var}.len - {offset})]")
         elif isinstance(target, ast.Name):
             lhs = self.visit(target)
             if not self.in_main and lhs in self._local_vars_in_scope: self.output.append(f"{self._indent()}{lhs} = {source_expr}")

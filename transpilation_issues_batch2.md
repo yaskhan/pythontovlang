@@ -583,7 +583,7 @@ lst.insert_many(0, [100, 200, 300])
 
 ---
 
-## Issue #24: Extended unpacking uses invalid indexing
+## * Issue #24: Extended unpacking uses invalid indexing
 
 **File:** test_list_operations.py
 
