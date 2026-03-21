@@ -198,6 +198,13 @@ class AssignmentsMixin(TranslatorBase):
 
         if not lhs: return
 
+        # Register lambda call signature so the call-site default injection works.
+        # Must happen before visit_Lambda so defaults are available when power(5) is translated.
+        if (isinstance(node.value, ast.Lambda)
+                and len(node.targets) == 1
+                and isinstance(node.targets[0], ast.Name)):
+            self._register_lambda_signature(node.targets[0].id, node.value)
+
         if isinstance(node.value, ast.ListComp):
             if hasattr(self, 'visit_ListComp'): self.visit_ListComp(node.value, target_var=lhs)
             else: self.output.append(f"{self._indent()}//##LLM@@ List comprehension support is missing")
@@ -411,6 +418,64 @@ class AssignmentsMixin(TranslatorBase):
                 if not self.in_main: self._local_vars_in_scope.add(lhs)
         elif isinstance(target, (ast.Attribute, ast.Subscript)): self.output.append(f"{self._indent()}{self.visit(target)} = {source_expr}")
         else: self.output.append(f"{self._indent()}//##LLM@@ Unsupported destructuring target")
+
+    def _register_lambda_signature(self, name: str, lambda_node: ast.Lambda) -> None:
+        """Register a lambda's call signature so the call-site default-injection works.
+
+        Python's `power = lambda x, n=2: x**n` carries a real default (n=2).
+        When the call `power(5)` is translated, the existing mechanism in
+        calls.py:280-292 injects missing positional args from defaults — but only
+        if the lambda's signature is recorded in type_inference.call_signatures.
+
+        Notes on defaults_map alignment:
+        - arguments.defaults covers the LAST N args of `posonlyargs + args` combined.
+        - arguments.kw_defaults covers kwonlyargs 1-to-1 (None = no default).
+        - i=i self-reference defaults are capture-by-value (Issue #35); they must
+          NOT be injected at the call site — exclude them here.
+        """
+        if not hasattr(self, 'type_inference') or not hasattr(self.type_inference, 'call_signatures'):
+            return
+
+        args = lambda_node.args
+        posonly = list(getattr(args, 'posonlyargs', []))
+        positional = posonly + list(args.args)
+
+        # Build defaults_map for positional args (last N of positional list)
+        defaults_map: Dict[str, ast.AST] = {}
+        if args.defaults:
+            defaults_start = len(positional) - len(args.defaults)
+            for idx, default in enumerate(args.defaults):
+                arg_name = positional[defaults_start + idx].arg
+                defaults_map[arg_name] = default
+
+        # Build defaults_map for kwonly args (1-to-1 with kw_defaults, None = no default)
+        for kwarg, kwdefault in zip(args.kwonlyargs, getattr(args, 'kw_defaults', [])):
+            if kwdefault is not None:
+                defaults_map[kwarg.arg] = kwdefault
+
+        # Determine which args are i=i capture-by-value (Issue #35).
+        # Those are NOT real callable parameters — skip them.
+        capture_names: set = set()
+        for arg_name, default in defaults_map.items():
+            if isinstance(default, ast.Name) and default.id == arg_name:
+                capture_names.add(arg_name)
+
+        # Build ordered arg_names for non-capture positional + kwonly args
+        arg_names = [a.arg for a in positional if a.arg not in capture_names]
+        arg_names += [a.arg for a in args.kwonlyargs if a.arg not in capture_names]
+
+        # Filter defaults_map to only real defaults (exclude capture-by-value ones)
+        real_defaults = {k: v for k, v in defaults_map.items() if k not in capture_names}
+
+        self.type_inference.call_signatures[name] = {
+            "arg_names": arg_names,
+            "defaults": real_defaults,
+            "args": ["Any"] * len(arg_names),
+            "return": "Any",
+            "is_class": False,
+            "has_vararg": args.vararg is not None,
+            "has_kwarg": args.kwarg is not None,
+        }
 
     def visit_NamedExpr(self, node: ast.NamedExpr) -> str:
         target = self._sanitize_name(node.target.id)
