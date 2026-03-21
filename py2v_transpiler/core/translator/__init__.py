@@ -32,8 +32,10 @@ class VNodeVisitor(
         self.parent_stack.append(node)
         prev_node = self.current_node
         self.current_node = node
+        is_stmt = isinstance(node, ast.stmt)
+        output_len_before = len(self.output) if is_stmt else 0
         try:
-            return super().visit(node)
+            result = super().visit(node)
         except Exception as e:
             # Error recovery: log and continue if it's not a fatal error
             source_info = self._get_source_info(node)
@@ -52,6 +54,15 @@ class VNodeVisitor(
         finally:
             self.current_node = prev_node
             self.parent_stack.pop()
+        if is_stmt:
+            pending = getattr(self, "_pending_llm_call_comments", [])
+            if pending:
+                comments = list(pending)
+                pending.clear()
+                indent = self._indent()
+                comment_lines = [f"{indent}{c}" for c in comments]
+                self.output[output_len_before:output_len_before] = comment_lines
+        return result
 
     def __init__(self, type_inference, config=None):
         super().__init__(type_inference)

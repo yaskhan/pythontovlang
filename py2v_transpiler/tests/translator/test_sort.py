@@ -62,10 +62,25 @@ def test_sort_no_args():
     # l.sort() -> l.sort()
     assert translate_expr("l.sort()") == "l.sort()"
 
-def test_sort_other_args():
-    # l.sort(key=foo) -> l.sort() (ignoring key for now as per plan/implementation limitations)
-    # The implementation checks reverse keyword specifically.
-    assert translate_expr("l.sort(key=foo)") == "l.sort()"
+def test_sort_key_len():
+    # words.sort(key=len) -> words.sort(a.len < b.len)
+    assert translate_expr("words.sort(key=len)") == "words.sort(a.len < b.len)"
+
+def test_sort_key_len_reverse():
+    # words.sort(key=len, reverse=True) -> words.sort(a.len > b.len)
+    assert translate_expr("words.sort(key=len, reverse=True)") == "words.sort(a.len > b.len)"
+
+def test_sort_key_str():
+    # nums.sort(key=str) -> nums.sort(a.str() < b.str())
+    assert translate_expr("nums.sort(key=str)") == "nums.sort(a.str() < b.str())"
+
+def test_sort_key_int():
+    # nums.sort(key=int) -> nums.sort(int(a) < int(b))
+    assert translate_expr("nums.sort(key=int)") == "nums.sort(int(a) < int(b))"
+
+def test_sort_key_unknown():
+    # l.sort(key=my_func) -> l.sort()  // TODO: unsupported key=my_func
+    assert translate_expr("l.sort(key=my_func)") == "l.sort()  // TODO: unsupported key=my_func"
 
 def test_sort_reverse_keyword_dynamic():
     # l.sort(reverse=x) -> l.sort() (only constant True supported)

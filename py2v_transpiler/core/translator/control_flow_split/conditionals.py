@@ -226,6 +226,7 @@ class ConditionalsMixin(TranslatorBase):
                     # They are always mut because they are assigned later
                     self.output.append(f"{self._indent()}mut {var} := {v_type}(none)")
                     self._local_vars_in_scope.add(var)
+                    self._cond_optional_var_type[var] = v_type
 
         # Check for TypeGuard / TypeIs narrowing
         narrow_if = None

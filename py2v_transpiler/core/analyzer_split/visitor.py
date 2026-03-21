@@ -235,20 +235,22 @@ class TypeInferenceVisitorMixin(TypeInferenceBase):
             elif has_return_value:
                 self.type_map[f"{node.name}@return"] = "Any"
 
-        args_len = len(node.args.args)
+        posonlyargs = node.args.posonlyargs if hasattr(node.args, "posonlyargs") else []
+        combined_args = posonlyargs + node.args.args
+        args_len = len(combined_args)
         defaults_len = len(node.args.defaults)
         defaults_map: Dict[str, ast.expr] = {}
         for i, d in enumerate(node.args.defaults):
             arg_idx = args_len - defaults_len + i
             if arg_idx >= 0 and arg_idx < args_len:
-                 arg_name = node.args.args[arg_idx].arg
+                 arg_name = combined_args[arg_idx].arg
                  defaults_map[arg_name] = d
 
         for i, kwarg in enumerate(node.args.kwonlyargs):
             if i < len(node.args.kw_defaults) and node.args.kw_defaults[i] is not None:
                  defaults_map[kwarg.arg] = node.args.kw_defaults[i] # type: ignore
 
-        args_for_sig = node.args.args + node.args.kwonlyargs
+        args_for_sig = combined_args + node.args.kwonlyargs
         if args_for_sig and args_for_sig[0].arg in ("self", "cls"):
             args_for_sig = args_for_sig[1:]
         sig_data: Dict[str, Any] = {

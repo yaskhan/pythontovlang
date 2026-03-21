@@ -273,6 +273,9 @@ class FunctionGenerationMixin:
         if is_method and orig_args and orig_args[0].arg == "self" and not dec_info.is_static: cur_scope.add(orig_args[0].arg)
         if dec_info.is_classmethod and orig_args and orig_args[0].arg == "cls": self.name_remap[orig_args[0].arg] = self._get_full_self_type(struct_name); cur_scope.add(orig_args[0].arg)
         self._scope_stack.append(cur_scope); self._scope_names.append(node.name)
+        saved_cond_optional = dict(getattr(self, '_cond_optional_var_type', {}))
+        if hasattr(self, '_cond_optional_var_type'):
+            self._cond_optional_var_type.clear()
         try:
             body = node.body
             if body and isinstance(body[0], ast.Expr) and isinstance(body[0].value, ast.Constant) and isinstance(body[0].value.value, str):
@@ -287,6 +290,9 @@ class FunctionGenerationMixin:
         finally:
             if dec_info.is_classmethod and orig_args and orig_args[0].arg == "cls": del self.name_remap[orig_args[0].arg]
             self.current_function_return_type = prev_ret_type
+            if hasattr(self, '_cond_optional_var_type'):
+                self._cond_optional_var_type.clear()
+                self._cond_optional_var_type.update(saved_cond_optional)
             self._scope_stack.pop()
             self._scope_names.pop()
         self.generic_scopes.pop()

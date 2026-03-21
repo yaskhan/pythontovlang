@@ -162,11 +162,45 @@ class AssignmentsMixin(TranslatorBase):
                 list_obj = self.visit(target.value)
                 lower = self.visit(target.slice.lower) if target.slice.lower else "0"
                 upper = self.visit(target.slice.upper) if target.slice.upper else f"{list_obj}.len"
-                self.used_delete_many, self.used_insert_many = True, True
                 rhs = self.visit(node.value)
-                start_expr, end_expr = lower, upper
-                self.output.append(f"{self._indent()}{list_obj}.delete_many({start_expr}, ({end_expr}) - ({start_expr}))")
-                self.output.append(f"{self._indent()}{list_obj}.insert_many({start_expr}, {rhs})")
+                step_node = target.slice.step
+                step_val = None
+                if step_node is not None:
+                    if isinstance(step_node, ast.Constant) and isinstance(step_node.value, int):
+                        step_val = step_node.value
+                    elif (isinstance(step_node, ast.UnaryOp) and isinstance(step_node.op, ast.USub)
+                          and isinstance(step_node.operand, ast.Constant)
+                          and isinstance(step_node.operand.value, int)):
+                        step_val = -step_node.operand.value
+                if step_val is not None and step_val >= 2:
+                    uid = self.unique_id_counter
+                    self.unique_id_counter += 1
+                    rhs_tmp = f"py_step_rhs_{uid}"
+                    i_tmp = f"py_step_i_{uid}"
+                    idx_tmp = f"py_step_idx_{uid}"
+                    ind = self._indent()
+                    ind1 = ind + "\t"
+                    self.output.append(f"{ind}{rhs_tmp} := {rhs}")
+                    self.output.append(f"{ind}mut {i_tmp} := 0")
+                    self.output.append(f"{ind}for {idx_tmp} := {lower}; {idx_tmp} < {upper}; {idx_tmp} += {step_val} {{")
+                    self.output.append(f"{ind1}if {i_tmp} >= {rhs_tmp}.len {{ break }}")
+                    self.output.append(f"{ind1}{list_obj}[{idx_tmp}] = {rhs_tmp}[{i_tmp}]")
+                    self.output.append(f"{ind1}{i_tmp}++")
+                    self.output.append(f"{ind}}}")
+                elif step_val is not None and step_val < 0:
+                    self.output.append(f"{self._indent()}//##LLM@@ Negative step slice assignment not supported; manual loop required")
+                    self.used_delete_many, self.used_insert_many = True, True
+                    self.output.append(f"{self._indent()}{list_obj}.delete_many({lower}, ({upper}) - ({lower}))")
+                    self.output.append(f"{self._indent()}{list_obj}.insert_many({lower}, {rhs})")
+                elif step_node is not None and not isinstance(step_node, ast.Constant):
+                    self.output.append(f"{self._indent()}//##LLM@@ Non-constant step slice assignment not supported; manual loop required")
+                    self.used_delete_many, self.used_insert_many = True, True
+                    self.output.append(f"{self._indent()}{list_obj}.delete_many({lower}, ({upper}) - ({lower}))")
+                    self.output.append(f"{self._indent()}{list_obj}.insert_many({lower}, {rhs})")
+                else:
+                    self.used_delete_many, self.used_insert_many = True, True
+                    self.output.append(f"{self._indent()}{list_obj}.delete_many({lower}, ({upper}) - ({lower}))")
+                    self.output.append(f"{self._indent()}{list_obj}.insert_many({lower}, {rhs})")
                 return
             lhs = self.visit(target)
         elif isinstance(target, (ast.Tuple, ast.List)):
@@ -362,7 +396,14 @@ class AssignmentsMixin(TranslatorBase):
                     if isinstance(target, ast.Attribute) or isinstance(target, ast.Subscript): emit_fn(f"{self._indent()}{lhs} = {rhs}")
                     else:
                         if emit_fn == self.output.append:
-                            if not self.in_main and v_lhs in self._local_vars_in_scope: emit_fn(f"{self._indent()}{v_lhs} = {rhs}")
+                            if not self.in_main and v_lhs in self._local_vars_in_scope:
+                                opt_type = getattr(self, '_cond_optional_var_type', {}).get(v_lhs)
+                                if opt_type and rhs != 'none' and not rhs.startswith('?'):
+                                    if opt_type == '?Any':
+                                        rhs = f'Any({rhs})'
+                                    else:
+                                        rhs = f'{opt_type}({rhs})'
+                                emit_fn(f"{self._indent()}{v_lhs} = {rhs}")
                             else:
                                 is_mut = False
                                 if hasattr(self, 'type_inference') and hasattr(self.type_inference, 'mutability_map'):
@@ -393,11 +434,11 @@ class AssignmentsMixin(TranslatorBase):
                  star_elt = target.elts[starred_idx]
                  if isinstance(star_elt, ast.Starred):
                      trailing = len(target.elts) - 1 - starred_idx
-                     slice_expr = f"{tmp_var}[{starred_idx}..]" if trailing == 0 else f"{tmp_var}[{starred_idx}..{tmp_var}.len-{trailing}]"
+                     slice_expr = f"{tmp_var}[{starred_idx}..]" if trailing == 0 else f"{tmp_var}[{starred_idx}..({tmp_var}.len - {trailing})]"
                      self._visit_destructuring(star_elt.value, slice_expr)
                  for i in range(starred_idx + 1, len(target.elts)):
                      offset = len(target.elts) - i
-                     self._visit_destructuring(target.elts[i], f"{tmp_var}.it_{i}" if is_tuple else f"{tmp_var}[{tmp_var}.len-{offset}]")
+                     self._visit_destructuring(target.elts[i], f"{tmp_var}.it_{i}" if is_tuple else f"{tmp_var}[({tmp_var}.len - {offset})]")
         elif isinstance(target, ast.Name):
             lhs = self.visit(target)
             if not self.in_main and lhs in self._local_vars_in_scope: self.output.append(f"{self._indent()}{lhs} = {source_expr}")

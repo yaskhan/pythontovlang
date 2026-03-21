@@ -21,7 +21,11 @@ class BasicExpressionsMixin(TranslatorBase):
             test = self._wrap_bool(node.test)
         finally:
             self.name_remap = old_remap
-        self.output.append(f"{self._indent()}assert {test}")
+        if node.msg is not None:
+            msg = self.visit(node.msg)
+            self.output.append(f"{self._indent()}assert {test}, {msg}")
+        else:
+            self.output.append(f"{self._indent()}assert {test}")
 
     def visit_IfExp(self, node: ast.IfExp) -> str:
         test = self._wrap_bool(node.test)

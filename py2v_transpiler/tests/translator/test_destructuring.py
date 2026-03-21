@@ -27,8 +27,9 @@ def test_destructuring_star_tail():
 *a, b = l
 """
     v_code = transpile(code)
-    assert "len-1]" in v_code
-    assert "len-1" in v_code
+    # Parenthesized form: (arr.len - 1)] — safe V arithmetic
+    assert "len - 1)]" in v_code
+    assert "len - 1" in v_code
 
 def test_destructuring_middle_star():
     code = """
@@ -36,8 +37,9 @@ a, *b, c = l
 """
     v_code = transpile(code)
     assert "[0]" in v_code
-    assert "len-1]" in v_code
-    assert re.search(r"1\.\.py_destruct_", v_code)
+    # Parenthesized slice end: (arr.len - 1)]
+    assert "len - 1)]" in v_code
+    assert re.search(r"1\.\.\(py_destruct_", v_code)
 
 def test_simple_unpacking_optimized():
     code = """

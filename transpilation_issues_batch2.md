@@ -329,7 +329,7 @@ if C.try() {
 
 ---
 
-## Issue #13: `assert` message lost
+## * Issue #13: `assert` message lost
 
 **File:** test_exceptions.py
 
@@ -562,7 +562,7 @@ words.sort()
 
 ---
 
-## Issue #23: Slice assignment with step not supported
+## * Issue #23: Slice assignment with step not supported
 
 **File:** test_list_operations.py
 
@@ -583,7 +583,7 @@ lst.insert_many(0, [100, 200, 300])
 
 ---
 
-## Issue #24: Extended unpacking uses invalid indexing
+## * Issue #24: Extended unpacking uses invalid indexing
 
 **File:** test_list_operations.py
 
@@ -717,7 +717,7 @@ pub fn (self SimpleContext) exit(args ...int) bool {
 
 ---
 
-## Issue #29: `for/else` loses else semantics
+## * Issue #29: `for/else` loses else semantics
 
 **File:** test_for_loop.py
 

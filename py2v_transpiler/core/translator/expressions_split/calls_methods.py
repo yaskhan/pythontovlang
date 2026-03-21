@@ -181,15 +181,33 @@ class MethodCallsMixin:
         return None
 
     def _handle_list_sort(self, node: ast.Call, func_node: ast.Attribute, args: list) -> str:
-        """Handle list.sort(reverse=True)."""
-        # Check keywords for reverse=True
+        """Handle list.sort(key=..., reverse=True/False)."""
+        _KEY_COMPARISONS = {
+            "len": ("a.len", "b.len"),
+            "str": ("a.str()", "b.str()"),
+            "int": ("int(a)", "int(b)"),
+        }
+
         reverse = False
+        key_name = None
         for keyword in node.keywords:
             if keyword.arg == "reverse":
                 if isinstance(keyword.value, ast.Constant) and keyword.value.value is True:
                     reverse = True
-        
+            elif keyword.arg == "key":
+                if isinstance(keyword.value, ast.Name):
+                    key_name = keyword.value.id
+
         obj = self.visit(func_node.value)
+
+        if key_name is not None:
+            if key_name in _KEY_COMPARISONS:
+                lhs, rhs = _KEY_COMPARISONS[key_name]
+                op = ">" if reverse else "<"
+                return f"{obj}.sort({lhs} {op} {rhs})"
+            else:
+                return f"{obj}.sort()  // TODO: unsupported key={key_name}"
+
         if reverse:
             return f"{obj}.sort(a > b)"
         else:
