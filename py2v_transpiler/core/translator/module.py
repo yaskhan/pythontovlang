@@ -3,6 +3,15 @@ from typing import Any, List, Optional, Dict, Set
 from .base import TranslatorBase
 
 class ModuleMixin(TranslatorBase):
+    def _is_name_main(self, node: ast.If) -> bool:
+        """Checks for if __name__ == "__main__":"""
+        if isinstance(node.test, ast.Compare):
+            if (isinstance(node.test.left, ast.Name) and node.test.left.id == "__name__" and
+                len(node.test.comparators) == 1 and isinstance(node.test.comparators[0], ast.Constant) and
+                node.test.comparators[0].value == "__main__"):
+                return True
+        return False
+
     def visit_Module(self, node: ast.Module) -> str:
         # Pre-scan for __all__ and symbols
         self.module_all = None
@@ -42,14 +51,9 @@ class ModuleMixin(TranslatorBase):
             # This is a docstring
             doc = node.body[0].value.value.strip()
             # Emit as comments at top of file (via main statements, but main comes last usually)
-            # Actually, `add_main_statement` appends to main block.
-            # Ideally docstrings should be at top of file.
-            # Emitter has imports, structs, functions. Does it have "header comments"?
-            # Let's emit it as a comment in main for now or try to put it in imports?
-            # Emitter doesn't seem to have a dedicated header slot.
-            # Let's put it as comment in main.
+            # Emit as comments in init()
             for line in doc.splitlines():
-                self.emitter.add_main_statement(f"// {line}")
+                self.emitter.add_init_statement(f"// {line}")
             # Skip first statement
             body = node.body[1:]
         else:
@@ -73,22 +77,23 @@ class ModuleMixin(TranslatorBase):
                 self.visit(stmt)
                 self.in_main = True
             else:
-                # This is part of main body
-                # We need to capture the output of this statement
-                # But visit returns None and appends to self.output
-                # So we need to manage self.output
-
                 # Clear output buffer
                 self.output = []
                 # For top-level expressions and assignments, we add the line comment here
                 if getattr(self.config, 'source_mapping', False):
                     self.output.append(f"// @line: {self._get_source_info(stmt)}")
                 self.visit(stmt)
-                # Append buffer to main
-                for line in self.output:
-                    # Remove indentation if added by _indent() for main body
-                    # Because generator adds indentation for main()
-                    self.emitter.add_main_statement(line.strip())
+
+                # Append buffer to init() by default, unless it's the __name__ == "__main__" block
+                if isinstance(stmt, ast.If) and self._is_name_main(stmt):
+                    # For __name__ == "__main__", children have already been visited by _visit_if
+                    # which appends to self.output. We take those outputs and put them in main.
+                    for line in self.output:
+                        self.emitter.add_main_statement(line.strip())
+                else:
+                    for line in self.output:
+                        # Remove indentation if added by _indent() for init body
+                        self.emitter.add_init_statement(line.strip())
                 self.output = []
 
         # Post-scan validation for __all__
