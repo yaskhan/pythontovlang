@@ -96,13 +96,13 @@ class ClassBasesHandler:
                     pass
             elif isinstance(base, ast.Attribute):
                 val = self.translator.visit(base)
-                if val == "unittest.TestCase":
+                if val in ("unittest.TestCase", "unittest.test_case"):
                     is_unittest = True
                 elif val == "typing.Protocol":
                     is_protocol = True
                 elif val == "typing.NamedTuple":
                     is_named_tuple = True
-                elif val in ("typing.TypedDict", "TypedDict"):
+                elif val in ("typing.TypedDict", "TypedDict", "typing.typed_dict", "typed_dict") or base.attr == "TypedDict":
                     is_typed_dict = True
                 elif base.attr == "ABC":
                     pass

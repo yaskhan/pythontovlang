@@ -12,6 +12,7 @@ class ExpressionUtilsMixin:
         def visit(self, node: ast.AST) -> str: ...
         def _create_temp(self) -> str: ...
         def _indent(self) -> str: ...
+        def _sanitize_name(self, name: str, is_type: bool = False) -> str: ...
 
     def _capture_value(self, node: ast.AST) -> Tuple[str, List[str]]:
         """
@@ -28,7 +29,6 @@ class ExpressionUtilsMixin:
     def _capture_target(self, node: ast.AST) -> Tuple[str, List[str]]:
         """
         Prepares a target for AugAssign by capturing its components.
-        Recurses on L-value bases (Attribute, Subscript) to preserve reference path.
         Returns (new_target_string, setup_statements).
         """
         if isinstance(node, ast.Name):
@@ -40,7 +40,8 @@ class ExpressionUtilsMixin:
             else:
                 base_expr, base_setup = self._capture_value(node.value)
 
-            return f"{base_expr}.{node.attr}", base_setup
+            attr_name = self._sanitize_name(node.attr)
+            return f"{base_expr}.{attr_name}", base_setup
 
         elif isinstance(node, ast.Subscript):
             if isinstance(node.value, (ast.Name, ast.Attribute, ast.Subscript)):

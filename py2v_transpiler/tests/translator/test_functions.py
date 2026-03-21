@@ -68,7 +68,7 @@ print(z)
 
     assert "module main" in result
     assert "fn add(a int, b int) int {" in result
-    assert "fn main() {" in result
+    assert "fn init() {" in result
     assert "x := 1" in result
     assert "z := add(x, y)" in result
 

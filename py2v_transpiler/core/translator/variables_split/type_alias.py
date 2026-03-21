@@ -8,7 +8,7 @@ class TypeAliasMixin(TranslatorBase):
     """Обработка type alias: visit_TypeAlias (PEP 613)"""
     
     def visit_TypeAlias(self, node: Any) -> None:
-        name = self._sanitize_name(node.name.id)
+        name = self._sanitize_name(node.name.id, is_type=True)
 
         py_generics = []
         added_variance_keys = []

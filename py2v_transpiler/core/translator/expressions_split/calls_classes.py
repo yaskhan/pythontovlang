@@ -23,7 +23,7 @@ class ClassCallsMixin:
         current_class_bases: List[str]
         current_class_generic_bases: Dict[str, str]
         current_class: Optional[str]
-        current_class_body: List[ast.AST]
+        current_class_body: List[ast.stmt]
         type_inference: Any
         class_hierarchy: Dict[str, List[str]]
     def _handle_class_call(self, node: ast.Call, func_node: ast.AST, func_name_str: str,
@@ -51,11 +51,11 @@ class ClassCallsMixin:
             visited_name = self.visit(func_node)
             # Handle self.Inner or Outer.Inner -> Outer_Inner
             if visited_name.startswith("self.") and getattr(self, "current_class", None):
-                potential_nested = f"{self.current_class}_{visited_name[5:]}"
+                potential_nested = self._sanitize_name(f"{self.current_class}_{visited_name[5:]}", is_type=True)
                 if hasattr(self, 'defined_classes') and potential_nested in self.defined_classes:
                     visited_name = potential_nested
             elif "." in visited_name:
-                potential_nested = visited_name.replace(".", "_")
+                potential_nested = self._sanitize_name(visited_name.replace(".", "_"), is_type=True)
                 if hasattr(self, 'defined_classes') and potential_nested in self.defined_classes:
                     visited_name = potential_nested
 
@@ -78,7 +78,7 @@ class ClassCallsMixin:
         # If it's a class call but name is not found, try to resolve as nested class
         if is_class and hasattr(self, 'current_class') and self.current_class:
              if base_lookup_name not in self.defined_classes:
-                  potential_nested = f"{self.current_class}_{base_lookup_name}"
+                  potential_nested = self._sanitize_name(f"{self.current_class}_{base_lookup_name}", is_type=True)
                   if hasattr(self, 'defined_classes') and potential_nested in self.defined_classes:
                        base_lookup_name = potential_nested
                        # Also check if the factory/info exists for the nested class

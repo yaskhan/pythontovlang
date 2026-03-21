@@ -18,6 +18,9 @@ class TypeUtilsMixin:
         imported_symbols: Dict[str, str]
         scc_files: Set[str]
         used_builtins: Set[str]
+        config: Any
+        warnings: List[str]
+        def _sanitize_name(self, name: str, is_type: bool = False) -> str: ...
         def _get_all_active_v_generics(self) -> List[str]: ...
 
     def _is_collection_type(self, v_type: str) -> bool:
@@ -141,6 +144,9 @@ class TypeUtilsMixin:
 
         tup_registrar = self._register_tuple_struct if register_sum_types else None
 
+        if "TypeForm" in type_str:
+            if not getattr(self.config, 'experimental', False):
+                self.warnings.append("Experimental feature 'TypeForm' is used. Some features may not work as expected.")
         v_type = map_python_type_to_v(
             type_str,
             self_name=self._get_full_self_type(struct_name),
@@ -170,7 +176,7 @@ class TypeUtilsMixin:
         
         # Handle nested classes resolution
         if v_type not in basic_v_types and struct_name:
-             potential_nested = f"{struct_name}_{v_type}"
+             potential_nested = self._sanitize_name(f"{struct_name}_{v_type}", is_type=True)
              if hasattr(self, 'defined_classes') and potential_nested in self.defined_classes:
                   v_type = potential_nested
 

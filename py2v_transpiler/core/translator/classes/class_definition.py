@@ -58,6 +58,7 @@ class ClassDefinitionHandler:
         prev_bases = self.translator.current_class_bases
         prev_generic_bases = self.translator.current_class_generic_bases
         prev_is_unittest = self.translator.current_class_is_unittest
+        prev_body = getattr(self.translator, "current_class_body", [])
 
         self.translator.current_class = struct_name
         self.translator.current_class_generics = []
@@ -65,6 +66,7 @@ class ClassDefinitionHandler:
         self.translator.current_class_bases = []
         self.translator.current_class_generic_bases = {}
         self.translator.current_class_is_unittest = False
+        self.translator.current_class_body = node.body
 
         # Process type parameters (generics)
         py_generics = []
@@ -160,7 +162,6 @@ class ClassDefinitionHandler:
 
         # Get dataclass metadata
         dataclass_metadata = None
-        self.translator.current_class_body = node.body
         if is_dataclass:
             dataclass_metadata = self.translator.class_fields_handler.get_dataclass_metadata(node, struct_name)
 
@@ -307,7 +308,7 @@ class ClassDefinitionHandler:
             # Skip method generation for simple enums
             self._cleanup_and_restore(
                 node, prev_class, prev_generics, prev_generic_map,
-                prev_bases, prev_generic_bases, prev_is_unittest,
+                prev_bases, prev_generic_bases, prev_is_unittest, prev_body,
                 added_variance_keys, added_default_keys, has_init,
                 static_methods, class_methods
             )
@@ -405,7 +406,7 @@ class ClassDefinitionHandler:
                 self.translator.emitter.add_struct("\n".join(meta_parts))
                 
                 # Emit the singleton instance
-                meta_const_name = f"{orig_struct_name}_meta"
+                meta_const_name = f"{self.translator._to_snake_case(orig_struct_name)}_meta"
                 self.translator.emitter.add_constant(f"pub {meta_const_name} = &{meta_struct_name}{{}}")
 
             # Rename dunder methods
@@ -421,7 +422,7 @@ class ClassDefinitionHandler:
 
         self._cleanup_and_restore(
             node, prev_class, prev_generics, prev_generic_map,
-            prev_bases, prev_generic_bases, prev_is_unittest,
+            prev_bases, prev_generic_bases, prev_is_unittest, prev_body,
             added_variance_keys, added_default_keys, has_init,
             static_methods, class_methods
         )
@@ -435,6 +436,7 @@ class ClassDefinitionHandler:
         prev_bases,
         prev_generic_bases,
         prev_is_unittest,
+        prev_body,
         added_variance_keys: List[str],
         added_default_keys: List[str],
         has_init: bool,
@@ -459,6 +461,7 @@ class ClassDefinitionHandler:
         self.translator.current_class_bases = prev_bases
         self.translator.current_class_generic_bases = prev_generic_bases
         self.translator.current_class_is_unittest = prev_is_unittest
+        self.translator.current_class_body = prev_body
 
         # Register class info
         self.translator.class_methods_handler.register_class_info(
