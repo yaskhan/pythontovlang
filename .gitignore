@@ -213,5 +213,5 @@ v/
 debug/
 /jules_session_extracted
 *.exe
-mypy/
+/mypy/
 /tmp
