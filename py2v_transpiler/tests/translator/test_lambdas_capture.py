@@ -85,5 +85,6 @@ def test_deeply_nested_lambda_capture():
     analyzer.analyze(tree)
     result = translator.visit_Module(tree)
 
-    # fn (a int) int { return fn [a] (b int) int { return fn [a, b] (c int) int { return a + b + c } } }
-    assert "fn [a] (b int) int { return fn [a, b] (c int) int { return a + b + c } }" in result
+    # Lambda that returns a lambda now correctly infers fn(...) return types.
+    # fn (a int) fn(int) fn(int) int { return fn [a] (b int) fn(int) int { return fn [a, b] (c int) int { return a + b + c } } }
+    assert "fn [a] (b int) fn(int) int { return fn [a, b] (c int) int { return a + b + c } }" in result

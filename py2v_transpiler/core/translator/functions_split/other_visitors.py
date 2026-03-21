@@ -14,9 +14,21 @@ class OtherFunctionVisitorsMixin(TranslatorBase):
     def visit_Lambda(self, node: ast.Lambda) -> str:
         # lambda args: expr -> fn [captures] (args) { return expr }
 
+        # Build defaults_map to detect the i=i capture-by-value pattern.
+        # In Python, `lambda x, i=i: x + i` uses a default arg to capture i
+        # by value at definition time. In V this becomes a closure capture [i].
+        defaults_map = {}
+        if node.args.defaults:
+            defaults_start = len(node.args.args) - len(node.args.defaults)
+            for idx, default in enumerate(node.args.defaults):
+                defaults_map[node.args.args[defaults_start + idx].arg] = default
+
         # Prepare arguments string and collect them for the scope
         current_scope: Set[str] = set()
         args_str_list = []
+        # extra_captures holds args that use the i=i pattern; they become [i]
+        # closure captures in V instead of regular parameters.
+        extra_captures: List[str] = []
 
         all_args = node.args.args
         if hasattr(node.args, 'posonlyargs'):
@@ -26,6 +38,14 @@ class OtherFunctionVisitorsMixin(TranslatorBase):
 
         for arg in all_args:
             arg_name = self._sanitize_name(arg.arg)
+
+            # Detect i=i pattern: default is ast.Name whose id matches arg name
+            if (arg.arg in defaults_map
+                    and isinstance(defaults_map[arg.arg], ast.Name)
+                    and defaults_map[arg.arg].id == arg.arg):
+                extra_captures.append(arg_name)
+                continue
+
             current_scope.add(arg.arg)
             # Try to get inferred type
             arg_type = "int"
@@ -70,6 +90,16 @@ class OtherFunctionVisitorsMixin(TranslatorBase):
 
         # Find captures BEFORE pushing current lambda's scope
         captures = self._find_captured_vars(node)
+
+        # Merge i=i-pattern captures (not seen by _find_captured_vars because
+        # those args are listed in node.args and treated as inner_defs there).
+        if extra_captures:
+            existing = set(captures)
+            for name in extra_captures:
+                if name not in existing:
+                    captures.append(name)
+                    existing.add(name)
+
         capture_str = f"[{', '.join(captures)}] " if captures else ""
 
         if isinstance(node.body, ast.Constant) and node.body.value is None:

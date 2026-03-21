@@ -44,6 +44,9 @@ class TypeGuessingMixin:
                 return "Any"
             return "int"
 
+        elif isinstance(node, ast.Lambda):
+            return self._guess_type_lambda(node)
+
         elif isinstance(node, ast.UnaryOp):
             if isinstance(node.op, ast.Not):
                 return "bool"
@@ -367,3 +370,43 @@ class TypeGuessingMixin:
         if val_type == "Any" or val_type == "unknown":
             val_type = "Any"
         return f"map[{key_type}]{val_type}"
+
+    def _guess_type_lambda(self, node: ast.Lambda) -> str:
+        """Guess the V function-type string for a Lambda node.
+
+        Detects the i=i capture-by-value pattern and excludes those args
+        from the parameter list (they become closure captures in V).
+        Returns a string like 'fn(int) int' for use as array element type.
+        """
+        defaults_map: Dict[str, ast.AST] = {}
+        if node.args.defaults:
+            defaults_start = len(node.args.args) - len(node.args.defaults)
+            for idx, default in enumerate(node.args.defaults):
+                defaults_map[node.args.args[defaults_start + idx].arg] = default
+
+        all_args = node.args.args
+        if hasattr(node.args, "posonlyargs"):
+            all_args = node.args.posonlyargs + all_args
+        if hasattr(node.args, "kwonlyargs"):
+            all_args = all_args + node.args.kwonlyargs
+
+        param_types: List[str] = []
+        for arg in all_args:
+            # Skip i=i capture-by-value args — not parameters in V
+            if (arg.arg in defaults_map
+                    and isinstance(defaults_map[arg.arg], ast.Name)
+                    and defaults_map[arg.arg].id == arg.arg):
+                continue
+            arg_type = "int"
+            if hasattr(self, "type_inference") and hasattr(self.type_inference, "type_map"):
+                inferred = self.type_inference.type_map.get(arg.arg)
+                if inferred:
+                    arg_type = inferred
+            param_types.append(arg_type)
+
+        ret_type = self._guess_type(node.body)
+        if ret_type in ("void", "Any", "unknown"):
+            ret_type = "int"
+
+        params_str = ", ".join(param_types)
+        return f"fn({params_str}) {ret_type}"

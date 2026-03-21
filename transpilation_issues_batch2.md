@@ -861,7 +861,7 @@ composed := fn [f, g] (x int) Any { return g(f(x)) }
 
 ---
 
-## Issue #35: Lambda list comprehension with late binding
+## * Issue #35: Lambda list comprehension with late binding
 
 **File:** test_lambda_functions.py
 
