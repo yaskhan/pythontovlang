@@ -971,7 +971,7 @@ fn token_precedence(tok Token) int {
 			else  { return prec_lowest }
 		}
 	}
-	if tok.typ == .operator {
+	if tok.typ == .operator || tok.typ == .at {
 		match tok.value {
 			'|'       { return prec_bitor }
 			'^'       { return prec_bitxor }

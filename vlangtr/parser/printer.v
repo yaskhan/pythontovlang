@@ -266,8 +266,10 @@ fn (mut p Printer) visit_call(node &Call) {
 		p.indent_level++
 		for i, kw in node.keywords {
 			p.write(p.indent() + 'keyword(')
-			if kw.arg != '' && kw.arg != '**' {
+			if kw.arg != '' {
 				p.write('arg=\'${kw.arg}\', ')
+			} else {
+				p.write('arg=None, ')
 			}
 			p.write('value=')
 			walk_expr(mut p, kw.value)
@@ -1029,6 +1031,7 @@ fn (mut p Printer) visit_aug_assign(node &AugAssign) {
 		'&=' { 'BitAnd()' }
 		'|=' { 'BitOr()' }
 		'^=' { 'BitXor()' }
+		'@=' { 'MatMult()' }
 		else { node.op.value }
 	}
 	p.write(', op=${op_name}, value=')
