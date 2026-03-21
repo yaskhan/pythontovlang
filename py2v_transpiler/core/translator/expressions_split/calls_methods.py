@@ -201,13 +201,13 @@ class MethodCallsMixin:
         obj = self.visit(func_node.value)
 
         if attr == "isdigit":
-            return f"{obj}.bytes().all(it.is_digit())"
+            return f"{obj}.runes().all(it.is_digit())"
         elif attr == "isalpha":
-            return f"{obj}.bytes().all(it.is_letter())"
+            return f"{obj}.runes().all(it.is_letter())"
         elif attr == "isalnum":
-            return f"{obj}.bytes().all(it.is_alnum())"
+            return f"{obj}.runes().all(it.is_letter() || it.is_digit())"
         elif attr == "isspace":
-            return f"{obj}.bytes().all(it.is_space())"
+            return f"{obj}.runes().all(it.is_space())"
         elif attr == "islower":
             return f"{obj}.is_lower()"
         elif attr == "isupper":

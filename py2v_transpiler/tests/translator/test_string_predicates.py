@@ -52,10 +52,10 @@ def translate_expr(expr_str):
     return translator.visit(tree)
 
 def test_string_predicates_char_level():
-    assert translate_expr("s.isdigit()") == "s.bytes().all(it.is_digit())"
-    assert translate_expr("s.isalpha()") == "s.bytes().all(it.is_letter())"
-    assert translate_expr("s.isalnum()") == "s.bytes().all(it.is_alnum())"
-    assert translate_expr("s.isspace()") == "s.bytes().all(it.is_space())"
+    assert translate_expr("s.isdigit()") == "s.runes().all(it.is_digit())"
+    assert translate_expr("s.isalpha()") == "s.runes().all(it.is_letter())"
+    assert translate_expr("s.isalnum()") == "s.runes().all(it.is_letter() || it.is_digit())"
+    assert translate_expr("s.isspace()") == "s.runes().all(it.is_space())"
 
 def test_string_predicates_case_level():
     assert translate_expr("s.islower()") == "s.is_lower()"
@@ -63,8 +63,8 @@ def test_string_predicates_case_level():
     assert translate_expr("s.istitle()") == "s.is_title()"
 
 def test_string_predicates_literals():
-    assert translate_expr("'123'.isdigit()") == "'123'.bytes().all(it.is_digit())"
-    assert translate_expr("'abc'.isalpha()") == "'abc'.bytes().all(it.is_letter())"
+    assert translate_expr("'123'.isdigit()") == "'123'.runes().all(it.is_digit())"
+    assert translate_expr("'abc'.isalpha()") == "'abc'.runes().all(it.is_letter())"
 
 def test_string_predicates_startswith_endswith_tuple():
     assert translate_expr("s.startswith(('a', 'b'))") == "(s.starts_with('a') || s.starts_with('b'))"

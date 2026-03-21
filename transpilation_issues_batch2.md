@@ -966,7 +966,7 @@ println('${py_str_reverse(s)}')
 
 ---
 
-## Issue #40: String character checks use `bytes()` iteration
+## * Issue #40: String character checks use `bytes()` iteration
 
 **File:** test_string_methods.py
 
