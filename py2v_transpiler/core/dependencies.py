@@ -8,7 +8,7 @@ class DependencyAnalyzer(ast.NodeVisitor):
         self._file_index: Set[str] = set()
         self._dir_index: Set[str] = set()
 
-    def _index_project(self, root_path: str) -> None:
+    def _index_project(self, root_path: str, skip_dirs: Optional[List[str]] = None) -> None:
         """Pre-indexes files and directories to speed up resolution."""
         self._file_index = set()
         self._dir_index = set()
@@ -16,6 +16,14 @@ class DependencyAnalyzer(ast.NodeVisitor):
             rel_root = os.path.relpath(root, root_path)
             if rel_root == ".":
                 rel_root = ""
+            
+            # Skip ignored directories
+            if skip_dirs:
+                if any(os.path.normpath(rel_root).startswith(os.path.normpath(skip)) for skip in skip_dirs):
+                    continue
+                # Also filter 'dirs' to prevent walking into them
+                dirs[:] = [d for d in dirs if os.path.join(rel_root, d).replace('\\', '/') not in [s.replace('\\', '/') for s in skip_dirs]]
+
             for d in dirs:
                 self._dir_index.add(os.path.join(rel_root, d).replace('\\', '/'))
             for f in files:
@@ -85,9 +93,9 @@ class DependencyAnalyzer(ast.NodeVisitor):
 
         return None
 
-    def analyze_project(self, root_path: str, recursive: bool = True) -> Dict[str, Set[str]]:
+    def analyze_project(self, root_path: str, recursive: bool = True, skip_dirs: Optional[List[str]] = None) -> Dict[str, Set[str]]:
         print(f"Indexing project: {root_path}")
-        self._index_project(root_path)
+        self._index_project(root_path, skip_dirs=skip_dirs)
         print(f"Index complete: {len(self._file_index)} files, {len(self._dir_index)} dirs")
         raw_graph: Dict[str, Set[str]] = {}
         
@@ -127,8 +135,8 @@ class DependencyAnalyzer(ast.NodeVisitor):
 
         return resolved_graph
 
-    def find_sccs(self, root_path: str, recursive: bool = True) -> List[Set[str]]:
-        graph = self.analyze_project(root_path, recursive)
+    def find_sccs(self, root_path: str, recursive: bool = True, skip_dirs: Optional[List[str]] = None) -> List[Set[str]]:
+        graph = self.analyze_project(root_path, recursive, skip_dirs=skip_dirs)
         # ... rest of find_sccs code ...
         # print(f"Graph for SCC: {graph}")
 

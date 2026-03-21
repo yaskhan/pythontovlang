@@ -1,5 +1,5 @@
 class TranspilerConfig:
-    def __init__(self, strict_types: bool = False, output_dir: str = "output", mypy_enabled: bool = True, warn_dynamic: bool = False, no_helpers: bool = False, helpers_only: bool = False, include_all_symbols: bool = False, strict_export_mode: bool = False, experimental: bool = False, source_mapping: bool = True):
+    def __init__(self, strict_types: bool = False, output_dir: str = "output", mypy_enabled: bool = True, warn_dynamic: bool = False, no_helpers: bool = False, helpers_only: bool = False, include_all_symbols: bool = False, strict_export_mode: bool = False, experimental: bool = False, source_mapping: bool = True, skip_dirs: list[str] = None):
         self.strict_types = strict_types
         self.output_dir = output_dir
         self.mypy_enabled = mypy_enabled
@@ -10,3 +10,4 @@ class TranspilerConfig:
         self.strict_export_mode = strict_export_mode
         self.experimental = experimental
         self.source_mapping = source_mapping
+        self.skip_dirs = skip_dirs or []

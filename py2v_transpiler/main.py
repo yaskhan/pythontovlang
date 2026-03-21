@@ -210,7 +210,14 @@ def process_directory(path: str, config: TranspilerConfig, recursive: bool) -> N
     print(f"Processing directory: {path} (recursive={recursive})")
     analyzer = DependencyAnalyzer()
     print("Finding SCCs...")
-    sccs = analyzer.find_sccs(path, recursive=recursive)
+    
+    # Auto-skip typeshed if we're in mypy
+    skip_dirs = getattr(config, 'skip_dirs', [])
+    if "typeshed" not in skip_dirs and os.path.exists(os.path.join(path, "typeshed")):
+        print("Auto-skipping 'typeshed' directory from transpilation.")
+        skip_dirs.append("typeshed")
+        
+    sccs = analyzer.find_sccs(path, recursive=recursive, skip_dirs=skip_dirs)
     print(f"Found {len(sccs)} SCCs")
 
     # Map file path to its SCC
@@ -416,6 +423,7 @@ Examples:
     parser.add_argument("--strict-exports", action="store_true", help="Warn about public symbols missing from __all__")
     parser.add_argument("--experimental", action="store_true", help="Enable experimental PEP features")
     parser.add_argument("--run", action="store_true", help="Compile and run V code after transpilation")
+    parser.add_argument("--skip-dir", action="append", help="Directory to skip during recursion")
 
     args = parser.parse_args()
 
@@ -444,7 +452,8 @@ Examples:
         helpers_only=args.helpers_only,
         include_all_symbols=args.include_all_symbols,
         strict_export_mode=args.strict_exports,
-        experimental=args.experimental
+        experimental=args.experimental,
+        skip_dirs=args.skip_dir or []
     )
 
     if config.helpers_only:

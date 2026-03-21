@@ -168,7 +168,7 @@ class SpecialClassesHandler:
         ):
             doc = body[0].value.value.strip()
             lines = doc.split("\n")
-            doc_comment = "\n".join(lines) + "\n"
+            doc_comment = "\n".join([f"// {line}" for line in lines]) + "\n"
             remaining_body = body[1:]
 
         return doc_comment, remaining_body
