@@ -445,7 +445,7 @@ max_val := py_destruct_0[1]
 
 ---
 
-## Issue #18: `not x` for boolean converted to `x == 0`
+## * Issue #18: `not x` for boolean converted to `x == 0`
 
 **File:** test_if_statement.py
 

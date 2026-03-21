@@ -289,12 +289,14 @@ class TypeGuessingMixin:
             if hasattr(self.type_inference, "type_map") and loc_key in self.type_inference.type_map:
                 return self.type_inference.type_map[loc_key]
 
+        # Check type_map by name (registered during assignment translation, e.g. x = False -> bool)
+        if hasattr(self.type_inference, "type_map") and node.id in self.type_inference.type_map:
+            return self.type_inference.type_map[node.id]
+
         # Try to resolve via type inference
         inferred = self.type_inference.resolve_type(node)
         if inferred != "void":
             return inferred
-        if hasattr(self.type_inference, "type_map") and node.id in self.type_inference.type_map:
-            return self.type_inference.type_map[node.id]
         return "int"
 
     def _guess_type_attribute(self, node: ast.Attribute) -> str:
