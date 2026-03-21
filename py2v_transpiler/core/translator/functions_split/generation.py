@@ -378,6 +378,8 @@ class FunctionGenerationMixin:
         if ret_type != "void":
             annotations_data["return"] = ret_type
 
+        if dec_info.is_setter:
+            ret_type = "void"
         is_noreturn = False
         if ret_type == "none":
             ret_type = "void"
