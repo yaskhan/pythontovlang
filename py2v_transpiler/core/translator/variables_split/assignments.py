@@ -162,11 +162,45 @@ class AssignmentsMixin(TranslatorBase):
                 list_obj = self.visit(target.value)
                 lower = self.visit(target.slice.lower) if target.slice.lower else "0"
                 upper = self.visit(target.slice.upper) if target.slice.upper else f"{list_obj}.len"
-                self.used_delete_many, self.used_insert_many = True, True
                 rhs = self.visit(node.value)
-                start_expr, end_expr = lower, upper
-                self.output.append(f"{self._indent()}{list_obj}.delete_many({start_expr}, ({end_expr}) - ({start_expr}))")
-                self.output.append(f"{self._indent()}{list_obj}.insert_many({start_expr}, {rhs})")
+                step_node = target.slice.step
+                step_val = None
+                if step_node is not None:
+                    if isinstance(step_node, ast.Constant) and isinstance(step_node.value, int):
+                        step_val = step_node.value
+                    elif (isinstance(step_node, ast.UnaryOp) and isinstance(step_node.op, ast.USub)
+                          and isinstance(step_node.operand, ast.Constant)
+                          and isinstance(step_node.operand.value, int)):
+                        step_val = -step_node.operand.value
+                if step_val is not None and step_val >= 2:
+                    uid = self.unique_id_counter
+                    self.unique_id_counter += 1
+                    rhs_tmp = f"py_step_rhs_{uid}"
+                    i_tmp = f"py_step_i_{uid}"
+                    idx_tmp = f"py_step_idx_{uid}"
+                    ind = self._indent()
+                    ind1 = ind + "\t"
+                    self.output.append(f"{ind}{rhs_tmp} := {rhs}")
+                    self.output.append(f"{ind}mut {i_tmp} := 0")
+                    self.output.append(f"{ind}for {idx_tmp} := {lower}; {idx_tmp} < {upper}; {idx_tmp} += {step_val} {{")
+                    self.output.append(f"{ind1}if {i_tmp} >= {rhs_tmp}.len {{ break }}")
+                    self.output.append(f"{ind1}{list_obj}[{idx_tmp}] = {rhs_tmp}[{i_tmp}]")
+                    self.output.append(f"{ind1}{i_tmp}++")
+                    self.output.append(f"{ind}}}")
+                elif step_val is not None and step_val < 0:
+                    self.output.append(f"{self._indent()}//##LLM@@ Negative step slice assignment not supported; manual loop required")
+                    self.used_delete_many, self.used_insert_many = True, True
+                    self.output.append(f"{self._indent()}{list_obj}.delete_many({lower}, ({upper}) - ({lower}))")
+                    self.output.append(f"{self._indent()}{list_obj}.insert_many({lower}, {rhs})")
+                elif step_node is not None and not isinstance(step_node, ast.Constant):
+                    self.output.append(f"{self._indent()}//##LLM@@ Non-constant step slice assignment not supported; manual loop required")
+                    self.used_delete_many, self.used_insert_many = True, True
+                    self.output.append(f"{self._indent()}{list_obj}.delete_many({lower}, ({upper}) - ({lower}))")
+                    self.output.append(f"{self._indent()}{list_obj}.insert_many({lower}, {rhs})")
+                else:
+                    self.used_delete_many, self.used_insert_many = True, True
+                    self.output.append(f"{self._indent()}{list_obj}.delete_many({lower}, ({upper}) - ({lower}))")
+                    self.output.append(f"{self._indent()}{list_obj}.insert_many({lower}, {rhs})")
                 return
             lhs = self.visit(target)
         elif isinstance(target, (ast.Tuple, ast.List)):

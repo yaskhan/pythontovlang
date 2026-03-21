@@ -562,7 +562,7 @@ words.sort()
 
 ---
 
-## Issue #23: Slice assignment with step not supported
+## * Issue #23: Slice assignment with step not supported
 
 **File:** test_list_operations.py
 
