@@ -378,11 +378,14 @@ class TypeGuessingMixin:
         from the parameter list (they become closure captures in V).
         Returns a string like 'fn(int) int' for use as array element type.
         """
+        # arguments.defaults covers the LAST N args of posonlyargs + args combined.
         defaults_map: Dict[str, ast.AST] = {}
         if node.args.defaults:
-            defaults_start = len(node.args.args) - len(node.args.defaults)
+            posonly = list(getattr(node.args, 'posonlyargs', []))
+            positional = posonly + list(node.args.args)
+            defaults_start = len(positional) - len(node.args.defaults)
             for idx, default in enumerate(node.args.defaults):
-                defaults_map[node.args.args[defaults_start + idx].arg] = default
+                defaults_map[positional[defaults_start + idx].arg] = default
 
         all_args = node.args.args
         if hasattr(node.args, "posonlyargs"):

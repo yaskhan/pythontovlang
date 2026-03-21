@@ -17,11 +17,16 @@ class OtherFunctionVisitorsMixin(TranslatorBase):
         # Build defaults_map to detect the i=i capture-by-value pattern.
         # In Python, `lambda x, i=i: x + i` uses a default arg to capture i
         # by value at definition time. In V this becomes a closure capture [i].
+        #
+        # IMPORTANT: arguments.defaults covers the LAST N args of the combined
+        # posonlyargs + args list, not just args. Use the combined list here.
         defaults_map = {}
         if node.args.defaults:
-            defaults_start = len(node.args.args) - len(node.args.defaults)
+            posonly = list(getattr(node.args, 'posonlyargs', []))
+            positional = posonly + list(node.args.args)
+            defaults_start = len(positional) - len(node.args.defaults)
             for idx, default in enumerate(node.args.defaults):
-                defaults_map[node.args.args[defaults_start + idx].arg] = default
+                defaults_map[positional[defaults_start + idx].arg] = default
 
         # Prepare arguments string and collect them for the scope
         current_scope: Set[str] = set()

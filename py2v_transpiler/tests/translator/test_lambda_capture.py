@@ -53,3 +53,24 @@ def test_lambda_multi_default_capture():
     assert "[i" in result and "j" in result, f"Expected i,j captures in: {result}"
     # x should remain a parameter
     assert "x int" in result, f"Expected 'x int' param in: {result}"
+
+
+def test_lambda_posonly_default_no_crash():
+    """lambda x=1, /: x — positional-only with numeric default must not crash.
+
+    This is a regression guard: defaults_map must be built against
+    posonlyargs+args combined, not just args alone.
+    """
+    code = "f = lambda x=1, /: x"
+    result = make_translator(code)
+    # Must not raise; x=1 is a normal numeric default (not i=i), stays as param
+    assert "fn" in result, f"Expected fn in: {result}"
+
+
+def test_lambda_posonly_self_capture_pattern():
+    """lambda x, y=y, /: x+y — positional-only i=i capture should work."""
+    code = "f = lambda x, y=y, /: x + y"
+    result = make_translator(code)
+    # y=y posonly default → closure capture
+    assert "[y]" in result, f"Expected '[y]' capture in: {result}"
+    assert "x int" in result, f"Expected 'x int' param in: {result}"
