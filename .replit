@@ -23,7 +23,7 @@ author = "agent"
 
 [[workflows.workflow.tasks]]
 task = "shell.exec"
-args = "python -m pytest py2v_transpiler/tests/ -v --tb=short 2>&1 | head -80"
+args = "python -m pytest py2v_transpiler/tests/ -q --tb=short"
 
 [workflows.workflow.metadata]
 outputType = "console"
