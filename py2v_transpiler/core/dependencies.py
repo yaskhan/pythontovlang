@@ -5,6 +5,21 @@ from typing import Dict, Set, List, Optional
 class DependencyAnalyzer(ast.NodeVisitor):
     def __init__(self):
         self.dependencies: Set[str] = set()
+        self._file_index: Set[str] = set()
+        self._dir_index: Set[str] = set()
+
+    def _index_project(self, root_path: str) -> None:
+        """Pre-indexes files and directories to speed up resolution."""
+        self._file_index = set()
+        self._dir_index = set()
+        for root, dirs, files in os.walk(root_path):
+            rel_root = os.path.relpath(root, root_path)
+            if rel_root == ".":
+                rel_root = ""
+            for d in dirs:
+                self._dir_index.add(os.path.join(rel_root, d).replace('\\', '/'))
+            for f in files:
+                self._file_index.add(os.path.join(rel_root, f).replace('\\', '/'))
 
     def visit_Import(self, node: ast.Import) -> None:
         for alias in node.names:
@@ -21,8 +36,7 @@ class DependencyAnalyzer(ast.NodeVisitor):
                 source = f.read()
             tree = ast.parse(source)
             self.visit(tree)
-        except Exception as e:
-            # print(f"Error parsing {file_path}: {e}")
+        except Exception:
             pass
         return self.dependencies
 
@@ -33,53 +47,70 @@ class DependencyAnalyzer(ast.NodeVisitor):
         # 1. Try absolute project import or stripping components from the left
         for i in range(len(parts)):
             sub_parts = parts[i:]
-            potential_path = os.path.join(root_path, *sub_parts)
-            if os.path.exists(potential_path + ".py"):
-                return os.path.relpath(potential_path + ".py", root_path)
-            if os.path.exists(potential_path + ".pyi"):
-                return os.path.relpath(potential_path + ".pyi", root_path)
-            if os.path.isdir(potential_path):
-                if os.path.exists(os.path.join(potential_path, "__init__.py")):
-                    return os.path.relpath(os.path.join(potential_path, "__init__.py"), root_path)
-                if os.path.exists(os.path.join(potential_path, "__init__.pyi")):
-                    return os.path.relpath(os.path.join(potential_path, "__init__.pyi"), root_path)
+            potential_rel = "/".join(sub_parts)
+            
+            # Check for .py / .pyi
+            if (potential_rel + ".py") in self._file_index:
+                return (potential_rel + ".py").replace('/', os.sep)
+            if (potential_rel + ".pyi") in self._file_index:
+                return (potential_rel + ".pyi").replace('/', os.sep)
+            
+            # Check for directory/__init__.py
+            if potential_rel in self._dir_index:
+                init_py = potential_rel + "/__init__.py"
+                if init_py in self._file_index:
+                    return init_py.replace('/', os.sep)
+                init_pyi = potential_rel + "/__init__.pyi"
+                if init_pyi in self._file_index:
+                    return init_pyi.replace('/', os.sep)
 
         # 2. Try relative import (relative to current_file_path)
-        current_dir = os.path.dirname(os.path.join(root_path, current_file_path))
-        potential_path = os.path.join(current_dir, *parts)
-        if os.path.exists(potential_path + ".py"):
-            return os.path.relpath(potential_path + ".py", root_path)
-        if os.path.exists(potential_path + ".pyi"):
-            return os.path.relpath(potential_path + ".pyi", root_path)
-        if os.path.isdir(potential_path):
-            if os.path.exists(os.path.join(potential_path, "__init__.py")):
-                return os.path.relpath(os.path.join(potential_path, "__init__.py"), root_path)
-            if os.path.exists(os.path.join(potential_path, "__init__.pyi")):
-                return os.path.relpath(os.path.join(potential_path, "__init__.pyi"), root_path)
+        current_dir_rel = os.path.dirname(current_file_path).replace('\\', '/')
+        if current_dir_rel == ".": current_dir_rel = ""
+        
+        prefix = current_dir_rel + "/" if current_dir_rel else ""
+        potential_rel = prefix + "/".join(parts)
+        
+        if (potential_rel + ".py") in self._file_index:
+            return (potential_rel + ".py").replace('/', os.sep)
+        if (potential_rel + ".pyi") in self._file_index:
+            return (potential_rel + ".pyi").replace('/', os.sep)
+        if potential_rel in self._dir_index:
+            init_py = potential_rel + "/__init__.py"
+            if init_py in self._file_index:
+                return init_py.replace('/', os.sep)
+            init_pyi = potential_rel + "/__init__.pyi"
+            if init_pyi in self._file_index:
+                return init_pyi.replace('/', os.sep)
 
         return None
 
     def analyze_project(self, root_path: str, recursive: bool = True) -> Dict[str, Set[str]]:
+        print(f"Indexing project: {root_path}")
+        self._index_project(root_path)
+        print(f"Index complete: {len(self._file_index)} files, {len(self._dir_index)} dirs")
         raw_graph: Dict[str, Set[str]] = {}
-        file_list: List[str] = []
-        for root, dirs, files in os.walk(root_path):
-            for file in files:
-                if file.endswith(".py") or file.endswith(".pyi"):
-                    full_path = os.path.join(root, file)
-                    rel_path = os.path.relpath(full_path, root_path)
-                    # Support dot-notation keys for SCC lookup
-                    dot_path = rel_path
-                    if dot_path.endswith('.pyi'):
-                        dot_path = dot_path[:-4]
-                    elif dot_path.endswith('.py'):
-                        dot_path = dot_path[:-3]
-                    dot_path = dot_path.replace('/', '.').replace('\\', '.')
-                    file_list.append(rel_path)
-                    deps = self.analyze_file(full_path)
-                    raw_graph[rel_path] = deps
-                    raw_graph[dot_path] = deps
-            if not recursive:
-                break
+        
+        # Use indexed files for analysis
+        count = 0
+        for f in self._file_index:
+            if f.endswith(".py") or f.endswith(".pyi"):
+                count += 1
+                if count % 100 == 0:
+                    print(f"Analyzing dependencies: {count}/{len(self._file_index)} files...")
+                full_path = os.path.join(root_path, f.replace('/', os.sep))
+                rel_path = f.replace('/', os.sep)
+                
+                # Support dot-notation keys for SCC lookup
+                dot_path = rel_path
+                if dot_path.endswith('.pyi'):
+                    dot_path = dot_path[:-4]
+                elif dot_path.endswith('.py'):
+                    dot_path = dot_path[:-3]
+                dot_path = dot_path.replace(os.sep, '.')
+                deps = self.analyze_file(full_path)
+                raw_graph[rel_path] = deps
+                raw_graph[dot_path] = deps
 
         # Resolve dependencies to file paths
         resolved_graph: Dict[str, Set[str]] = {}
@@ -88,11 +119,9 @@ class DependencyAnalyzer(ast.NodeVisitor):
             resolved_deps = set()
             for dep in deps:
                 resolved_path = self._resolve_module_to_path(dep, root_path, file)
-                # print(f"Resolving {dep} from {file} -> {resolved_path}")
                 if resolved_path and resolved_path in raw_graph:
                     resolved_deps.add(resolved_path)
                 elif dep in raw_graph:
-                    # Also check if the raw name is already a valid file key
                     resolved_deps.add(dep)
             resolved_graph[file] = resolved_deps
 
@@ -100,6 +129,7 @@ class DependencyAnalyzer(ast.NodeVisitor):
 
     def find_sccs(self, root_path: str, recursive: bool = True) -> List[Set[str]]:
         graph = self.analyze_project(root_path, recursive)
+        # ... rest of find_sccs code ...
         # print(f"Graph for SCC: {graph}")
 
         index = 0

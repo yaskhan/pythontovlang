@@ -207,8 +207,11 @@ def transpile_file(source_file: str, config: TranspilerConfig, global_helpers: O
         return False
 
 def process_directory(path: str, config: TranspilerConfig, recursive: bool) -> None:
+    print(f"Processing directory: {path} (recursive={recursive})")
     analyzer = DependencyAnalyzer()
+    print("Finding SCCs...")
     sccs = analyzer.find_sccs(path, recursive=recursive)
+    print(f"Found {len(sccs)} SCCs")
 
     # Map file path to its SCC
     file_to_scc = {}
