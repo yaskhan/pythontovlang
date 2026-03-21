@@ -208,6 +208,31 @@ def test_while_else_no_break_runs_unconditionally():
 # for/else with range (step 3 args) — verify the range-path also works
 # ---------------------------------------------------------------------------
 
+def test_for_else_break_in_match_case_uses_flag():
+    """Break inside a match case (Python 3.10+) must trigger the flag mechanism.
+
+    _has_break recurses into ast.Match cases, so a break inside any case body
+    should be detected and the py_loop_completed flag created and guarded.
+    """
+    code = (
+        "for i in range(10):\n"
+        "    match i:\n"
+        "        case 5:\n"
+        "            break\n"
+        "        case _:\n"
+        "            pass\n"
+        "else:\n"
+        "    print('match done')"
+    )
+    result = make_translator(code)
+    assert "py_loop_completed" in result, (
+        f"Expected flag for break inside match case:\n{result}"
+    )
+    assert "= false" in result, f"Expected flag=false before break:\n{result}"
+    assert "if py_loop_completed" in result, f"Expected flag guard for else:\n{result}"
+    assert "println('match done')" in result, f"Expected else body:\n{result}"
+
+
 def test_for_else_range_step_with_break():
     """for i in range(0, 10, 2): break — range with step should use flag."""
     code = (
