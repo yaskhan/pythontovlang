@@ -79,4 +79,4 @@ def test_set(s: set):
     v_code = translate(source)
     assert "fn test_dict(mut d map[string]int)" in v_code
     assert "fn test_list(mut l []int)" in v_code
-    assert "fn test_set(mut s map[int]bool)" in v_code
+    assert "fn test_set(mut s datatypes.Set[int])" in v_code

@@ -1286,47 +1286,51 @@ mut:
 }""")
 
         if "py_set_union" in self.used_builtins:
-             self.emitter.add_helper_function("""fn py_set_union[K](a map[K]bool, b map[K]bool) map[K]bool {
+             self.emitter.add_helper_import("datatypes")
+             self.emitter.add_helper_function("""fn py_set_union[K](a datatypes.Set[K], b datatypes.Set[K]) datatypes.Set[K] {
     mut res := a.clone()
-    for k, v in b {
-        res[k] = v
+    for k, _ in b.elements {
+        res.add(k)
     }
     return res
 }""")
 
         if "py_set_intersection" in self.used_builtins:
-             self.emitter.add_helper_function("""fn py_set_intersection[K](a map[K]bool, b map[K]bool) map[K]bool {
-    mut res := map[K]bool{}
-    for k, _ in a {
-        if k in b {
-            res[k] = true
+             self.emitter.add_helper_import("datatypes")
+             self.emitter.add_helper_function("""fn py_set_intersection[K](a datatypes.Set[K], b datatypes.Set[K]) datatypes.Set[K] {
+    mut res := datatypes.Set[K]{}
+    for k, _ in a.elements {
+        if k in b.elements {
+            res.add(k)
         }
     }
     return res
 }""")
 
         if "py_set_difference" in self.used_builtins:
-             self.emitter.add_helper_function("""fn py_set_difference[K](a map[K]bool, b map[K]bool) map[K]bool {
-    mut res := map[K]bool{}
-    for k, _ in a {
-        if k !in b {
-            res[k] = true
+             self.emitter.add_helper_import("datatypes")
+             self.emitter.add_helper_function("""fn py_set_difference[K](a datatypes.Set[K], b datatypes.Set[K]) datatypes.Set[K] {
+    mut res := datatypes.Set[K]{}
+    for k, _ in a.elements {
+        if k !in b.elements {
+            res.add(k)
         }
     }
     return res
 }""")
 
         if "py_set_xor" in self.used_builtins:
-             self.emitter.add_helper_function("""fn py_set_xor[K](a map[K]bool, b map[K]bool) map[K]bool {
-    mut res := map[K]bool{}
-    for k, _ in a {
-        if k !in b {
-            res[k] = true
+             self.emitter.add_helper_import("datatypes")
+             self.emitter.add_helper_function("""fn py_set_xor[K](a datatypes.Set[K], b datatypes.Set[K]) datatypes.Set[K] {
+    mut res := datatypes.Set[K]{}
+    for k, _ in a.elements {
+        if k !in b.elements {
+            res.add(k)
         }
     }
-    for k, _ in b {
-        if k !in a {
-            res[k] = true
+    for k, _ in b.elements {
+        if k !in a.elements {
+            res.add(k)
         }
     }
     return res
@@ -1570,8 +1574,39 @@ mut:
     }
 }""")
 
+
+        if 'py_set_from_list' in self.used_builtins:
+             self.emitter.add_helper_import('datatypes')
+             self.emitter.add_helper_function("pub fn py_set_from_list[K](a []K) datatypes.Set[K] { mut res := datatypes.Set[K]{}; for x in a { res.add(x) }; return res }")
+
+        if 'py_set_remove' in self.used_builtins:
+             self.emitter.add_helper_function("pub fn py_set_remove[K](mut a datatypes.Set[K], val K) { if val in a.elements { a.elements.delete(val) } else { panic('KeyError') } }")
+
+        if 'py_set_pop' in self.used_builtins:
+             self.emitter.add_helper_function("pub fn py_set_pop[K](mut a datatypes.Set[K]) K { for k, _ in a.elements { a.elements.delete(k); return k }; panic('KeyError') }")
+
+        if 'py_set_update' in self.used_builtins:
+             self.emitter.add_helper_function("pub fn py_set_update[K](mut a datatypes.Set[K], b datatypes.Set[K]) { for k, _ in b.elements { a.add(k) } }")
+
+
+        if 'py_set_strict_subset' in self.used_builtins:
+             self.emitter.add_helper_import('datatypes')
+             self.emitter.add_helper_function("pub fn py_set_strict_subset[K](a datatypes.Set[K], b datatypes.Set[K]) bool { return a.elements.len < b.elements.len && py_set_subset(a, b) }")
+
+        if 'py_set_strict_superset' in self.used_builtins:
+             self.emitter.add_helper_import('datatypes')
+             self.emitter.add_helper_function("pub fn py_set_strict_superset[K](a datatypes.Set[K], b datatypes.Set[K]) bool { return a.elements.len > b.elements.len && py_set_superset(a, b) }")
+        if 'py_set_subset' in self.used_builtins:
+             self.emitter.add_helper_function("pub fn py_set_subset[K](a datatypes.Set[K], b datatypes.Set[K]) bool { for k, _ in a.elements { if k !in b.elements { return false } }; return true }")
+
+        if 'py_set_superset' in self.used_builtins:
+             self.emitter.add_helper_function("pub fn py_set_superset[K](a datatypes.Set[K], b datatypes.Set[K]) bool { return py_set_subset(b, a) }")
+
+        if 'py_set_isdisjoint' in self.used_builtins:
+             self.emitter.add_helper_function("pub fn py_set_isdisjoint[K](a datatypes.Set[K], b datatypes.Set[K]) bool { for k, _ in a.elements { if k in b.elements { return false } }; return true }")
         if 'py_set_from_iter' in self.used_builtins:
-             self.emitter.add_helper_function("pub fn py_set_from_iter[U](mut it U) map[string]bool { mut res := map[string]bool{}; for { val := it.next() or { break }; res[val.str()] = true }; return res }")
+             self.emitter.add_helper_import('datatypes')
+             self.emitter.add_helper_function("pub fn py_set_from_iter[U](mut it U) datatypes.Set[string] { mut res := datatypes.Set[string]{}; for { val := it.next() or { break }; res.add(val.str()) }; return res }")
 
         if 'py_sum' in self.used_builtins:
              self.emitter.add_helper_function("pub fn py_sum[T](a []T) T { mut s := T{}; for x in a { s += x }; return s }")

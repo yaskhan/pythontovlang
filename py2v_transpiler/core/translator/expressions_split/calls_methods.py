@@ -11,6 +11,7 @@ class MethodCallsMixin:
         def _guess_type(self, node: ast.AST) -> str: ...
         def visit(self, node: ast.AST) -> str: ...
         used_builtins: Set[str]
+        emitter: Any
 
     def _handle_object_method_call(self, node: ast.Call, func_node: ast.AST, func_name_str: str, args: list) -> str | None:
         """Handle object method calls."""
@@ -36,7 +37,7 @@ class MethodCallsMixin:
         # list.clear() / dict.clear() / set.clear()
         elif attr == "clear":
             obj_type = self._guess_type(func_node.value)
-            if obj_type.startswith("map[") and obj_type.endswith("]bool"):
+            if (obj_type.startswith("map[") and obj_type.endswith("]bool")) or obj_type.startswith("datatypes.Set["):
                 return self._handle_set_methods(node, func_node, args)
             obj = self.visit(func_node.value)
             empty_val = "[]" if obj_type.startswith("[]") else "{}"
@@ -58,8 +59,8 @@ class MethodCallsMixin:
                 elif len(args) == 1:
                     self.used_builtins.add("py_list_pop_at")
                     return f"py_list_pop_at(mut {obj}, {args[0]})"
-            elif obj_type.startswith("map["):
-                if obj_type.endswith("]bool"):
+            elif obj_type.startswith("map[") or obj_type.startswith("datatypes.Set["):
+                if obj_type.endswith("]bool") or obj_type.startswith("datatypes.Set["):
                     self.used_builtins.add("py_set_pop")
                     return f"py_set_pop(mut {obj})"
                 if len(args) >= 1:
@@ -77,7 +78,7 @@ class MethodCallsMixin:
         # list.remove() / set.remove()
         elif attr == "remove" and len(args) == 1:
             obj_type = self._guess_type(func_node.value)
-            if obj_type.startswith("map[") and obj_type.endswith("]bool"):
+            if (obj_type.startswith("map[") and obj_type.endswith("]bool")) or obj_type.startswith("datatypes.Set["):
                 return self._handle_set_methods(node, func_node, args)
             if obj_type.startswith("[]") or obj_type == "Any":
                 obj = self.visit(func_node.value)
@@ -114,7 +115,7 @@ class MethodCallsMixin:
         elif attr == "update":
             obj_type = self._guess_type(func_node.value)
             # Try set.update first if it is a set or Any
-            if (obj_type.startswith("map[") and obj_type.endswith("]bool")) or obj_type == "Any":
+            if ((obj_type.startswith("map[") and obj_type.endswith("]bool")) or obj_type.startswith("datatypes.Set[")) or obj_type == "Any":
                 res = self._handle_set_methods(node, func_node, args)
                 if res: return res
             
@@ -355,7 +356,7 @@ class MethodCallsMixin:
         obj_type = self._guess_type(func_node.value)
         
         # Ensure it's a set (map[K]bool)
-        if not (obj_type.startswith("map[") and obj_type.endswith("]bool")):
+        if not ((obj_type.startswith("map[") and obj_type.endswith("]bool")) or obj_type.startswith("datatypes.Set[")):
             if obj_type == "Any":
                 if not isinstance(func_node.value, ast.Name) or not any(x in func_node.value.id.lower() for x in ("set", "s1", "s2", "s3")):
                     return None
@@ -363,18 +364,21 @@ class MethodCallsMixin:
                 return None
 
         if attr == "add" and len(args) == 1:
-            return f"{obj}[{args[0]}] = true"
+            self.emitter.add_import("datatypes")
+            return f"{obj}.add({args[0]})"
         elif attr == "remove" and len(args) == 1:
             obj_type = self._guess_type(func_node.value)
             self.used_builtins.add("py_set_remove")
             return f"py_set_remove(mut {obj}, {args[0]})"
         elif attr == "discard" and len(args) == 1:
-            return f"{obj}.delete({args[0]})"
+            self.emitter.add_import("datatypes")
+            return f"{obj}.elements.delete({args[0]})"
         elif attr == "pop" and len(args) == 0:
             self.used_builtins.add("py_set_pop")
             return f"py_set_pop(mut {obj})"
         elif attr == "clear" and len(args) == 0:
-            return f"/* {obj}.clear() */ {obj} = {{}}"
+            self.emitter.add_import("datatypes")
+            return f"{obj}.elements.clear()"
         elif attr == "copy" and len(args) == 0:
             return f"{obj}.clone()"
         
@@ -387,6 +391,7 @@ class MethodCallsMixin:
                 "symmetric_difference": "py_set_xor"
             }
             helper = helper_map[attr]
+            self.emitter.add_import("datatypes")
             self.used_builtins.add(helper)
             return f"{helper}({obj}, {args[0]})"
             
@@ -399,6 +404,7 @@ class MethodCallsMixin:
                 "symmetric_difference_update": "py_set_xor_update"
             }
             helper = helper_map[attr]
+            self.emitter.add_import("datatypes")
             self.used_builtins.add(helper)
             return f"{helper}(mut {obj}, {args[0]})"
             
@@ -410,6 +416,7 @@ class MethodCallsMixin:
                 "isdisjoint": "py_set_isdisjoint"
             }
             helper = helper_map[attr]
+            self.emitter.add_import("datatypes")
             self.used_builtins.add(helper)
             return f"{helper}({obj}, {args[0]})"
             

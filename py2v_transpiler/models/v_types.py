@@ -189,7 +189,7 @@ def _map_ast_type(node: ast.AST, self_name: str = "Self", allow_union: bool = Tr
         elif value_id in ('Set', 'set', 'FrozenSet', 'MutableSet', 'AbstractSet'):
             if mapped_args:
                 return f"map[{mapped_args[0]}]bool"
-            return "map[int]bool" # fallback
+            return "datatypes.Set[int]" # fallback
 
         elif value_id in ('Dict', 'dict', 'Mapping', 'MutableMapping'):
             if len(mapped_args) >= 2:
@@ -397,7 +397,7 @@ def _map_basic_type(name: str) -> str:
         'list': '[]int',
         'dict': 'map[string]int',
         'tuple': '[]int',
-        'set': 'map[int]bool',
+        'set': 'datatypes.Set[int]',
         'memoryview': '[]u8',
         'bytearray': '[]u8',
         'IO': 'os.File',
@@ -410,7 +410,7 @@ def _map_basic_type(name: str) -> str:
         'List': '[]Any',
         'Dict': 'map[string]Any',
         'Tuple': '[]Any',
-        'Set': 'map[string]bool',
+        'Set': 'datatypes.Set[string]',
         'Optional': '?Any',
         'Union': 'Any',
         'Callable': 'fn (...Any) Any',
@@ -423,7 +423,7 @@ def _map_basic_type(name: str) -> str:
         'typing.List': '[]Any',
         'typing.Dict': 'map[string]Any',
         'typing.Tuple': '[]Any',
-        'typing.Set': 'map[string]bool',
+        'typing.Set': 'datatypes.Set[string]',
         'typing.Optional': '?Any',
         'typing.Union': 'Any',
         'typing.Callable': 'fn (...Any) Any',
