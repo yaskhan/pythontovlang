@@ -31,3 +31,7 @@ args = "mypy py2v_transpiler/core py2v_transpiler/models py2v_transpiler/stdlib_
 
 [workflows.workflow.metadata]
 outputType = "console"
+
+[postMerge]
+path = "scripts/post-merge.sh"
+timeoutMs = 60000
