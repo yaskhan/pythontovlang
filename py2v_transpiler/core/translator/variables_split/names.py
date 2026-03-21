@@ -17,16 +17,24 @@ class NamesMixin(TranslatorBase):
         # Name mangling for class-private attributes
         name = self._mangle_name(node.id, self.current_class)
 
+        # Handle defined classes by preserving casing or using PascalCase
+        if name in getattr(self, "defined_classes", {}):
+             return self._sanitize_name(name, is_type=True)
+
         # Avoid prefixing local variables in SCC
         res = self._sanitize_name(name)
+
+        # Local and global variable lookup with snake_case support
+        # We check both the original name and its snake_case version
+        s_name = self._to_snake_case(name)
         if name in self._local_vars_in_scope:
             res = self._sanitize_name(name)
-        elif self._to_snake_case(name) in self._local_vars_in_scope and name not in getattr(self, "defined_classes", {}):
-            res = self._sanitize_name(self._to_snake_case(name))
+        elif s_name in self._local_vars_in_scope:
+            res = self._sanitize_name(s_name)
         elif name in getattr(self, "global_vars", set()):
             res = self._sanitize_name(name)
-        elif self._to_snake_case(name) in getattr(self, "global_vars", set()) and name not in getattr(self, "defined_classes", {}):
-            res = self._sanitize_name(self._to_snake_case(name))
+        elif s_name in getattr(self, "global_vars", set()):
+            res = self._sanitize_name(s_name)
 
 
         # Apply narrowing if mypy type differs from base type

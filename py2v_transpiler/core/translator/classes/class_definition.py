@@ -405,7 +405,7 @@ class ClassDefinitionHandler:
                 self.translator.emitter.add_struct("\n".join(meta_parts))
                 
                 # Emit the singleton instance
-                meta_const_name = f"{orig_struct_name}_meta"
+                meta_const_name = f"{self.translator._to_snake_case(orig_struct_name)}_meta"
                 self.translator.emitter.add_constant(f"pub {meta_const_name} = &{meta_struct_name}{{}}")
 
             # Rename dunder methods

@@ -451,7 +451,7 @@ class AssignmentsMixin(TranslatorBase):
 
             if is_interface_array and isinstance(node.value, (ast.List, ast.Tuple)) and node.value.elts:
                 # To initialize interface arrays, V requires using `mut arr := []Interface{}` then `arr << ...`
-                v_lhs = self._to_snake_case(lhs) if (isinstance(target, ast.Name) and not lhs.islower()) else lhs
+                v_lhs = lhs
                 if not self.in_main and v_lhs in self._local_vars_in_scope:
                     self.output.append(f"{self._indent()}{v_lhs} = {v_type}{{}}")
                 else:
@@ -468,7 +468,7 @@ class AssignmentsMixin(TranslatorBase):
                 # We emit:
                 # mut arr := []T{cap: N}
                 # arr << x ...
-                v_lhs = self._to_snake_case(lhs) if (isinstance(target, ast.Name) and not lhs.islower()) else lhs
+                v_lhs = lhs
                 if not self.in_main and v_lhs in self._local_vars_in_scope:
                     self.output.append(f"{self._indent()}{v_lhs} = {v_type}{{cap: {cap}}}")
                 else:
@@ -490,7 +490,7 @@ class AssignmentsMixin(TranslatorBase):
                         pairs.append(f"{key_str}: {val_str}")
 
                 rhs = f"{v_type}{{{', '.join(pairs)}}}"
-                v_lhs = self._to_snake_case(lhs) if (isinstance(target, ast.Name) and not lhs.islower()) else lhs
+                v_lhs = lhs
                 if not self.in_main and v_lhs in self._local_vars_in_scope:
                     self.output.append(f"{self._indent()}{v_lhs} = {rhs}")
                 else:
@@ -562,7 +562,7 @@ class AssignmentsMixin(TranslatorBase):
                     elif base_lhs.isupper():
                         emit_fn = lambda stmt: self.emitter.add_init_statement(stmt.strip())
                         if isinstance(target, ast.Name):
-                            v_lhs = self._to_snake_case(lhs)
+                            v_lhs = lhs
                             if self._is_compile_time_evaluable(node.value):
                                 # Compile-time constant (e.g. DEFAULT_WIDTH = 100) -> const block
                                 pub = "pub " if self._is_exported(target.id) else ""
@@ -576,7 +576,7 @@ class AssignmentsMixin(TranslatorBase):
                                 lhs = v_lhs
 
                 if self.in_main and isinstance(target, ast.Name) and (lhs in getattr(self, "global_vars", set()) or lhs.isupper() or is_implicit_literal or is_literal_string):
-                    v_lhs = self._to_snake_case(lhs) if not lhs.islower() else lhs
+                    v_lhs = lhs
                     # For compile-time constants we already returned above - assignment not needed
                     if (is_implicit_literal or is_literal_string) and self._is_compile_time_evaluable(node.value) and not lhs.isupper():
                         pub = "pub " if self._is_exported(target.id) else ""
@@ -592,7 +592,7 @@ class AssignmentsMixin(TranslatorBase):
                 elif rhs == "none":
                     # v_type might be defined above if we were checking is_simple_list, but let's be safe
                     local_v_type = getattr(self, "_guess_type", lambda x: "unknown")(target)
-                    v_lhs = self._to_snake_case(lhs) if (isinstance(target, ast.Name) and not lhs.islower()) else lhs
+                    v_lhs = lhs
                     if not self.in_main and v_lhs in self._local_vars_in_scope:
                         if local_v_type == "Any" or (local_v_type.startswith("map[") and local_v_type.endswith("]Any")):
                             emit_fn(f"{self._indent()}{v_lhs} = Any(NoneType{{}})")
@@ -618,11 +618,11 @@ class AssignmentsMixin(TranslatorBase):
                             emit_fn(f"{self._indent()}mut {v_lhs} := Any(NoneType{{}})")
                         if not self.in_main: self._local_vars_in_scope.add(v_lhs)
                 else:
-                    v_lhs = self._to_snake_case(lhs) if (isinstance(target, ast.Name) and not lhs.islower()) else lhs
+                    v_lhs = lhs
                     if isinstance(target, ast.Attribute) or isinstance(target, ast.Subscript):
                         emit_fn(f"{self._indent()}{lhs} = {rhs}")
                     else:
-                        v_lhs = self._to_snake_case(lhs) if not lhs.islower() else lhs
+                        v_lhs = lhs
                         if emit_fn == self.output.append:
                             if not self.in_main and v_lhs in self._local_vars_in_scope:
                                 emit_fn(f"{self._indent()}{v_lhs} = {rhs}")

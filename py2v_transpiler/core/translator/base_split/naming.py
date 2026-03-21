@@ -19,13 +19,23 @@ class NamingMixin:
         def _get_scc_prefix(self, file_path: str) -> str: ...
 
     def _to_snake_case(self, name: str) -> str:
-        """Converts CamelCase or UPPER_CASE to snake_case."""
+        """Converts CamelCase or UPPER_CASE to snake_case and strips leading underscores."""
         if not name:
             return name
 
+        if name == "_":
+            return "_"
+
+        # Strip leading underscores for V compliance
+        # (V does not allow identifiers starting with underscore except for single '_')
+        name = name.lstrip('_')
+        if not name:
+            return "_"
+
         # Handle already separated names
         if '_' in name:
-            return "_".join(self._to_snake_case(p) for p in name.split('_') if p)
+            parts = [self._to_snake_case(p) for p in name.split('_') if p]
+            return "_".join(parts) if parts else "_"
 
         if name.isupper():
             return name.lower()
@@ -63,20 +73,41 @@ class NamingMixin:
     def _sanitize_name(self, name: str, is_type: bool = False) -> str:
         """
         Sanitizes Python identifiers that collide with V lang reserved keywords
-        or other files in the same SCC cluster.
+        or other files in the same SCC cluster. Enforces V naming conventions.
         """
-        compatibility = getattr(self, 'compatibility', None)
-        if compatibility and compatibility.is_v_reserved(name):
-            if is_type and name == "Any":
-                return name
-            return f"py_{name}"
+        if not name:
+            return name
 
         if is_type:
-            # V types (structs) must be Capitalized
-            if name.startswith('_'):
-                name = name.lstrip('_')
-            if name and name[0].islower():
-                name = name[0].upper() + name[1:]
+            # V types (structs) must be PascalCase and no leading underscore
+            name = name.lstrip('_')
+            if not name:
+                 return "UnderscoreType" # Fallback
+
+            # Convert snake_case or already PascalCase to proper PascalCase
+            parts = [p[0].upper() + p[1:] if len(p) > 1 else p.upper() for p in name.split('_') if p]
+            if not parts:
+                name = name[0].upper() + name[1:] if name else ""
+            else:
+                name = "".join(parts)
+
+            # Handle reserved type names
+            if name == "Any":
+                return "Any"
+
+            compatibility = getattr(self, 'compatibility', None)
+            if compatibility and compatibility.is_v_reserved(name):
+                 return f"Py{name}"
+
+            return name
+
+        # For variables, functions, methods: use snake_case and no leading underscore
+        if name != "_":
+            name = self._to_snake_case(name)
+
+        compatibility = getattr(self, 'compatibility', None)
+        if compatibility and compatibility.is_v_reserved(name):
+            return f"py_{name}"
 
         # Naming collision resolution for SCC flattened modules
         current_file_name = getattr(self, 'current_file_name', '')
@@ -84,6 +115,8 @@ class NamingMixin:
         if current_file_name and len(scc_files) > 1 and not getattr(self, 'current_class', None):
             if not name.startswith("__") and name not in self._local_vars_in_scope:
                 prefix = self._get_scc_prefix(current_file_name)
+                # Note: prefix should also be snake_case without leading underscore
+                prefix = self._to_snake_case(prefix)
                 if not name.startswith(prefix + "__"):
                     return f"{prefix}__{name}"
 
@@ -98,12 +131,15 @@ class NamingMixin:
     def _mangle_name(self, name: str, class_name: Optional[str]) -> str:
         """
         Implements Python's name mangling rules for private attributes.
-        If name starts with __ (and not ends with __) and class_name is provided,
-        it becomes _ClassName__name.
+        Returns a snake_case name without leading underscores for V compatibility.
+        Instead of __ClassName_attr, we use ClassName_attr or class_name_attr.
         """
         if class_name and name.startswith("__") and not name.endswith("__"):
-            stripped_cls = class_name.lstrip('_')
-            return f"__{stripped_cls}_{name.lstrip('_')}"
+            # Use a V-safe format: {sanitized_class}_{sanitized_name}
+            # Both will be snake_case
+            s_class = self._to_snake_case(class_name)
+            s_name = self._to_snake_case(name)
+            return f"{s_class}_{s_name}"
         return name
 
     def _find_defining_class_for_static_method(

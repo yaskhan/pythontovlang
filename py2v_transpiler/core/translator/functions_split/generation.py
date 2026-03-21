@@ -200,8 +200,8 @@ class FunctionGenerationMixin:
 
         # Check for __new__ or other static-like methods that might have 'cls'
         is_new_method = False
-        original_node_name = node.name
-        if node.name == "__new__":
+        original_node_name = getattr(node, "original_name", node.name)
+        if original_node_name == "__new__":
             is_new_method = True
             if args and args[0].arg == "cls":
                 args = args[1:]
@@ -406,15 +406,15 @@ class FunctionGenerationMixin:
                 func_name = "next"
                 if ret_type != "void" and not ret_type.startswith("?"):
                     ret_type = f"?{ret_type}"
-            elif func_name in ("__enter__", "__aenter__"):
+            elif original_node_name in ("__enter__", "__aenter__"):
                 func_name = "enter"
-            elif func_name in ("__exit__", "__aexit__"):
+            elif original_node_name in ("__exit__", "__aexit__"):
                 func_name = "exit"
-            elif func_name == "__post_init__":
+            elif original_node_name == "__post_init__":
                 func_name = "post_init"
-            elif func_name == "__await__":
+            elif original_node_name == "__await__":
                 func_name = "await_"
-            elif func_name == "__iter__":
+            elif original_node_name == "__iter__":
                 func_name = "__iter__"
 
             # Check if this is the implementation of an overloaded function
@@ -427,15 +427,15 @@ class FunctionGenerationMixin:
 
             self.function_names.add(func_name)
 
-            if func_name == "__get__":
+            if original_node_name == "__get__":
                 func_name = "get"
-            elif func_name == "__set__":
+            elif original_node_name == "__set__":
                 func_name = "set"
-            elif func_name == "__delete__":
+            elif original_node_name == "__delete__":
                 func_name = "delete"
-            elif func_name == "__len__":
+            elif original_node_name == "__len__":
                 func_name = "len"
-            elif func_name == "__getitem__":
+            elif original_node_name == "__getitem__":
                 func_name = "idx"
 
             if dec_info.is_setter:
@@ -449,9 +449,9 @@ class FunctionGenerationMixin:
             if func_name in self.renamed_functions:
                 func_name = self.renamed_functions[func_name]
 
-        if node.name == "__str__" or getattr(node, "original_name", "") == "__str__":
+        if original_node_name == "__str__":
             func_name = "str"
-        elif node.name == "__repr__" or getattr(node, "original_name", "") == "__repr__":
+        elif original_node_name == "__repr__":
             if func_name != "str":
                 func_name = "repr"
 
@@ -464,10 +464,10 @@ class FunctionGenerationMixin:
             func_name = dec_info.implementation_name
 
         is_init = False
-        if "decl" not in locals() and func_name == "__init_subclass__":
+        if "decl" not in locals() and original_node_name == "__init_subclass__":
             receiver_str = ""
             func_name = "init_subclass"
-        elif func_name == "__init__":
+        elif original_node_name == "__init__":
             class_info = self.defined_classes.get(struct_name, {})
             is_pydantic = class_info.get("is_pydantic", False)
             if class_info.get("has_new"):
@@ -505,7 +505,7 @@ class FunctionGenerationMixin:
             else:
                 deprecated_attr = "@[deprecated]\n"
 
-        elif is_method and func_name in (
+        elif is_method and original_node_name in (
             "__add__",
             "__sub__",
             "__mul__",
@@ -528,19 +528,19 @@ class FunctionGenerationMixin:
                 "__eq__": "==",
                 "__ne__": "!=",
             }
-            op = op_map.get(func_name)
+            op = op_map.get(original_node_name)
             if op:
                 func_name = op
                 if ret_type == "void":
                     decl = f"{deprecated_attr}fn {receiver_str}{op} ({args_str}) {{"
                 else:
                     decl = f"{deprecated_attr}fn {receiver_str}{op} ({args_str}) {ret_type} {{"
-        elif func_name in ("__str__", "__repr__"):
+        elif original_node_name in ("__str__", "__repr__"):
             func_name = "str"
             decl = f"{deprecated_attr}fn {receiver_str}{func_name}() string {{"
-        elif func_name == "__str__":
+        elif original_node_name == "__str__":
             decl = f"{noreturn_attr}{deprecated_attr}{pub_prefix}fn {receiver_str}str() string {{"
-        elif func_name in ("__iter__", "iter"):
+        elif original_node_name in ("__iter__", "iter"):
             func_name = "iter"
             if ret_type == "void" and struct_name:
                 ret_type = self._get_full_self_type(struct_name)
@@ -575,9 +575,9 @@ class FunctionGenerationMixin:
                 else:
                     decl = f"{self._indent()}mut {func_name} {decl_op} fn {capture_str}({args_str}) {ret_type} {{"
 
-                if getattr(node, "original_name", "") == "__str__":
+                if original_node_name == "__str__":
                     decl = f"{self._indent()}fn {receiver_str}str() string {{"
-                elif getattr(node, "original_name", "") == "__repr__":
+                elif original_node_name == "__repr__":
                     decl = f"{self._indent()}fn {receiver_str}repr() string {{"
             else:
                 if ret_type == "void":
