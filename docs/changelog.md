@@ -33,7 +33,7 @@ Latest commits not yet grouped into a release tag. See [commits on GitHub](https
 - **Core Stability**: Resolved all 811 tests in the transpiler test suite.
 
 ### Refactored
-- **AST Module**: Renamed `py2v_transpiler/parser` to `py2v_transpiler/ast` for better alignment with project goals.
+- **AST Module**: Renamed `vlangtr/parser` to `vlangtr/ast` for better alignment with project goals.
 
 ---
 

@@ -3,26 +3,26 @@ module ast
 // ==================== PARSER ====================
 
 // Operator precedence levels
-const prec_lowest      = 0
-const prec_or          = 1
-const prec_and         = 2
-const prec_not         = 3
-const prec_compare     = 4
-const prec_bitor       = 5
-const prec_bitxor      = 6
-const prec_bitand      = 7
-const prec_shift       = 8
-const prec_add         = 9
-const prec_mul         = 10
-const prec_unary       = 11
-const prec_power       = 12
-const prec_call        = 13
+const prec_lowest = 0
+const prec_or = 1
+const prec_and = 2
+const prec_not = 3
+const prec_compare = 4
+const prec_bitor = 5
+const prec_bitxor = 6
+const prec_bitand = 7
+const prec_shift = 8
+const prec_add = 9
+const prec_mul = 10
+const prec_unary = 11
+const prec_power = 12
+const prec_call = 13
 
 pub struct Parser {
 pub mut:
 	lexer         Lexer
 	current_token Token
-	peek_tok       Token
+	peek_tok      Token
 	errors        []ParseError
 }
 
@@ -34,7 +34,8 @@ pub fn new_parser(lexer Lexer) Parser {
 	p.current_token = p.lexer.next_token()
 	p.peek_tok = p.lexer.next_token()
 	// Skip initial newlines
-	for p.current_token.typ == .newline || p.current_token.typ == .indent || p.current_token.typ == .dedent {
+	for p.current_token.typ == .newline || p.current_token.typ == .indent
+		|| p.current_token.typ == .dedent {
 		p.advance()
 	}
 	return p
@@ -130,7 +131,11 @@ pub fn (mut p Parser) parse_module() Module {
 			p.skip_newlines()
 		}
 	}
-	return Module{token: tok, body: body, filename: tok.filename}
+	return Module{
+		token:    tok
+		body:     body
+		filename: tok.filename
+	}
 }
 
 // ──────────────────────────────────────────────────
@@ -153,42 +158,85 @@ fn (mut p Parser) parse_statement() ?Statement {
 	}
 
 	match true {
-		p.current_is_keyword('def')      { return p.parse_function_def(false) }
-		p.current_is_keyword('class')    { return p.parse_class_def() }
-		p.current_is_keyword('if')       { return p.parse_if() }
-		p.current_is_keyword('while')    { return p.parse_while() }
-		p.current_is_keyword('for')      { return p.parse_for(false) }
-		p.current_is_keyword('with')     { return p.parse_with(false) }
-		p.current_is_keyword('try')      { return p.parse_try() }
+		p.current_is_keyword('def') {
+			return p.parse_function_def(false)
+		}
+		p.current_is_keyword('class') {
+			return p.parse_class_def()
+		}
+		p.current_is_keyword('if') {
+			return p.parse_if()
+		}
+		p.current_is_keyword('while') {
+			return p.parse_while()
+		}
+		p.current_is_keyword('for') {
+			return p.parse_for(false)
+		}
+		p.current_is_keyword('with') {
+			return p.parse_with(false)
+		}
+		p.current_is_keyword('try') {
+			return p.parse_try()
+		}
 		p.current_token.value == 'type' && p.peek_tok.typ == .identifier {
 			res := p.parse_type_alias() or { return none }
 			return Statement(res)
 		}
-		p.current_token.value == 'match' && p.is_match_stmt() { return p.parse_match() }
-		p.current_is_keyword('return')   { return p.parse_return() }
-		p.current_is_keyword('import')   { return p.parse_import() }
-		p.current_is_keyword('from')     { return p.parse_import_from() }
-		p.current_is_keyword('global')   { return p.parse_global() }
-		p.current_is_keyword('nonlocal') { return p.parse_nonlocal() }
-		p.current_is_keyword('assert')   { return p.parse_assert() }
-		p.current_is_keyword('raise')    { return p.parse_raise() }
-		p.current_is_keyword('del')      { return p.parse_delete() }
-		p.current_is_keyword('pass')     {
-			s := Pass{token: tok}
-			p.advance(); p.skip_newlines()
+		p.current_token.value == 'match' && p.is_match_stmt() {
+			return p.parse_match()
+		}
+		p.current_is_keyword('return') {
+			return p.parse_return()
+		}
+		p.current_is_keyword('import') {
+			return p.parse_import()
+		}
+		p.current_is_keyword('from') {
+			return p.parse_import_from()
+		}
+		p.current_is_keyword('global') {
+			return p.parse_global()
+		}
+		p.current_is_keyword('nonlocal') {
+			return p.parse_nonlocal()
+		}
+		p.current_is_keyword('assert') {
+			return p.parse_assert()
+		}
+		p.current_is_keyword('raise') {
+			return p.parse_raise()
+		}
+		p.current_is_keyword('del') {
+			return p.parse_delete()
+		}
+		p.current_is_keyword('pass') {
+			s := Pass{
+				token: tok
+			}
+			p.advance()
+			p.skip_newlines()
 			return s
 		}
-		p.current_is_keyword('break')    {
-			s := Break{token: tok}
-			p.advance(); p.skip_newlines()
+		p.current_is_keyword('break') {
+			s := Break{
+				token: tok
+			}
+			p.advance()
+			p.skip_newlines()
 			return s
 		}
 		p.current_is_keyword('continue') {
-			s := Continue{token: tok}
-			p.advance(); p.skip_newlines()
+			s := Continue{
+				token: tok
+			}
+			p.advance()
+			p.skip_newlines()
 			return s
 		}
-		else { return p.parse_expression_stmt() }
+		else {
+			return p.parse_expression_stmt()
+		}
 	}
 	_ = tok
 	return none
@@ -210,7 +258,9 @@ fn (mut p Parser) parse_block() []Statement {
 
 	for !p.current_is(.dedent) && !p.current_is(.eof) {
 		p.skip_newlines()
-		if p.current_is(.dedent) || p.current_is(.eof) { break }
+		if p.current_is(.dedent) || p.current_is(.eof) {
+			break
+		}
 		if stmt := p.parse_statement() {
 			stmts << stmt
 		} else {
@@ -240,18 +290,27 @@ fn (mut p Parser) parse_decorated() ?Statement {
 	if p.current_is_keyword('def') {
 		mut fd := p.parse_function_def(false)?
 		if mut fd is FunctionDef {
-			return FunctionDef{...fd, decorator_list: decorators}
+			return FunctionDef{
+				...fd
+				decorator_list: decorators
+			}
 		}
 		return fd
 	}
 	if p.current_is_keyword('class') {
 		mut cd := p.parse_class_def()?
 		if mut cd is ClassDef {
-			return ClassDef{...cd, decorator_list: decorators}
+			return ClassDef{
+				...cd
+				decorator_list: decorators
+			}
 		}
 		return cd
 	}
-	p.errors << ParseError{message: 'expected def or class after decorator', token: p.current_token}
+	p.errors << ParseError{
+		message: 'expected def or class after decorator'
+		token:   p.current_token
+	}
 	return none
 }
 
@@ -267,7 +326,10 @@ fn (mut p Parser) parse_async_stmt() ?Statement {
 	if p.current_is_keyword('with') {
 		return p.parse_with(true)
 	}
-	p.errors << ParseError{message: 'expected def/for/with after async', token: p.current_token}
+	p.errors << ParseError{
+		message: 'expected def/for/with after async'
+		token:   p.current_token
+	}
 	return none
 }
 
@@ -278,7 +340,7 @@ fn (mut p Parser) parse_type_params() []TypeParam {
 		for !p.current_is(.rbracket) && !p.current_is(.eof) {
 			tok := p.current_token
 			mut kind := TypeParamKind.typevar
-			
+
 			if p.current_is(.operator) && p.current_token.value == '*' {
 				p.advance()
 				if p.current_is(.operator) && p.current_token.value == '*' {
@@ -288,31 +350,31 @@ fn (mut p Parser) parse_type_params() []TypeParam {
 					kind = .typevartuple
 				}
 			}
-			
+
 			name := p.current_token.value
 			p.expect(.identifier)
-			
+
 			mut bound := ?Expression(none)
 			mut def_val := ?Expression(none)
-			
+
 			if p.current_is(.colon) {
 				p.advance()
 				bound = p.parse_expression()
 			}
-			
+
 			if p.current_is(.operator) && p.current_token.value == '=' {
 				p.advance()
 				def_val = p.parse_expression()
 			}
-			
+
 			params << TypeParam{
-				token: tok
-				name: name
-				bound: bound
+				token:    tok
+				name:     name
+				bound:    bound
 				default_: def_val
-				kind: kind
+				kind:     kind
 			}
-			
+
 			if p.current_is(.comma) {
 				p.advance()
 			} else {
@@ -338,12 +400,12 @@ fn (mut p Parser) parse_function_def(is_async bool) ?Statement {
 	}
 	body := p.parse_block()
 	return FunctionDef{
-		token:    tok
-		name:     name
-		args:     args
-		body:     body
-		returns:  returns
-		is_async: is_async
+		token:       tok
+		name:        name
+		args:        args
+		body:        body
+		returns:     returns
+		is_async:    is_async
 		type_params: type_params
 	}
 }
@@ -357,10 +419,10 @@ fn (mut p Parser) parse_type_alias() ?TypeAlias {
 	p.expect_op('=')
 	value := p.parse_expression() or { return none }
 	return TypeAlias{
-		token: tok
-		name: name
+		token:       tok
+		name:        name
 		type_params: type_params
-		value: value
+		value:       value
 	}
 }
 
@@ -374,7 +436,9 @@ fn (mut p Parser) parse_parameters(terminator TokenType, allow_annotations bool)
 	}
 
 	if p.current_is(terminator) {
-		if terminator == .rparen { p.advance() }
+		if terminator == .rparen {
+			p.advance()
+		}
 		return res
 	}
 
@@ -404,8 +468,8 @@ fn (mut p Parser) parse_parameters(terminator TokenType, allow_annotations bool)
 					annotation = p.parse_expression()
 				}
 				res.vararg = Parameter{
-					token: tok
-					arg: name
+					token:      tok
+					arg:        name
 					annotation: annotation
 				}
 				is_kwonly = true
@@ -422,8 +486,8 @@ fn (mut p Parser) parse_parameters(terminator TokenType, allow_annotations bool)
 				annotation = p.parse_expression()
 			}
 			res.kwarg = Parameter{
-				token: tok
-				arg: name
+				token:      tok
+				arg:        name
 				annotation: annotation
 			}
 			// **kwargs must be last
@@ -442,16 +506,18 @@ fn (mut p Parser) parse_parameters(terminator TokenType, allow_annotations bool)
 				default_ = p.parse_expression()
 			}
 			current_args << Parameter{
-				token: tok
-				arg: name
+				token:      tok
+				arg:        name
 				annotation: annotation
-				default_: default_
+				default_:   default_
 			}
 		}
 
 		if p.current_is(.comma) {
 			p.advance()
-			if p.current_is(terminator) { break }
+			if p.current_is(terminator) {
+				break
+			}
 		} else {
 			break
 		}
@@ -484,28 +550,46 @@ fn (mut p Parser) parse_class_def() ?Statement {
 			// keyword arg: metaclass=Meta
 			if p.current_is(.identifier) && p.peek_is(.operator) && p.peek_tok.value == '=' {
 				kw_name := p.current_token.value
-				p.advance(); p.advance()
+				p.advance()
+				p.advance()
 				if val := p.parse_expression() {
-					kwd_args << KeywordArg{arg: kw_name, value: val}
+					kwd_args << KeywordArg{
+						arg:   kw_name
+						value: val
+					}
 				}
 			} else {
 				if expr := p.parse_expression() {
 					bases << expr
 				}
 			}
-			if p.current_is(.comma) { p.advance() } else { break }
+			if p.current_is(.comma) {
+				p.advance()
+			} else {
+				break
+			}
 		}
 		p.expect(.rparen)
 	}
 	body := p.parse_block()
-	return ClassDef{token: tok, name: name, bases: bases, keywords: kwd_args, body: body, type_params: type_params}
+	return ClassDef{
+		token:       tok
+		name:        name
+		bases:       bases
+		keywords:    kwd_args
+		body:        body
+		type_params: type_params
+	}
 }
 
 fn (mut p Parser) parse_if() ?Statement {
 	tok := p.current_token
 	p.advance() // skip 'if'
 	test := p.parse_expression() or {
-		p.errors << ParseError{message: 'expected condition in if', token: tok}
+		p.errors << ParseError{
+			message: 'expected condition in if'
+			token:   tok
+		}
 		return none
 	}
 	body := p.parse_block()
@@ -519,7 +603,12 @@ fn (mut p Parser) parse_if() ?Statement {
 		p.advance()
 		orelse = p.parse_block()
 	}
-	return If{token: tok, test: test, body: body, orelse: orelse}
+	return If{
+		token:  tok
+		test:   test
+		body:   body
+		orelse: orelse
+	}
 }
 
 fn (mut p Parser) parse_if_elif() ?Statement {
@@ -530,12 +619,19 @@ fn (mut p Parser) parse_if_elif() ?Statement {
 	mut orelse := []Statement{}
 	p.skip_newlines()
 	if p.current_is_keyword('elif') {
-		if stmt := p.parse_if_elif() { orelse << stmt }
+		if stmt := p.parse_if_elif() {
+			orelse << stmt
+		}
 	} else if p.current_is_keyword('else') {
 		p.advance()
 		orelse = p.parse_block()
 	}
-	return If{token: tok, test: test, body: body, orelse: orelse}
+	return If{
+		token:  tok
+		test:   test
+		body:   body
+		orelse: orelse
+	}
 }
 
 fn (mut p Parser) parse_while() ?Statement {
@@ -549,7 +645,12 @@ fn (mut p Parser) parse_while() ?Statement {
 		p.advance()
 		orelse = p.parse_block()
 	}
-	return While{token: tok, test: test, body: body, orelse: orelse}
+	return While{
+		token:  tok
+		test:   test
+		body:   body
+		orelse: orelse
+	}
 }
 
 fn (mut p Parser) parse_for(is_async bool) ?Statement {
@@ -566,7 +667,14 @@ fn (mut p Parser) parse_for(is_async bool) ?Statement {
 		p.advance()
 		orelse = p.parse_block()
 	}
-	return For{token: tok, target: target, iter: iter, body: body, orelse: orelse, is_async: is_async}
+	return For{
+		token:    tok
+		target:   target
+		iter:     iter
+		body:     body
+		orelse:   orelse
+		is_async: is_async
+	}
 }
 
 fn (mut p Parser) parse_with(is_async bool) ?Statement {
@@ -591,7 +699,7 @@ fn (mut p Parser) parse_with(is_async bool) ?Statement {
 			}
 		}
 		items << WithItem{
-			context_expr: ctx
+			context_expr:  ctx
 			optional_vars: opt_vars
 		}
 		if p.current_is(.comma) {
@@ -604,7 +712,12 @@ fn (mut p Parser) parse_with(is_async bool) ?Statement {
 		p.expect(.rparen)
 	}
 	body := p.parse_block()
-	return With{token: tok, items: items, body: body, is_async: is_async}
+	return With{
+		token:    tok
+		items:    items
+		body:     body
+		is_async: is_async
+	}
 }
 
 fn (mut p Parser) parse_try() ?Statement {
@@ -615,9 +728,9 @@ fn (mut p Parser) parse_try() ?Statement {
 	mut orelse := []Statement{}
 	mut finalbody := []Statement{}
 	mut is_star := false
-	
+
 	p.skip_newlines()
-	
+
 	// Check if the first handler is except*
 	if p.current_is_keyword('except') && p.peek_is(.operator) && p.peek_tok.value == '*' {
 		is_star = true
@@ -626,7 +739,7 @@ fn (mut p Parser) parse_try() ?Statement {
 	for p.current_is_keyword('except') {
 		htok := p.current_token
 		p.advance()
-		
+
 		if is_star {
 			if p.current_is(.operator) && p.current_token.value == '*' {
 				p.advance()
@@ -646,10 +759,15 @@ fn (mut p Parser) parse_try() ?Statement {
 			}
 		}
 		hbody := p.parse_block()
-		handlers << ExceptHandler{token: htok, typ: typ, name: hname, body: hbody}
+		handlers << ExceptHandler{
+			token: htok
+			typ:   typ
+			name:  hname
+			body:  hbody
+		}
 		p.skip_newlines()
 	}
-	
+
 	if p.current_is_keyword('else') {
 		p.advance()
 		orelse = p.parse_block()
@@ -662,19 +780,19 @@ fn (mut p Parser) parse_try() ?Statement {
 
 	if is_star {
 		return TryStar{
-			token: tok
-			body: body
-			handlers: handlers
-			orelse: orelse
+			token:     tok
+			body:      body
+			handlers:  handlers
+			orelse:    orelse
 			finalbody: finalbody
 		}
 	}
 
 	return Try{
-		token: tok
-		body: body
-		handlers: handlers
-		orelse: orelse
+		token:     tok
+		body:      body
+		handlers:  handlers
+		orelse:    orelse
 		finalbody: finalbody
 	}
 }
@@ -682,7 +800,8 @@ fn (mut p Parser) parse_try() ?Statement {
 fn (mut p Parser) is_match_stmt() bool {
 	// Simple heuristic for soft keyword 'match':
 	// If it's followed by an assignment operator, it's an identifier.
-	if p.peek_tok.typ == .operator && p.peek_tok.value in ['=', '+=', '-=', '*=', '/=', '//=', '%=', '**=', '&=', '|=', '^=', '>>=', '<<=', '@='] {
+	if p.peek_tok.typ == .operator
+		&& p.peek_tok.value in ['=', '+=', '-=', '*=', '/=', '//=', '%=', '**=', '&=', '|=', '^=', '>>=', '<<=', '@='] {
 		return false
 	}
 	// Also if it's 'match' followed by ':' immediately? No, match subject:
@@ -699,9 +818,12 @@ fn (mut p Parser) parse_match() ?Statement {
 	mut cases := []MatchCase{}
 	for !p.current_is(.dedent) && !p.current_is(.eof) {
 		p.skip_newlines()
-		if p.current_is(.dedent) || p.current_is(.eof) { break }
+		if p.current_is(.dedent) || p.current_is(.eof) {
+			break
+		}
 		if p.current_token.value != 'case' {
-			p.advance(); continue
+			p.advance()
+			continue
 		}
 		p.advance() // skip 'case'
 		pattern := p.parse_pattern()
@@ -711,11 +833,21 @@ fn (mut p Parser) parse_match() ?Statement {
 			guard = p.parse_expression()
 		}
 		cbody := p.parse_block()
-		cases << MatchCase{pattern: pattern, guard: guard, body: cbody}
+		cases << MatchCase{
+			pattern: pattern
+			guard:   guard
+			body:    cbody
+		}
 		p.skip_newlines()
 	}
-	if p.current_is(.dedent) { p.advance() }
-	return Match{token: tok, subject: subject, cases: cases}
+	if p.current_is(.dedent) {
+		p.advance()
+	}
+	return Match{
+		token:   tok
+		subject: subject
+		cases:   cases
+	}
 }
 
 fn (mut p Parser) parse_return() ?Statement {
@@ -755,77 +887,147 @@ fn (mut p Parser) parse_import() ?Statement {
 			asname = p.current_token.value
 			p.advance()
 		}
-		names << Alias{name: name, asname: asname}
-		if p.current_is(.comma) { p.advance() } else { break }
+		names << Alias{
+			name:   name
+			asname: asname
+		}
+		if p.current_is(.comma) {
+			p.advance()
+		} else {
+			break
+		}
 	}
 	p.skip_newlines()
-	return Import{token: tok, names: names}
+	return Import{
+		token: tok
+		names: names
+	}
 }
 
 fn (mut p Parser) parse_import_from() ?Statement {
 	tok := p.current_token
 	p.advance() // skip 'from'
 	mut level := 0
-	for p.current_is(.dot) { level++; p.advance() }
+	for p.current_is(.dot) {
+		level++
+		p.advance()
+	}
 	module_name := if p.current_is(.identifier) { p.parse_dotted_name() } else { '' }
 	p.expect_keyword('import')
 	mut names := []Alias{}
 	if p.current_is(.operator) && p.current_token.value == '*' {
-		names << Alias{name: '*'}
+		names << Alias{
+			name: '*'
+		}
 		p.advance()
 	} else {
 		in_parens := p.current_is(.lparen)
-		if in_parens { p.advance() }
-		for !p.current_is(.rparen) && !p.current_is(.newline) && !p.current_is(.eof) {
-			n := p.current_token.value; p.advance()
-			mut asname := ?string(none)
-			if p.current_is_keyword('as') { p.advance(); asname = p.current_token.value; p.advance() }
-			names << Alias{name: n, asname: asname}
-			if p.current_is(.comma) { p.advance() } else { break }
+		if in_parens {
+			p.advance()
 		}
-		if in_parens { p.expect(.rparen) }
+		for !p.current_is(.rparen) && !p.current_is(.newline) && !p.current_is(.eof) {
+			n := p.current_token.value
+			p.advance()
+			mut asname := ?string(none)
+			if p.current_is_keyword('as') {
+				p.advance()
+				asname = p.current_token.value
+				p.advance()
+			}
+			names << Alias{
+				name:   n
+				asname: asname
+			}
+			if p.current_is(.comma) {
+				p.advance()
+			} else {
+				break
+			}
+		}
+		if in_parens {
+			p.expect(.rparen)
+		}
 	}
 	p.skip_newlines()
-	return ImportFrom{token: tok, module: module_name, names: names, level: level}
+	return ImportFrom{
+		token:  tok
+		module: module_name
+		names:  names
+		level:  level
+	}
 }
 
 fn (mut p Parser) parse_global() ?Statement {
-	tok := p.current_token; p.advance()
+	tok := p.current_token
+	p.advance()
 	mut names := []string{}
-	names << p.current_token.value; p.advance()
-	for p.current_is(.comma) { p.advance(); names << p.current_token.value; p.advance() }
+	names << p.current_token.value
+	p.advance()
+	for p.current_is(.comma) {
+		p.advance()
+		names << p.current_token.value
+		p.advance()
+	}
 	p.skip_newlines()
-	return Global{token: tok, names: names}
+	return Global{
+		token: tok
+		names: names
+	}
 }
 
 fn (mut p Parser) parse_nonlocal() ?Statement {
-	tok := p.current_token; p.advance()
+	tok := p.current_token
+	p.advance()
 	mut names := []string{}
-	names << p.current_token.value; p.advance()
-	for p.current_is(.comma) { p.advance(); names << p.current_token.value; p.advance() }
+	names << p.current_token.value
+	p.advance()
+	for p.current_is(.comma) {
+		p.advance()
+		names << p.current_token.value
+		p.advance()
+	}
 	p.skip_newlines()
-	return Nonlocal{token: tok, names: names}
+	return Nonlocal{
+		token: tok
+		names: names
+	}
 }
 
 fn (mut p Parser) parse_assert() ?Statement {
-	tok := p.current_token; p.advance()
+	tok := p.current_token
+	p.advance()
 	test := p.parse_expression() or { return none }
 	mut msg := ?Expression(none)
-	if p.current_is(.comma) { p.advance(); msg = p.parse_expression() }
+	if p.current_is(.comma) {
+		p.advance()
+		msg = p.parse_expression()
+	}
 	p.skip_newlines()
-	return Assert{token: tok, test: test, msg: msg}
+	return Assert{
+		token: tok
+		test:  test
+		msg:   msg
+	}
 }
 
 fn (mut p Parser) parse_raise() ?Statement {
-	tok := p.current_token; p.advance()
+	tok := p.current_token
+	p.advance()
 	mut exception := ?Expression(none)
 	mut cause := ?Expression(none)
 	if !p.current_is(.newline) && !p.current_is(.eof) {
 		exception = p.parse_expression()
-		if p.current_is_keyword('from') { p.advance(); cause = p.parse_expression() }
+		if p.current_is_keyword('from') {
+			p.advance()
+			cause = p.parse_expression()
+		}
 	}
 	p.skip_newlines()
-	return Raise{token: tok, exc: exception, cause: cause}
+	return Raise{
+		token: tok
+		exc:   exception
+		cause: cause
+	}
 }
 
 fn (mut p Parser) parse_delete() ?Statement {
@@ -846,7 +1048,7 @@ fn (mut p Parser) parse_delete() ?Statement {
 		p.set_ctx(mut t, .del)
 	}
 	return Delete{
-		token: tok
+		token:   tok
 		targets: targets
 	}
 }
@@ -858,9 +1060,10 @@ fn (mut p Parser) parse_expression_list(allow_in bool, allow_ternary bool) ?Expr
 		for p.current_is(.comma) {
 			p.advance()
 			// Optional trailing comma support
-			if p.current_is(.newline) || p.current_is(.eof) || p.current_is(.rbracket) ||
-				p.current_is(.rparen) || p.current_is(.rbrace) || p.current_is(.colon) ||
-				(p.current_is(.operator) && p.current_token.value == '=') {
+			if p.current_is(.newline) || p.current_is(.eof)
+				|| p.current_is(.rbracket) || p.current_is(.rparen)
+				|| p.current_is(.rbrace) || p.current_is(.colon)
+				|| (p.current_is(.operator) && p.current_token.value == '=') {
 				break
 			}
 			if next_expr := p.parse_binary_expr(prec_lowest, allow_in, allow_ternary) {
@@ -870,9 +1073,9 @@ fn (mut p Parser) parse_expression_list(allow_in bool, allow_ternary bool) ?Expr
 			}
 		}
 		return Tuple{
-			token: expr.get_token()
+			token:    expr.get_token()
 			elements: elts
-			ctx: .load
+			ctx:      .load
 		}
 	}
 	return expr
@@ -906,10 +1109,10 @@ fn (mut p Parser) parse_expression_stmt() ?Statement {
 			p.skip_newlines()
 			p.set_ctx(mut expr, .store)
 			return AugAssign{
-				token: tok
+				token:  tok
 				target: expr
-				op: op
-				value: val
+				op:     op
+				value:  val
 			}
 		}
 	}
@@ -926,11 +1129,11 @@ fn (mut p Parser) parse_expression_stmt() ?Statement {
 		p.skip_newlines()
 		p.set_ctx(mut expr, .store)
 		return AnnAssign{
-			token: tok
-			target: expr
+			token:      tok
+			target:     expr
 			annotation: ann
-			value: value
-			simple: 1
+			value:      value
+			simple:     1
 		}
 	}
 
@@ -952,14 +1155,17 @@ fn (mut p Parser) parse_expression_stmt() ?Statement {
 			p.set_ctx(mut t, .store)
 		}
 		return Assign{
-			token: tok
+			token:   tok
 			targets: targets
-			value: val
+			value:   val
 		}
 	}
 
 	p.skip_newlines()
-	return Expr{token: tok, value: expr}
+	return Expr{
+		token: tok
+		value: expr
+	}
 }
 
 fn (mut p Parser) set_ctx(mut expr Expression, ctx ExprContext) {
@@ -970,10 +1176,14 @@ fn (mut p Parser) set_ctx(mut expr Expression, ctx ExprContext) {
 	} else if mut expr is Subscript {
 		expr.ctx = ctx
 	} else if mut expr is List {
-		for mut elt in expr.elements { p.set_ctx(mut elt, ctx) }
+		for mut elt in expr.elements {
+			p.set_ctx(mut elt, ctx)
+		}
 		expr.ctx = ctx
 	} else if mut expr is Tuple {
-		for mut elt in expr.elements { p.set_ctx(mut elt, ctx) }
+		for mut elt in expr.elements {
+			p.set_ctx(mut elt, ctx)
+		}
 		expr.ctx = ctx
 	} else if mut expr is Starred {
 		p.set_ctx(mut expr.value, ctx)
@@ -988,22 +1198,22 @@ fn (mut p Parser) set_ctx(mut expr Expression, ctx ExprContext) {
 fn token_precedence(tok Token) int {
 	if tok.typ == .keyword {
 		match tok.value {
-			'or'  { return prec_or }
+			'or' { return prec_or }
 			'and' { return prec_and }
 			'not' { return prec_not }
 			'in', 'is' { return prec_compare }
-			else  { return prec_lowest }
+			else { return prec_lowest }
 		}
 	}
 	if tok.typ == .operator || tok.typ == .at {
 		match tok.value {
-			'|'       { return prec_bitor }
-			'^'       { return prec_bitxor }
-			'&'       { return prec_bitand }
-			'<<', '>>'{ return prec_shift }
-			'+', '-'  { return prec_add }
+			'|' { return prec_bitor }
+			'^' { return prec_bitxor }
+			'&' { return prec_bitand }
+			'<<', '>>' { return prec_shift }
+			'+', '-' { return prec_add }
 			'*', '/', '//', '%', '@' { return prec_mul }
-			'**'      { return prec_power }
+			'**' { return prec_power }
 			'==', '!=', '<', '>', '<=', '>=' { return prec_compare }
 			else { return prec_lowest }
 		}
@@ -1036,9 +1246,9 @@ fn (mut p Parser) parse_binary_expr(precedence int, allow_in bool, allow_ternary
 		value := p.parse_expression() or { return left }
 		p.set_ctx(mut left, .store)
 		return NamedExpr{
-			token: tok
+			token:  tok
 			target: left
-			value: value
+			value:  value
 		}
 	}
 
@@ -1050,16 +1260,17 @@ fn (mut p Parser) parse_binary_expr(precedence int, allow_in bool, allow_ternary
 			p.expect_keyword('else')
 			orelse := p.parse_expression() or { return left }
 			left = IfExp{
-				token: left.get_token()
-				test: test
-				body: left
+				token:  left.get_token()
+				test:   test
+				body:   left
 				orelse: orelse
 			}
 			continue
 		}
 
 		// 'not in' and 'is not' (special case for precedence)
-		if !allow_in && (p.current_is_keyword('in') || (p.current_is_keyword('not') && p.peek_is_keyword('in'))) {
+		if !allow_in && (p.current_is_keyword('in') || (p.current_is_keyword('not')
+			&& p.peek_is_keyword('in'))) {
 			return left
 		}
 
@@ -1077,19 +1288,19 @@ fn (mut p Parser) parse_binary_expr(precedence int, allow_in bool, allow_ternary
 			if op.value == 'is' && p.current_is_keyword('not') {
 				p.advance()
 				op = Token{
-					typ: .keyword
-					value: 'is not'
-					line: op.line
-					column: op.column
+					typ:      .keyword
+					value:    'is not'
+					line:     op.line
+					column:   op.column
 					filename: op.filename
 				}
 			} else if op.value == 'not' && p.current_is_keyword('in') {
 				p.advance()
 				op = Token{
-					typ: .keyword
-					value: 'not in'
-					line: op.line
-					column: op.column
+					typ:      .keyword
+					value:    'not in'
+					line:     op.line
+					column:   op.column
 					filename: op.filename
 				}
 			} else if op.value == 'not' {
@@ -1102,7 +1313,7 @@ fn (mut p Parser) parse_binary_expr(precedence int, allow_in bool, allow_ternary
 			mut comparators := []Expression{}
 			right := p.parse_binary_expr(next_prec, allow_in, allow_ternary) or { break }
 			comparators << right
-			
+
 			for {
 				mut next_op := p.current_token
 				if next_op.value in ['==', '!=', '<', '>', '<=', '>=', 'in', 'is', 'not'] {
@@ -1110,40 +1321,52 @@ fn (mut p Parser) parse_binary_expr(precedence int, allow_in bool, allow_ternary
 					if next_op.value == 'is' && p.current_is_keyword('not') {
 						p.advance()
 						next_op = Token{
-							typ: .keyword
-							value: 'is not'
-							line: next_op.line
-							column: next_op.column
+							typ:      .keyword
+							value:    'is not'
+							line:     next_op.line
+							column:   next_op.column
 							filename: next_op.filename
 						}
 					} else if next_op.value == 'not' && p.current_is_keyword('in') {
 						p.advance()
 						next_op = Token{
-							typ: .keyword
-							value: 'not in'
-							line: next_op.line
-							column: next_op.column
+							typ:      .keyword
+							value:    'not in'
+							line:     next_op.line
+							column:   next_op.column
 							filename: next_op.filename
 						}
 					} else if next_op.value == 'not' {
 						// Error? or just break
 						break
 					}
-					
-					next_right := p.parse_binary_expr(next_prec, allow_in, allow_ternary) or { break }
+
+					next_right := p.parse_binary_expr(next_prec, allow_in, allow_ternary) or {
+						break
+					}
 					ops << next_op
 					comparators << next_right
 				} else {
 					break
 				}
 			}
-			left = Compare{token: op, left: left, ops: ops, comparators: comparators}
+			left = Compare{
+				token:       op
+				left:        left
+				ops:         ops
+				comparators: comparators
+			}
 			continue
 		}
 
 		op_tok := op
 		right := p.parse_binary_expr(next_prec, allow_in, allow_ternary) or { break }
-		left = BinaryOp{token: op_tok, left: left, op: op_tok, right: right}
+		left = BinaryOp{
+			token: op_tok
+			left:  left
+			op:    op_tok
+			right: right
+		}
 	}
 	return left
 }
@@ -1153,30 +1376,48 @@ fn (mut p Parser) parse_unary_expr(allow_in bool, allow_ternary bool) ?Expressio
 	if p.current_is_keyword('not') {
 		p.advance()
 		operand := p.parse_unary_expr(allow_in, allow_ternary) or { return none }
-		return UnaryOp{token: tok, op: tok, operand: operand}
+		return UnaryOp{
+			token:   tok
+			op:      tok
+			operand: operand
+		}
 	}
 	if p.current_is(.operator) && (tok.value == '-' || tok.value == '+' || tok.value == '~') {
 		p.advance()
 		operand := p.parse_unary_expr(allow_in, allow_ternary) or { return none }
-		return UnaryOp{token: tok, op: tok, operand: operand}
+		return UnaryOp{
+			token:   tok
+			op:      tok
+			operand: operand
+		}
 	}
 	if p.current_is_keyword('await') {
 		p.advance()
 		val := p.parse_unary_expr(allow_in, allow_ternary) or { return none }
-		return Await{token: tok, value: val}
+		return Await{
+			token: tok
+			value: val
+		}
 	}
 	if p.current_is_keyword('yield') {
 		p.advance()
 		if p.current_is_keyword('from') {
 			p.advance()
 			val := p.parse_expression() or { return none }
-			return YieldFrom{token: tok, value: val}
+			return YieldFrom{
+				token: tok
+				value: val
+			}
 		}
 		mut yval := ?Expression(none)
-		if !p.current_is(.newline) && !p.current_is(.rparen) && !p.current_is(.eof) && !p.current_is(.comma) {
+		if !p.current_is(.newline) && !p.current_is(.rparen) && !p.current_is(.eof)
+			&& !p.current_is(.comma) {
 			yval = p.parse_expression()
 		}
-		return Yield{token: tok, value: yval}
+		return Yield{
+			token: tok
+			value: yval
+		}
 	}
 	if p.current_is_keyword('lambda') {
 		return p.parse_lambda()
@@ -1234,7 +1475,7 @@ fn (mut p Parser) parse_string_literal() ?Expression {
 					start_idx = 2
 				}
 				if v.len >= 2 {
-					val += v[start_idx..v.len-1]
+					val += v[start_idx..v.len - 1]
 				}
 			}
 		}
@@ -1246,7 +1487,7 @@ fn (mut p Parser) parse_string_literal() ?Expression {
 	}
 
 	return JoinedStr{
-		token: tok
+		token:  tok
 		values: parts
 	}
 }
@@ -1350,7 +1591,7 @@ fn (mut p Parser) parse_joined_str(tok Token) ?[]Expression {
 			parsed_expr := sub_parser.parse_expression() or {
 				p.errors << ParseError{
 					message: 'failed to parse f-string expression: ${expr_str}'
-					token: tok
+					token:   tok
 				}
 				return none
 			}
@@ -1359,31 +1600,33 @@ fn (mut p Parser) parse_joined_str(tok Token) ?[]Expression {
 			if format_spec_str != '' {
 				if format_spec_str.contains('{') {
 					tmp_tok := Token{
-						typ: .fstring_tok
-						value: format_spec_str
-						line: tok.line
-						column: tok.column
+						typ:      .fstring_tok
+						value:    format_spec_str
+						line:     tok.line
+						column:   tok.column
 						filename: tok.filename
 					}
 					format_spec = JoinedStr{
-						token: tok
+						token:  tok
 						values: p.parse_joined_str(tmp_tok)?
 					}
 				} else {
 					format_spec = JoinedStr{
-						token: tok
-						values: [Expression(Constant{
-							token: tok
-							value: "'${format_spec_str}'"
-						})]
+						token:  tok
+						values: [
+							Expression(Constant{
+								token: tok
+								value: "'${format_spec_str}'"
+							}),
+						]
 					}
 				}
 			}
 
 			values << FormattedValue{
-				token: tok
-				value: parsed_expr
-				conversion: conversion
+				token:       tok
+				value:       parsed_expr
+				conversion:  conversion
 				format_spec: format_spec
 			}
 			last_pos = i
@@ -1394,7 +1637,7 @@ fn (mut p Parser) parse_joined_str(tok Token) ?[]Expression {
 			}
 			p.errors << ParseError{
 				message: 'f-string: single "}" is not allowed'
-				token: tok
+				token:   tok
 			}
 			i++
 		} else {
@@ -1418,37 +1661,80 @@ fn (mut p Parser) parse_primary_expr(allow_in bool, allow_ternary bool) ?Express
 		p.current_is(.identifier) {
 			p.advance()
 			match tok.value {
-				'True'  { return Constant{token: tok, value: 'True'} }
-				'False' { return Constant{token: tok, value: 'False'} }
-				'None'  { return Constant{token: tok, value: 'None'} }
-				else    { return Name{token: tok, id: tok.value, ctx: .load} }
+				'True' {
+					return Constant{
+						token: tok
+						value: 'True'
+					}
+				}
+				'False' {
+					return Constant{
+						token: tok
+						value: 'False'
+					}
+				}
+				'None' {
+					return Constant{
+						token: tok
+						value: 'None'
+					}
+				}
+				else {
+					return Name{
+						token: tok
+						id:    tok.value
+						ctx:   .load
+					}
+				}
 			}
 		}
 		p.current_is(.keyword) && tok.value in ['True', 'False', 'None'] {
 			p.advance()
-			return Constant{token: tok, value: tok.value}
+			return Constant{
+				token: tok
+				value: tok.value
+			}
 		}
 		p.current_is(.number) {
 			p.advance()
-			return Constant{token: tok, value: tok.value}
+			return Constant{
+				token: tok
+				value: tok.value
+			}
 		}
 		p.current_is(.fstring_tok) || p.current_is(.string_tok) || p.current_is(.tstring_tok) {
 			return p.parse_string_literal()
 		}
 		p.current_is(.ellipsis) {
 			p.advance()
-			return Constant{token: tok, value: '...'}
+			return Constant{
+				token: tok
+				value: '...'
+			}
 		}
-		p.current_is(.lbracket) { return p.parse_list(allow_in, allow_ternary) }
-		p.current_is(.lbrace)   { return p.parse_dict_or_set(allow_in, allow_ternary) }
-		p.current_is(.lparen)   { return p.parse_paren_expr(allow_in, allow_ternary) }
+		p.current_is(.lbracket) {
+			return p.parse_list(allow_in, allow_ternary)
+		}
+		p.current_is(.lbrace) {
+			return p.parse_dict_or_set(allow_in, allow_ternary)
+		}
+		p.current_is(.lparen) {
+			return p.parse_paren_expr(allow_in, allow_ternary)
+		}
 		p.current_is(.operator) && tok.value == '*' {
 			p.advance()
 			val := p.parse_expression_limited(allow_in, allow_ternary) or { return none }
-			return Starred{token: tok, value: val, ctx: .load}
+			return Starred{
+				token: tok
+				value: val
+				ctx:   .load
+			}
 		}
 		else {
-			p.errors << ParseError{message: 'unexpected token in expression: ${tok.value}', token: tok}
+			p.errors << ParseError{
+				message: 'unexpected token in expression: ${tok.value}'
+				token:   tok
+			}
 			return none
 		}
 	}
@@ -1459,7 +1745,11 @@ fn (mut p Parser) parse_paren_expr(allow_in bool, allow_ternary bool) ?Expressio
 	p.advance() // (
 	if p.current_is(.rparen) {
 		p.advance()
-		return Tuple{token: tok, elements: [], ctx: .load}
+		return Tuple{
+			token:    tok
+			elements: []
+			ctx:      .load
+		}
 	}
 	expr := p.parse_expression_limited(allow_in, allow_ternary) or { return none }
 
@@ -1467,7 +1757,11 @@ fn (mut p Parser) parse_paren_expr(allow_in bool, allow_ternary bool) ?Expressio
 	if p.current_is_keyword('for') {
 		gens := p.parse_comprehensions()
 		p.expect(.rparen)
-		return GeneratorExp{token: tok, elt: expr, generators: gens}
+		return GeneratorExp{
+			token:      tok
+			elt:        expr
+			generators: gens
+		}
 	}
 
 	// Tuple
@@ -1475,11 +1769,19 @@ fn (mut p Parser) parse_paren_expr(allow_in bool, allow_ternary bool) ?Expressio
 		mut elems := [expr]
 		for p.current_is(.comma) {
 			p.advance()
-			if p.current_is(.rparen) { break }
-			if e := p.parse_expression_limited(allow_in, allow_ternary) { elems << e }
+			if p.current_is(.rparen) {
+				break
+			}
+			if e := p.parse_expression_limited(allow_in, allow_ternary) {
+				elems << e
+			}
 		}
 		p.expect(.rparen)
-		return Tuple{token: tok, elements: elems, ctx: .load}
+		return Tuple{
+			token:    tok
+			elements: elems
+			ctx:      .load
+		}
 	}
 	p.expect(.rparen)
 	return expr
@@ -1490,23 +1792,39 @@ fn (mut p Parser) parse_list(allow_in bool, allow_ternary bool) ?Expression {
 	p.advance() // [
 	if p.current_is(.rbracket) {
 		p.advance()
-		return List{token: tok, elements: [], ctx: .load}
+		return List{
+			token:    tok
+			elements: []
+			ctx:      .load
+		}
 	}
 	first := p.parse_expression_limited(allow_in, allow_ternary) or { return none }
 	// List comprehension
 	if p.current_is_keyword('for') {
 		gens := p.parse_comprehensions()
 		p.expect(.rbracket)
-		return ListComp{token: tok, elt: first, generators: gens}
+		return ListComp{
+			token:      tok
+			elt:        first
+			generators: gens
+		}
 	}
 	mut elems := [first]
 	for p.current_is(.comma) {
 		p.advance()
-		if p.current_is(.rbracket) { break }
-		if e := p.parse_expression_limited(allow_in, allow_ternary) { elems << e }
+		if p.current_is(.rbracket) {
+			break
+		}
+		if e := p.parse_expression_limited(allow_in, allow_ternary) {
+			elems << e
+		}
 	}
 	p.expect(.rbracket)
-	return List{token: tok, elements: elems, ctx: .load}
+	return List{
+		token:    tok
+		elements: elems
+		ctx:      .load
+	}
 }
 
 fn (mut p Parser) parse_dict_or_set(allow_in bool, allow_ternary bool) ?Expression {
@@ -1514,7 +1832,11 @@ fn (mut p Parser) parse_dict_or_set(allow_in bool, allow_ternary bool) ?Expressi
 	p.advance() // {
 	if p.current_is(.rbrace) {
 		p.advance()
-		return Dict{token: tok, keys: [], values: []}
+		return Dict{
+			token:  tok
+			keys:   []
+			values: []
+		}
 	}
 
 	mut keys := []Expression{}
@@ -1525,7 +1847,9 @@ fn (mut p Parser) parse_dict_or_set(allow_in bool, allow_ternary bool) ?Expressi
 		// Starts with **kwargs => it's a Dict
 		p.advance()
 		v := p.parse_expression_limited(allow_in, allow_ternary) or { return none }
-		keys << NoneExpr{token: tok}
+		keys << NoneExpr{
+			token: tok
+		}
 		values << v
 	} else {
 		first := p.parse_expression_limited(allow_in, allow_ternary) or { return none }
@@ -1537,7 +1861,12 @@ fn (mut p Parser) parse_dict_or_set(allow_in bool, allow_ternary bool) ?Expressi
 			if p.current_is_keyword('for') {
 				gens := p.parse_comprehensions()
 				p.expect(.rbrace)
-				return DictComp{token: tok, key: first, value: fval, generators: gens}
+				return DictComp{
+					token:      tok
+					key:        first
+					value:      fval
+					generators: gens
+				}
 			}
 			keys << first
 			values << fval
@@ -1546,16 +1875,27 @@ fn (mut p Parser) parse_dict_or_set(allow_in bool, allow_ternary bool) ?Expressi
 			if p.current_is_keyword('for') {
 				gens := p.parse_comprehensions()
 				p.expect(.rbrace)
-				return SetComp{token: tok, elt: first, generators: gens}
+				return SetComp{
+					token:      tok
+					elt:        first
+					generators: gens
+				}
 			}
 			mut elems := [first]
 			for p.current_is(.comma) {
 				p.advance()
-				if p.current_is(.rbrace) { break }
-				if e := p.parse_expression_limited(allow_in, allow_ternary) { elems << e }
+				if p.current_is(.rbrace) {
+					break
+				}
+				if e := p.parse_expression_limited(allow_in, allow_ternary) {
+					elems << e
+				}
 			}
 			p.expect(.rbrace)
-			return Set{token: tok, elements: elems}
+			return Set{
+				token:    tok
+				elements: elems
+			}
 		}
 	}
 
@@ -1567,7 +1907,9 @@ fn (mut p Parser) parse_dict_or_set(allow_in bool, allow_ternary bool) ?Expressi
 		if p.current_is(.operator) && p.current_token.value == '**' {
 			p.advance()
 			if v := p.parse_expression() {
-				keys << NoneExpr{token: tok}
+				keys << NoneExpr{
+					token: tok
+				}
 				values << v
 			}
 		} else {
@@ -1584,7 +1926,11 @@ fn (mut p Parser) parse_dict_or_set(allow_in bool, allow_ternary bool) ?Expressi
 		}
 	}
 	p.expect(.rbrace)
-	return Dict{token: tok, keys: keys, values: values}
+	return Dict{
+		token:  tok
+		keys:   keys
+		values: values
+	}
 }
 
 fn (mut p Parser) parse_comprehensions() []Comprehension {
@@ -1604,8 +1950,8 @@ fn (mut p Parser) parse_comprehensions() []Comprehension {
 		}
 		gens << Comprehension{
 			target: target
-			iter: iter
-			ifs: ifs
+			iter:   iter
+			ifs:    ifs
 		}
 	}
 	return gens
@@ -1622,7 +1968,7 @@ fn (mut p Parser) parse_call(func Expression) Expression {
 			p.advance()
 			if e := p.parse_expression() {
 				kwd_args << KeywordArg{
-					arg: ''
+					arg:   ''
 					value: e
 				}
 			}
@@ -1632,7 +1978,7 @@ fn (mut p Parser) parse_call(func Expression) Expression {
 				args << Starred{
 					token: tok
 					value: e
-					ctx: .load
+					ctx:   .load
 				}
 			}
 		} else if p.current_is(.identifier) && p.peek_is(.operator) && p.peek_tok.value == '=' {
@@ -1641,7 +1987,7 @@ fn (mut p Parser) parse_call(func Expression) Expression {
 			p.advance()
 			if v := p.parse_expression() {
 				kwd_args << KeywordArg{
-					arg: kname
+					arg:   kname
 					value: v
 				}
 			}
@@ -1650,8 +1996,8 @@ fn (mut p Parser) parse_call(func Expression) Expression {
 				if p.current_is_keyword('for') && args.len == 0 && kwd_args.len == 0 {
 					gens := p.parse_comprehensions()
 					args << GeneratorExp{
-						token: tok
-						elt: e
+						token:      tok
+						elt:        e
 						generators: gens
 					}
 				} else {
@@ -1667,9 +2013,9 @@ fn (mut p Parser) parse_call(func Expression) Expression {
 	}
 	p.expect(.rparen)
 	return Call{
-		token: tok
-		func: func
-		args: args
+		token:    tok
+		func:     func
+		args:     args
 		keywords: kwd_args
 	}
 }
@@ -1700,7 +2046,7 @@ fn (mut p Parser) parse_subscript(value Expression) Expression {
 				token: tok
 				lower: none
 				upper: upper
-				step: step
+				step:  step
 			}
 		} else {
 			expr := p.parse_expression() or { break }
@@ -1719,7 +2065,7 @@ fn (mut p Parser) parse_subscript(value Expression) Expression {
 					token: tok
 					lower: expr
 					upper: upper
-					step: step
+					step:  step
 				}
 			} else {
 				elements << expr
@@ -1739,9 +2085,9 @@ fn (mut p Parser) parse_subscript(value Expression) Expression {
 		elements[0]
 	} else {
 		Expression(Tuple{
-			token: tok
+			token:    tok
 			elements: elements
-			ctx: .load
+			ctx:      .load
 		})
 	}
 
@@ -1749,7 +2095,7 @@ fn (mut p Parser) parse_subscript(value Expression) Expression {
 		token: tok
 		value: value
 		slice: slice_expr
-		ctx: .load
+		ctx:   .load
 	}
 }
 
@@ -1758,7 +2104,12 @@ fn (mut p Parser) parse_attribute(value Expression) Expression {
 	p.advance() // .
 	attr := p.current_token.value
 	p.advance()
-	return Attribute{token: tok, value: value, attr: attr, ctx: .load}
+	return Attribute{
+		token: tok
+		value: value
+		attr:  attr
+		ctx:   .load
+	}
 }
 
 fn (mut p Parser) parse_lambda() ?Expression {
@@ -1767,7 +2118,11 @@ fn (mut p Parser) parse_lambda() ?Expression {
 	args := p.parse_parameters(.colon, false)
 	p.expect(.colon)
 	body := p.parse_expression() or { return none }
-	return Lambda{token: tok, args: args, body: body}
+	return Lambda{
+		token: tok
+		args:  args
+		body:  body
+	}
 }
 
 // ──────────────────────────────────────────────────
@@ -1785,14 +2140,22 @@ fn (mut p Parser) parse_pattern() Pattern {
 			p.advance()
 			patterns << p.parse_pattern_atom()
 		}
-		return MatchOr{token: tok, patterns: patterns}
+		return MatchOr{
+			token:    tok
+			patterns: patterns
+		}
 	}
 
 	// AS pattern
 	if p.current_is_keyword('as') {
 		p.advance()
-		name := p.current_token.value; p.advance()
-		return MatchAs{token: tok, pattern: pat, name: name}
+		name := p.current_token.value
+		p.advance()
+		return MatchAs{
+			token:   tok
+			pattern: pat
+			name:    name
+		}
 	}
 
 	return pat
@@ -1804,56 +2167,101 @@ fn (mut p Parser) parse_pattern_atom() Pattern {
 	// Wildcard _
 	if p.current_is(.identifier) && tok.value == '_' {
 		p.advance()
-		return MatchAs{token: tok, pattern: none, name: none}
+		return MatchAs{
+			token:   tok
+			pattern: none
+			name:    none
+		}
 	}
 
 	// Capture variable
 	if p.current_is(.identifier) {
-		name := tok.value; p.advance()
+		name := tok.value
+		p.advance()
 		// Class pattern: Name(...)
 		if p.current_is(.lparen) {
-			cls := Name{token: tok, id: name, ctx: .load}
+			cls := Name{
+				token: tok
+				id:    name
+				ctx:   .load
+			}
 			p.advance()
 			mut patterns := []Pattern{}
 			mut kwd_attrs := []string{}
 			mut kwd_patterns := []Pattern{}
 			for !p.current_is(.rparen) && !p.current_is(.eof) {
 				if p.current_is(.identifier) && p.peek_is(.operator) && p.peek_tok.value == '=' {
-					kname := p.current_token.value; p.advance(); p.advance()
+					kname := p.current_token.value
+					p.advance()
+					p.advance()
 					kwd_attrs << kname
 					kwd_patterns << p.parse_pattern()
 				} else {
 					patterns << p.parse_pattern()
 				}
-				if p.current_is(.comma) { p.advance() } else { break }
+				if p.current_is(.comma) {
+					p.advance()
+				} else {
+					break
+				}
 			}
 			p.expect(.rparen)
-			return MatchClass{token: tok, cls: cls, patterns: patterns, kwd_attrs: kwd_attrs, kwd_patterns: kwd_patterns}
+			return MatchClass{
+				token:        tok
+				cls:          cls
+				patterns:     patterns
+				kwd_attrs:    kwd_attrs
+				kwd_patterns: kwd_patterns
+			}
 		}
 		// Dotted name => MatchValue
 		if p.current_is(.dot) {
-			mut expr := Expression(Name{token: tok, id: name, ctx: .load})
+			mut expr := Expression(Name{
+				token: tok
+				id:    name
+				ctx:   .load
+			})
 			for p.current_is(.dot) {
 				p.advance()
-				attr_name := p.current_token.value; p.advance()
-				expr = Attribute{token: tok, value: expr, attr: attr_name, ctx: .load}
+				attr_name := p.current_token.value
+				p.advance()
+				expr = Attribute{
+					token: tok
+					value: expr
+					attr:  attr_name
+					ctx:   .load
+				}
 			}
-			return MatchValue{token: tok, value: expr}
+			return MatchValue{
+				token: tok
+				value: expr
+			}
 		}
-		return MatchAs{token: tok, pattern: none, name: name}
+		return MatchAs{
+			token:   tok
+			pattern: none
+			name:    name
+		}
 	}
 
 	// Literals
 	if p.current_is(.number) || p.current_is(.string_tok) {
 		if expr := p.parse_primary_expr(true, true) {
-			return MatchValue{token: tok, value: expr}
+			return MatchValue{
+				token: tok
+				value: expr
+			}
 		}
 	}
 
 	// Singleton None/True/False
 	if p.current_is(.keyword) && tok.value in ['None', 'True', 'False'] {
-		vtok := tok; p.advance()
-		return MatchSingleton{token: vtok, value: vtok}
+		vtok := tok
+		p.advance()
+		return MatchSingleton{
+			token: vtok
+			value: vtok
+		}
 	}
 
 	// Sequence pattern [...]
@@ -1862,10 +2270,17 @@ fn (mut p Parser) parse_pattern_atom() Pattern {
 		mut patterns := []Pattern{}
 		for !p.current_is(.rbracket) && !p.current_is(.eof) {
 			patterns << p.parse_pattern()
-			if p.current_is(.comma) { p.advance() } else { break }
+			if p.current_is(.comma) {
+				p.advance()
+			} else {
+				break
+			}
 		}
 		p.expect(.rbracket)
-		return MatchSequence{token: tok, patterns: patterns}
+		return MatchSequence{
+			token:    tok
+			patterns: patterns
+		}
 	}
 
 	// Sequence pattern (...)
@@ -1874,10 +2289,17 @@ fn (mut p Parser) parse_pattern_atom() Pattern {
 		mut patterns := []Pattern{}
 		for !p.current_is(.rparen) && !p.current_is(.eof) {
 			patterns << p.parse_pattern()
-			if p.current_is(.comma) { p.advance() } else { break }
+			if p.current_is(.comma) {
+				p.advance()
+			} else {
+				break
+			}
 		}
 		p.expect(.rparen)
-		return MatchSequence{token: tok, patterns: patterns}
+		return MatchSequence{
+			token:    tok
+			patterns: patterns
+		}
 	}
 
 	// Mapping pattern {k: p, ...}
@@ -1888,34 +2310,64 @@ fn (mut p Parser) parse_pattern_atom() Pattern {
 		mut rest := ?string(none)
 		for !p.current_is(.rbrace) && !p.current_is(.eof) {
 			if p.current_is(.operator) && p.current_token.value == '**' {
-				p.advance(); rest = p.current_token.value; p.advance()
+				p.advance()
+				rest = p.current_token.value
+				p.advance()
 				break
 			}
-			if k := p.parse_expression() { keys << k }
+			if k := p.parse_expression() {
+				keys << k
+			}
 			p.expect(.colon)
 			patterns << p.parse_pattern()
-			if p.current_is(.comma) { p.advance() } else { break }
+			if p.current_is(.comma) {
+				p.advance()
+			} else {
+				break
+			}
 		}
 		p.expect(.rbrace)
-		return MatchMapping{token: tok, keys: keys, patterns: patterns, rest: rest}
+		return MatchMapping{
+			token:    tok
+			keys:     keys
+			patterns: patterns
+			rest:     rest
+		}
 	}
 
 	// Star pattern: *name
 	if p.current_is(.operator) && tok.value == '*' {
 		p.advance()
 		mut sname := ?string(none)
-		if p.current_is(.identifier) { sname = p.current_token.value; p.advance() }
-		return MatchStar{token: tok, name: sname}
+		if p.current_is(.identifier) {
+			sname = p.current_token.value
+			p.advance()
+		}
+		return MatchStar{
+			token: tok
+			name:  sname
+		}
 	}
 
 	// Negative number
 	if p.current_is(.operator) && tok.value == '-' {
 		p.advance()
 		if expr := p.parse_expression() {
-			neg := UnaryOp{token: tok, op: tok, operand: expr}
-			return MatchValue{token: tok, value: neg}
+			neg := UnaryOp{
+				token:   tok
+				op:      tok
+				operand: expr
+			}
+			return MatchValue{
+				token: tok
+				value: neg
+			}
 		}
 	}
 
-	return MatchAs{token: tok, pattern: none, name: none}
+	return MatchAs{
+		token:   tok
+		pattern: none
+		name:    none
+	}
 }

@@ -72,81 +72,81 @@ mut:
 // walk dispatches a Statement node to the appropriate visitor method
 fn walk_stmt(mut v Visitor, node Statement) {
 	match node {
-		Module             { v.visit_module(node) }
-		Expr               { v.visit_expr(node) }
-		FunctionDef        { v.visit_function_def(node) }
-		ClassDef           { v.visit_class_def(node) }
-		If                 { v.visit_if(node) }
-		For                { v.visit_for(node) }
-		While              { v.visit_while(node) }
-		With               { v.visit_with(node) }
-		Try                { v.visit_try(node) }
-		TryStar            { v.visit_try_star(node) }
-		Match              { v.visit_match(node) }
-		Assign             { v.visit_assign(node) }
-		AugAssign          { v.visit_aug_assign(node) }
-		AnnAssign          { v.visit_ann_assign(node) }
-		Return             { v.visit_return(node) }
-		Import             { v.visit_import(node) }
-		ImportFrom         { v.visit_import_from(node) }
-		Global             { v.visit_global(node) }
-		Nonlocal           { v.visit_nonlocal(node) }
-		Assert             { v.visit_assert(node) }
-		Raise              { v.visit_raise(node) }
-		Delete             { v.visit_delete(node) }
-		Pass               { v.visit_pass(node) }
-		Break              { v.visit_break(node) }
-		Continue           { v.visit_continue(node) }
-		TypeAlias          { v.visit_type_alias(node) }
-		else               {}
+		Module { v.visit_module(node) }
+		Expr { v.visit_expr(node) }
+		FunctionDef { v.visit_function_def(node) }
+		ClassDef { v.visit_class_def(node) }
+		If { v.visit_if(node) }
+		For { v.visit_for(node) }
+		While { v.visit_while(node) }
+		With { v.visit_with(node) }
+		Try { v.visit_try(node) }
+		TryStar { v.visit_try_star(node) }
+		Match { v.visit_match(node) }
+		Assign { v.visit_assign(node) }
+		AugAssign { v.visit_aug_assign(node) }
+		AnnAssign { v.visit_ann_assign(node) }
+		Return { v.visit_return(node) }
+		Import { v.visit_import(node) }
+		ImportFrom { v.visit_import_from(node) }
+		Global { v.visit_global(node) }
+		Nonlocal { v.visit_nonlocal(node) }
+		Assert { v.visit_assert(node) }
+		Raise { v.visit_raise(node) }
+		Delete { v.visit_delete(node) }
+		Pass { v.visit_pass(node) }
+		Break { v.visit_break(node) }
+		Continue { v.visit_continue(node) }
+		TypeAlias { v.visit_type_alias(node) }
+		else {}
 	}
 }
 
 // walk_expr dispatches an Expression node to the appropriate visitor method
 fn walk_expr(mut v Visitor, node Expression) {
 	match node {
-		Name           { v.visit_name(node) }
-		Constant       { v.visit_constant(node) }
-		List           { v.visit_list(node) }
-		Dict           { v.visit_dict(node) }
-		Tuple          { v.visit_tuple(node) }
-		Set            { v.visit_set(node) }
-		BinaryOp       { v.visit_binary_op(node) }
-		UnaryOp        { v.visit_unary_op(node) }
-		Compare        { v.visit_compare(node) }
-		Call           { v.visit_call(node) }
-		Attribute      { v.visit_attribute(node) }
-		Subscript      { v.visit_subscript(node) }
-		Slice          { v.visit_slice(node) }
-		Lambda         { v.visit_lambda(node) }
-		ListComp       { v.visit_list_comp(node) }
-		DictComp       { v.visit_dict_comp(node) }
-		SetComp        { v.visit_set_comp(node) }
-		GeneratorExp   { v.visit_generator(node) }
-		IfExp          { v.visit_if_exp(node) }
-		Await          { v.visit_await(node) }
-		Yield          { v.visit_yield(node) }
-		YieldFrom      { v.visit_yield_from(node) }
-		Starred        { v.visit_starred(node) }
-		NoneExpr       { v.visit_none_expr(node) }
-		JoinedStr      { v.visit_joined_str(node) }
+		Name { v.visit_name(node) }
+		Constant { v.visit_constant(node) }
+		List { v.visit_list(node) }
+		Dict { v.visit_dict(node) }
+		Tuple { v.visit_tuple(node) }
+		Set { v.visit_set(node) }
+		BinaryOp { v.visit_binary_op(node) }
+		UnaryOp { v.visit_unary_op(node) }
+		Compare { v.visit_compare(node) }
+		Call { v.visit_call(node) }
+		Attribute { v.visit_attribute(node) }
+		Subscript { v.visit_subscript(node) }
+		Slice { v.visit_slice(node) }
+		Lambda { v.visit_lambda(node) }
+		ListComp { v.visit_list_comp(node) }
+		DictComp { v.visit_dict_comp(node) }
+		SetComp { v.visit_set_comp(node) }
+		GeneratorExp { v.visit_generator(node) }
+		IfExp { v.visit_if_exp(node) }
+		Await { v.visit_await(node) }
+		Yield { v.visit_yield(node) }
+		YieldFrom { v.visit_yield_from(node) }
+		Starred { v.visit_starred(node) }
+		NoneExpr { v.visit_none_expr(node) }
+		JoinedStr { v.visit_joined_str(node) }
 		FormattedValue { v.visit_formatted_value(node) }
-		NamedExpr      { v.visit_named_expr(node) }
-		else           {}
+		NamedExpr { v.visit_named_expr(node) }
+		else {}
 	}
 }
 
 // walk_pattern dispatches a Pattern node to the appropriate visitor method
 fn walk_pattern(mut v Visitor, node Pattern) {
 	match node {
-		MatchValue     { v.visit_match_value(node) }
+		MatchValue { v.visit_match_value(node) }
 		MatchSingleton { v.visit_match_singleton(node) }
-		MatchSequence  { v.visit_match_sequence(node) }
-		MatchMapping   { v.visit_match_mapping(node) }
-		MatchClass     { v.visit_match_class(node) }
-		MatchStar      { v.visit_match_star(node) }
-		MatchAs        { v.visit_match_as(node) }
-		MatchOr        { v.visit_match_or(node) }
-		else           {}
+		MatchSequence { v.visit_match_sequence(node) }
+		MatchMapping { v.visit_match_mapping(node) }
+		MatchClass { v.visit_match_class(node) }
+		MatchStar { v.visit_match_star(node) }
+		MatchAs { v.visit_match_as(node) }
+		MatchOr { v.visit_match_or(node) }
+		else {}
 	}
 }

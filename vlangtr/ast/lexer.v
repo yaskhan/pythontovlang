@@ -10,7 +10,7 @@ mut:
 	line            int
 	column          int
 	indent_stack    []int
-	pending_dedents  int
+	pending_dedents int
 	peeked          ?Token
 	grouping_level  int
 }
@@ -150,9 +150,21 @@ fn (mut l Lexer) scan_identifier() Token {
 	}
 	value := l.source[start..l.pos]
 	if is_keyword(value) {
-		return Token{typ: .keyword, value: value, line: l.line, column: start_col, filename: l.filename}
+		return Token{
+			typ:      .keyword
+			value:    value
+			line:     l.line
+			column:   start_col
+			filename: l.filename
+		}
 	}
-	return Token{typ: .identifier, value: value, line: l.line, column: start_col, filename: l.filename}
+	return Token{
+		typ:      .identifier
+		value:    value
+		line:     l.line
+		column:   start_col
+		filename: l.filename
+	}
 }
 
 fn (mut l Lexer) scan_number() Token {
@@ -172,7 +184,13 @@ fn (mut l Lexer) scan_number() Token {
 					break
 				}
 			}
-			return Token{typ: .number, value: l.source[start..l.pos], line: l.line, column: start_col, filename: l.filename}
+			return Token{
+				typ:      .number
+				value:    l.source[start..l.pos]
+				line:     l.line
+				column:   start_col
+				filename: l.filename
+			}
 		}
 	}
 	for l.pos < l.source.len {
@@ -211,7 +229,13 @@ fn (mut l Lexer) scan_number() Token {
 	if l.pos < l.source.len && (l.peek_char() == `j` || l.peek_char() == `J`) {
 		l.advance_char()
 	}
-	return Token{typ: .number, value: l.source[start..l.pos], line: l.line, column: start_col, filename: l.filename}
+	return Token{
+		typ:      .number
+		value:    l.source[start..l.pos]
+		line:     l.line
+		column:   start_col
+		filename: l.filename
+	}
 }
 
 fn (mut l Lexer) scan_string(prefix string) Token {
@@ -224,9 +248,10 @@ fn (mut l Lexer) scan_string(prefix string) Token {
 	} else {
 		TokenType.string_tok
 	}
-	
+
 	// Check for triple quote
-	if l.pos + 2 < l.source.len && l.peek_char() == quote && l.peek_char_at(1) == quote && l.peek_char_at(2) == quote {
+	if l.pos + 2 < l.source.len && l.peek_char() == quote && l.peek_char_at(1) == quote
+		&& l.peek_char_at(2) == quote {
 		// Triple quoted string
 		l.advance_char()
 		l.advance_char()
@@ -247,7 +272,13 @@ fn (mut l Lexer) scan_string(prefix string) Token {
 			l.advance_char()
 			l.advance_char()
 		}
-		return Token{typ: typ, value: value, line: l.line, column: start_col, filename: l.filename}
+		return Token{
+			typ:      typ
+			value:    value
+			line:     l.line
+			column:   start_col
+			filename: l.filename
+		}
 	}
 	// Single quoted
 	l.advance_char()
@@ -270,7 +301,13 @@ fn (mut l Lexer) scan_string(prefix string) Token {
 	if l.pos < l.source.len {
 		l.advance_char() // closing quote
 	}
-	return Token{typ: typ, value: value, line: l.line, column: start_col, filename: l.filename}
+	return Token{
+		typ:      typ
+		value:    value
+		line:     l.line
+		column:   start_col
+		filename: l.filename
+	}
 }
 
 fn (mut l Lexer) scan_operator() Token {
@@ -280,23 +317,41 @@ fn (mut l Lexer) scan_operator() Token {
 	three := if l.pos + 2 < l.source.len { l.source[l.pos..l.pos + 3] } else { '' }
 
 	three_ops := ['**=', '//=', '>>=', '<<=', '...']
-	two_ops := ['->', ':=', '**', '//', '==', '!=', '<=', '>=', '<<', '>>', '+=', '-=', '*=',
-		'/=', '%=', '&=', '|=', '^=', '@=']
+	two_ops := ['->', ':=', '**', '//', '==', '!=', '<=', '>=', '<<', '>>', '+=', '-=', '*=', '/=',
+		'%=', '&=', '|=', '^=', '@=']
 
 	if three in three_ops {
 		l.advance_char()
 		l.advance_char()
 		l.advance_char()
-		return Token{typ: .operator, value: three, line: l.line, column: start_col, filename: l.filename}
+		return Token{
+			typ:      .operator
+			value:    three
+			line:     l.line
+			column:   start_col
+			filename: l.filename
+		}
 	}
 	if two in two_ops {
 		l.advance_char()
 		l.advance_char()
 		typ := if two == '->' { TokenType.arrow } else { .operator }
-		return Token{typ: typ, value: two, line: l.line, column: start_col, filename: l.filename}
+		return Token{
+			typ:      typ
+			value:    two
+			line:     l.line
+			column:   start_col
+			filename: l.filename
+		}
 	}
 	l.advance_char()
-	return Token{typ: .operator, value: ch.ascii_str(), line: l.line, column: start_col, filename: l.filename}
+	return Token{
+		typ:      .operator
+		value:    ch.ascii_str()
+		line:     l.line
+		column:   start_col
+		filename: l.filename
+	}
 }
 
 fn (mut l Lexer) next_token() Token {
@@ -386,32 +441,70 @@ fn (mut l Lexer) next_token() Token {
 
 		// Single-char tokens
 		match ch {
-			`(` { l.grouping_level++; l.advance_char(); return l.make_token(.lparen, '(') }
-			`)` { l.grouping_level--; l.advance_char(); return l.make_token(.rparen, ')') }
-			`[` { l.grouping_level++; l.advance_char(); return l.make_token(.lbracket, '[') }
-			`]` { l.grouping_level--; l.advance_char(); return l.make_token(.rbracket, ']') }
-			`{` { l.grouping_level++; l.advance_char(); return l.make_token(.lbrace, '{') }
-			`}` { l.grouping_level--; l.advance_char(); return l.make_token(.rbrace, '}') }
+			`(` {
+				l.grouping_level++
+				l.advance_char()
+				return l.make_token(.lparen, '(')
+			}
+			`)` {
+				l.grouping_level--
+				l.advance_char()
+				return l.make_token(.rparen, ')')
+			}
+			`[` {
+				l.grouping_level++
+				l.advance_char()
+				return l.make_token(.lbracket, '[')
+			}
+			`]` {
+				l.grouping_level--
+				l.advance_char()
+				return l.make_token(.rbracket, ']')
+			}
+			`{` {
+				l.grouping_level++
+				l.advance_char()
+				return l.make_token(.lbrace, '{')
+			}
+			`}` {
+				l.grouping_level--
+				l.advance_char()
+				return l.make_token(.rbrace, '}')
+			}
 			`:` {
 				if l.peek_char_at(1) == `=` {
-					l.advance_char(); l.advance_char()
+					l.advance_char()
+					l.advance_char()
 					return l.make_token(.walrus, ':=')
 				}
 				l.advance_char()
 				return l.make_token(.colon, ':')
 			}
-			`,` { l.advance_char(); return l.make_token(.comma, ',') }
+			`,` {
+				l.advance_char()
+				return l.make_token(.comma, ',')
+			}
 			`.` {
 				if l.peek_char_at(1) == `.` && l.peek_char_at(2) == `.` {
-					l.advance_char(); l.advance_char(); l.advance_char()
+					l.advance_char()
+					l.advance_char()
+					l.advance_char()
 					return l.make_token(.ellipsis, '...')
 				}
 				l.advance_char()
 				return l.make_token(.dot, '.')
 			}
-			`;` { l.advance_char(); return l.make_token(.semicolon, ';') }
-			`@` { l.advance_char(); return l.make_token(.at, '@') }
-			else { return l.scan_operator() }
+			`;` {
+				l.advance_char()
+				return l.make_token(.semicolon, ';')
+			}
+			`@` {
+				l.advance_char()
+				return l.make_token(.at, '@')
+			}
+			else {
+				return l.scan_operator()
+			}
 		}
 	}
 	return l.make_token(.eof, '')

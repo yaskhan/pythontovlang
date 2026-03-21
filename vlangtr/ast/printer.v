@@ -29,7 +29,9 @@ pub fn (mut p Printer) visit_module(node &Module) {
 	for i, stmt in node.body {
 		p.write(p.indent())
 		walk_stmt(mut p, stmt)
-		if i < node.body.len - 1 { p.write(',') }
+		if i < node.body.len - 1 {
+			p.write(',')
+		}
 		p.write('\n')
 	}
 	p.indent_level--
@@ -59,7 +61,9 @@ fn (mut p Printer) visit_function_def(node &FunctionDef) {
 	for i, s in node.body {
 		p.write(p.indent())
 		walk_stmt(mut p, s)
-		if i < node.body.len - 1 { p.write(',') }
+		if i < node.body.len - 1 {
+			p.write(',')
+		}
 		p.write('\n')
 	}
 	p.indent_level--
@@ -69,7 +73,9 @@ fn (mut p Printer) visit_function_def(node &FunctionDef) {
 	for i, dec in node.decorator_list {
 		p.write(p.indent())
 		walk_expr(mut p, dec)
-		if i < node.decorator_list.len - 1 { p.write(',') }
+		if i < node.decorator_list.len - 1 {
+			p.write(',')
+		}
 		p.write('\n')
 	}
 	p.indent_level--
@@ -86,7 +92,9 @@ fn (mut p Printer) visit_function_def(node &FunctionDef) {
 	for i, tp in node.type_params {
 		p.write(p.indent())
 		p.visit_type_param(tp)
-		if i < node.type_params.len - 1 { p.write(',') }
+		if i < node.type_params.len - 1 {
+			p.write(',')
+		}
 		p.write('\n')
 	}
 	p.indent_level--
@@ -128,7 +136,9 @@ fn (mut p Printer) visit_class_def(node &ClassDef) {
 	for i, s in node.body {
 		p.write(p.indent())
 		walk_stmt(mut p, s)
-		if i < node.body.len - 1 { p.write(',') }
+		if i < node.body.len - 1 {
+			p.write(',')
+		}
 		p.write('\n')
 	}
 	p.indent_level--
@@ -138,7 +148,9 @@ fn (mut p Printer) visit_class_def(node &ClassDef) {
 	for i, dec in node.decorator_list {
 		p.write(p.indent())
 		walk_expr(mut p, dec)
-		if i < node.decorator_list.len - 1 { p.write(',') }
+		if i < node.decorator_list.len - 1 {
+			p.write(',')
+		}
 		p.write('\n')
 	}
 	p.indent_level--
@@ -148,7 +160,9 @@ fn (mut p Printer) visit_class_def(node &ClassDef) {
 	for i, tp in node.type_params {
 		p.write(p.indent())
 		p.visit_type_param(tp)
-		if i < node.type_params.len - 1 { p.write(',') }
+		if i < node.type_params.len - 1 {
+			p.write(',')
+		}
 		p.write('\n')
 	}
 	p.indent_level--
@@ -167,7 +181,9 @@ fn (mut p Printer) visit_if(node &If) {
 	for i, s in node.body {
 		p.write(p.indent())
 		walk_stmt(mut p, s)
-		if i < node.body.len - 1 { p.write(',') }
+		if i < node.body.len - 1 {
+			p.write(',')
+		}
 		p.write('\n')
 	}
 	p.indent_level--
@@ -184,7 +200,9 @@ fn (mut p Printer) visit_assign(node &Assign) {
 	for i, t in node.targets {
 		p.write(p.indent())
 		walk_expr(mut p, t)
-		if i < node.targets.len - 1 { p.write(',') }
+		if i < node.targets.len - 1 {
+			p.write(',')
+		}
 		p.write('\n')
 	}
 	p.indent_level--
@@ -205,7 +223,11 @@ fn (mut p Printer) visit_ann_assign(node &AnnAssign) {
 	walk_expr(mut p, node.annotation)
 	p.write(',\n')
 	p.write(p.indent() + 'value=')
-	if v := node.value { walk_expr(mut p, v) } else { p.write('None') }
+	if v := node.value {
+		walk_expr(mut p, v)
+	} else {
+		p.write('None')
+	}
 	p.write(',\n')
 	p.write(p.indent() + 'simple=${node.simple})')
 	p.indent_level--
@@ -213,9 +235,9 @@ fn (mut p Printer) visit_ann_assign(node &AnnAssign) {
 
 fn (mut p Printer) visit_name(node &Name) {
 	ctx_str := match node.ctx {
-		.load  { 'Load()' }
+		.load { 'Load()' }
 		.store { 'Store()' }
-		.del   { 'Del()' }
+		.del { 'Del()' }
 	}
 	p.write('Name(id=\'${node.id}\', ctx=${ctx_str})')
 }
@@ -236,9 +258,9 @@ fn (mut p Printer) visit_attribute(node &Attribute) {
 	p.write(',\n')
 	p.write(p.indent() + 'attr=\'${node.attr}\',\n')
 	ctx_str := match node.ctx {
-		.load  { 'Load()' }
+		.load { 'Load()' }
 		.store { 'Store()' }
-		.del   { 'Del()' }
+		.del { 'Del()' }
 	}
 	p.write(p.indent() + 'ctx=${ctx_str})')
 	p.indent_level--
@@ -255,7 +277,9 @@ fn (mut p Printer) visit_call(node &Call) {
 	for i, arg in node.args {
 		p.write(p.indent())
 		walk_expr(mut p, arg)
-		if i < node.args.len - 1 { p.write(',') }
+		if i < node.args.len - 1 {
+			p.write(',')
+		}
 		p.write('\n')
 	}
 	p.indent_level--
@@ -294,7 +318,9 @@ fn (mut p Printer) visit_compare(node &Compare) {
 	p.write(p.indent() + 'ops=[')
 	for i, op in node.ops {
 		p.write(op_to_ast(op))
-		if i < node.ops.len - 1 { p.write(', ') }
+		if i < node.ops.len - 1 {
+			p.write(', ')
+		}
 	}
 	p.write('],\n')
 	p.write(p.indent() + 'comparators=[\n')
@@ -302,7 +328,9 @@ fn (mut p Printer) visit_compare(node &Compare) {
 	for i, c in node.comparators {
 		p.write(p.indent())
 		walk_expr(mut p, c)
-		if i < node.comparators.len - 1 { p.write(',') }
+		if i < node.comparators.len - 1 {
+			p.write(',')
+		}
 		p.write('\n')
 	}
 	p.indent_level--
@@ -314,18 +342,17 @@ fn op_to_ast(tok Token) string {
 	match tok.value {
 		'==' { return 'Eq()' }
 		'!=' { return 'NotEq()' }
-		'<'  { return 'Lt()' }
+		'<' { return 'Lt()' }
 		'<=' { return 'LtE()' }
-		'>'  { return 'Gt()' }
+		'>' { return 'Gt()' }
 		'>=' { return 'GtE()' }
-		'is'     { return 'Is()' }
+		'is' { return 'Is()' }
 		'is not' { return 'IsNot()' }
-		'in'     { return 'In()' }
+		'in' { return 'In()' }
 		'not in' { return 'NotIn()' }
-		else     { return 'UnknownOp()' }
+		else { return 'UnknownOp()' }
 	}
 }
-
 
 fn (mut p Printer) visit_binary_op(node &BinaryOp) {
 	p.write('BinOp(\n')
@@ -339,7 +366,11 @@ fn (mut p Printer) visit_binary_op(node &BinaryOp) {
 	p.write(')')
 	p.indent_level--
 }
-fn (mut p Printer) visit_unary_op(node &UnaryOp) { p.write('UnaryOp(...)') }
+
+fn (mut p Printer) visit_unary_op(node &UnaryOp) {
+	p.write('UnaryOp(...)')
+}
+
 fn (mut p Printer) visit_list(node &List) {
 	p.write('List(\n')
 	p.indent_level++
@@ -348,14 +379,16 @@ fn (mut p Printer) visit_list(node &List) {
 	for i, elt in node.elements {
 		p.write(p.indent())
 		walk_expr(mut p, elt)
-		if i < node.elements.len - 1 { p.write(',\n') }
+		if i < node.elements.len - 1 {
+			p.write(',\n')
+		}
 	}
 	p.indent_level--
 	p.write('\n' + p.indent() + '],\n')
 	ctx_str := match node.ctx {
-		.load  { 'Load()' }
+		.load { 'Load()' }
 		.store { 'Store()' }
-		.del   { 'Del()' }
+		.del { 'Del()' }
 	}
 	p.write(p.indent() + 'ctx=${ctx_str})')
 	p.indent_level--
@@ -369,7 +402,9 @@ fn (mut p Printer) visit_dict(node &Dict) {
 	for i, k in node.keys {
 		p.write(p.indent())
 		walk_expr(mut p, k)
-		if i < node.keys.len - 1 { p.write(',\n') }
+		if i < node.keys.len - 1 {
+			p.write(',\n')
+		}
 	}
 	p.indent_level--
 	p.write('\n' + p.indent() + '],\n')
@@ -378,7 +413,9 @@ fn (mut p Printer) visit_dict(node &Dict) {
 	for i, v in node.values {
 		p.write(p.indent())
 		walk_expr(mut p, v)
-		if i < node.values.len - 1 { p.write(',\n') }
+		if i < node.values.len - 1 {
+			p.write(',\n')
+		}
 	}
 	p.indent_level--
 	p.write('\n' + p.indent() + '])')
@@ -393,14 +430,16 @@ fn (mut p Printer) visit_tuple(node &Tuple) {
 	for i, elt in node.elements {
 		p.write(p.indent())
 		walk_expr(mut p, elt)
-		if i < node.elements.len - 1 { p.write(',\n') }
+		if i < node.elements.len - 1 {
+			p.write(',\n')
+		}
 	}
 	p.indent_level--
 	p.write('\n' + p.indent() + '],\n')
 	ctx_str := match node.ctx {
-		.load  { 'Load()' }
+		.load { 'Load()' }
 		.store { 'Store()' }
-		.del   { 'Del()' }
+		.del { 'Del()' }
 	}
 	p.write(p.indent() + 'ctx=${ctx_str})')
 	p.indent_level--
@@ -414,12 +453,15 @@ fn (mut p Printer) visit_set(node &Set) {
 	for i, elt in node.elements {
 		p.write(p.indent())
 		walk_expr(mut p, elt)
-		if i < node.elements.len - 1 { p.write(',\n') }
+		if i < node.elements.len - 1 {
+			p.write(',\n')
+		}
 	}
 	p.indent_level--
 	p.write('\n' + p.indent() + '])')
 	p.indent_level--
 }
+
 // Fallback for other nodes to keep it compiling
 fn (mut p Printer) visit_for(node &For) {
 	name := if node.is_async { 'AsyncFor' } else { 'For' }
@@ -436,7 +478,9 @@ fn (mut p Printer) visit_for(node &For) {
 	for i, stmt in node.body {
 		p.write(p.indent())
 		walk_stmt(mut p, stmt)
-		if i < node.body.len - 1 { p.write(',\n') }
+		if i < node.body.len - 1 {
+			p.write(',\n')
+		}
 	}
 	p.indent_level--
 	p.write('\n' + p.indent() + '],\n')
@@ -445,7 +489,9 @@ fn (mut p Printer) visit_for(node &For) {
 	for i, stmt in node.orelse {
 		p.write(p.indent())
 		walk_stmt(mut p, stmt)
-		if i < node.orelse.len - 1 { p.write(',\n') }
+		if i < node.orelse.len - 1 {
+			p.write(',\n')
+		}
 	}
 	p.indent_level--
 	p.write('\n' + p.indent() + '])')
@@ -463,7 +509,9 @@ fn (mut p Printer) visit_while(node &While) {
 	for i, stmt in node.body {
 		p.write(p.indent())
 		walk_stmt(mut p, stmt)
-		if i < node.body.len - 1 { p.write(',\n') }
+		if i < node.body.len - 1 {
+			p.write(',\n')
+		}
 	}
 	p.indent_level--
 	p.write('\n' + p.indent() + '],\n')
@@ -472,12 +520,15 @@ fn (mut p Printer) visit_while(node &While) {
 	for i, stmt in node.orelse {
 		p.write(p.indent())
 		walk_stmt(mut p, stmt)
-		if i < node.orelse.len - 1 { p.write(',\n') }
+		if i < node.orelse.len - 1 {
+			p.write(',\n')
+		}
 	}
 	p.indent_level--
 	p.write('\n' + p.indent() + '])')
 	p.indent_level--
 }
+
 fn (mut p Printer) visit_if_exp(node &IfExp) {
 	p.write('IfExp(\n')
 	p.indent_level++
@@ -492,9 +543,19 @@ fn (mut p Printer) visit_if_exp(node &IfExp) {
 	p.write(')')
 	p.indent_level--
 }
-fn (mut p Printer) visit_pass(node &Pass) { p.write('Pass()') }
-fn (mut p Printer) visit_break(node &Break) { p.write('Break()') }
-fn (mut p Printer) visit_continue(node &Continue) { p.write('Continue()') }
+
+fn (mut p Printer) visit_pass(node &Pass) {
+	p.write('Pass()')
+}
+
+fn (mut p Printer) visit_break(node &Break) {
+	p.write('Break()')
+}
+
+fn (mut p Printer) visit_continue(node &Continue) {
+	p.write('Continue()')
+}
+
 fn (mut p Printer) visit_import(node &Import) {
 	p.write('Import(names=[\n')
 	p.indent_level++
@@ -504,7 +565,9 @@ fn (mut p Printer) visit_import(node &Import) {
 			p.write(', asname=\'${asname}\'')
 		}
 		p.write(')')
-		if i < node.names.len - 1 { p.write(',\n') }
+		if i < node.names.len - 1 {
+			p.write(',\n')
+		}
 	}
 	p.indent_level--
 	p.write('\n' + p.indent() + '])')
@@ -522,13 +585,16 @@ fn (mut p Printer) visit_import_from(node &ImportFrom) {
 			p.write(', asname=\'${asname}\'')
 		}
 		p.write(')')
-		if i < node.names.len - 1 { p.write(',\n') }
+		if i < node.names.len - 1 {
+			p.write(',\n')
+		}
 	}
 	p.indent_level--
 	p.write('\n' + p.indent() + '],\n')
 	p.write(p.indent() + 'level=${node.level})')
 	p.indent_level--
 }
+
 fn (mut p Printer) visit_with(node &With) {
 	name := if node.is_async { 'AsyncWith' } else { 'With' }
 	p.write('${name}(items=[\n')
@@ -547,7 +613,9 @@ fn (mut p Printer) visit_with(node &With) {
 		}
 		p.write(')')
 		p.indent_level--
-		if i < node.items.len - 1 { p.write(',\n') }
+		if i < node.items.len - 1 {
+			p.write(',\n')
+		}
 	}
 	p.indent_level--
 	p.write('\n' + p.indent() + '], body=[\n')
@@ -555,7 +623,9 @@ fn (mut p Printer) visit_with(node &With) {
 	for i, stmt in node.body {
 		p.write(p.indent())
 		walk_stmt(mut p, stmt)
-		if i < node.body.len - 1 { p.write(',\n') }
+		if i < node.body.len - 1 {
+			p.write(',\n')
+		}
 	}
 	p.indent_level--
 	p.write('\n' + p.indent() + '])')
@@ -569,7 +639,9 @@ fn (mut p Printer) visit_try(node &Try) {
 	for i, stmt in node.body {
 		p.write(p.indent())
 		walk_stmt(mut p, stmt)
-		if i < node.body.len - 1 { p.write(',\n') }
+		if i < node.body.len - 1 {
+			p.write(',\n')
+		}
 	}
 	p.indent_level--
 	p.write('\n' + p.indent() + '],\n')
@@ -589,11 +661,15 @@ fn (mut p Printer) visit_try(node &Try) {
 		for j, stmt in h.body {
 			p.write(p.indent())
 			walk_stmt(mut p, stmt)
-			if j < h.body.len - 1 { p.write(',\n') }
+			if j < h.body.len - 1 {
+				p.write(',\n')
+			}
 		}
 		p.indent_level--
 		p.write('\n' + p.indent() + '])')
-		if i < node.handlers.len - 1 { p.write(',\n') }
+		if i < node.handlers.len - 1 {
+			p.write(',\n')
+		}
 	}
 	p.indent_level--
 	p.write('\n' + p.indent() + '],\n')
@@ -602,7 +678,9 @@ fn (mut p Printer) visit_try(node &Try) {
 	for i, stmt in node.orelse {
 		p.write(p.indent())
 		walk_stmt(mut p, stmt)
-		if i < node.orelse.len - 1 { p.write(',\n') }
+		if i < node.orelse.len - 1 {
+			p.write(',\n')
+		}
 	}
 	p.indent_level--
 	p.write('\n' + p.indent() + '],\n')
@@ -611,7 +689,9 @@ fn (mut p Printer) visit_try(node &Try) {
 	for i, stmt in node.finalbody {
 		p.write(p.indent())
 		walk_stmt(mut p, stmt)
-		if i < node.finalbody.len - 1 { p.write(',\n') }
+		if i < node.finalbody.len - 1 {
+			p.write(',\n')
+		}
 	}
 	p.indent_level--
 	p.write('\n' + p.indent() + '])')
@@ -626,7 +706,9 @@ fn (mut p Printer) visit_try_star(node &TryStar) {
 	for i, stmt in node.body {
 		p.write(p.indent())
 		walk_stmt(mut p, stmt)
-		if i < node.body.len - 1 { p.write(',\n') }
+		if i < node.body.len - 1 {
+			p.write(',\n')
+		}
 	}
 	p.indent_level--
 	p.write('\n' + p.indent() + '],\n')
@@ -646,11 +728,15 @@ fn (mut p Printer) visit_try_star(node &TryStar) {
 		for j, stmt in h.body {
 			p.write(p.indent())
 			walk_stmt(mut p, stmt)
-			if j < h.body.len - 1 { p.write(',\n') }
+			if j < h.body.len - 1 {
+				p.write(',\n')
+			}
 		}
 		p.indent_level--
 		p.write('\n' + p.indent() + '])')
-		if i < node.handlers.len - 1 { p.write(',\n') }
+		if i < node.handlers.len - 1 {
+			p.write(',\n')
+		}
 	}
 	p.indent_level--
 	p.write('\n' + p.indent() + '],\n')
@@ -659,7 +745,9 @@ fn (mut p Printer) visit_try_star(node &TryStar) {
 	for i, stmt in node.orelse {
 		p.write(p.indent())
 		walk_stmt(mut p, stmt)
-		if i < node.orelse.len - 1 { p.write(',\n') }
+		if i < node.orelse.len - 1 {
+			p.write(',\n')
+		}
 	}
 	p.indent_level--
 	p.write('\n' + p.indent() + '],\n')
@@ -668,7 +756,9 @@ fn (mut p Printer) visit_try_star(node &TryStar) {
 	for i, stmt in node.finalbody {
 		p.write(p.indent())
 		walk_stmt(mut p, stmt)
-		if i < node.finalbody.len - 1 { p.write(',\n') }
+		if i < node.finalbody.len - 1 {
+			p.write(',\n')
+		}
 	}
 	p.indent_level--
 	p.write('\n' + p.indent() + '])')
@@ -709,12 +799,16 @@ fn (mut p Printer) visit_match(node &Match) {
 		for j, stmt in c.body {
 			p.write(p.indent())
 			walk_stmt(mut p, stmt)
-			if j < c.body.len - 1 { p.write(',\n') }
+			if j < c.body.len - 1 {
+				p.write(',\n')
+			}
 		}
 		p.indent_level--
 		p.write('\n' + p.indent() + '])')
 		p.indent_level--
-		if i < node.cases.len - 1 { p.write(',\n') }
+		if i < node.cases.len - 1 {
+			p.write(',\n')
+		}
 	}
 	p.indent_level--
 	p.write('\n' + p.indent() + '])')
@@ -744,7 +838,9 @@ fn (mut p Printer) visit_match_sequence(node &MatchSequence) {
 	for i, pattern in node.patterns {
 		p.write(p.indent())
 		walk_pattern(mut p, pattern)
-		if i < node.patterns.len - 1 { p.write(',\n') }
+		if i < node.patterns.len - 1 {
+			p.write(',\n')
+		}
 	}
 	p.indent_level--
 	p.write('\n' + p.indent() + '])')
@@ -756,7 +852,9 @@ fn (mut p Printer) visit_match_mapping(node &MatchMapping) {
 	for i, k in node.keys {
 		p.write(p.indent())
 		walk_expr(mut p, k)
-		if i < node.keys.len - 1 { p.write(',\n') }
+		if i < node.keys.len - 1 {
+			p.write(',\n')
+		}
 	}
 	p.indent_level--
 	p.write('\n' + p.indent() + '], patterns=[\n')
@@ -764,7 +862,9 @@ fn (mut p Printer) visit_match_mapping(node &MatchMapping) {
 	for i, pat in node.patterns {
 		p.write(p.indent())
 		walk_pattern(mut p, pat)
-		if i < node.patterns.len - 1 { p.write(',\n') }
+		if i < node.patterns.len - 1 {
+			p.write(',\n')
+		}
 	}
 	p.indent_level--
 	p.write('\n' + p.indent() + ']')
@@ -784,14 +884,18 @@ fn (mut p Printer) visit_match_class(node &MatchClass) {
 	for i, pat in node.patterns {
 		p.write(p.indent())
 		walk_pattern(mut p, pat)
-		if i < node.patterns.len - 1 { p.write(',\n') }
+		if i < node.patterns.len - 1 {
+			p.write(',\n')
+		}
 	}
 	p.indent_level--
 	p.write('\n' + p.indent() + '],\n' + p.indent() + 'kwd_attrs=[\n')
 	p.indent_level++
 	for i, attr in node.kwd_attrs {
 		p.write(p.indent() + '\'${attr}\'')
-		if i < node.kwd_attrs.len - 1 { p.write(',\n') }
+		if i < node.kwd_attrs.len - 1 {
+			p.write(',\n')
+		}
 	}
 	p.indent_level--
 	p.write('\n' + p.indent() + '],\n' + p.indent() + 'kwd_patterns=[\n')
@@ -799,7 +903,9 @@ fn (mut p Printer) visit_match_class(node &MatchClass) {
 	for i, pat in node.kwd_patterns {
 		p.write(p.indent())
 		walk_pattern(mut p, pat)
-		if i < node.kwd_patterns.len - 1 { p.write(',\n') }
+		if i < node.kwd_patterns.len - 1 {
+			p.write(',\n')
+		}
 	}
 	p.indent_level--
 	p.write('\n' + p.indent() + '])')
@@ -832,18 +938,21 @@ fn (mut p Printer) visit_match_or(node &MatchOr) {
 	for i, pattern in node.patterns {
 		p.write(p.indent())
 		walk_pattern(mut p, pattern)
-		if i < node.patterns.len - 1 { p.write(',\n') }
+		if i < node.patterns.len - 1 {
+			p.write(',\n')
+		}
 	}
 	p.indent_level--
 	p.write('\n' + p.indent() + '])')
 }
+
 fn (mut p Printer) visit_starred(node &Starred) {
 	p.write('Starred(value=')
 	walk_expr(mut p, node.value)
 	ctx_str := match node.ctx {
-		.load  { 'Load()' }
+		.load { 'Load()' }
 		.store { 'Store()' }
-		.del   { 'Del()' }
+		.del { 'Del()' }
 	}
 	p.write(', ctx=${ctx_str})')
 }
@@ -855,7 +964,9 @@ fn (mut p Printer) visit_list_comp(node &ListComp) {
 	p.indent_level++
 	for i, gen in node.generators {
 		p.print_comprehension(gen)
-		if i < node.generators.len - 1 { p.write(',\n') }
+		if i < node.generators.len - 1 {
+			p.write(',\n')
+		}
 	}
 	p.indent_level--
 	p.write('\n' + p.indent() + '])')
@@ -870,7 +981,9 @@ fn (mut p Printer) visit_dict_comp(node &DictComp) {
 	p.indent_level++
 	for i, gen in node.generators {
 		p.print_comprehension(gen)
-		if i < node.generators.len - 1 { p.write(',\n') }
+		if i < node.generators.len - 1 {
+			p.write(',\n')
+		}
 	}
 	p.indent_level--
 	p.write('\n' + p.indent() + '])')
@@ -883,7 +996,9 @@ fn (mut p Printer) visit_set_comp(node &SetComp) {
 	p.indent_level++
 	for i, gen in node.generators {
 		p.print_comprehension(gen)
-		if i < node.generators.len - 1 { p.write(',\n') }
+		if i < node.generators.len - 1 {
+			p.write(',\n')
+		}
 	}
 	p.indent_level--
 	p.write('\n' + p.indent() + '])')
@@ -896,7 +1011,9 @@ fn (mut p Printer) visit_generator(node &GeneratorExp) {
 	p.indent_level++
 	for i, gen in node.generators {
 		p.print_comprehension(gen)
-		if i < node.generators.len - 1 { p.write(',\n') }
+		if i < node.generators.len - 1 {
+			p.write(',\n')
+		}
 	}
 	p.indent_level--
 	p.write('\n' + p.indent() + '])')
@@ -912,7 +1029,9 @@ fn (mut p Printer) print_comprehension(node Comprehension) {
 	for j, if_ in node.ifs {
 		p.write(p.indent())
 		walk_expr(mut p, if_)
-		if j < node.ifs.len - 1 { p.write(',\n') }
+		if j < node.ifs.len - 1 {
+			p.write(',\n')
+		}
 	}
 	p.indent_level--
 	p.write('\n' + p.indent() + '], is_async=${node.is_async})')
@@ -954,13 +1073,15 @@ fn (mut p Printer) visit_lambda(node &Lambda) {
 fn (mut p Printer) visit_arguments(args Arguments) {
 	p.write('arguments(\n')
 	p.indent_level++
-	
+
 	p.write(p.indent() + 'posonlyargs=[\n')
 	p.indent_level++
 	for i, arg in args.posonlyargs {
 		p.write(p.indent())
 		p.visit_parameter(arg)
-		if i < args.posonlyargs.len - 1 { p.write(',\n') }
+		if i < args.posonlyargs.len - 1 {
+			p.write(',\n')
+		}
 	}
 	p.indent_level--
 	p.write('\n' + p.indent() + '],\n')
@@ -970,7 +1091,9 @@ fn (mut p Printer) visit_arguments(args Arguments) {
 	for i, arg in args.args {
 		p.write(p.indent())
 		p.visit_parameter(arg)
-		if i < args.args.len - 1 { p.write(',\n') }
+		if i < args.args.len - 1 {
+			p.write(',\n')
+		}
 	}
 	p.indent_level--
 	p.write('\n' + p.indent() + '],\n')
@@ -987,7 +1110,9 @@ fn (mut p Printer) visit_arguments(args Arguments) {
 	for i, arg in args.kwonlyargs {
 		p.write(p.indent())
 		p.visit_parameter(arg)
-		if i < args.kwonlyargs.len - 1 { p.write(',\n') }
+		if i < args.kwonlyargs.len - 1 {
+			p.write(',\n')
+		}
 	}
 	p.indent_level--
 	p.write('\n' + p.indent() + '],\n')
@@ -1086,7 +1211,9 @@ fn (mut p Printer) visit_delete(node &Delete) {
 	for i, target in node.targets {
 		p.write(p.indent())
 		walk_expr(mut p, target)
-		if i < node.targets.len - 1 { p.write(',\n') }
+		if i < node.targets.len - 1 {
+			p.write(',\n')
+		}
 	}
 	p.indent_level--
 	p.write('\n' + p.indent() + '])')
@@ -1098,9 +1225,9 @@ fn (mut p Printer) visit_subscript(node &Subscript) {
 	p.write(', slice=')
 	walk_expr(mut p, node.slice)
 	ctx_str := match node.ctx {
-		.load  { 'Load()' }
+		.load { 'Load()' }
 		.store { 'Store()' }
-		.del   { 'Del()' }
+		.del { 'Del()' }
 	}
 	p.write(', ctx=${ctx_str})')
 }
@@ -1133,7 +1260,9 @@ fn (mut p Printer) visit_joined_str(node &JoinedStr) {
 	for i, val in node.values {
 		p.write(p.indent())
 		walk_expr(mut p, val)
-		if i < node.values.len - 1 { p.write(',\n') }
+		if i < node.values.len - 1 {
+			p.write(',\n')
+		}
 	}
 	p.indent_level--
 	p.write('\n' + p.indent() + '])')
@@ -1145,7 +1274,7 @@ fn (mut p Printer) visit_formatted_value(node &FormattedValue) {
 	conversion_str := match node.conversion {
 		115 { "'s'" }
 		114 { "'r'" }
-		97  { "'a'" }
+		97 { "'a'" }
 		else { '-1' }
 	}
 	p.write(', conversion=${conversion_str}')
@@ -1157,6 +1286,7 @@ fn (mut p Printer) visit_formatted_value(node &FormattedValue) {
 	}
 	p.write(')')
 }
+
 fn (mut p Printer) visit_type_alias(node &TypeAlias) {
 	p.write('TypeAlias(\n')
 	p.indent_level++
@@ -1166,7 +1296,9 @@ fn (mut p Printer) visit_type_alias(node &TypeAlias) {
 	for i, tp in node.type_params {
 		p.write(p.indent())
 		p.visit_type_param(tp)
-		if i < node.type_params.len - 1 { p.write(',') }
+		if i < node.type_params.len - 1 {
+			p.write(',')
+		}
 		p.write('\n')
 	}
 	p.indent_level--
