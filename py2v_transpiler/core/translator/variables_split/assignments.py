@@ -396,7 +396,14 @@ class AssignmentsMixin(TranslatorBase):
                     if isinstance(target, ast.Attribute) or isinstance(target, ast.Subscript): emit_fn(f"{self._indent()}{lhs} = {rhs}")
                     else:
                         if emit_fn == self.output.append:
-                            if not self.in_main and v_lhs in self._local_vars_in_scope: emit_fn(f"{self._indent()}{v_lhs} = {rhs}")
+                            if not self.in_main and v_lhs in self._local_vars_in_scope:
+                                opt_type = getattr(self, '_cond_optional_var_type', {}).get(v_lhs)
+                                if opt_type and rhs != 'none' and not rhs.startswith('?'):
+                                    if opt_type == '?Any':
+                                        rhs = f'Any({rhs})'
+                                    else:
+                                        rhs = f'{opt_type}({rhs})'
+                                emit_fn(f"{self._indent()}{v_lhs} = {rhs}")
                             else:
                                 is_mut = False
                                 if hasattr(self, 'type_inference') and hasattr(self.type_inference, 'mutability_map'):

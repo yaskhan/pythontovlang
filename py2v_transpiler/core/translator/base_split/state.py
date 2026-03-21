@@ -100,6 +100,7 @@ class TranslatorStateMixin:
         self.in_pydantic_validator: bool = False
         self.current_node: Optional[ast.AST] = None
         self.readonly_fields: Dict[str, Set[str]] = {}
+        self._cond_optional_var_type: Dict[str, str] = {}
 
         # Build hierarchy from type inference
         if hasattr(self.type_inference, "class_hierarchy"):
