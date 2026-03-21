@@ -25,5 +25,9 @@ author = "agent"
 task = "shell.exec"
 args = "python -m pytest py2v_transpiler/tests/ -q --tb=short"
 
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "mypy py2v_transpiler/core py2v_transpiler/models py2v_transpiler/stdlib_map py2v_transpiler/main.py py2v_transpiler/config.py --check-untyped-defs"
+
 [workflows.workflow.metadata]
 outputType = "console"
