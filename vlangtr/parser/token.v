@@ -27,6 +27,7 @@ enum TokenType {
 	walrus
 	ellipsis
 	fstring_tok
+	tstring_tok
 }
 
 // ==================== TOKEN ====================

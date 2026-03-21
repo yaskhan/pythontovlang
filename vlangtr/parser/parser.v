@@ -1182,15 +1182,16 @@ fn (mut p Parser) parse_string_literal() ?Expression {
 	mut parts := []Expression{}
 	mut has_fstring := false
 
-	for p.current_is(.fstring_tok) || p.current_is(.string_tok) {
+	for p.current_is(.fstring_tok) || p.current_is(.string_tok) || p.current_is(.tstring_tok) {
 		if p.current_is(.fstring_tok) {
 			has_fstring = true
 			fparts := p.parse_joined_str(p.current_token)?
 			parts << fparts
 		} else {
+			prefix := if p.current_is(.tstring_tok) { 't' } else { '' }
 			parts << Constant{
 				token: p.current_token
-				value: "'${p.current_token.value}'"
+				value: "${prefix}'${p.current_token.value}'"
 			}
 			p.advance()
 		}
@@ -1199,18 +1200,24 @@ fn (mut p Parser) parse_string_literal() ?Expression {
 	if !has_fstring {
 		// Concatenate all constant parts into one
 		mut val := ''
+		mut is_t := false
 		for part in parts {
 			if part is Constant {
-				// Strip the added single quotes
 				v := part.value
+				mut start_idx := 1
+				if v.starts_with('t') {
+					is_t = true
+					start_idx = 2
+				}
 				if v.len >= 2 {
-					val += v[1..v.len-1]
+					val += v[start_idx..v.len-1]
 				}
 			}
 		}
+		prefix := if is_t { 't' } else { '' }
 		return Constant{
 			token: tok
-			value: "'${val}'"
+			value: "${prefix}'${val}'"
 		}
 	}
 
@@ -1401,7 +1408,7 @@ fn (mut p Parser) parse_primary_expr() ?Expression {
 			p.advance()
 			return Constant{token: tok, value: tok.value}
 		}
-		p.current_is(.fstring_tok) || p.current_is(.string_tok) {
+		p.current_is(.fstring_tok) || p.current_is(.string_tok) || p.current_is(.tstring_tok) {
 			return p.parse_string_literal()
 		}
 		p.current_is(.ellipsis) {

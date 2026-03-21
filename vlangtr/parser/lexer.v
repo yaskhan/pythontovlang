@@ -217,7 +217,13 @@ fn (mut l Lexer) scan_number() Token {
 fn (mut l Lexer) scan_string(prefix string) Token {
 	start_col := l.column - prefix.len
 	quote := l.peek_char()
-	mut typ := if prefix.to_lower().contains('f') { TokenType.fstring_tok } else { TokenType.string_tok }
+	mut typ := if prefix.to_lower().contains('f') {
+		TokenType.fstring_tok
+	} else if prefix.to_lower().contains('t') {
+		TokenType.tstring_tok
+	} else {
+		TokenType.string_tok
+	}
 	
 	// Check for triple quote
 	if l.pos + 2 < l.source.len && l.peek_char() == quote && l.peek_char_at(1) == quote && l.peek_char_at(2) == quote {
@@ -345,7 +351,7 @@ fn (mut l Lexer) next_token() Token {
 		}
 
 		// String prefixes: r, b, f, u, rb, br, fr, rf
-		if ch == `r` || ch == `b` || ch == `f` || ch == `u` {
+		if ch == `r` || ch == `b` || ch == `f` || ch == `u` || ch == `t` {
 			next := l.peek_char_at(1)
 			if next == `'` || next == `"` {
 				p := ch.ascii_str()
