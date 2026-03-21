@@ -1,4 +1,4 @@
-module main
+module ast
 
 // ==================== PARSER ====================
 
@@ -18,15 +18,15 @@ const prec_unary       = 11
 const prec_power       = 12
 const prec_call        = 13
 
-struct Parser {
-mut:
+pub struct Parser {
+pub mut:
 	lexer         Lexer
 	current_token Token
 	peek_tok       Token
 	errors        []ParseError
 }
 
-fn new_parser(lexer Lexer) Parser {
+pub fn new_parser(lexer Lexer) Parser {
 	mut p := Parser{
 		lexer: lexer
 	}
@@ -115,7 +115,7 @@ fn (mut p Parser) parse() ?Module {
 	return m
 }
 
-fn (mut p Parser) parse_module() Module {
+pub fn (mut p Parser) parse_module() Module {
 	tok := p.current_token
 	mut body := []Statement{}
 	p.skip_newlines()

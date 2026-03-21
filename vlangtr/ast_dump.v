@@ -1,6 +1,7 @@
 module main
 
 import os
+import ast
 
 fn main() {
 	// ── Demo: parse Python source from CLI argument or built-in example ──
@@ -20,10 +21,10 @@ fn main() {
 	}
 
 	// ── Lex ──
-	mut lexer := new_lexer(source, filename)
+	mut lexer := ast.new_lexer(source, filename)
 
 	// ── Parse ──
-	mut parser := new_parser(lexer)
+	mut parser := ast.new_parser(lexer)
 	module_ast := parser.parse_module()
 
 	if parser.errors.len > 0 {
@@ -34,7 +35,7 @@ fn main() {
 	}
 
 	// ── Print AST ──
-	mut printer := Printer{}
+	mut printer := ast.Printer{}
 	printer.visit_module(&module_ast)
 	println(printer.output)
 

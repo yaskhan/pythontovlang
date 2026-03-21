@@ -1,8 +1,8 @@
-module main
+module ast
 
 // ==================== LEXER ====================
 
-struct Lexer {
+pub struct Lexer {
 mut:
 	source          string
 	filename        string
@@ -15,7 +15,7 @@ mut:
 	grouping_level  int
 }
 
-fn new_lexer(source string, filename string) Lexer {
+pub fn new_lexer(source string, filename string) Lexer {
 	return Lexer{
 		source:       source
 		filename:     filename

@@ -1,10 +1,10 @@
-module main
+module ast
 
 // ==================== AST PRINTER ====================
 // Matches Python's ast.dump(..., indent=2) style
 
-struct Printer {
-mut:
+pub struct Printer {
+pub mut:
 	indent_level int
 	output       string
 }
@@ -21,7 +21,7 @@ fn (mut p Printer) writeln(s string) {
 	p.output += s + '\n'
 }
 
-fn (mut p Printer) visit_module(node &Module) {
+pub fn (mut p Printer) visit_module(node &Module) {
 	p.write('Module(\n')
 	p.indent_level++
 	p.write(p.indent() + 'body=[\n')

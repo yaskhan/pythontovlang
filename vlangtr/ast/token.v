@@ -1,8 +1,8 @@
-module main
+module ast
 
 // ==================== TOKEN TYPES ====================
 
-enum TokenType {
+pub enum TokenType {
 	eof
 	newline
 	indent
@@ -32,7 +32,7 @@ enum TokenType {
 
 // ==================== TOKEN ====================
 
-struct Token {
+pub struct Token {
 pub:
 	typ      TokenType
 	value    string
