@@ -1287,6 +1287,33 @@ fn (mut p Parser) parse_joined_str(tok Token) ?[]Expression {
 				conversion = if conv_char.len > 0 { int(conv_char[0]) } else { -1 }
 			}
 
+			// Check for debug '='
+			mut is_debug := false
+			mut debug_text := ''
+			mut last_eq := -1
+			for k := expr_str.len - 1; k >= 0; k-- {
+				if expr_str[k].is_space() {
+					continue
+				}
+				if expr_str[k] == `=` {
+					last_eq = k
+					is_debug = true
+				}
+				break
+			}
+
+			if is_debug {
+				debug_text = expr_str[..last_eq + 1]
+				expr_str = expr_str[..last_eq]
+				if conversion == -1 {
+					conversion = 114 // 'r'
+				}
+				values << Constant{
+					token: tok
+					value: "'${debug_text}'"
+				}
+			}
+
 			mut sub_lexer := new_lexer(expr_str, p.lexer.filename)
 			mut sub_parser := new_parser(sub_lexer)
 			parsed_expr := sub_parser.parse_expression() or {
