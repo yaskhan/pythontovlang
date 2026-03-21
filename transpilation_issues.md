@@ -18,7 +18,7 @@
 
 ---
 ****************
-## Issue #1: Decorator functions with *args and **kwargs generate invalid V code
+## * Issue #1: Decorator functions with *args and **kwargs generate invalid V code
 
 **File:** test_more_features.py
 
@@ -281,7 +281,7 @@ match_status(500)  # This will fail in V
 
 
 *******************
-## Issue #9: Tuple destructuring uses invalid indexing syntax
+## * Issue #9: Tuple destructuring uses invalid indexing syntax
 
 **File:** test_function_annotations.py, test_type_annotations.py, test_string_literals.py
 
@@ -303,7 +303,7 @@ y := py_destruct_0[1]
 
 ---
 *****************************
-## Issue #10: `mut none` is invalid V syntax
+## * Issue #10: `mut none` is invalid V syntax
 
 **File:** test_function_annotations.py
 
@@ -340,7 +340,7 @@ process('test', mut none, 1)
 
 ---
 ****************************
-## Issue #11: `extend()` translated as `<<` which adds list as single element
+## * Issue #11: `extend()` translated as `<<` which adds list as single element
 
 **File:** test_type_annotations.py
 
@@ -371,7 +371,7 @@ pub fn complex_dict(data map[string][]int) []int {
 
 ---
 ******************************
-## Issue #12: `callable` type annotation generates untyped `fn`
+## * Issue #12: `callable` type annotation generates untyped `fn`
 
 **File:** test_type_annotations.py
 
@@ -512,7 +512,7 @@ mut get_value := fn (mut x Any) Any {
 
 ---
 *************************
-## Issue #18: SumType methods not available without type narrowing
+## * Issue #18: SumType methods not available without type narrowing
 
 **File:** test_transpile.py
 
@@ -550,7 +550,7 @@ println('${d.value + 1}')
 
 ---
 
-## Issue #19: `py_list_from_iter` with custom iterator may fail
+## * Issue #19: `py_list_from_iter` with custom iterator may fail
 
 **File:** repro_iterators.py
 
