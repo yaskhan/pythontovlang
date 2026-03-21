@@ -54,12 +54,18 @@ class CompatibilityLayer:
                 return f'f{quotes}__py2v_t__'
 
         # Matches t, T, rt, tr, etc. followed by ' or " or ''' or """
-        # Only matches if prefix is immediately followed by quotes (no space)
-        # We avoid matching 't' or 'T' inside strings by ensuring it's not preceded by a quote.
-        # But since we use regex on the whole source, it's hard to be perfect without tokenizing.
-        # However, PEP 750 t-strings must be at the start of a token.
-        # Using a negative lookbehind for quotes might help.
-        return re.sub(r'(?<![\\\'\"\w])\b(rt|tr|t)(["\']{1,3})', replace_prefix, source, flags=re.IGNORECASE)
+        # We ensure it's at the start of an expression or preceded by whitespace/delimiters.
+        # This avoids matching things like path-t" or filename.tr" inside labels or strings.
+        def replace_t_prefix(match):
+            prefix = match.group(2).lower()
+            quotes = match.group(3)
+            leading = match.group(1)
+            if 'r' in prefix:
+                return f'{leading}rf{quotes}__py2v_t__'
+            else:
+                return f'{leading}f{quotes}__py2v_t__'
+
+        return re.sub(r'(^|[\s=([{},:!|&])(rt|tr|t)(["\']{1,3})', replace_t_prefix, source, flags=re.IGNORECASE)
 
     def _preprocess_generic_match(self, source: str) -> str:
         """

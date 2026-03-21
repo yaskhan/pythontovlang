@@ -168,7 +168,10 @@ class FunctionGenerationMixin:
         ret_type = "void"
         if not is_generator:
             if node.returns:
-                try: ret_type = self._map_type(ast.unparse(node.returns), struct_name, is_return=True)
+                try:
+                    type_str = ast.unparse(node.returns)
+                    self._check_experimental_type(type_str, node.returns)
+                    ret_type = self._map_type(type_str, struct_name, is_return=True)
                 except:
                     if isinstance(node.returns, ast.Name): ret_type = self._map_type(node.returns.id, struct_name, is_return=True)
                     elif isinstance(node.returns, ast.Constant) and isinstance(node.returns.value, str): ret_type = self._map_type(node.returns.value, struct_name, is_return=True)
@@ -178,6 +181,8 @@ class FunctionGenerationMixin:
                 elif node.name == "__enter__":
                     for bs in node.body:
                         if isinstance(bs, ast.Return) and isinstance(bs.value, ast.Name) and bs.value.id == "self": ret_type = self._get_full_self_type(struct_name); break
+        if dec_info.is_setter:
+            ret_type = "void"
         if ret_type != "void": annotations_data["return"] = ret_type
         is_noreturn = False
         if ret_type == "none": ret_type = "void"
