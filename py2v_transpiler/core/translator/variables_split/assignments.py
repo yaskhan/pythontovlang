@@ -1,10 +1,35 @@
 import ast
-from typing import Any
+from typing import Any, List, Optional, Dict, Set, Union, TYPE_CHECKING, Tuple
 from ..base import TranslatorBase
 from py2v_transpiler.models.v_types import map_python_type_to_v
 
+if TYPE_CHECKING:
+    pass
 
 class AssignmentsMixin(TranslatorBase):
+    if TYPE_CHECKING:
+        defined_top_level_symbols: Set[str]
+        output: List[str]
+        in_main: bool
+        _local_vars_in_scope: Set[str]
+        name_remap: Dict[str, str]
+        unique_id_counter: int
+        _zip_counter: int
+        known_interfaces: Set[str]
+        dataclasses: Dict[str, List[str]]
+        type_inference: Any
+        current_assignment_type: Optional[str]
+        def _indent(self) -> str: ...
+        def _sanitize_name(self, name: str, is_type: bool = False) -> str: ...
+        def _guess_type(self, node: ast.AST, use_location: bool = True) -> str: ...
+        def _map_type(self, type_str: str, struct_name: Optional[str] = None, allow_union: bool = True, register_sum_types: bool = True, is_return: bool = False) -> str: ...
+        def _is_tuple_struct(self, v_type: str) -> bool: ...
+        def _is_clonable_collection(self, v_type: str) -> bool: ...
+        def _is_literal_string_expr(self, node: ast.AST) -> bool: ...
+        def visit_ListComp(self, node: Union[ast.ListComp, ast.GeneratorExp], target_var: Optional[str] = None) -> Optional[str]: ...
+        def visit_SetComp(self, node: ast.SetComp, target_var: Optional[str] = None) -> Optional[str]: ...
+        def visit_DictComp(self, node: ast.DictComp, target_var: Optional[str] = None) -> Optional[str]: ...
+
     """Assignment handling: visit_Assign and helper methods"""
 
     def _is_compile_time_evaluable(self, node: ast.AST) -> bool:
@@ -226,7 +251,9 @@ class AssignmentsMixin(TranslatorBase):
                 else:
                     self.output.append(f"{self._indent()}mut {v_lhs} := {v_type}{{}}")
                     if not self.in_main: self._local_vars_in_scope.add(v_lhs)
-                for elt in node.value.elts: self.output.append(f"{self._indent()}{v_lhs} << {self.visit(elt)}")
+                if isinstance(node.value, (ast.List, ast.Tuple)):
+                    for elt in node.value.elts: 
+                        self.output.append(f"{self._indent()}{v_lhs} << {self.visit(elt)}")
                 return
             if is_simple_list and v_type.startswith("[]") and cap > 0 and is_mut:
                 v_lhs = lhs
@@ -234,7 +261,9 @@ class AssignmentsMixin(TranslatorBase):
                 else:
                     self.output.append(f"{self._indent()}mut {v_lhs} := {v_type}{{cap: {cap}}}")
                     if not self.in_main: self._local_vars_in_scope.add(v_lhs)
-                for elt in node.value.elts: self.output.append(f"{self._indent()}{v_lhs} << {self.visit(elt)}")
+                if isinstance(node.value, (ast.List, ast.Tuple)):
+                    for elt in node.value.elts: 
+                        self.output.append(f"{self._indent()}{v_lhs} << {self.visit(elt)}")
                 return
             elif hasattr(self, 'dataclasses') and v_type in self.dataclasses and isinstance(node.value, ast.Dict):
                 pairs = [f"{self._sanitize_name(k.value)}: {self.visit(v)}" for k, v in zip(node.value.keys, node.value.values) if isinstance(k, ast.Constant) and isinstance(k.value, str)]

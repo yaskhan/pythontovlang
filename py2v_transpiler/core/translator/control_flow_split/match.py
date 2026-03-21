@@ -202,7 +202,7 @@ class MatchMixin(TranslatorBase):
                 alt_cond, alt_binds = self._compile_pattern(p, subject_expr)
                 parts.append(f"({alt_cond})")
                 all_alternatives_bindings.append(alt_binds)
-            binding_map = {}
+            binding_map: Dict[str, List[Tuple[List[str], str]]] = {}
             for b_list in all_alternatives_bindings:
                 for b_str in b_list:
                     name, expr = b_str.split(" := ", 1)

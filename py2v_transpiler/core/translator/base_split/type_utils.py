@@ -18,6 +18,9 @@ class TypeUtilsMixin:
         imported_symbols: Dict[str, str]
         scc_files: Set[str]
         used_builtins: Set[str]
+        config: Any
+        warnings: List[str]
+        def _sanitize_name(self, name: str, is_type: bool = False) -> str: ...
         def _get_all_active_v_generics(self) -> List[str]: ...
 
     def _is_collection_type(self, v_type: str) -> bool:
