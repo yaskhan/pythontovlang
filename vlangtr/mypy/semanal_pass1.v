@@ -39,7 +39,7 @@ pub fn (mut spa SemanticAnalyzerPreAnalysis) visit_file(file MypyFile, fnam stri
 	spa.skipped_lines = map[int]bool{}
 
 	for i, defn in file.defs {
-		// TODO: вызвать accept у defn
+		spa.accept(defn)
 		if defn is AssertStmt {
 			if assert_will_always_fail(defn, options) {
 				if i < file.defs.len - 1 {
@@ -104,13 +104,13 @@ pub fn (mut spa SemanticAnalyzerPreAnalysis) visit_import(node Import) {
 pub fn (mut spa SemanticAnalyzerPreAnalysis) visit_if_stmt(s IfStmt) {
 	infer_reachability_of_if_statement(s, spa.options)
 	for expr in s.expr {
-		// TODO: вызвать accept у expr
+		spa.accept(expr)
 	}
 	for node in s.body {
-		// TODO: вызвать accept у node
+		spa.accept(node)
 	}
 	if s.else_body {
-		// TODO: вызвать accept у s.else_body
+		spa.accept(s.else_body)
 	}
 }
 
@@ -126,7 +126,9 @@ pub fn (mut spa SemanticAnalyzerPreAnalysis) visit_block(b Block) {
 		}
 		return
 	}
-	// TODO: вызвать super().visit_block(b)
+	for stmt in b.body {
+		spa.accept(stmt)
+	}
 }
 
 // visit_match_stmt обрабатывает match-оператор
@@ -134,11 +136,11 @@ pub fn (mut spa SemanticAnalyzerPreAnalysis) visit_match_stmt(s MatchStmt) {
 	infer_reachability_of_match_statement(s, spa.options)
 	for guard in s.guards {
 		if guard != none {
-			// TODO: вызвать accept у guard
+			spa.accept(guard)
 		}
 	}
 	for body in s.bodies {
-		// TODO: вызвать accept у body
+		spa.accept(body)
 	}
 }
 
@@ -159,22 +161,120 @@ pub fn (spa SemanticAnalyzerPreAnalysis) visit_return_stmt(s ReturnStmt) {
 
 // visit_for_stmt обрабатывает for-цикл
 pub fn (mut spa SemanticAnalyzerPreAnalysis) visit_for_stmt(s ForStmt) {
-	// TODO: вызвать accept у s.body
+	spa.accept(s.body)
 	if s.else_body != none {
-		// TODO: вызвать accept у s.else_body
+		spa.accept(s.else_body)
 	}
 }
 
-// Вспомогательные функции-заглушки
+// accept вызывает соответствующий visit_метод для узла
+pub fn (mut spa SemanticAnalyzerPreAnalysis) accept(node Node) {
+	if node is FuncDef {
+		spa.visit_func_def(node)
+	} else if node is ClassDef {
+		spa.visit_class_def(node)
+	} else if node is ImportFrom {
+		spa.visit_import_from(node)
+	} else if node is ImportAll {
+		spa.visit_import_all(node)
+	} else if node is Import {
+		spa.visit_import(node)
+	} else if node is IfStmt {
+		spa.visit_if_stmt(node)
+	} else if node is Block {
+		spa.visit_block(node)
+	} else if node is MatchStmt {
+		spa.visit_match_stmt(node)
+	} else if node is AssignmentStmt {
+		spa.visit_assignment_stmt(node)
+	} else if node is ExpressionStmt {
+		spa.visit_expression_stmt(node)
+	} else if node is ReturnStmt {
+		spa.visit_return_stmt(node)
+	} else if node is ForStmt {
+		spa.visit_for_stmt(node)
+	}
+}
+
+// assert_will_always_fail проверяет, будет ли assert всегда падать
 fn assert_will_always_fail(node AssertStmt, options Options) bool {
-	// TODO: реализация из mypy/reachability.v
+	if node.expr is NameExpr {
+		if node.expr.name == 'False' || node.expr.name == 'false' {
+			return true
+		}
+	}
+	if node.expr is LiteralExpr {
+		if node.expr.value == 'False' || node.expr.value == 'false' {
+			return true
+		}
+	}
 	return false
 }
 
+// infer_reachability_of_if_statement определяет достижимость ветвей if
 fn infer_reachability_of_if_statement(s IfStmt, options Options) {
-	// TODO: реализация из mypy/reachability.v
+	for i, expr in s.expr {
+		if expr is NameExpr {
+			if expr.name == 'False' || expr.name == 'false' {
+				if i < s.body.len {
+					s.body[i].is_unreachable = true
+				}
+			} else if expr.name == 'True' || expr.name == 'true' {
+				if s.else_body != none {
+					s.else_body.is_unreachable = true
+				}
+			}
+		} else if expr is LiteralExpr {
+			if expr.value == 'False' || expr.value == 'false' {
+				if i < s.body.len {
+					s.body[i].is_unreachable = true
+				}
+			} else if expr.value == 'True' || expr.value == 'true' {
+				if s.else_body != none {
+					s.else_body.is_unreachable = true
+				}
+			}
+		}
+	}
+	// Проверка sys.platform
+	if options.platform != '' {
+		for i, expr in s.expr {
+			if expr is ComparisonExpr {
+				if expr.operands.len == 2 {
+					left := expr.operands[0]
+					right := expr.operands[1]
+					if left is NameExpr && left.name == 'sys.platform' {
+						if right is StrExpr {
+							match_platform := right.value == options.platform
+							if expr.operators[0] == '==' {
+								if !match_platform && i < s.body.len {
+									s.body[i].is_unreachable = true
+								}
+							} else if expr.operators[0] == '!=' {
+								if match_platform && i < s.body.len {
+									s.body[i].is_unreachable = true
+								}
+							}
+						}
+					}
+				}
+			}
+		}
+	}
 }
 
+// infer_reachability_of_match_statement определяет достижимость ветвей match
 fn infer_reachability_of_match_statement(s MatchStmt, options Options) {
-	// TODO: реализация из mypy/reachability.v
+	// Базовая реализация - mark guards that are always false
+	for i, guard in s.guards {
+		if guard != none {
+			if guard is NameExpr {
+				if guard.name == 'False' || guard.name == 'false' {
+					if i < s.bodies.len {
+						s.bodies[i].is_unreachable = true
+					}
+				}
+			}
+		}
+	}
 }

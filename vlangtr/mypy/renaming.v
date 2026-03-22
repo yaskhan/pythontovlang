@@ -157,6 +157,208 @@ fn (v VariableRenameVisitor) current_block() int {
 // is_nested проверяет, вложены ли мы
 fn (v VariableRenameVisitor) is_nested() bool {
 	return v.var_blocks.len > 1
-	// Трансляция завершена частично — основные структуры и методы управления областями видимости
-	// TODO: полная реализация visit_* методов и handle_* методов
+}
+
+// flush_refs обрабатывает ссылки на переменные
+fn (mut v VariableRenameVisitor) flush_refs() {
+	if v.refs.len == 0 {
+		return
+	}
+	
+	last_refs := v.refs.pop()
+	last_reads := v.num_reads.pop()
+	
+	for name, collections in last_refs {
+		reads := last_reads[name] or { 0 }
+		
+		// Если было переопределение и мало чтений
+		if collections.len > 1 && reads <= 1 {
+			// Переименовываем первое определение
+			for i, coll in collections {
+				if i > 0 {
+					for expr in coll {
+						// Помечаем для переименования
+						expr.is_special_form = true
+					}
+				}
+			}
+		}
+	}
+}
+
+// visit_name_expr обрабатывает имя переменной
+pub fn (mut v VariableRenameVisitor) visit_name_expr(expr NameExpr) {
+	if v.var_blocks.len == 0 {
+		return
+	}
+	
+	mut current := v.var_blocks.last()
+	name := expr.name
+	
+	if name !in current {
+		current[name] = v.current_block()
+	} else {
+		// Проверяем, в том же ли блоке определение
+		def_block := current[name]
+		if def_block != v.current_block() {
+			// Переопределение в другом блоке
+			if name !in v.refs.last() {
+				v.refs.last()[name] = [][]NameExpr{}
+			}
+			v.refs.last()[name] << [expr]
+		}
+	}
+}
+
+// visit_assignment_stmt обрабатывает присваивание
+pub fn (mut v VariableRenameVisitor) visit_assignment_stmt(stmt AssignmentStmt) {
+	for lval in stmt.lvalues {
+		v.visit_lvalue(lval)
+	}
+	if stmt.rvalue != none {
+		v.visit_expression(stmt.rvalue)
+	}
+}
+
+// visit_lvalue обрабатывает lvalue
+fn (mut v VariableRenameVisitor) visit_lvalue(lval Lvalue) {
+	if lval is NameExpr {
+		if v.var_blocks.len > 0 {
+			mut current := v.var_blocks.last()
+			name := lval.name
+			
+			if name in current {
+				// Переопределение
+				if v.disallow_redef_depth == 0 {
+					current[name] = v.current_block()
+				}
+			} else {
+				current[name] = v.current_block()
+			}
+			
+			// Сбрасываем счётчик чтений
+			if v.num_reads.len > 0 {
+				v.num_reads.last()[name] = 0
+			}
+		}
+	} else if lval is TupleExpr || lval is ListExpr {
+		for item in lval.items {
+			v.visit_lvalue(item)
+		}
+	} else if lval is MemberExpr {
+		v.visit_expression(lval.expr)
+	}
+}
+
+// visit_expression обрабатывает выражение
+fn (mut v VariableRenameVisitor) visit_expression(expr Expression) {
+	if expr is NameExpr {
+		v.visit_name_expr(expr)
+		// Увеличиваем счётчик чтений
+		if v.num_reads.len > 0 && v.var_blocks.len > 0 {
+			name := expr.name
+			if name in v.var_blocks.last() {
+				mut reads := v.num_reads.last()[name] or { 0 }
+				reads++
+				v.num_reads.last()[name] = reads
+			}
+		}
+	} else if expr is MemberExpr {
+		v.visit_expression(expr.expr)
+	} else if expr is CallExpr {
+		v.visit_expression(expr.callee)
+		for arg in expr.args {
+			v.visit_expression(arg)
+		}
+	} else if expr is TupleExpr || expr is ListExpr {
+		for item in expr.items {
+			v.visit_expression(item)
+		}
+	} else if expr is DictExpr {
+		for kv in expr.items {
+			v.visit_expression(kv[0])
+			v.visit_expression(kv[1])
+		}
+	}
+}
+
+// visit_func_def обрабатывает определение функции
+pub fn (mut v VariableRenameVisitor) visit_func_def(defn FuncDef) {
+	_ = v.enter_scope(function_scope)
+	defer { ScopeGuard{v: v}.drop() }
+	
+	for arg in defn.arguments {
+		v.visit_lvalue(arg.variable)
+	}
+	
+	if defn.body != none {
+		v.visit_block(defn.body)
+	}
+}
+
+// visit_class_def обрабатывает определение класса
+pub fn (mut v VariableRenameVisitor) visit_class_def(defn ClassDef) {
+	_ = v.enter_scope(class_scope)
+	defer { ScopeGuard{v: v}.drop() }
+	
+	if defn.defs != none {
+		v.visit_block(defn.defs)
+	}
+}
+
+// visit_block обрабатывает блок
+pub fn (mut v VariableRenameVisitor) visit_block(block Block) {
+	_ = v.enter_block()
+	defer { BlockGuard{v: v}.drop() }
+	
+	for stmt in block.body {
+		v.visit_statement(stmt)
+	}
+}
+
+// visit_statement обрабатывает утверждение
+fn (mut v VariableRenameVisitor) visit_statement(stmt Statement) {
+	if stmt is AssignmentStmt {
+		v.visit_assignment_stmt(stmt)
+	} else if stmt is ExpressionStmt {
+		v.visit_expression(stmt.expr)
+	} else if stmt is ReturnStmt {
+		if stmt.expr != none {
+			v.visit_expression(stmt.expr)
+		}
+	} else if stmt is IfStmt {
+		for expr in stmt.expr {
+			v.visit_expression(expr)
+		}
+		for body in stmt.body {
+			v.visit_block(body)
+		}
+		if stmt.else_body != none {
+			v.visit_block(stmt.else_body)
+		}
+	} else if stmt is WhileStmt {
+		v.visit_expression(stmt.expr)
+		_ = v.enter_loop()
+		defer { LoopGuard{v: v}.drop() }
+		v.visit_block(stmt.body)
+	} else if stmt is ForStmt {
+		v.visit_expression(stmt.iter)
+		v.visit_lvalue(stmt.index)
+		_ = v.enter_loop()
+		defer { LoopGuard{v: v}.drop() }
+		v.visit_block(stmt.body)
+	} else if stmt is TryStmt {
+		_ = v.enter_try()
+		defer { TryGuard{v: v}.drop() }
+		v.visit_block(stmt.body)
+		for handler in stmt.handlers {
+			v.visit_block(handler)
+		}
+	} else if stmt is FuncDef {
+		v.visit_func_def(stmt)
+	} else if stmt is ClassDef {
+		v.visit_class_def(stmt)
+	} else if stmt is Block {
+		v.visit_block(stmt)
+	}
 }

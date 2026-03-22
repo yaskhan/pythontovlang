@@ -205,8 +205,8 @@ pub fn store_argument_type(defn FuncItem, i int, typ CallableTypeNode, named_typ
 
 // Вспомогательные функции-заглушки
 fn get_proper_type(t MypyTypeNode) MypyTypeNode {
-	// TODO: реализация из types.v
-	return t
+	// Delegate to types module
+	return get_proper_type(t)
 }
 
 fn get_proper_types(types []MypyTypeNode) []MypyTypeNode {

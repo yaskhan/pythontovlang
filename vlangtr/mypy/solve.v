@@ -269,7 +269,30 @@ pub fn check_linear(scc []TypeVarId, lowers Bounds, uppers Bounds) bool {
 // get_vars находит типовые переменные в целевом типе
 pub fn get_vars(target MypyTypeNode, vars []TypeVarId) []TypeVarId {
 	mut result := []TypeVarId{}
-	// TODO: рекурсивный обход типа для поиска TypeVar
+	if target is TypeVarTypeNode {
+		if target.id in vars {
+			result << target.id
+		}
+	} else if target is InstanceNode {
+		for arg in target.args {
+			result << get_vars(arg, vars)
+		}
+	} else if target is CallableTypeNode {
+		for arg_type in target.arg_types {
+			result << get_vars(arg_type, vars)
+		}
+		result << get_vars(target.ret_type, vars)
+	} else if target is TupleTypeNode {
+		for item in target.items {
+			result << get_vars(item, vars)
+		}
+	} else if target is UnionTypeNode {
+		for item in target.items {
+			result << get_vars(item, vars)
+		}
+	} else if target is OptionalTypeNode {
+		result << get_vars(target.typ, vars)
+	}
 	return result
 }
 
@@ -294,6 +317,11 @@ fn meet_types(left MypyTypeNode, right MypyTypeNode) MypyTypeNode {
 }
 
 fn get_vars_from_str(s string, tvars []TypeVarId) []TypeVarId {
-	// TODO: извлечь TypeVarId из строкового представления
-	return []TypeVarId{}
+	mut result := []TypeVarId{}
+	for tv in tvars {
+		if s.contains(tv.str()) {
+			result << tv
+		}
+	}
+	return result
 }

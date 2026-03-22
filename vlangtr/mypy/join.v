@@ -341,7 +341,30 @@ pub fn object_or_any_from_type(typ ProperType) ProperType {
 }
 
 pub fn unpack_callback_protocol(t Instance) ?ProperType {
-	// TODO: implementation of protocol_members == ["__call__"] check
+	// Check if protocol has only __call__ member
+	if !t.typ.is_protocol {
+		return none
+	}
+	
+	mut has_call := false
+	mut other_members := false
+	
+	for name in t.typ.names.symbols.keys() {
+		if name == '__call__' {
+			has_call = true
+		} else if !name.starts_with('_') || name in ['__iter__', '__next__', '__getitem__', '__setitem__'] {
+			other_members = true
+		}
+	}
+	
+	if has_call && !other_members {
+		// Return the __call__ type
+		sym := t.typ.names.symbols['__call__'] or { return none }
+		if sym.node != none {
+			return sym.node.typ
+		}
+	}
+	
 	return none
 }
 
@@ -349,27 +372,64 @@ pub fn unpack_callback_protocol(t Instance) ?ProperType {
 
 
 fn is_subtype(left MypyTypeNode, right MypyTypeNode) bool {
-	// TODO: implementation from subtypes.v
-	return true
+	// Delegate to subtypes module
+	ctx := new_subtype_context(false, false, false, false, false, false, false, none)
+	return is_subtype(left, right, ctx)
 }
 
 fn is_proper_subtype(left MypyTypeNode, right MypyTypeNode) bool {
-	// TODO: реализация из subtypes.v
-	return true
+	// Delegate to subtypes module
+	ctx := new_subtype_context(false, false, false, false, false, false, false, none)
+	return is_proper_subtype(left, right, ctx)
 }
 
 fn map_instance_to_supertype(inst Instance, supertype TypeInfo) Instance {
-	// TODO: implementation from maptype.v
-	return inst
+	// Delegate to subtypes module
+	return map_instance_to_supertype(inst, supertype)
 }
 
 fn make_simplified_union(items []MypyTypeNode) MypyTypeNode {
-	// TODO: implementation from typeops.v
+	if items.len == 0 {
+		return UninhabitedType{}
+	}
 	if items.len == 1 {
 		return items[0]
 	}
+	
+	// Remove duplicates
+	mut seen := map[string]bool{}
+	mut unique := []MypyTypeNode{}
+	
+	for item in items {
+		key := item.str()
+		if key !in seen {
+			seen[key] = true
+			unique << item
+		}
+	}
+	
+	// Flatten nested unions
+	mut flattened := []MypyTypeNode{}
+	for item in unique {
+		if item is UnionType {
+			for sub_item in item.items {
+				sub_key := sub_item.str()
+				if sub_key !in seen {
+					seen[sub_key] = true
+					flattened << sub_item
+				}
+			}
+		} else {
+			flattened << item
+		}
+	}
+	
+	if flattened.len == 1 {
+		return flattened[0]
+	}
+	
 	return UnionType{
-		items: items
+		items: flattened
 	}
 }
 

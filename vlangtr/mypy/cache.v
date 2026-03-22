@@ -400,39 +400,99 @@ fn write_tag(mut data []u8, tag u8) {
 }
 
 fn read_int_bare(mut data []u8) int {
-	// TODO: implementation of reading int from buffer
-	return 0
+	if data.len < 4 {
+		return 0
+	}
+	// Read 4 bytes as little-endian int
+	result := int(data[0]) | (int(data[1]) << 8) | (int(data[2]) << 16) | (int(data[3]) << 24)
+	data = data[4..]
+	return result
 }
 
 fn write_int_bare(mut data []u8, value int) {
-	// TODO: implementation of writing int to buffer
+	// Write 4 bytes as little-endian int
+	data << u8(value & 0xFF)
+	data << u8((value >> 8) & 0xFF)
+	data << u8((value >> 16) & 0xFF)
+	data << u8((value >> 24) & 0xFF)
 }
 
 fn read_str_bare(mut data []u8) string {
-	// TODO: implementation of reading string from buffer
-	return ''
+	// Read length as 4-byte int, then the string bytes
+	if data.len < 4 {
+		return ''
+	}
+	length := int(data[0]) | (int(data[1]) << 8) | (int(data[2]) << 16) | (int(data[3]) << 24)
+	data = data[4..]
+	if data.len < length {
+		return ''
+	}
+	result := data[..length].bytestr()
+	data = data[length..]
+	return result
 }
 
 fn write_str_bare(mut data []u8, value string) {
-	// TODO: implementation of writing string to buffer
+	// Write length as 4-byte int, then the string bytes
+	bytes := value.bytes()
+	write_int_bare(mut data, bytes.len)
+	for b in bytes {
+		data << b
+	}
 }
 
 fn read_bytes_bare(mut data []u8) []u8 {
-	// TODO: implementation of reading bytes from buffer
-	return []
+	// Read length as 4-byte int, then the bytes
+	if data.len < 4 {
+		return []
+	}
+	length := int(data[0]) | (int(data[1]) << 8) | (int(data[2]) << 16) | (int(data[3]) << 24)
+	data = data[4..]
+	if data.len < length {
+		return []
+	}
+	result := data[..length].clone()
+	data = data[length..]
+	return result
 }
 
 fn write_bytes_bare(mut data []u8, value []u8) {
-	// TODO: implementation of writing bytes to buffer
+	// Write length as 4-byte int, then the bytes
+	write_int_bare(mut data, value.len)
+	for b in value {
+		data << b
+	}
 }
 
 fn read_float_bare(mut data []u8) f64 {
-	// TODO: implementation of reading float from buffer
-	return 0.0
+	// Read 8 bytes as IEEE 754 double (little-endian)
+	if data.len < 8 {
+		return 0.0
+	}
+	// Combine 8 bytes into u64
+	mut bits := u64(0)
+	for i in 0 .. 8 {
+		bits |= u64(data[i]) << (i * 8)
+	}
+	data = data[8..]
+	// Reinterpret as f64
+	return f64_from_bits(bits)
+}
+
+fn f64_from_bits(bits u64) f64 {
+	return unsafe { *(&f64(&bits)) }
+}
+
+fn f64_bits(value f64) u64 {
+	return unsafe { *(&u64(&value)) }
 }
 
 fn write_float_bare(mut data []u8, value f64) {
-	// TODO: implementation of writing float to buffer
+	// Write 8 bytes as IEEE 754 double (little-endian)
+	bits := f64_bits(value)
+	for i in 0 .. 8 {
+		data << u8((bits >> (i * 8)) & 0xFF)
+	}
 }
 
 fn write_bool(mut data []u8, value bool) {

@@ -306,6 +306,35 @@ pub interface SemanticAnalyzerPluginInterface {
 
 // Вспомогательные функции-заглушки
 fn lookup_fully_qualified(fullname string, modules map[string]MypyFile) ?SymbolTableNode {
-	// TODO: реализация из lookup.v
+	// Split fullname into module and name parts
+	parts := fullname.split('.')
+	if parts.len < 2 {
+		return none
+	}
+	
+	// Find module
+	module_name := parts[0]
+	mod := modules[module_name] or { return none }
+	
+	// Lookup in module namespace
+	current := mod.names
+	for i in 1 .. parts.len {
+		name := parts[i]
+		if name in current {
+			sym := current[name]
+			if i == parts.len - 1 {
+				return sym
+			}
+			// Continue lookup in nested namespace
+			if sym.node is TypeInfo {
+				current = sym.node.names
+			} else {
+				return none
+			}
+		} else {
+			return none
+		}
+	}
+	
 	return none
 }

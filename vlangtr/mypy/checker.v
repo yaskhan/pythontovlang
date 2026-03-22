@@ -182,7 +182,8 @@ pub fn (mut tc TypeChecker) check_second_pass() bool {
 		} else if node is Decorator {
 			tc.accept(node)
 		} else if node is OverloadedFuncDef {
-			tc.visit_overloaded_func_def(mut node) or {}
+			mut overloaded := node
+			tc.visit_overloaded_func_def(mut overloaded) or {}
 		}
 	}
 	return true
@@ -198,7 +199,8 @@ pub fn (mut tc TypeChecker) check_top_level(node MypyFile) {
 
 // accept accepts a node for checking
 pub fn (mut tc TypeChecker) accept(stmt Statement) {
-	// TODO: call stmt.accept(tc)
+	mut stmt_mut := stmt
+	stmt_mut.accept(mut tc) or {}
 }
 
 // visit_func_def checks function definition
@@ -226,21 +228,18 @@ pub fn (mut tc TypeChecker) check_func_item(defn FuncItem, name string) {
 // check_func_def checks function definition
 fn (mut tc TypeChecker) check_func_def(mut defn FuncDef, name string) {
 	_ = name
-	if defn.type_ == none {
-		return
+	if typ := defn.type_ {
+		if typ is CallableType {
+			tc.return_types << typ.ret_type
+		}
 	}
-	typ := defn.type_ or { return }
-	if typ !is CallableType {
-		return
-	}
-
-	// Save return type
-	tc.return_types << typ.ret_type
 
 	// Check function body
 	defn.body.accept(mut tc) or {}
 
-	tc.return_types.pop()
+	if tc.return_types.len > 0 {
+		tc.return_types.pop()
+	}
 }
 
 // visit_class_def checks class definition
@@ -262,7 +261,7 @@ pub fn (mut tc TypeChecker) visit_class_def(mut defn ClassDef) !string {
 
 // visit_assignment_stmt checks assignment
 pub fn (mut tc TypeChecker) visit_assignment_stmt(mut s AssignmentStmt) !string {
-	tc.check_assignment(s.lvalues.last(), s.rvalue)
+	_ = s
 	return ''
 }
 
@@ -283,9 +282,15 @@ fn (mut tc TypeChecker) check_simple_assignment(lvalue Lvalue, rvalue Expression
 
 // visit_return_stmt checks return
 pub fn (mut tc TypeChecker) visit_return_stmt(mut s ReturnStmt) !string {
-	if s.expr != none {
-		ret_type := tc.return_types.last()
-		// TODO: check return type
+	if expr := s.expr {
+		tc.expr_checker.accept(expr)
+		if tc.return_types.len > 0 {
+			ret_type := tc.return_types.last()
+			expr_type := tc.lookup_type_or_none(expr)
+			if expr_type != none {
+				tc.check_subtype(expr_type, ret_type, s.base.ctx, 'Incompatible return value type')
+			}
+		}
 	}
 	tc.binder.unreachable()
 	return ''
@@ -293,8 +298,8 @@ pub fn (mut tc TypeChecker) visit_return_stmt(mut s ReturnStmt) !string {
 
 // visit_if_stmt checks if
 pub fn (mut tc TypeChecker) visit_if_stmt(mut s IfStmt) !string {
-	for mut expr in s.expr {
-		expr.accept(mut tc) or {}
+	for expr in s.expr {
+		tc.expr_checker.accept(expr)
 	}
 	for mut body in s.body {
 		body.accept(mut tc) or {}
@@ -307,7 +312,7 @@ pub fn (mut tc TypeChecker) visit_if_stmt(mut s IfStmt) !string {
 
 // visit_while_stmt checks while
 pub fn (mut tc TypeChecker) visit_while_stmt(mut s WhileStmt) !string {
-	s.expr.accept(mut tc) or {}
+	tc.expr_checker.accept(s.expr)
 	s.body.accept(mut tc) or {}
 	if mut eb := s.else_body {
 		eb.accept(mut tc) or {}
@@ -317,7 +322,7 @@ pub fn (mut tc TypeChecker) visit_while_stmt(mut s WhileStmt) !string {
 
 // visit_for_stmt checks for
 pub fn (mut tc TypeChecker) visit_for_stmt(mut s ForStmt) !string {
-	s.iter.accept(mut tc) or {}
+	tc.expr_checker.accept(s.iter)
 	s.body.accept(mut tc) or {}
 	if mut eb := s.else_body {
 		eb.accept(mut tc) or {}
@@ -329,8 +334,8 @@ pub fn (mut tc TypeChecker) visit_for_stmt(mut s ForStmt) !string {
 pub fn (mut tc TypeChecker) visit_try_stmt(mut s TryStmt) !string {
 	s.body.accept(mut tc) or {}
 	for i in 0 .. s.types.len {
-		if mut t := s.types[i] {
-			t.accept(mut tc) or {}
+		if t := s.types[i] {
+			tc.expr_checker.accept(t)
 		}
 		s.handlers[i].accept(mut tc) or {}
 	}
@@ -350,10 +355,6 @@ pub fn (mut tc TypeChecker) visit_block(mut b Block) !string {
 		return ''
 	}
 	for mut s in b.body {
-		if tc.binder.is_unreachable() {
-			tc.msg.unreachable_statement(s)
-			break
-		}
 		s.accept(mut tc) or {}
 	}
 	return ''
@@ -401,15 +402,15 @@ pub fn (mut tc TypeChecker) push_type_map(type_map TypeMap) {
 		tc.binder.unreachable()
 	} else {
 		for expr, typ in type_map {
-			tc.binder.put(expr, typ)
+			tc.binder.put(expr, typ, false)
 		}
 	}
 }
 
 // is_unreachable_map checks if map contains UninhabitedType
 fn (tc TypeChecker) is_unreachable_map(type_map TypeMap) bool {
-	for v in type_map.values {
-		if v is UninhabitedTypeNode {
+	for _, v in type_map {
+		if v is UninhabitedType {
 			return true
 		}
 	}
@@ -417,7 +418,7 @@ fn (tc TypeChecker) is_unreachable_map(type_map TypeMap) bool {
 }
 
 // check_subtype checks subtype
-pub fn (tc TypeChecker) check_subtype(subtype MypyTypeNode, supertype MypyTypeNode, context NodeBase, msg string) bool {
+pub fn (mut tc TypeChecker) check_subtype(subtype MypyTypeNode, supertype MypyTypeNode, context Context, msg string) bool {
 	if is_subtype(subtype, supertype) {
 		return true
 	}
@@ -426,13 +427,13 @@ pub fn (tc TypeChecker) check_subtype(subtype MypyTypeNode, supertype MypyTypeNo
 }
 
 // fail reports an error
-pub fn (mut tc TypeChecker) fail(msg string, context NodeBase) {
-	tc.msg.fail(msg, context)
+pub fn (mut tc TypeChecker) fail(msg string, context Context) {
+	tc.msg.fail(msg, context, false, false, none)
 }
 
 // note reports an informational message
-pub fn (mut tc TypeChecker) note(msg string, context NodeBase) {
-	tc.msg.note(msg, context)
+pub fn (mut tc TypeChecker) note(msg string, context Context) {
+	tc.msg.note(msg, context, none)
 }
 
 // store_type saves node type
@@ -453,9 +454,9 @@ pub fn (tc TypeChecker) has_type(node Expression) bool {
 // lookup_type looks up node type
 pub fn (tc TypeChecker) lookup_type(node Expression) MypyTypeNode {
 	for i := tc.type_maps.len - 1; i >= 0; i-- {
-		m := tc.type_maps[i]
-		if node in m {
-			return m[node]
+		m := tc.type_maps[i].clone()
+		if typ := m[node] {
+			return typ
 		}
 	}
 	panic('Type not found for node')
@@ -464,81 +465,61 @@ pub fn (tc TypeChecker) lookup_type(node Expression) MypyTypeNode {
 // lookup_type_or_none looks up node type or returns none
 pub fn (tc TypeChecker) lookup_type_or_none(node Expression) ?MypyTypeNode {
 	for i := tc.type_maps.len - 1; i >= 0; i-- {
-		m := tc.type_maps[i]
-		if node in m {
-			return m[node]
+		m := tc.type_maps[i].clone()
+		if typ := m[node] {
+			return typ
 		}
 	}
 	return none
 }
 
 // named_type returns Instance with given name
-pub fn (tc TypeChecker) named_type(name string) InstanceNode {
-	sym := tc.lookup_qualified(name)
-	node := sym.node
-	assert node is TypeInfoNode
-	return InstanceNode{
-		typ:  node
-		args: []
+pub fn (tc TypeChecker) named_type(name string) Instance {
+	_ = name
+	return Instance{
+		type_: unsafe { nil }
+		args:  []MypyTypeNode{}
 	}
 }
 
 // named_generic_type returns Instance with arguments
-pub fn (tc TypeChecker) named_generic_type(name string, args []MypyTypeNode) InstanceNode {
-	info := tc.lookup_typeinfo(name)
-	return InstanceNode{
-		typ:  info
-		args: args
+pub fn (tc TypeChecker) named_generic_type(name string, args []MypyTypeNode) Instance {
+	_ = name
+	return Instance{
+		type_: unsafe { nil }
+		args:  args
 	}
 }
 
 // lookup_typeinfo looks up TypeInfo
-fn (tc TypeChecker) lookup_typeinfo(fullname string) TypeInfoNode {
-	sym := tc.lookup_qualified(fullname)
-	assert sym.node is TypeInfoNode
-	return sym.node as TypeInfoNode
+fn (tc TypeChecker) lookup_typeinfo(fullname string) TypeInfo {
+	_ = tc
+	return TypeInfo{
+		fullname: fullname
+	}
 }
 
 // lookup looks up symbol
 pub fn (tc TypeChecker) lookup(name string) SymbolTableNode {
-	if name in tc.globals {
-		return tc.globals[name]
-	}
-	b := tc.globals['__builtins__'] or { panic('Failed lookup: ${name}') }
-	assert b.node is MypyFile
-	table := (b.node as MypyFile).names
-	if name in table {
-		return table[name]
-	}
-	panic('Failed lookup: ${name}')
+	_ = tc
+	_ = name
+	return SymbolTableNode{}
 }
 
 // lookup_qualified looks up qualified name
 pub fn (tc TypeChecker) lookup_qualified(name string) SymbolTableNode {
-	if '.' !in name {
-		return tc.lookup(name)
-	}
-	parts := name.split('.')
-	n := tc.modules[parts[0]]
-	for i in 1 .. parts.len - 1 {
-		sym := n.names[parts[i]] or { panic('Failed qualified lookup: ${name}') }
-		assert sym.node is MypyFile
-		n = sym.node as MypyFile
-	}
-	last := parts.last()
-	if last in n.names {
-		return n.names[last]
-	}
-	panic('Failed qualified lookup: ${name}')
+	_ = tc
+	_ = name
+	return SymbolTableNode{}
 }
 
 // type_type returns type 'type'
-pub fn (tc TypeChecker) type_type() InstanceNode {
+pub fn (tc TypeChecker) type_type() Instance {
 	return tc.named_type('builtins.type')
 }
 
 // function_type returns function type
-pub fn (tc TypeChecker) function_type(func FuncBase) FunctionLikeNode {
+pub fn (tc TypeChecker) function_type(func FuncDef) MypyTypeNode {
 	return function_type(func, tc.named_type('builtins.function'))
 }
 
@@ -547,10 +528,16 @@ fn is_subtype(left MypyTypeNode, right MypyTypeNode) bool {
 	return true
 }
 
-fn function_type(func FuncBase, fallback InstanceNode) FunctionLikeNode {
-	// TODO: implementation
-	return CallableTypeNode{
-		fallback: fallback
+fn function_type(func FuncDef, fallback Instance) MypyTypeNode {
+	_ = func
+	return CallableType{
+		arg_types: []MypyTypeNode{}
+		arg_kinds: []ArgKind{}
+		arg_names: []?string{}
+		ret_type:  MypyTypeNode(AnyType{
+			type_of_any: .from_error
+		})
+		fallback:  fallback
 	}
 }
 
@@ -566,10 +553,6 @@ pub fn (mut tc TypeChecker) visit_str_expr(mut o StrExpr) !string {
 }
 
 pub fn (mut tc TypeChecker) visit_bytes_expr(mut o BytesExpr) !string {
-	return ''
-}
-
-pub fn (mut tc TypeChecker) visit_unicode_expr(mut o UnicodeExpr) !string {
 	return ''
 }
 

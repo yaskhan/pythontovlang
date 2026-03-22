@@ -11,7 +11,7 @@ import os
 // VersionTypeError — version error type with fallback value
 pub struct VersionTypeError {
 pub:
-	fallback (int, int)
+	fallback PythonVersion
 	msg      string
 }
 
@@ -33,7 +33,10 @@ pub fn parse_version(v string) !PythonVersion {
 	} else {
 		return error("Python major version '${major}' out of range (must be 3)")
 	}
-	return PythonVersion{major, minor}
+	return PythonVersion{
+		major: major
+		minor: minor
+	}
 }
 
 // try_split splits a string or list into a list of strings
@@ -47,7 +50,7 @@ pub fn try_split(v string, split_regex string) []string {
 
 // expand_path expands ~ and environment variables in a path
 pub fn expand_path(path string) string {
-    // V 0.5.x expansion
+	// V 0.5.x expansion
 	return path.replace('~', os.home_dir())
 }
 
@@ -131,7 +134,12 @@ pub type ConfigParserFunc = fn (string) ConfigValueTypes
 // ini_config_types — mapping of option names to parsing functions for INI
 pub const ini_config_types = {
 	'python_version':            fn (s string) ConfigValueTypes {
-		return parse_version(s) or { PythonVersion{3, 0} }
+		return parse_version(s) or {
+			PythonVersion{
+				major: 3
+				minor: 0
+			}
+		}
 	}
 	'custom_typing_module':      fn (s string) ConfigValueTypes {
 		return s
@@ -303,8 +311,8 @@ pub fn get_config_module_names(filename string, modules []string) string {
 	if !is_toml(filename) {
 		return modules.map('[mypy-${it}]').join(', ')
 	}
-    mut sorted_modules := modules.clone()
-    sorted_modules.sort()
+	mut sorted_modules := modules.clone()
+	sorted_modules.sort()
 	return "module = ['${sorted_modules.join("', '")}']"
 }
 

@@ -1,15 +1,11 @@
 // Work in progress by Cline. Started: 2026-03-22 15:04
 // checkstrformat.v — Format expression type checker
-// Translated from mypy/checkstrformat.py
-//
-// ---------------------------------------------------------------------------
+// Bridge implementation aligned with the current V AST/type layer.
 
 module mypy
 
-// FormatStringExpr — type for format string expressions
 pub type FormatStringExpr = BytesExpr | StrExpr
 
-// ConversionSpecifier — format conversion specifier
 pub struct ConversionSpecifier {
 pub mut:
 	whole_seq                string
@@ -25,7 +21,19 @@ pub mut:
 	field                    ?string
 }
 
-// new_conversion_specifier creates a new ConversionSpecifier
+pub struct RegexMatch {
+pub:
+	groups map[string]string
+}
+
+pub fn (rm RegexMatch) group() string {
+	return ''
+}
+
+pub fn (rm RegexMatch) groups() map[string]string {
+	return rm.groups
+}
+
 pub fn new_conversion_specifier(match_obj RegexMatch, start_pos int, non_standard_format_spec bool) ConversionSpecifier {
 	m_dict := match_obj.groups()
 	return ConversionSpecifier{
@@ -43,47 +51,62 @@ pub fn new_conversion_specifier(match_obj RegexMatch, start_pos int, non_standar
 	}
 }
 
-// has_key checks if specifier has key
 pub fn (cs ConversionSpecifier) has_key() bool {
 	return cs.key != none
 }
 
-// has_star checks if specifier contains *
 pub fn (cs ConversionSpecifier) has_star() bool {
 	return cs.width == '*' || cs.precision == '*'
 }
 
-// Constants for format types
 fn get_numeric_types_old() map[string]bool {
 	return {
-		'd': true, 'i': true, 'o': true, 'u': true, 'x': true, 'X': true,
-		'e': true, 'E': true, 'f': true, 'F': true, 'g': true, 'G': true
+		'd': true
+		'i': true
+		'o': true
+		'u': true
+		'x': true
+		'X': true
+		'e': true
+		'E': true
+		'f': true
+		'F': true
+		'g': true
+		'G': true
 	}
 }
 
 fn get_numeric_types_new() map[string]bool {
 	return {
-		'b': true, 'd': true, 'o': true, 'e': true, 'E': true, 'f': true,
-		'F': true, 'g': true, 'G': true, 'n': true, 'x': true, 'X': true, '%': true
+		'b': true
+		'd': true
+		'o': true
+		'e': true
+		'E': true
+		'f': true
+		'F': true
+		'g': true
+		'G': true
+		'n': true
+		'x': true
+		'X': true
+		'%': true
 	}
 }
 
-// dummy_field_name — dummy field name for parsing
 pub const dummy_field_name = '__dummy_name__'
 
-// parse_conversion_specifiers parses c-printf-style format string
 pub fn parse_conversion_specifiers(format_str string) []ConversionSpecifier {
 	mut specifiers := []ConversionSpecifier{}
 	mut pos := 0
 	for pos < format_str.len {
 		if format_str[pos] == `%` {
 			if pos + 1 < format_str.len && format_str[pos + 1] != `%` {
-				mut spec := ConversionSpecifier{
+				specifiers << ConversionSpecifier{
 					whole_seq: format_str[pos..pos + 2]
 					start_pos: pos
-					conv_type: format_str[pos + 1].str()
+					conv_type: format_str[pos + 1].ascii_str()
 				}
-				specifiers << spec
 			}
 			pos += 2
 		} else {
@@ -93,207 +116,293 @@ pub fn parse_conversion_specifiers(format_str string) []ConversionSpecifier {
 	return specifiers
 }
 
-// StringFormatterChecker — string formatting type checker
 pub struct StringFormatterChecker {
 pub mut:
-	chk &TypeCheckerSharedApi
+	chk &TypeChecker
 	msg &MessageBuilder
 }
 
-// new_string_formatter_checker creates a new StringFormatterChecker
-pub fn new_string_formatter_checker(chk &TypeCheckerSharedApi, msg &MessageBuilder) StringFormatterChecker {
+pub fn new_string_formatter_checker(chk &TypeChecker, msg &MessageBuilder) StringFormatterChecker {
 	return StringFormatterChecker{
 		chk: chk
-		msg: msg
+		msg: unsafe { msg }
 	}
 }
 
-// check_str_format_call checks str.format() call
 pub fn (mut sfc StringFormatterChecker) check_str_format_call(call CallExpr, format_value string) {
-	conv_specs := parse_format_value(format_value, call.base, sfc.msg) or { return }
-	if !sfc.auto_generate_keys(conv_specs, call.base) {
+	mut specs := parse_format_value(format_value) or { return }
+	if !sfc.auto_generate_keys(mut specs, call.base.ctx) {
 		return
 	}
-	sfc.check_specs_in_format_call(call, conv_specs, format_value)
+	sfc.check_specs_in_format_call(call, specs)
 }
 
-// auto_generate_keys converts '{} {name} {}' to '{0} {name} {1}'
-pub fn (sfc StringFormatterChecker) auto_generate_keys(all_specs []ConversionSpecifier, ctx NodeBase) bool {
+pub fn (mut sfc StringFormatterChecker) auto_generate_keys(mut all_specs []ConversionSpecifier, ctx Context) bool {
 	mut some_defined := false
 	mut all_defined := true
-	for s in all_specs {
-		if s.key != none && s.key or { '' }.is_int() {
-			some_defined = true
-		}
-		if s.key == none {
+	for spec in all_specs {
+		if key := spec.key {
+			if key.is_int() {
+				some_defined = true
+			}
+		} else {
 			all_defined = false
 		}
 	}
 	if some_defined && !all_defined {
-		sfc.msg.fail('Cannot mix manual and automatic field numbering', ctx, false, false, none)
+		sfc.msg.fail('Cannot mix manual and automatic field numbering', ctx, false, false,
+			none)
 		return false
 	}
-	if all_defined { return true }
-	
+	if all_defined {
+		return true
+	}
 	mut next_index := 0
-	for mut spec in all_specs {
-		if spec.key == none {
+	for i in 0 .. all_specs.len {
+		if all_specs[i].key == none {
 			str_index := next_index.str()
-			spec.key = str_index
-			if spec.field == none {
-				spec.field = str_index
-			} else {
-				spec.field = str_index + (spec.field or { '' })
-			}
+			all_specs[i].key = str_index
+			all_specs[i].field = str_index
 			next_index++
 		}
 	}
 	return true
 }
 
-// check_str_interpolation checks types in str % replacements interpolation
 pub fn (mut sfc StringFormatterChecker) check_str_interpolation(expr FormatStringExpr, replacements Expression) MypyTypeNode {
-	mut expr_val := ''
-	match expr {
+	expr_ctx := format_string_expr_context(expr)
+	expr_val := match expr {
 		StrExpr {
-			expr_val = expr.value
 			sfc.chk.expr_checker.accept(expr)
+			expr.value
 		}
 		BytesExpr {
-			expr_val = expr.value
 			sfc.chk.expr_checker.accept(expr)
+			expr.value
 		}
 	}
-	
 	specifiers := parse_conversion_specifiers(expr_val)
-	has_mapping_keys := sfc.analyze_conversion_specifiers(specifiers, expr as NodeBase)
-	if has_mapping_keys == none {
-		// Error already reported
-	} else if has_mapping_keys or { false } {
-		sfc.check_mapping_str_interpolation(specifiers, replacements, expr)
-	} else {
-		sfc.check_simple_str_interpolation(specifiers, replacements, expr)
+	if has_mapping_keys := sfc.analyze_conversion_specifiers(specifiers, expr_ctx) {
+		if has_mapping_keys {
+			sfc.check_mapping_str_interpolation(specifiers, replacements, expr_ctx)
+		} else {
+			sfc.check_simple_str_interpolation(specifiers, replacements, expr_ctx)
+		}
 	}
-	
-	if expr is BytesExpr {
-		return sfc.named_type('builtins.bytes')
+	return match expr {
+		BytesExpr { sfc.named_type('builtins.bytes') }
+		StrExpr { sfc.named_type('builtins.str') }
 	}
-	return sfc.named_type('builtins.str')
 }
 
-// analyze_conversion_specifiers analyzes conversion specifiers
-pub fn (sfc StringFormatterChecker) analyze_conversion_specifiers(specifiers []ConversionSpecifier, context NodeBase) ?bool {
+pub fn (mut sfc StringFormatterChecker) analyze_conversion_specifiers(specifiers []ConversionSpecifier, context Context) ?bool {
 	mut has_star := false
 	mut has_key := false
 	mut all_have_keys := true
-	
-	for s in specifiers {
-		if s.has_star() { has_star = true }
-		if s.has_key() { has_key = true } else if s.conv_type != '%' {
+	for spec in specifiers {
+		if spec.has_star() {
+			has_star = true
+		}
+		if spec.has_key() {
+			has_key = true
+		} else if spec.conv_type != '%' {
 			all_have_keys = false
 		}
 	}
-
 	if has_key && has_star {
-		sfc.msg.fail('String interpolation with * and key is not supported', context, false, false, none)
+		sfc.msg.fail('String interpolation with * and key is not supported', context,
+			false, false, none)
 		return none
 	}
 	if has_key && !all_have_keys {
-		sfc.msg.fail('Cannot mix key and non-key in string interpolation', context, false, false, none)
+		sfc.msg.fail('Cannot mix key and non-key in string interpolation', context, false,
+			false, none)
 		return none
 	}
 	return has_key
 }
 
-// conversion_type returns type that conversion specifier accepts
-pub fn (sfc StringFormatterChecker) conversion_type(p string, context NodeBase, expr FormatStringExpr) ?MypyTypeNode {
+pub fn (mut sfc StringFormatterChecker) conversion_type(p string, context Context, expr FormatStringExpr) ?MypyTypeNode {
 	if p == 'b' {
 		if expr !is BytesExpr {
-			sfc.msg.fail('Format character "b" is only supported on bytes patterns', context, false, false, none)
+			sfc.msg.fail('Format character "b" is only supported on bytes patterns', context,
+				false, false, none)
 			return none
 		}
 		return sfc.named_type('builtins.bytes')
-	} else if p == 'a' || p == 's' || p == 'r' {
-		return MypyTypeNode(AnyType{
-			type_of_any: TypeOfAny.special_form
-		})
-	} else if p in get_numeric_types_new() {
-		// TODO: refinements for require_int_new
-		return MypyTypeNode(UnionType{
-			items: [sfc.named_type('builtins.int'), sfc.named_type('builtins.float')]
-		})
-	} else if p == 'c' {
-		if expr is BytesExpr {
-			return MypyTypeNode(UnionType{
-				items: [sfc.named_type('builtins.int'), sfc.named_type('builtins.bytes')]
-			})
-		} else {
-			return MypyTypeNode(UnionType{
-				items: [sfc.named_type('builtins.int'), sfc.named_type('builtins.str')]
-			})
-		}
-	} else {
-		// sfc.msg.unsupported_placeholder(p, context)
-		sfc.msg.fail('Unsupported placeholder ${p}', context, false, false, none)
-		return none
 	}
+	if p == 'a' || p == 's' || p == 'r' {
+		return AnyType{
+			type_of_any: .special_form
+		}
+	}
+	if p in get_numeric_types_new() || p in get_numeric_types_old() {
+		return UnionType{
+			items: [sfc.named_type('builtins.int'), sfc.named_type('builtins.float')]
+		}
+	}
+	if p == 'c' {
+		return UnionType{
+			items: [sfc.named_type('builtins.int'), sfc.named_type('builtins.str')]
+		}
+	}
+	sfc.msg.fail('Unsupported placeholder ${p}', context, false, false, none)
+	return none
 }
 
-// named_type returns Instance type by name
 fn (sfc StringFormatterChecker) named_type(name string) MypyTypeNode {
 	return sfc.chk.named_type(name)
 }
 
-// accept checks type of node
-fn (sfc StringFormatterChecker) accept(expr Expression) MypyTypeNode {
+fn (mut sfc StringFormatterChecker) accept(expr Expression) MypyTypeNode {
 	return sfc.chk.expr_checker.accept(expr)
 }
 
-// Helper types
-pub struct RegexMatch {
-pub:
-	groups map[string]string
+fn format_string_expr_context(expr FormatStringExpr) Context {
+	return match expr {
+		StrExpr { expr.base.ctx }
+		BytesExpr { expr.base.ctx }
+	}
 }
 
-pub fn (rm RegexMatch) group() string {
-	return ''
+fn parse_format_value(format_value string) ?[]ConversionSpecifier {
+	mut specs := []ConversionSpecifier{}
+	mut i := 0
+	for i < format_value.len {
+		if format_value[i] == `{` {
+			if i + 1 < format_value.len && format_value[i + 1] == `{` {
+				i += 2
+				continue
+			}
+			end := format_value.index_after('}', i + 1) or { return none }
+			if end < i {
+				return none
+			}
+			spec_str := format_value[i..end + 1]
+			mut spec := ConversionSpecifier{
+				whole_seq: spec_str
+				start_pos: i
+			}
+			content := spec_str[1..spec_str.len - 1]
+			if content.contains(':') {
+				parts := content.split_nth(':', 2)
+				if parts.len > 0 && parts[0] != '' {
+					spec.key = parts[0]
+					spec.field = parts[0]
+				}
+				if parts.len > 1 && parts[1] != '' {
+					spec.format_spec = parts[1]
+				}
+			} else if content != '' {
+				spec.key = content
+				spec.field = content
+			}
+			specs << spec
+			i = end + 1
+		} else {
+			i++
+		}
+	}
+	return specs
 }
 
-pub fn (rm RegexMatch) groups() map[string]string {
-	return rm.groups
+fn (mut sfc StringFormatterChecker) check_specs_in_format_call(call CallExpr, specs []ConversionSpecifier) {
+	for i, spec in specs {
+		if i >= call.args.len {
+			return
+		}
+		if fmt_spec := spec.format_spec {
+			if fmt_spec.len == 0 {
+				continue
+			}
+			last_char := fmt_spec[fmt_spec.len - 1]
+			arg := call.args[i]
+			arg_type := sfc.chk.expr_checker.accept(arg)
+			if last_char in [`d`, `i`, `o`, `x`, `X`] {
+				_ = sfc.chk.check_subtype(arg_type, sfc.named_type('builtins.int'), arg.get_context(),
+					'Argument must be int for format specifier')
+			} else if last_char in [`f`, `F`, `e`, `E`, `g`, `G`] {
+				_ = sfc.chk.check_subtype(arg_type, sfc.named_type('builtins.float'),
+					arg.get_context(), 'Argument must be float for format specifier')
+			}
+		}
+	}
 }
 
-// Helper stub functions
-fn parse_format_value(format_value string, ctx NodeBase, msg &MessageBuilder) ?[]ConversionSpecifier {
-	return []ConversionSpecifier{}
+fn (mut sfc StringFormatterChecker) check_simple_str_interpolation(specifiers []ConversionSpecifier, replacements Expression, expr_ctx Context) {
+	if replacements is TupleExpr {
+		if specifiers.len != replacements.items.len {
+			sfc.msg.fail('Wrong number of arguments for format string', expr_ctx, false,
+				false, none)
+			return
+		}
+		for i, spec in specifiers {
+			if spec.conv_type == '%' {
+				continue
+			}
+			repl := replacements.items[i]
+			repl_type := sfc.chk.expr_checker.accept(repl)
+			if spec.conv_type in ['d', 'i', 'o', 'u', 'x', 'X'] {
+				_ = sfc.chk.check_subtype(repl_type, sfc.named_type('builtins.int'), repl.get_context(),
+					'Argument must be int for format specifier')
+			} else if spec.conv_type in ['e', 'E', 'f', 'F', 'g', 'G'] {
+				_ = sfc.chk.check_subtype(repl_type, sfc.named_type('builtins.float'),
+					repl.get_context(), 'Argument must be float for format specifier')
+			}
+		}
+	} else if specifiers.filter(it.conv_type != '%').len > 1 {
+		sfc.msg.fail('Wrong number of arguments for format string', expr_ctx, false, false,
+			none)
+	}
 }
 
-fn (sfc StringFormatterChecker) check_specs_in_format_call(call CallExpr, specs []ConversionSpecifier, format_value string) {
-	// TODO: implementation
+fn (mut sfc StringFormatterChecker) check_mapping_str_interpolation(specifiers []ConversionSpecifier, replacements Expression, expr_ctx Context) {
+	if replacements is DictExpr {
+		for spec in specifiers {
+			if key := spec.key {
+				found := replacements.items.any(if dict_key := it.key {
+					if dict_key is StrExpr {
+						dict_key.value == key
+					} else {
+						false
+					}
+				} else {
+					false
+				})
+				if !found {
+					sfc.msg.fail('Key "${key}" not found in format arguments', expr_ctx,
+						false, false, none)
+				}
+			}
+		}
+		return
+	}
+	repl_type := sfc.chk.expr_checker.accept(replacements)
+	if !has_type_component(repl_type, 'builtins.dict') {
+		sfc.msg.fail('Expected mapping for format string with keys', replacements.get_context(),
+			false, false, none)
+	}
 }
 
-fn (sfc StringFormatterChecker) check_simple_str_interpolation(specifiers []ConversionSpecifier, replacements Expression, expr FormatStringExpr) {
-	// TODO: implementation
-}
-
-fn (sfc StringFormatterChecker) check_mapping_str_interpolation(specifiers []ConversionSpecifier, replacements Expression, expr FormatStringExpr) {
-	// TODO: implementation
-}
-
-// has_type_component checks if type contains specified component
 pub fn has_type_component(typ MypyTypeNode, fullname string) bool {
-	tp := get_proper_type(typ)
-	if tp is Instance {
-		return tp.type_.has_base(fullname)
-	} else if tp is TypeVarType {
-		return has_type_component(tp.upper_bound, fullname)
-			|| tp.values.any(has_type_component(it, fullname))
-	} else if tp is UnionType {
-		return tp.items.any(has_type_component(it, fullname))
+	proper_type := get_proper_type(typ)
+	if proper_type is Instance {
+		inst := proper_type
+		if isnil(inst.type_) {
+			return false
+		}
+		return inst.type_.has_base(fullname)
+	}
+	if proper_type is TypeVarType {
+		type_var := proper_type
+		if has_type_component(type_var.upper_bound, fullname) {
+			return true
+		}
+		return type_var.values.any(has_type_component(it, fullname))
+	}
+	if proper_type is UnionType {
+		union_type := proper_type
+		return union_type.items.any(has_type_component(it, fullname))
 	}
 	return false
-}
-
-fn get_proper_type_local(t MypyTypeNode) MypyTypeNode {
-	return t
 }

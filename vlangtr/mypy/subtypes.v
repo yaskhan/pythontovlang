@@ -279,8 +279,14 @@ pub fn is_protocol_implementation(left Instance, right Instance, ctx SubtypeCont
 			return false
 		}
 		
-		// TODO: Проверка совместимости типов членов протокола.
-		// Пока только проверка наличия.
+		// Проверка совместимости типов членов протокола
+		if sym.node != none && left_sym.node != none {
+			right_type := sym.node.typ or { continue }
+			left_type := left_sym.node.typ or { continue }
+			if !is_subtype(left_type, right_type, ctx) {
+				return false
+			}
+		}
 	}
 	
 	return true
@@ -288,7 +294,23 @@ pub fn is_protocol_implementation(left Instance, right Instance, ctx SubtypeCont
 
 // is_proper_subtype проверяет proper subtype
 pub fn is_proper_subtype(left MypyTypeNode, right MypyTypeNode, ctx SubtypeContext) bool {
-	// TODO: реализация proper subtype проверки
+	left_proper := get_proper_type(left)
+	right_proper := get_proper_type(right)
+	
+	// AnyType не является proper subtype (кроме случая когда оба AnyType)
+	if left_proper is AnyType {
+		return right_proper is AnyType
+	}
+	if right_proper is AnyType {
+		return false
+	}
+	
+	// UninhabitedType (Never) является proper subtype всего
+	if left_proper is UninhabitedType {
+		return true
+	}
+	
+	// Проверяем через is_subtype
 	return is_subtype(left, right, ctx)
 }
 
@@ -315,13 +337,96 @@ fn is_named_instance(typ MypyTypeNode, fullname string) bool {
 
 // map_instance_to_supertype маппит Instance к супертипу
 fn map_instance_to_supertype(inst Instance, supertype TypeInfo) Instance {
-	// TODO: реализация из maptype.v
-	return inst
+	if inst.typ == supertype {
+		return inst
+	}
+	
+	// Находим путь от inst.typ до supertype в MRO
+	mut path := []TypeInfo{}
+	mut current := inst.typ
+	for current != none {
+		path << current
+		if current == supertype {
+			break
+		}
+		current = current.base or { none }
+	}
+	
+	if path.len == 0 || path.last() != supertype {
+		return inst
+	}
+	
+	// Применяем type arguments вдоль пути
+	mut result_args := inst.args.clone()
+	for i in 0 .. path.len - 1 {
+		child := path[i]
+		parent := path[i + 1]
+		if child.defn.type_vars.len > 0 && parent.defn.type_vars.len > 0 {
+			// Маппим аргументы от child к parent
+			mut new_args := []MypyTypeNode{}
+			for j, tvar in parent.defn.type_vars {
+				if j < result_args.len {
+					new_args << result_args[j]
+				} else {
+					new_args << AnyType{type_of_any: .special_form}
+				}
+			}
+			result_args = new_args
+		}
+	}
+	
+	return Instance{
+		typ:  supertype
+		args: result_args
+	}
 }
 
-// Вспомогательные функции для работы с типами
+// erase_type стирает типы до базовых форм
 fn erase_type(t MypyTypeNode) MypyTypeNode {
-	// TODO: реализация из erasetype.v
+	if t is Instance {
+		if t.args.len == 0 {
+			return t
+		}
+		// Стираем аргументы типов
+		mut new_args := []MypyTypeNode{}
+		for _ in t.args {
+			new_args << AnyType{type_of_any: .special_form}
+		}
+		return Instance{
+			typ:  t.typ
+			args: new_args
+		}
+	} else if t is CallableType {
+		// Стираем типы в callable
+		mut new_arg_types := []MypyTypeNode{}
+		for arg_type in t.arg_types {
+			new_arg_types << erase_type(arg_type)
+		}
+		return CallableType{
+			arg_types: new_arg_types
+			ret_type:  erase_type(t.ret_type)
+			fallback:  t.fallback
+		}
+	} else if t is TupleType {
+		// Стираем элементы tuple
+		mut new_items := []MypyTypeNode{}
+		for item in t.items {
+			new_items << erase_type(item)
+		}
+		return TupleType{
+			items:    new_items
+			fallback: t.fallback
+		}
+	} else if t is UnionType {
+		// Стираем элементы union
+		mut new_items := []MypyTypeNode{}
+		for item in t.items {
+			new_items << erase_type(item)
+		}
+		return UnionType{
+			items: new_items
+		}
+	}
 	return t
 }
 

@@ -7,7 +7,11 @@ module mypy
 // Python version constants
 // ---------------------------------------------------------------------------
 
-
+pub struct PythonVersion {
+pub:
+	major int
+	minor int
+}
 
 // Earliest fully supported Python 3.x version.
 pub const python3_version = PythonVersion{

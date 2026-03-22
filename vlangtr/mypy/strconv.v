@@ -35,7 +35,7 @@ pub fn new_str_conv(show_ids bool, options Options) StrConv {
 
 // stringify_type конвертирует тип в строку
 pub fn (mut sc StrConv) stringify_type(t MypyTypeNode) string {
-	// TODO: использовать TypeStrVisitor из types.v
+	// Delegate to types module
 	return t.str()
 }
 
@@ -522,7 +522,72 @@ pub:
 
 // short_type_name возвращает короткое имя типа объекта
 fn short_type_name(obj NodeBase) string {
-	// TODO: получить имя типа из объекта
+	// Получаем имя типа из объекта
+	if obj is MypyFile {
+		return 'MypyFile'
+	} else if obj is FuncDef {
+		return 'FuncDef'
+	} else if obj is ClassDef {
+		return 'ClassDef'
+	} else if obj is Var {
+		return 'Var'
+	} else if obj is Block {
+		return 'Block'
+	} else if obj is ExpressionStmt {
+		return 'ExpressionStmt'
+	} else if obj is AssignmentStmt {
+		return 'AssignmentStmt'
+	} else if obj is WhileStmt {
+		return 'WhileStmt'
+	} else if obj is ForStmt {
+		return 'ForStmt'
+	} else if obj is ReturnStmt {
+		return 'ReturnStmt'
+	} else if obj is IfStmt {
+		return 'IfStmt'
+	} else if obj is BreakStmt {
+		return 'BreakStmt'
+	} else if obj is ContinueStmt {
+		return 'ContinueStmt'
+	} else if obj is PassStmt {
+		return 'PassStmt'
+	} else if obj is TryStmt {
+		return 'TryStmt'
+	} else if obj is Decorator {
+		return 'Decorator'
+	} else if obj is Import {
+		return 'Import'
+	} else if obj is ImportFrom {
+		return 'ImportFrom'
+	} else if obj is ImportAll {
+		return 'ImportAll'
+	} else if obj is NameExpr {
+		return 'NameExpr'
+	} else if obj is MemberExpr {
+		return 'MemberExpr'
+	} else if obj is CallExpr {
+		return 'CallExpr'
+	} else if obj is IntExpr {
+		return 'IntExpr'
+	} else if obj is StrExpr {
+		return 'StrExpr'
+	} else if obj is FloatExpr {
+		return 'FloatExpr'
+	} else if obj is OpExpr {
+		return 'OpExpr'
+	} else if obj is UnaryExpr {
+		return 'UnaryExpr'
+	} else if obj is ListExpr {
+		return 'ListExpr'
+	} else if obj is TupleExpr {
+		return 'TupleExpr'
+	} else if obj is DictExpr {
+		return 'DictExpr'
+	} else if obj is TypeInfo {
+		return 'TypeInfo'
+	} else if obj is VarNode {
+		return 'Var'
+	}
 	return 'Node'
 }
 

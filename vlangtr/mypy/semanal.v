@@ -563,12 +563,75 @@ pub fn (sa SemanticAnalyzer) visit_pass_stmt(s PassStmt) {
 
 // accept принимает узел
 pub fn (mut sa SemanticAnalyzer) accept(node Node) {
-	// TODO: вызов node.accept(sa)
+	if node is FuncDef {
+		sa.visit_func_def(node)
+	} else if node is ClassDef {
+		sa.visit_class_def(node)
+	} else if node is AssignmentStmt {
+		sa.visit_assignment_stmt(node)
+	} else if node is IfStmt {
+		sa.visit_if_stmt(node)
+	} else if node is WhileStmt {
+		sa.visit_while_stmt(node)
+	} else if node is ForStmt {
+		sa.visit_for_stmt(node)
+	} else if node is ReturnStmt {
+		sa.visit_return_stmt(node)
+	} else if node is BreakStmt {
+		sa.visit_break_stmt(node)
+	} else if node is ContinueStmt {
+		sa.visit_continue_stmt(node)
+	} else if node is TryStmt {
+		sa.visit_try_stmt(node)
+	} else if node is Decorator {
+		sa.visit_decorator(node)
+	} else if node is ExpressionStmt {
+		sa.visit_expression_stmt(node)
+	} else if node is PassStmt {
+		sa.visit_pass_stmt(node)
+	} else if node is Import {
+		sa.visit_import(node)
+	} else if node is ImportFrom {
+		sa.visit_import_from(node)
+	} else if node is Block {
+		sa.visit_block(node)
+	} else if node is NameExpr {
+		sa.visit_name_expr(node)
+	} else if node is MemberExpr {
+		sa.visit_member_expr(node)
+	} else if node is CallExpr {
+		sa.visit_call_expr(node)
+	} else if node is IntExpr {
+		sa.visit_int_expr(node)
+	} else if node is StrExpr {
+		sa.visit_str_expr(node)
+	}
 }
 
 // lookup ищет имя
 pub fn (sa SemanticAnalyzer) lookup(name string, ctx NodeBase) ?SymbolTableNode {
-	// TODO: полная реализация поиска
+	// Search in local scopes (innermost first)
+	for i := sa.locals.len - 1; i >= 0; i-- {
+		if locals := sa.locals[i] {
+			if name in locals {
+				return locals[name]
+			}
+		}
+	}
+	
+	// Search in global scope
+	if name in sa.globals {
+		return sa.globals[name]
+	}
+	
+	// Search in builtins
+	if 'builtins' in sa.modules {
+		builtins := sa.modules['builtins']
+		if name in builtins.names {
+			return builtins.names[name]
+		}
+	}
+	
 	return none
 }
 
@@ -577,8 +640,46 @@ pub fn (sa SemanticAnalyzer) lookup_qualified(name string, ctx NodeBase, suppres
 	if '.' !in name {
 		return sa.lookup(name, ctx)
 	}
-	// TODO: полная реализация
-	return none
+	
+	parts := name.split('.')
+	if parts.len < 2 {
+		return none
+	}
+	
+	// Lookup first part
+	first := parts[0]
+	sym := sa.lookup(first, ctx) or { return none }
+	
+	// Navigate through remaining parts
+	mut current := sym
+	for i in 1 .. parts.len {
+		part := parts[i]
+		if current.node is TypeInfo {
+			info := current.node as TypeInfo
+			if part in info.names {
+				current = info.names[part]
+			} else {
+				if !suppress_errors {
+					sa.fail('Name "${part}" not found in "${parts[..i].join('.')}"', ctx, false, false)
+				}
+				return none
+			}
+		} else if current.node is MypyFile {
+			file := current.node as MypyFile
+			if part in file.names {
+				current = file.names[part]
+			} else {
+				if !suppress_errors {
+					sa.fail('Name "${part}" not found in module "${parts[..i].join('.')}"', ctx, false, false)
+				}
+				return none
+			}
+		} else {
+			return none
+		}
+	}
+	
+	return current
 }
 
 // bind_name_expr привязывает имя
@@ -626,13 +727,47 @@ fn (sa SemanticAnalyzer) names_modified_in_lvalue(lval Lvalue) []NameExpr {
 
 // unwrap_final обрабатывает Final
 fn (mut sa SemanticAnalyzer) unwrap_final(s AssignmentStmt) bool {
-	// TODO: реализация
+	// Check if assignment is wrapped in Final[]
+	for lval in s.lvalues {
+		if lval is NameExpr {
+			// Check if type annotation contains Final
+			if s.type_ != none {
+				typ := s.type_
+				if typ is UnboundTypeNode {
+					if typ.name == 'Final' {
+						return true
+					}
+				}
+			}
+		}
+	}
 	return false
 }
 
 // analyze_identity_global_assignment проверяет X = X
 fn (sa SemanticAnalyzer) analyze_identity_global_assignment(s AssignmentStmt) bool {
-	// TODO: реализация
+	// Check if this is a self-assignment like X = X
+	if s.lvalues.len != 1 {
+		return false
+	}
+	
+	lval := s.lvalues[0]
+	if lval !is NameExpr {
+		return false
+	}
+	
+	if s.rvalue !is NameExpr {
+		return false
+	}
+	
+	lval_name := (lval as NameExpr).name
+	rval_name := (s.rvalue as NameExpr).name
+	
+	// Check if it's the same name and already exists in global scope
+	if lval_name == rval_name && lval_name in sa.globals {
+		return true
+	}
+	
 	return false
 }
 
@@ -704,29 +839,122 @@ fn (mut sa SemanticAnalyzer) add_function_to_symbol_table(func_def FuncDef) {
 
 // add_symbol добавляет символ
 pub fn (mut sa SemanticAnalyzer) add_symbol(name string, node SymbolNode, context NodeBase) bool {
-	// TODO: полная реализация
+	// Check if symbol already exists in current scope
+	if sa.locals.len > 0 {
+		if locals := sa.locals.last() {
+			if name in locals {
+				// Symbol already defined in current scope
+				existing := locals[name]
+				if !sa.is_none_node(existing.node) {
+					sa.fail('Name "${name}" already defined', context, false, false)
+					return false
+				}
+			}
+			// Add to current scope
+			mut new_locals := locals.clone()
+			new_locals[name] = SymbolTableNode{
+				kind: 0  // LDEF for local
+				node: node
+			}
+			sa.locals[sa.locals.len - 1] = new_locals
+			return true
+		}
+	}
+	
+	// Add to global scope
+	if name in sa.globals {
+		existing := sa.globals[name]
+		if !sa.is_none_node(existing.node) {
+			sa.fail('Name "${name}" already defined', context, false, false)
+			return false
+		}
+	}
+	
+	sa.globals[name] = SymbolTableNode{
+		kind: 0  // GDEF for global
+		node: node
+	}
 	return true
 }
 
 // add_imported_symbol добавляет импортированный символ
 fn (mut sa SemanticAnalyzer) add_imported_symbol(name string, node SymbolTableNode, context ImportBase, module_public bool, module_hidden bool) {
-	// TODO: реализация
+	// Set module visibility flags
+	mut sym := node
+	sym.module_public = module_public
+	sym.module_hidden = module_hidden
+	
+	// Add to current scope
+	if sa.locals.len > 0 {
+		if locals := sa.locals.last() {
+			mut new_locals := locals.clone()
+			new_locals[name] = sym
+			sa.locals[sa.locals.len - 1] = new_locals
+			return
+		}
+	}
+	
+	// Add to global scope
+	sa.globals[name] = sym
 }
 
 // add_unknown_imported_symbol добавляет неизвестный импортированный символ
 fn (mut sa SemanticAnalyzer) add_unknown_imported_symbol(name string, context NodeBase, target_name string, module_public bool, module_hidden bool) {
-	// TODO: реализация
+	// Create a placeholder for unknown import
+	any_type := AnyType{
+		type_of_any: TypeOfAny.from_error
+	}
+	
+	// Create a Var node with Any type
+	mut var := Var{
+		name: name
+		type_annotation: any_type
+	}
+	var._fullname = target_name
+	
+	sym := SymbolTableNode{
+		kind: 0
+		node: var
+		module_public: module_public
+		module_hidden: module_hidden
+	}
+	
+	// Add to current scope
+	if sa.locals.len > 0 {
+		if locals := sa.locals.last() {
+			mut new_locals := locals.clone()
+			new_locals[name] = sym
+			sa.locals[sa.locals.len - 1] = new_locals
+			return
+		}
+	}
+	
+	// Add to global scope
+	sa.globals[name] = sym
 }
 
 // report_missing_module_attribute сообщает об отсутствующем атрибуте модуля
 fn (mut sa SemanticAnalyzer) report_missing_module_attribute(module_id string, source_id string, imported_id string, context NodeBase) {
-	// TODO: реализация
+	sa.fail('Module "${module_id}" has no attribute "${source_id}"', context, false, false)
 }
 
 // correct_relative_import исправляет относительный импорт
 fn (sa SemanticAnalyzer) correct_relative_import(node ImportFrom) string {
-	// TODO: реализация
-	return node.id
+	// Handle relative imports
+	mut mod_id := node.id
+	if node.relative > 0 {
+		// Relative import - prepend current module path
+		parts := sa.cur_mod_id.split('.')
+		if node.relative <= parts.len {
+			base_parts := parts[..parts.len - node.relative + 1]
+			if mod_id.len > 0 {
+				mod_id = base_parts.join('.') + '.' + mod_id
+			} else {
+				mod_id = base_parts.join('.')
+			}
+		}
+	}
+	return mod_id
 }
 
 // set_future_import_flags устанавливает флаги future import
@@ -738,35 +966,116 @@ fn (mut sa SemanticAnalyzer) set_future_import_flags(fullname string) {
 
 // push_type_args добавляет type args
 fn (mut sa SemanticAnalyzer) push_type_args(type_args []TypeParam, context NodeBase) ?[]string {
-	// TODO: реализация
-	return []string{}
+	if type_args.len == 0 {
+		return []string{}
+	}
+	
+	mut names := []string{}
+	for ta in type_args {
+		names << ta.name
+		
+		// Add type variable to scope
+		mut tvar := TypeVarType{
+			name: ta.name
+			fullname: sa.qualified_name(ta.name)
+		}
+		
+		if ta.upper_bound != none {
+			tvar.upper_bound = ta.upper_bound
+		}
+		
+		if ta.values.len > 0 {
+			tvar.values = ta.values
+		}
+		
+		sa.tvar_scope.bind(ta.name, tvar)
+	}
+	
+	return names
 }
 
 // pop_type_args удаляет type args
 fn (mut sa SemanticAnalyzer) pop_type_args(type_args []TypeParam) {
-	// TODO: реализация
+	for ta in type_args {
+		sa.tvar_scope.unbind(ta.name)
+	}
 }
 
 // update_function_type_variables обновляет типовые переменные функции
 fn (mut sa SemanticAnalyzer) update_function_type_variables(fun_type CallableTypeNode, defn FuncItem) bool {
-	// TODO: реализация
+	// Process type variables from function signature
+	if fun_type.variables.len > 0 {
+		for tvar in fun_type.variables {
+			if tvar is TypeVarType {
+				sa.tvar_scope.bind(tvar.name, tvar)
+			}
+		}
+		return true
+	}
 	return false
 }
 
 // analyze_function_body анализирует тело функции
 fn (mut sa SemanticAnalyzer) analyze_function_body(defn FuncItem) {
-	// TODO: реализация
+	// Enter function scope
+	sa.scope_stack << scope_func
+	sa.block_depth << 0
+	sa.loop_depth << 0
+	sa.locals << map[string]SymbolTableNode{}
+	sa.missing_names << map[string]bool{}
+	
+	// Add function arguments to scope
+	if defn is FuncDef {
+		for arg in defn.arguments {
+			mut var := Var{
+				name: arg.variable.name
+				type_annotation: arg.variable.typ
+			}
+			var._fullname = sa.qualified_name(arg.variable.name)
+			sa.add_symbol(arg.variable.name, var, defn)
+		}
+	}
+	
+	// Analyze function body
 	defn.body.accept(sa)
+	
+	// Leave function scope
+	sa.scope_stack.pop()
+	sa.block_depth.pop()
+	sa.loop_depth.pop()
+	sa.locals.pop()
+	sa.missing_names.pop()
 }
 
 // prepare_class_def подготавливает определение класса
 fn (mut sa SemanticAnalyzer) prepare_class_def(defn ClassDef) {
-	// TODO: реализация
+	// Create TypeInfo if not exists
+	if defn.info == none {
+		fullname := sa.qualified_name(defn.name)
+		mut info := new_type_info(sa.globals, defn, sa.cur_mod_id)
+		info._fullname = fullname
+		defn.info = info
+	}
+	
+	// Process base classes
+	for base_expr in defn.base_type_exprs {
+		base_expr.accept(sa)
+	}
+	
+	// Process decorators
+	for dec in defn.decorators {
+		dec.accept(sa)
+	}
 }
 
 // setup_type_vars настраивает типовые переменные
 fn (mut sa SemanticAnalyzer) setup_type_vars(defn ClassDef, tvar_defs []TypeVarLikeType) {
-	// TODO: реализация
+	// Add type variables from class definition to scope
+	for tvar_def in tvar_defs {
+		if tvar_def is TypeVarType {
+			sa.tvar_scope.bind(tvar_def.name, tvar_def)
+		}
+	}
 }
 
 // mark_incomplete отмечает неполное определение
@@ -782,17 +1091,19 @@ pub fn (mut sa SemanticAnalyzer) defer(debug_context NodeBase) {
 
 // track_incomplete_refs отслеживает неполные ссылки
 fn (mut sa SemanticAnalyzer) track_incomplete_refs() int {
-	return 0 // TODO: реализация
+	// Return current count of missing names
+	return sa.missing_names.last().len
 }
 
 // found_incomplete_ref проверяет наличие неполных ссылок
 fn (sa SemanticAnalyzer) found_incomplete_ref(tag int) bool {
-	return false // TODO: реализация
+	// Check if new incomplete refs were added
+	return sa.missing_names.last().len > tag
 }
 
 // fail сообщает об ошибке
 pub fn (mut sa SemanticAnalyzer) fail(msg string, ctx NodeBase, serious bool, blocker bool) {
-	// TODO: реализация
+	sa.errors.report(ctx.line, ctx.column, msg, serious, blocker)
 }
 
 // Вспомогательные типы

@@ -1,30 +1,25 @@
 // checkexpr.v — Expression type checker
 // Translated from mypy/checkexpr.py
-// Note: this is a very large file (~4000 lines), main structures and key functions are translated
+// Bridge implementation aligned with the current V AST/type layer.
 
 module mypy
 
-// Constants
 pub const max_unions = 5
 
-// TooManyUnions — exception for exceeding union math limit
 pub struct TooManyUnions {
 	Error
 }
 
-// Finished — exception for early termination of overload check
 pub struct Finished {
 	Error
 }
 
-// UseReverse — used in visit_op_expr for managing reverse method checks
 pub enum UseReverse {
 	standard
 	always
 	never
 }
 
-// ExpressionChecker — expression type checker
 pub struct ExpressionChecker {
 pub mut:
 	chk                         &TypeChecker
@@ -39,17 +34,19 @@ pub mut:
 	per_line_checking_time_ns   map[int]int
 	expr_cache                  map[string]MypyTypeNode
 	in_lambda_expr              bool
-	_literal_true               ?InstanceNode
-	_literal_false              ?InstanceNode
+	literal_true_               ?Instance
+	literal_false_              ?Instance
 }
 
-// new_expression_checker создаёт новый ExpressionChecker
 pub fn new_expression_checker(chk &TypeChecker, msg MessageBuilder, plugin Plugin) ExpressionChecker {
 	return ExpressionChecker{
 		chk:                         chk
 		msg:                         msg
 		type_context:                [?MypyTypeNode(none)]
-		strfrm_checker:              StringFormatterChecker{}
+		strfrm_checker:              StringFormatterChecker{
+			chk: unsafe { nil }
+			msg: unsafe { nil }
+		}
 		plugin:                      plugin
 		type_overrides:              map[Expression]MypyTypeNode{}
 		is_callee:                   false
@@ -58,792 +55,637 @@ pub fn new_expression_checker(chk &TypeChecker, msg MessageBuilder, plugin Plugi
 		per_line_checking_time_ns:   map[int]int{}
 		expr_cache:                  map[string]MypyTypeNode{}
 		in_lambda_expr:              false
-		_literal_true:               none
-		_literal_false:              none
+		literal_true_:               none
+		literal_false_:              none
 	}
 }
 
-// reset очищает кэш выражений
 pub fn (mut ec ExpressionChecker) reset() {
 	ec.expr_cache.clear()
 }
 
-// visit_name_expr проверяет имя
+pub fn (mut ec ExpressionChecker) accept(node Expression) MypyTypeNode {
+	typ := match node {
+		AssignmentExpr { ec.visit_assignment_expr(node) }
+		AwaitExpr { ec.visit_await_expr(node) }
+		BytesExpr { ec.visit_bytes_expr(node) }
+		CallExpr { ec.visit_call_expr(node, false) }
+		CastExpr { ec.visit_cast_expr(node) }
+		ComparisonExpr { ec.visit_comparison_expr(node) }
+		ComplexExpr { ec.visit_complex_expr(node) }
+		ConditionalExpr { ec.visit_conditional_expr(node) }
+		DictExpr { ec.visit_dict_expr(node) }
+		DictionaryComprehension { ec.visit_dictionary_comprehension(node) }
+		EllipsisExpr { ec.visit_ellipsis(node) }
+		EnumCallExpr { ec.visit_enum_call_expr(node) }
+		FloatExpr { ec.visit_float_expr(node) }
+		GeneratorExpr { ec.visit_generator_expr(node) }
+		IndexExpr { ec.visit_index_expr(node) }
+		IntExpr { ec.visit_int_expr(node) }
+		LambdaExpr { ec.visit_lambda_expr(node) }
+		ListComprehension { ec.visit_list_comprehension(node) }
+		ListExpr { ec.visit_list_expr(node) }
+		MemberExpr { ec.visit_member_expr(node, false) }
+		NameExpr { ec.visit_name_expr(node) }
+		NamedTupleExpr { ec.visit_namedtuple_expr(node) }
+		NewTypeExpr { ec.visit_newtype_expr(node) }
+		OpExpr { ec.visit_op_expr(node) }
+		ParamSpecExpr { ec.visit_paramspec_expr(node) }
+		PromoteExpr { ec.visit_promote_expr(node) }
+		RevealExpr { ec.visit_reveal_expr(node) }
+		SetComprehension { ec.visit_set_comprehension(node) }
+		SetExpr { ec.visit_set_expr(node) }
+		SliceExpr { ec.visit_slice_expr(node) }
+		StarExpr { ec.visit_star_expr(node) }
+		StrExpr { ec.visit_str_expr(node) }
+		SuperExpr { ec.visit_super_expr(node) }
+		TempNode { ec.visit_temp_node(node) }
+		TemplateStrExpr { ec.visit_template_str_expr(node) }
+		TupleExpr { ec.visit_tuple_expr(node) }
+		TypeAliasExpr { ec.visit_type_alias_expr(node) }
+		UnaryExpr { ec.visit_unary_expr(node) }
+		YieldFromExpr { ec.visit_yield_from_expr(node) }
+	}
+	return typ
+}
+
 pub fn (mut ec ExpressionChecker) visit_name_expr(e NameExpr) MypyTypeNode {
 	result := ec.analyze_ref_expr(e)
-	narrowed := ec.narrow_type_from_binder(e, result)
-	ec.chk.check_deprecated(e.node, e)
-	return narrowed
+	return ec.narrow_type_from_binder(e, result)
 }
 
-// analyze_ref_expr анализирует ссылку
-pub fn (mut ec ExpressionChecker) analyze_ref_expr(e RefExpr, lvalue bool) MypyTypeNode {
-	mut result := ?MypyTypeNode(none)
-
+pub fn (mut ec ExpressionChecker) analyze_ref_expr(e RefExpr) MypyTypeNode {
 	if e is NameExpr && e.is_special_form {
 		return AnyType{
-			type_of_any: TypeOfAny.special_form
+			type_of_any: .special_form
 		}
 	}
-
-	if mut node := e.node {
-		if node is Var {
-			result = ec.analyze_var_ref(node, e)
-		} else if node is Decorator {
-			result = ec.analyze_var_ref(node.var_, e)
-		} else if node is OverloadedFuncDef {
-			if mut t0 := node.type_ {
-				result = t0
-			} else {
-				result = AnyType{
-					type_of_any: TypeOfAny.from_error
+	if node := e.node {
+		return match node {
+			Var {
+				ec.analyze_var_ref(node)
+			}
+			Decorator {
+				ec.analyze_var_ref(node.var_)
+			}
+			OverloadedFuncDef {
+				node.type_ or {
+					AnyType{
+						type_of_any: .from_error
+					}
 				}
 			}
-		} else if node is FuncDef || node is TypeInfo || node is TypeAlias {
-			result = ec.analyze_static_reference(node, e)
-		} else {
-			result = AnyType{
-				type_of_any: TypeOfAny.from_error
+			FuncDef, TypeInfo, TypeAlias {
+				ec.analyze_static_reference(node)
+			}
+			else {
+				AnyType{
+					type_of_any: .from_error
+				}
 			}
 		}
-	} else {
-		result = AnyType{
-			type_of_any: TypeOfAny.from_error
-		}
-	}
-
-	return result or {
-		AnyType{
-			type_of_any: TypeOfAny.from_error
-		}
-	}
-}
-
-// analyze_static_reference анализирует статическую ссылку
-pub fn (ec ExpressionChecker) analyze_static_reference(node SymbolNodeRef, ctx NodeBase) MypyTypeNode {
-	if node is Var || node is Decorator || node is OverloadedFuncDef {
-		if node is Var {
-			return node.type_ or { AnyType{ type_of_any: TypeOfAny.special_form } }
-		} else if node is Decorator {
-			return node.var_.type_ or { AnyType{ type_of_any: TypeOfAny.special_form } }
-		} else if node is OverloadedFuncDef {
-			return node.type_ or { AnyType{ type_of_any: TypeOfAny.special_form } }
-		}
-		return AnyType{ type_of_any: TypeOfAny.special_form }
-	} else if node is FuncDef {
-		// return function_type(node, ec.named_type('builtins.function'))
-		return AnyType{ type_of_any: TypeOfAny.special_form }
-	} else if node is TypeInfo {
-		// if node.typeddict_type != none {
-		// 	return ec.typeddict_callable(node)
-		// }
-		// return type_object_type(node, ec.named_type)
-		return AnyType{ type_of_any: TypeOfAny.special_form }
-	} else if node is TypeAlias {
-		// return ec.alias_type_in_runtime_context(node, ctx)
-		return AnyType{ type_of_any: TypeOfAny.special_form }
 	}
 	return AnyType{
-		type_of_any: TypeOfAny.from_error
+		type_of_any: .from_error
 	}
 }
 
-// analyze_var_ref анализирует ссылку на переменную
-pub fn (ec ExpressionChecker) analyze_var_ref(var Var, context NodeBase) MypyTypeNode {
-	if t := var.type_ {
+pub fn (ec ExpressionChecker) analyze_static_reference(node SymbolNodeRef) MypyTypeNode {
+	return match node {
+		Var {
+			node.type_ or {
+				AnyType{
+					type_of_any: .special_form
+				}
+			}
+		}
+		Decorator {
+			node.var_.type_ or {
+				AnyType{
+					type_of_any: .special_form
+				}
+			}
+		}
+		OverloadedFuncDef {
+			node.type_ or {
+				AnyType{
+					type_of_any: .special_form
+				}
+			}
+		}
+		FuncDef {
+			function_type(node, ec.named_type('builtins.function'))
+		}
+		TypeInfo {
+			ec.chk.type_type()
+		}
+		TypeAlias {
+			AnyType{
+				type_of_any: .special_form
+			}
+		}
+		ClassDef, MypyFile {
+			AnyType{
+				type_of_any: .special_form
+			}
+		}
+	}
+}
+
+pub fn (ec ExpressionChecker) analyze_var_ref(v Var) MypyTypeNode {
+	if t := v.type_ {
 		return t
 	}
 	return AnyType{
-		type_of_any: TypeOfAny.special_form
+		type_of_any: .special_form
 	}
 }
 
-// visit_call_expr проверяет вызов
 pub fn (mut ec ExpressionChecker) visit_call_expr(e CallExpr, allow_none_return bool) MypyTypeNode {
 	return ec.visit_call_expr_inner(e, allow_none_return)
 }
 
-// visit_call_expr_inner проверяет вызов (внутренняя реализация)
 pub fn (mut ec ExpressionChecker) visit_call_expr_inner(e CallExpr, allow_none_return bool) MypyTypeNode {
-	// callee_type := ec.accept(e.callee, always_allow_any: true, is_callee: true)
-	callee_type := AnyType{ type_of_any: TypeOfAny.special_form }
-
-	mut fullname := ?string(none)
-	mut object_type := ?MypyTypeNode(none)
-	mut member := ?string(none)
-
-	match e.callee {
-		NameExpr { fullname = e.callee.fullname }
-		MemberExpr { fullname = e.callee.name }
-		else {}
-	}
-
-	ret_type := ec.check_call_expr_with_callee_type(callee_type, e, fullname, object_type,
-		member)
-
-	return ret_type
+	_ = allow_none_return
+	old_is_callee := ec.is_callee
+	ec.is_callee = true
+	callee_type := ec.accept(e.callee)
+	ec.is_callee = old_is_callee
+	return ec.check_call_expr_with_callee_type(callee_type, e)
 }
 
-// check_call_expr_with_callee_type проверяет вызов с типом callee
-pub fn (mut ec ExpressionChecker) check_call_expr_with_callee_type(callee_type MypyTypeNode,
-	e CallExpr,
-	callable_name ?string,
-	object_type ?MypyTypeNode,
-	member ?string) MypyTypeNode {
+pub fn (mut ec ExpressionChecker) check_call_expr_with_callee_type(callee_type MypyTypeNode, e CallExpr) MypyTypeNode {
 	ret_type, _ := ec.check_call(callee_type, e.args, e.arg_kinds, e.base)
-
-	p_ret_type := get_proper_type(ret_type)
-	if p_ret_type is UninhabitedType {
+	if get_proper_type(ret_type) is UninhabitedType {
 		ec.chk.binder.unreachable()
 	}
-
 	return ret_type
 }
 
-// check_call проверяет вызов
-pub fn (mut ec ExpressionChecker) check_call(callee MypyTypeNode,
-	args []Expression,
-	arg_kinds []ArgKind,
-	context NodeBase) (MypyTypeNode, MypyTypeNode) {
-	p_callee := get_proper_type(callee)
-
-	if p_callee is CallableType {
-		return ec.check_callable_call(p_callee, args, arg_kinds, context)
-	} else if p_callee is AnyType {
-		return ec.check_any_type_call(args, arg_kinds, p_callee, context)
-	} else if p_callee is Instance {
-		call_method := analyze_member_access('__call__', p_callee, context.ctx, true, false, false, AnyType{}, ec.chk, false)
+pub fn (mut ec ExpressionChecker) check_call(callee MypyTypeNode, args []Expression, arg_kinds []ArgKind, context NodeBase) (MypyTypeNode, MypyTypeNode) {
+	proper_callee := get_proper_type(callee)
+	if proper_callee is CallableType {
+		return ec.check_callable_call(proper_callee, args, arg_kinds, context)
+	}
+	if proper_callee is AnyType {
+		return ec.check_any_type_call(args, arg_kinds, proper_callee, context)
+	}
+	if proper_callee is Overloaded {
+		if proper_callee.items.len > 0 {
+			return ec.check_callable_call(*proper_callee.items[0], args, arg_kinds, context)
+		}
+		return ec.check_any_type_call(args, arg_kinds, AnyType{
+			type_of_any: .from_error
+		}, context)
+	}
+	if proper_callee is Instance {
+		call_method := analyze_member_access('__call__', callee, context.ctx, false, false,
+			false, callee, mut ec.chk, false)
 		return ec.check_call(call_method, args, arg_kinds, context)
 	}
-
-	return AnyType{
-		type_of_any: TypeOfAny.from_error
-	}, callee
+	return ec.msg.not_callable(callee, context.ctx), callee
 }
 
-// check_callable_call проверяет вызов callable
-pub fn (mut ec ExpressionChecker) check_callable_call(callee CallableType,
-	args []Expression,
-	arg_kinds []ArgKind,
-	context NodeBase) (MypyTypeNode, MypyTypeNode) {
-	// TODO: полная реализация с проверкой аргументов
+pub fn (mut ec ExpressionChecker) check_callable_call(callee CallableType, args []Expression, arg_kinds []ArgKind, context NodeBase) (MypyTypeNode, MypyTypeNode) {
+	_ = arg_kinds
+	for arg in args {
+		ec.accept(arg)
+	}
 	return callee.ret_type, callee
 }
 
-// check_any_type_call проверяет вызов Any
-pub fn (ec ExpressionChecker) check_any_type_call(args []Expression,
-	arg_kinds []ArgKind,
-	callee MypyTypeNode,
-	context NodeBase) (MypyTypeNode, MypyTypeNode) {
-	return AnyType{
-		type_of_any: TypeOfAny.from_another_any
-	}, AnyType{
-		type_of_any: TypeOfAny.from_another_any
+pub fn (ec ExpressionChecker) check_any_type_call(args []Expression, arg_kinds []ArgKind, callee MypyTypeNode, context NodeBase) (MypyTypeNode, MypyTypeNode) {
+	_ = args
+	_ = arg_kinds
+	_ = callee
+	_ = context
+	typ := AnyType{
+		type_of_any: .from_untyped_call
 	}
+	return typ, typ
 }
 
-// visit_member_expr проверяет доступ к атрибуту
 pub fn (mut ec ExpressionChecker) visit_member_expr(e MemberExpr, is_lvalue bool) MypyTypeNode {
 	result := ec.analyze_ordinary_member_access(e, is_lvalue)
-	narrowed := ec.narrow_type_from_binder(e, result)
-	ec.chk.warn_deprecated(e.node, e.base)
-	return narrowed
+	return ec.narrow_type_from_binder(e, result)
 }
 
-// analyze_ordinary_member_access анализирует доступ к атрибуту
 pub fn (mut ec ExpressionChecker) analyze_ordinary_member_access(e MemberExpr, is_lvalue bool) MypyTypeNode {
-	original_type := ec.accept(e.expr, none, false, ec.is_callee, false)
-
-	member_type := analyze_member_access(e.name, original_type, e.base.ctx, false, is_lvalue, false, AnyType{}, ec.chk, false)
-		is_lvalue:     is_lvalue
-		is_super:      false
-		is_operator:   false
-		original_type: original_type
-		chk:           ec.chk
-	)
-
-	return member_type
+	original_type := ec.accept(e.expr)
+	return analyze_member_access(e.name, original_type, e.base.ctx, is_lvalue, false,
+		false, original_type, mut ec.chk, false)
 }
 
-// visit_index_expr проверяет индексацию
 pub fn (mut ec ExpressionChecker) visit_index_expr(e IndexExpr) MypyTypeNode {
-	if e.analyzed != none {
-		return ec.accept(e.analyzed)
+	if analyzed := e.analyzed {
+		return ec.accept(analyzed)
 	}
-
-	left_type := ec.accept(e.base)
+	left_type := ec.accept(e.base_)
 	return ec.visit_index_with_type(left_type, e)
 }
 
-// visit_index_with_type проверяет индексацию с типом
 pub fn (mut ec ExpressionChecker) visit_index_with_type(left_type MypyTypeNode, e IndexExpr) MypyTypeNode {
-	ec.accept(e.index)
-
-	p_left := get_proper_type(left_type)
-
-	if p_left is TupleTypeNode {
-		// TODO: специальная обработка tuple indexing
+	index_type := ec.accept(e.index)
+	left_proper := get_proper_type(left_type)
+	if left_proper is TupleType {
+		tuple_type := left_proper
+		if e.index is IntExpr {
+			idx := e.index.value
+			if idx >= 0 && idx < tuple_type.items.len {
+				return tuple_type.items[idx]
+			}
+		}
 	}
-
-	if p_left is TypedDictTypeNode {
-		result, _ := ec.visit_typeddict_index_expr(p_left, e.index)
-		return result
-	}
-
 	result, _ := ec.check_method_call_by_name('__getitem__', left_type, [e.index], [
-		arg_pos,
-	], e)
+		.arg_pos,
+	], e.base)
+	if get_proper_type(result) is AnyType {
+		_ = index_type
+	}
 	return result
 }
 
-// visit_typeddict_index_expr проверяет индекс TypedDict
-pub fn (mut ec ExpressionChecker) visit_typeddict_index_expr(td TypedDictTypeNode, index Expression) (MypyTypeNode, []string) {
+pub fn (mut ec ExpressionChecker) visit_typeddict_index_expr(td TypedDictType, index Expression) MypyTypeNode {
 	if index is StrExpr {
-		key_name := index.value
-		if key_name in td.items {
-			return td.items[key_name], [key_name]
+		if index.value in td.items {
+			return td.items[index.value]
 		}
-		ec.msg.typeddict_key_not_found(td, key_name, index)
-		return AnyTypeNode{
-			reason: TypeOfAny.from_error
-		}, []
 	}
-
-	ec.msg.typeddict_key_must_be_string_literal(td, index)
-	return AnyTypeNode{
-		reason: TypeOfAny.from_error
-	}, []
+	ec.msg.fail('Invalid TypedDict key access', index.get_context(), false, false, none)
+	return AnyType{
+		type_of_any: .from_error
+	}
 }
 
-// visit_op_expr проверяет бинарный оператор
 pub fn (mut ec ExpressionChecker) visit_op_expr(e OpExpr) MypyTypeNode {
-	if e.analyzed != none {
-		return ec.accept(e.analyzed)
-	}
-
 	if e.op == 'and' || e.op == 'or' {
 		return ec.check_boolean_op(e)
 	}
-
-	if e.op in operators.op_methods {
-		method := operators.op_methods[e.op]
+	if e.op in op_methods {
 		left_type := ec.accept(e.left)
-		result, _ := ec.check_op(method, left_type, e.right, e)
+		result, _ := ec.check_op(op_methods[e.op], left_type, e.right, e.base)
 		return result
 	}
-
-	panic('Unknown operator ${e.op}')
+	ec.accept(e.left)
+	ec.accept(e.right)
+	return AnyType{
+		type_of_any: .from_error
+	}
 }
 
-// check_boolean_op проверяет булев оператор
 pub fn (mut ec ExpressionChecker) check_boolean_op(e OpExpr) MypyTypeNode {
 	left_type := ec.accept(e.left)
-
-	left_map, right_map := ec.chk.find_isinstance_check(e.left)
-
-	right_type := ec.analyze_cond_branch(right_map, e.right)
-
-	return make_simplified_union([left_type, right_type])
+	right_type := ec.accept(e.right)
+	return expr_union([left_type, right_type])
 }
 
-// check_op проверяет оператор
-pub fn (mut ec ExpressionChecker) check_op(method string,
-	base_type MypyTypeNode,
-	arg Expression,
-	context NodeBase) (MypyTypeNode, MypyTypeNode) {
-	return ec.check_method_call_by_name(method, base_type, [arg], [arg_pos], context)
+pub fn (mut ec ExpressionChecker) check_op(method string, base_type MypyTypeNode, arg Expression, context NodeBase) (MypyTypeNode, MypyTypeNode) {
+	return ec.check_method_call_by_name(method, base_type, [arg], [.arg_pos], context)
 }
 
-// check_method_call_by_name проверяет вызов метода по имени
-pub fn (mut ec ExpressionChecker) check_method_call_by_name(method string,
-	base_type MypyTypeNode,
-	args []Expression,
-	arg_kinds []ArgKind,
-	context NodeBase) (MypyTypeNode, MypyTypeNode) {
-	method_type := analyze_member_access(method, base_type, context,
-		is_lvalue:     false
-		is_super:      false
-		is_operator:   true
-		original_type: base_type
-		chk:           ec.chk
-	)
-
+pub fn (mut ec ExpressionChecker) check_method_call_by_name(method string, base_type MypyTypeNode, args []Expression, arg_kinds []ArgKind, context NodeBase) (MypyTypeNode, MypyTypeNode) {
+	method_type := analyze_member_access(method, base_type, context.ctx, false, false,
+		true, base_type, mut ec.chk, false)
 	return ec.check_call(method_type, args, arg_kinds, context)
 }
 
-// visit_unary_expr проверяет унарный оператор
 pub fn (mut ec ExpressionChecker) visit_unary_expr(e UnaryExpr) MypyTypeNode {
 	operand_type := ec.accept(e.expr)
-
 	if e.op == 'not' {
 		return ec.bool_type()
 	}
-
-	method := operators.unary_op_methods[e.op]
-	result, _ := ec.check_method_call_by_name(method, operand_type, [], [], e)
-	return result
-}
-
-// visit_comparison_expr проверяет сравнение
-pub fn (mut ec ExpressionChecker) visit_comparison_expr(e ComparisonExpr) MypyTypeNode {
-	mut result := ?MypyTypeNode(none)
-
-	for i in 0 .. e.operators.len {
-		left_type := ec.accept(e.operands[i])
-		right := e.operands[i + 1]
-		op := e.operators[i]
-
-		if op in operators.op_methods {
-			method := operators.op_methods[op]
-			sub_result, _ := ec.check_op(method, left_type, right, e)
-
-			if result == none {
-				result = sub_result
-			} else {
-				result = join.join_types(result or { sub_result }, sub_result)
-			}
-		} else if op == 'is' || op == 'is not' {
-			ec.accept(right)
-			if result == none {
-				result = ec.bool_type()
-			}
-		}
+	if e.op in unary_op_methods {
+		result, _ := ec.check_method_call_by_name(unary_op_methods[e.op], operand_type,
+			[]Expression{}, []ArgKind{}, e.base)
+		return result
 	}
-
-	return result or { ec.bool_type() }
+	return AnyType{
+		type_of_any: .from_error
+	}
 }
 
-// visit_assignment_expr проверает walrus operator
+pub fn (mut ec ExpressionChecker) visit_comparison_expr(e ComparisonExpr) MypyTypeNode {
+	for operand in e.operands {
+		ec.accept(operand)
+	}
+	return ec.bool_type()
+}
+
 pub fn (mut ec ExpressionChecker) visit_assignment_expr(e AssignmentExpr) MypyTypeNode {
 	value := ec.accept(e.value)
 	ec.chk.check_assignment(e.target, e.value)
-	ec.chk.check_final(e)
 	ec.chk.store_type(e.target, value)
 	return value
 }
 
-// visit_list_expr проверает список
 pub fn (mut ec ExpressionChecker) visit_list_expr(e ListExpr) MypyTypeNode {
-	return ec.check_lst_expr(e, 'builtins.list', '<list>')
+	return ec.check_lst_expr(e.items, 'builtins.list')
 }
 
-// visit_set_expr проверяет set
 pub fn (mut ec ExpressionChecker) visit_set_expr(e SetExpr) MypyTypeNode {
-	return ec.check_lst_expr(e, 'builtins.set', '<set>')
+	return ec.check_lst_expr(e.items, 'builtins.set')
 }
 
-// ListSetExpr — тип для list/set expression
-pub type ListSetExpr = ListExpr | SetExpr
-
-// check_lst_expr проверяет list/set/tuple expression
-pub fn (mut ec ExpressionChecker) check_lst_expr(e ListSetExpr, fullname string, tag string) MypyTypeNode {
-	tv := TypeVarTypeNode{
-		name:        'T'
-		fullname:    'T'
-		id:          TypeVarId{
-			raw_id:    -1
-			namespace: '<lst>'
-		}
-		values:      []
-		upper_bound: ec.object_type()
-		default:     AnyTypeNode{
-			reason: TypeOfAny.from_omitted_generics
-		}
-	}
-
-	constructor := CallableTypeNode{
-		arg_types: [MypyTypeNode(tv)]
-		arg_kinds: [arg_star]
-		arg_names: [?string(none)]
-		ret_type:  ec.chk.named_generic_type(fullname, [tv])
-		fallback:  ec.named_type('builtins.function')
-		name:      tag
-		variables: [TypeVarLikeType(tv)]
-	}
-
-	mut exprs := []Expression{}
-	mut kinds := []ArgKind{}
-	for item in e.items {
-		if item is StarExprNode {
-			exprs << item.expr
-			kinds << arg_star
+fn (mut ec ExpressionChecker) check_lst_expr(items []Expression, fullname string) MypyTypeNode {
+	mut item_types := []MypyTypeNode{}
+	for item in items {
+		if item is StarExpr {
+			item_types << ec.accept(item.expr)
 		} else {
-			exprs << item
-			kinds << arg_pos
+			item_types << ec.accept(item)
 		}
 	}
-
-	result, _ := ec.check_call(constructor, exprs, kinds, e)
-	return result
+	item_type := if item_types.len > 0 {
+		expr_union(item_types)
+	} else {
+		MypyTypeNode(AnyType{
+			type_of_any: .special_form
+		})
+	}
+	return ec.chk.named_generic_type(fullname, [item_type])
 }
 
-// visit_dict_expr проверяет dict
 pub fn (mut ec ExpressionChecker) visit_dict_expr(e DictExpr) MypyTypeNode {
-	kt := TypeVarTypeNode{
-		name:        'KT'
-		fullname:    'KT'
-		id:          TypeVarId{
-			raw_id:    -1
-			namespace: '<dict>'
+	mut key_types := []MypyTypeNode{}
+	mut value_types := []MypyTypeNode{}
+	for item in e.items {
+		if key := item.key {
+			key_types << ec.accept(key)
 		}
-		values:      []
-		upper_bound: ec.object_type()
-		default:     AnyTypeNode{
-			reason: TypeOfAny.from_omitted_generics
-		}
+		value_types << ec.accept(item.value)
 	}
-	vt := TypeVarTypeNode{
-		name:        'VT'
-		fullname:    'VT'
-		id:          TypeVarId{
-			raw_id:    -2
-			namespace: '<dict>'
-		}
-		values:      []
-		upper_bound: ec.object_type()
-		default:     AnyTypeNode{
-			reason: TypeOfAny.from_omitted_generics
-		}
+	key_type := if key_types.len > 0 {
+		expr_union(key_types)
+	} else {
+		MypyTypeNode(AnyType{
+			type_of_any: .special_form
+		})
 	}
-
-	constructor := CallableTypeNode{
-		arg_types: [MypyTypeNode(kt), MypyTypeNode(vt)]
-		arg_kinds: [arg_pos, arg_pos]
-		arg_names: [?string(none), ?string(none)]
-		ret_type:  ec.chk.named_generic_type('builtins.dict', [kt, vt])
-		fallback:  ec.named_type('builtins.function')
-		name:      '<dict>'
-		variables: [TypeVarLikeType(kt), TypeVarLikeType(vt)]
+	value_type := if value_types.len > 0 {
+		expr_union(value_types)
+	} else {
+		MypyTypeNode(AnyType{
+			type_of_any: .special_form
+		})
 	}
-
-	result, _ := ec.check_call(constructor, [], [], e)
-	return result
+	return ec.chk.named_generic_type('builtins.dict', [key_type, value_type])
 }
 
-// visit_tuple_expr проверяет tuple
 pub fn (mut ec ExpressionChecker) visit_tuple_expr(e TupleExpr) MypyTypeNode {
 	mut items := []MypyTypeNode{}
 	for item in e.items {
 		items << ec.accept(item)
 	}
-
-	fallback_item := AnyTypeNode{
-		reason: TypeOfAny.special_form
-	}
-	fallback := ec.chk.named_generic_type('builtins.tuple', [fallback_item])
-
-	return TupleTypeNode{
-		items:            items
-		partial_fallback: fallback
+	return TupleType{
+		items: items
 	}
 }
 
-// visit_conditional_expr проверяет conditional expression
 pub fn (mut ec ExpressionChecker) visit_conditional_expr(e ConditionalExpr) MypyTypeNode {
 	ec.accept(e.cond)
-
-	if_type := ec.analyze_cond_branch(ec.chk.find_isinstance_check(e.cond)[0], e.if_expr)
-	else_type := ec.analyze_cond_branch(ec.chk.find_isinstance_check(e.cond)[1], e.else_expr)
-
-	return make_simplified_union([if_type, else_type])
+	return expr_union([ec.accept(e.if_expr), ec.accept(e.else_expr)])
 }
 
-// analyze_cond_branch анализирует ветку условия
-pub fn (mut ec ExpressionChecker) analyze_cond_branch(map TypeMap, node Expression) MypyTypeNode {
-	if is_unreachable_map(map) {
-		return UninhabitedTypeNode{}
-	}
-	ec.chk.push_type_map(map)
-	return ec.accept(node)
-}
-
-// visit_lambda_expr проверяет lambda
 pub fn (mut ec ExpressionChecker) visit_lambda_expr(e LambdaExpr) MypyTypeNode {
-	ec.chk.check_default_params(e, body_is_trivial: false)
-
-	inferred_type, _ := ec.infer_lambda_type_using_context(e)
-	if inferred_type != none {
-		return inferred_type or {
-			AnyTypeNode{
-				reason: TypeOfAny.special_form
-			}
-		}
-	}
-
-	fallback := ec.named_type('builtins.function')
-	ret_type := ec.accept(e.expr())
-	return callable_type(e, fallback, ret_type)
+	ret_type := ec.accept(e.body)
+	return callable_type_from_lambda(e, ec.named_type('builtins.function'), ret_type)
 }
 
-// infer_lambda_type_using_context выводит тип lambda из контекста
-pub fn (ec ExpressionChecker) infer_lambda_type_using_context(e LambdaExpr) (?MypyTypeNode, ?MypyTypeNode) {
-	ctx := get_proper_type(ec.type_context.last())
-	if ctx is CallableTypeNode {
-		return ctx, ctx
-	}
-	return none, none
-}
-
-// visit_int_expr проверяет int literal
 pub fn (ec ExpressionChecker) visit_int_expr(e IntExpr) MypyTypeNode {
-	return ec.infer_literal_expr_type(e.value, 'builtins.int')
+	return ec.infer_literal_expr_type(e.value.str(), 'builtins.int')
 }
 
-// visit_str_expr проверяет string literal
 pub fn (ec ExpressionChecker) visit_str_expr(e StrExpr) MypyTypeNode {
 	return ec.infer_literal_expr_type(e.value, 'builtins.str')
 }
 
-// visit_bytes_expr проверяет bytes literal
 pub fn (ec ExpressionChecker) visit_bytes_expr(e BytesExpr) MypyTypeNode {
-	return ec.infer_literal_expr_type(e.value, 'builtins.bytes')
+	return ec.named_type('builtins.bytes')
 }
 
-// visit_float_expr проверяет float literal
 pub fn (ec ExpressionChecker) visit_float_expr(e FloatExpr) MypyTypeNode {
 	return ec.named_type('builtins.float')
 }
 
-// visit_complex_expr проверяет complex literal
 pub fn (ec ExpressionChecker) visit_complex_expr(e ComplexExpr) MypyTypeNode {
 	return ec.named_type('builtins.complex')
 }
 
-// visit_ellipsis проверяет ...
 pub fn (ec ExpressionChecker) visit_ellipsis(e EllipsisExpr) MypyTypeNode {
 	return ec.named_type('builtins.ellipsis')
 }
 
-// infer_literal_expr_type выводит тип literal
-pub fn (ec ExpressionChecker) infer_literal_expr_type(value LiteralValue, fallback_name string) MypyTypeNode {
-	typ := ec.named_type(fallback_name)
-	if ec.is_literal_context() {
-		return LiteralTypeNode{
-			value:    value
-			fallback: typ
-		}
-	}
-	return typ
+pub fn (ec ExpressionChecker) infer_literal_expr_type(value string, fallback_name string) MypyTypeNode {
+	_ = value
+	return ec.named_type(fallback_name)
 }
 
-// visit_list_comprehension проверяет list comprehension
 pub fn (mut ec ExpressionChecker) visit_list_comprehension(e ListComprehension) MypyTypeNode {
-	return ec.check_generator_or_comprehension(e.generator, 'builtins.list', '<list-comprehension>')
+	return ec.chk.named_generic_type('builtins.list', [
+		ec.visit_generator_expr(e.generator),
+	])
 }
 
-// check_generator_or_comprehension проверяет generator/comprehension
-pub fn (mut ec ExpressionChecker) check_generator_or_comprehension(gen GeneratorExpr, type_name string, id_for_messages string) MypyTypeNode {
-	tv := TypeVarTypeNode{
-		name:        'T'
-		fullname:    'T'
-		id:          TypeVarId{
-			raw_id:    -1
-			namespace: '<genexp>'
-		}
-		values:      []
-		upper_bound: ec.object_type()
-		default:     AnyTypeNode{
-			reason: TypeOfAny.from_omitted_generics
+pub fn (mut ec ExpressionChecker) visit_generator_expr(e GeneratorExpr) MypyTypeNode {
+	ec.accept(e.left_expr)
+	for seq in e.sequences {
+		ec.accept(seq)
+	}
+	for conds in e.condlists {
+		for cond in conds {
+			ec.accept(cond)
 		}
 	}
-
-	constructor := CallableTypeNode{
-		arg_types: [MypyTypeNode(tv)]
-		arg_kinds: [arg_pos]
-		arg_names: [?string(none)]
-		ret_type:  ec.chk.named_generic_type(type_name, [tv])
-		fallback:  ec.named_type('builtins.function')
-		name:      id_for_messages
-		variables: [TypeVarLikeType(tv)]
+	return AnyType{
+		type_of_any: .special_form
 	}
+}
 
-	result, _ := ec.check_call(constructor, [gen.left_expr], [arg_pos], gen)
+pub fn (mut ec ExpressionChecker) visit_set_comprehension(e SetComprehension) MypyTypeNode {
+	return ec.chk.named_generic_type('builtins.set', [
+		ec.visit_generator_expr(e.generator),
+	])
+}
+
+pub fn (mut ec ExpressionChecker) visit_dictionary_comprehension(e DictionaryComprehension) MypyTypeNode {
+	key_type := ec.accept(e.key)
+	value_type := ec.accept(e.value)
+	for seq in e.sequences {
+		ec.accept(seq)
+	}
+	for conds in e.condlists {
+		for cond in conds {
+			ec.accept(cond)
+		}
+	}
+	return ec.chk.named_generic_type('builtins.dict', [key_type, value_type])
+}
+
+pub fn (mut ec ExpressionChecker) visit_cast_expr(e CastExpr) MypyTypeNode {
+	ec.accept(e.expr)
+	return e.type_
+}
+
+pub fn (mut ec ExpressionChecker) visit_assert_type_expr(e AssertTypeExpr) MypyTypeNode {
+	return ec.accept(e.expr)
+}
+
+pub fn (mut ec ExpressionChecker) visit_reveal_expr(e RevealExpr) MypyTypeNode {
+	if expr := e.expr {
+		return ec.accept(expr)
+	}
+	return NoneType{}
+}
+
+pub fn (mut ec ExpressionChecker) visit_yield_expr(e YieldExpr) MypyTypeNode {
+	if expr := e.expr {
+		ec.accept(expr)
+	}
+	return NoneType{}
+}
+
+pub fn (mut ec ExpressionChecker) visit_yield_from_expr(e YieldFromExpr) MypyTypeNode {
+	return ec.accept(e.expr)
+}
+
+pub fn (mut ec ExpressionChecker) visit_await_expr(e AwaitExpr) MypyTypeNode {
+	actual_type := ec.accept(e.expr)
+	return ec.check_awaitable_expr(actual_type, e.base)
+}
+
+pub fn (mut ec ExpressionChecker) check_awaitable_expr(t MypyTypeNode, ctx NodeBase) MypyTypeNode {
+	result, _ := ec.check_method_call_by_name('__await__', t, []Expression{}, []ArgKind{},
+		ctx)
 	return result
 }
 
-// visit_cast_expr проверяет cast
-pub fn (mut ec ExpressionChecker) visit_cast_expr(e CastExpr) MypyTypeNode {
-	ec.accept(e.expr)
-	return e.type
-}
-
-// visit_assert_type_expr проверяет assert_type
-pub fn (mut ec ExpressionChecker) visit_assert_type_expr(e AssertTypeExpr) MypyTypeNode {
-	source_type := ec.accept(e.expr, type_context: ec.type_context.last())
-	return source_type
-}
-
-// visit_reveal_expr проверяет reveal_type
-pub fn (mut ec ExpressionChecker) visit_reveal_expr(e RevealExpr) MypyTypeNode {
-	if e.expr != none {
-		revealed_type := ec.accept(e.expr or { return NoneTypeNode{} },
-			type_context: ec.type_context.last()
-		)
-		ec.msg.reveal_type(revealed_type, e.expr or { return revealed_type })
-		return revealed_type
-	}
-	return NoneTypeNode{}
-}
-
-// visit_yield_expr проверяет yield
-pub fn (mut ec ExpressionChecker) visit_yield_expr(e YieldExpr) MypyTypeNode {
-	return_type := ec.chk.return_types.last()
-	expected_item_type := ec.chk.get_generator_yield_type(return_type, false)
-
-	if e.expr != none {
-		ec.accept(e.expr or { return expected_item_type }, expected_item_type)
-	}
-
-	return ec.chk.get_generator_receive_type(return_type, false)
-}
-
-// visit_await_expr проверяет await
-pub fn (mut ec ExpressionChecker) visit_await_expr(e AwaitExpr) MypyTypeNode {
-	actual_type := ec.accept(e.expr)
-	return ec.check_awaitable_expr(actual_type, e)
-}
-
-// check_awaitable_expr проверяет awaitable
-pub fn (ec ExpressionChecker) check_awaitable_expr(t MypyTypeNode, ctx NodeBase) MypyTypeNode {
-	generator := ec.check_method_call_by_name('__await__', t, [], [], ctx)[0]
-	return ec.chk.get_generator_return_type(generator, false)
-}
-
-// visit_temp_node проверяет temp node
 pub fn (ec ExpressionChecker) visit_temp_node(e TempNode) MypyTypeNode {
-	return e.typ
+	return e.type_
 }
 
-// accept принимает выражение
-pub fn (mut ec ExpressionChecker) accept(node NodeBase,
-	type_context ?MypyTypeNode,
-	allow_none_return bool,
-	always_allow_any bool,
-	is_callee bool) MypyTypeNode {
-	ec.type_context << type_context
-	old_is_callee := ec.is_callee
-	ec.is_callee = is_callee
-
-	mut typ := MypyTypeNode(AnyTypeNode{
-		reason: TypeOfAny.special_form
-	})
-
-	// TODO: полная реализация с вызовом node.accept(ec)
-
-	ec.is_callee = old_is_callee
-	ec.type_context.pop()
-
-	ec.chk.store_type(node as Expression, typ)
-	return typ
+pub fn (mut ec ExpressionChecker) visit_star_expr(e StarExpr) MypyTypeNode {
+	return ec.accept(e.expr)
 }
 
-// named_type возвращает Instance с заданным именем
-pub fn (ec ExpressionChecker) named_type(name string) InstanceNode {
-	return ec.chk.named_type(name)
+pub fn (mut ec ExpressionChecker) visit_slice_expr(e SliceExpr) MypyTypeNode {
+	if b := e.begin_index {
+		ec.accept(b)
+	}
+	if end := e.end_index {
+		ec.accept(end)
+	}
+	if stride := e.stride {
+		ec.accept(stride)
+	}
+	return ec.named_type('builtins.slice')
 }
 
-// object_type возвращает тип object
-pub fn (ec ExpressionChecker) object_type() InstanceNode {
+pub fn (mut ec ExpressionChecker) visit_super_expr(e SuperExpr) MypyTypeNode {
+	_ = e
+	return ec.object_type()
+}
+
+pub fn (mut ec ExpressionChecker) visit_template_str_expr(e TemplateStrExpr) MypyTypeNode {
+	for part in e.parts {
+		ec.accept(part)
+	}
+	return ec.named_type('builtins.str')
+}
+
+pub fn (mut ec ExpressionChecker) visit_type_alias_expr(e TypeAliasExpr) MypyTypeNode {
+	_ = e
+	return ec.named_type('builtins.type')
+}
+
+pub fn (mut ec ExpressionChecker) visit_namedtuple_expr(e NamedTupleExpr) MypyTypeNode {
+	_ = e
+	return ec.named_type('builtins.tuple')
+}
+
+pub fn (mut ec ExpressionChecker) visit_newtype_expr(e NewTypeExpr) MypyTypeNode {
+	_ = e
+	return ec.named_type('builtins.type')
+}
+
+pub fn (mut ec ExpressionChecker) visit_paramspec_expr(e ParamSpecExpr) MypyTypeNode {
+	_ = e
+	return AnyType{
+		type_of_any: .special_form
+	}
+}
+
+pub fn (mut ec ExpressionChecker) visit_promote_expr(e PromoteExpr) MypyTypeNode {
+	return e.type_
+}
+
+pub fn (mut ec ExpressionChecker) visit_enum_call_expr(e EnumCallExpr) MypyTypeNode {
+	_ = e
 	return ec.named_type('builtins.object')
 }
 
-// bool_type возвращает тип bool
-pub fn (ec ExpressionChecker) bool_type() InstanceNode {
+pub fn (ec ExpressionChecker) named_type(name string) Instance {
+	return ec.chk.named_type(name)
+}
+
+pub fn (ec ExpressionChecker) object_type() Instance {
+	return ec.named_type('builtins.object')
+}
+
+pub fn (ec ExpressionChecker) bool_type() Instance {
 	return ec.named_type('builtins.bool')
 }
 
-// narrow_type_from_binder сужает тип из binder
 pub fn (ec ExpressionChecker) narrow_type_from_binder(e Expression, known_type MypyTypeNode) MypyTypeNode {
 	if literal(e) >= literal_type {
-		restriction := ec.chk.binder.get(e)
-		if restriction != none {
-			return narrow_declared_type(known_type, restriction or { return known_type })
+		if restriction := ec.chk.binder.get(e) {
+			return restriction
 		}
 	}
 	return known_type
 }
 
-// typeddict_callable создаёт callable для TypedDict
-pub fn (ec ExpressionChecker) typeddict_callable(info TypeInfoNode) MypyTypeNode {
-	return CallableTypeNode{
-		arg_types: []
-		arg_kinds: []
-		arg_names: []
-		ret_type:  InstanceNode{
-			typ:  info
-			args: []
+pub fn (ec ExpressionChecker) typeddict_callable(info TypeInfo, td TypedDictType) MypyTypeNode {
+	return CallableType{
+		arg_types: []MypyTypeNode{}
+		arg_kinds: []ArgKind{}
+		arg_names: []?string{}
+		ret_type:  ec.named_type(info.fullname)
+		variables: []MypyTypeNode{}
+		fallback:  td.fallback
+	}
+}
+
+fn callable_type_from_lambda(e LambdaExpr, fallback Instance, ret_type MypyTypeNode) CallableType {
+	mut arg_types := []MypyTypeNode{}
+	mut arg_names := []?string{}
+	for arg in e.arguments {
+		arg_types << (arg.variable.type_ or {
+			MypyTypeNode(AnyType{
+				type_of_any: .special_form
+			})
+		})
+		arg_names << arg.variable.name
+	}
+	return CallableType{
+		arg_types: arg_types
+		arg_kinds: e.arg_kinds
+		arg_names: arg_names
+		ret_type:  ret_type
+		variables: []MypyTypeNode{}
+		fallback:  fallback
+	}
+}
+
+fn expr_union(items []MypyTypeNode) MypyTypeNode {
+	if items.len == 0 {
+		return AnyType{
+			type_of_any: .special_form
 		}
-		fallback:  ec.named_type('builtins.type')
-		name:      info.fullname
 	}
-}
-
-// alias_type_in_runtime_context возвращает тип type alias в runtime контексте
-pub fn (ec ExpressionChecker) alias_type_in_runtime_context(alias TypeAliasNode, ctx NodeBase) MypyTypeNode {
-	return AnyTypeNode{
-		reason: TypeOfAny.special_form
-	}
-}
-
-// Вспомогательные функции-заглушки
-fn analyze_member_access(name string,
-	typ MypyTypeNode,
-	context NodeBase,
-	is_lvalue bool,
-	is_super bool,
-	is_operator bool,
-	original_type MypyTypeNode,
-	chk TypeChecker) MypyTypeNode {
-	// TODO: реализация из checkmember.v
-	return AnyTypeNode{
-		reason: TypeOfAny.special_form
-	}
-}
-
-fn callable_type(e LambdaExpr, fallback InstanceNode, ret_type MypyTypeNode) CallableTypeNode {
-	// TODO: реализация
-	return CallableTypeNode{
-		fallback: fallback
-		ret_type: ret_type
-	}
-}
-
-fn get_proper_type(t MypyTypeNode) MypyTypeNode {
-	return t
-}
-
-fn make_simplified_union(items []MypyTypeNode) MypyTypeNode {
 	if items.len == 1 {
 		return items[0]
 	}
-	return UnionTypeNode{
+	return UnionType{
 		items: items
-	}
-}
-
-fn narrow_declared_type(declared MypyTypeNode, narrowed MypyTypeNode) MypyTypeNode {
-	return narrowed
-}
-
-fn is_unreachable_map(type_map TypeMap) bool {
-	for v in type_map.values {
-		if v is UninhabitedTypeNode {
-			return true
-		}
-	}
-	return false
-}
-
-fn type_object_type(info TypeInfoNode, named_type_fn fn (string) InstanceNode) MypyTypeNode {
-	return CallableTypeNode{
-		arg_types: []
-		arg_kinds: []
-		arg_names: []
-		ret_type:  InstanceNode{
-			typ:  info
-			args: []
-		}
-		fallback:  named_type_fn('builtins.function')
-		name:      info.fullname
 	}
 }
