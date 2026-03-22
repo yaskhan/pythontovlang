@@ -285,9 +285,11 @@ fn (mut v VariableRenameVisitor) visit_expression(expr Expression) {
 // visit_func_def обрабатывает определение функции
 pub fn (mut v VariableRenameVisitor) visit_func_def(defn FuncDef) {
 	_ = v.enter_scope(function_scope)
-	defer { ScopeGuard{
-		v: v
-	}.drop() }
+	defer {
+		ScopeGuard{
+			v: v
+		}.drop()
+	}
 
 	for arg in defn.arguments {
 		v.visit_lvalue(arg.variable)
@@ -301,9 +303,11 @@ pub fn (mut v VariableRenameVisitor) visit_func_def(defn FuncDef) {
 // visit_class_def обрабатывает определение класса
 pub fn (mut v VariableRenameVisitor) visit_class_def(defn ClassDef) {
 	_ = v.enter_scope(class_scope)
-	defer { ScopeGuard{
-		v: v
-	}.drop() }
+	defer {
+		ScopeGuard{
+			v: v
+		}.drop()
+	}
 
 	if defn.defs != none {
 		v.visit_block(defn.defs)
@@ -313,9 +317,11 @@ pub fn (mut v VariableRenameVisitor) visit_class_def(defn ClassDef) {
 // visit_block обрабатывает блок
 pub fn (mut v VariableRenameVisitor) visit_block(block Block) {
 	_ = v.enter_block()
-	defer { BlockGuard{
-		v: v
-	}.drop() }
+	defer {
+		BlockGuard{
+			v: v
+		}.drop()
+	}
 
 	for stmt in block.body {
 		v.visit_statement(stmt)
@@ -345,23 +351,29 @@ fn (mut v VariableRenameVisitor) visit_statement(stmt Statement) {
 	} else if stmt is WhileStmt {
 		v.visit_expression(stmt.expr)
 		_ = v.enter_loop()
-		defer { LoopGuard{
-			v: v
-		}.drop() }
+		defer {
+			LoopGuard{
+				v: v
+			}.drop()
+		}
 		v.visit_block(stmt.body)
 	} else if stmt is ForStmt {
 		v.visit_expression(stmt.iter)
 		v.visit_lvalue(stmt.index)
 		_ = v.enter_loop()
-		defer { LoopGuard{
-			v: v
-		}.drop() }
+		defer {
+			LoopGuard{
+				v: v
+			}.drop()
+		}
 		v.visit_block(stmt.body)
 	} else if stmt is TryStmt {
 		_ = v.enter_try()
-		defer { TryGuard{
-			v: v
-		}.drop() }
+		defer {
+			TryGuard{
+				v: v
+			}.drop()
+		}
 		v.visit_block(stmt.body)
 		for handler in stmt.handlers {
 			v.visit_block(handler)

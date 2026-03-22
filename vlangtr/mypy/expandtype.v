@@ -13,134 +13,186 @@ pub fn expand_type(typ MypyTypeNode, env map[TypeVarId]MypyTypeNode) MypyTypeNod
 	}
 	proper := get_proper_type(typ)
 	match proper {
-		AnyType { return v.visit_any(&proper) or {
+		AnyType {
+			return v.visit_any(&proper) or {
 				MypyTypeNode(AnyType{
 					type_of_any: .from_error
 				})
-			} }
-		CallableArgument { return v.visit_callable_argument(&proper) or {
+			}
+		}
+		CallableArgument {
+			return v.visit_callable_argument(&proper) or {
 				MypyTypeNode(AnyType{
 					type_of_any: .from_error
 				})
-			} }
-		CallableType { return v.visit_callable_type(&proper) or {
+			}
+		}
+		CallableType {
+			return v.visit_callable_type(&proper) or {
 				MypyTypeNode(AnyType{
 					type_of_any: .from_error
 				})
-			} }
-		DeletedType { return v.visit_deleted_type(&proper) or {
+			}
+		}
+		DeletedType {
+			return v.visit_deleted_type(&proper) or {
 				MypyTypeNode(AnyType{
 					type_of_any: .from_error
 				})
-			} }
-		EllipsisType { return v.visit_ellipsis_type(&proper) or {
+			}
+		}
+		EllipsisType {
+			return v.visit_ellipsis_type(&proper) or {
 				MypyTypeNode(AnyType{
 					type_of_any: .from_error
 				})
-			} }
-		ErasedType { return v.visit_erased_type(&proper) or {
+			}
+		}
+		ErasedType {
+			return v.visit_erased_type(&proper) or {
 				MypyTypeNode(AnyType{
 					type_of_any: .from_error
 				})
-			} }
-		Instance { return v.visit_instance(&proper) or {
+			}
+		}
+		Instance {
+			return v.visit_instance(&proper) or {
 				MypyTypeNode(AnyType{
 					type_of_any: .from_error
 				})
-			} }
-		LiteralType { return v.visit_literal_type(&proper) or {
+			}
+		}
+		LiteralType {
+			return v.visit_literal_type(&proper) or {
 				MypyTypeNode(AnyType{
 					type_of_any: .from_error
 				})
-			} }
-		NoneType { return v.visit_none_type(&proper) or {
+			}
+		}
+		NoneType {
+			return v.visit_none_type(&proper) or {
 				MypyTypeNode(AnyType{
 					type_of_any: .from_error
 				})
-			} }
-		Overloaded { return v.visit_overloaded(&proper) or {
+			}
+		}
+		Overloaded {
+			return v.visit_overloaded(&proper) or {
 				MypyTypeNode(AnyType{
 					type_of_any: .from_error
 				})
-			} }
-		ParamSpecType { return v.visit_param_spec(&proper) or {
+			}
+		}
+		ParamSpecType {
+			return v.visit_param_spec(&proper) or {
 				MypyTypeNode(AnyType{
 					type_of_any: .from_error
 				})
-			} }
-		ParametersType { return v.visit_parameters(&proper) or {
+			}
+		}
+		ParametersType {
+			return v.visit_parameters(&proper) or {
 				MypyTypeNode(AnyType{
 					type_of_any: .from_error
 				})
-			} }
-		PartialTypeT { return v.visit_partial_type(&proper) or {
+			}
+		}
+		PartialTypeT {
+			return v.visit_partial_type(&proper) or {
 				MypyTypeNode(AnyType{
 					type_of_any: .from_error
 				})
-			} }
-		PlaceholderType { return v.visit_placeholder_type(&proper) or {
+			}
+		}
+		PlaceholderType {
+			return v.visit_placeholder_type(&proper) or {
 				MypyTypeNode(AnyType{
 					type_of_any: .from_error
 				})
-			} }
-		RawExpressionType { return v.visit_raw_expression_type(&proper) or {
+			}
+		}
+		RawExpressionType {
+			return v.visit_raw_expression_type(&proper) or {
 				MypyTypeNode(AnyType{
 					type_of_any: .from_error
 				})
-			} }
-		TupleType { return v.visit_tuple_type(&proper) or {
+			}
+		}
+		TupleType {
+			return v.visit_tuple_type(&proper) or {
 				MypyTypeNode(AnyType{
 					type_of_any: .from_error
 				})
-			} }
-		TypeAliasType { return v.visit_type_alias_type(&proper) or {
+			}
+		}
+		TypeAliasType {
+			return v.visit_type_alias_type(&proper) or {
 				MypyTypeNode(AnyType{
 					type_of_any: .from_error
 				})
-			} }
-		TypeList { return v.visit_type_list(&proper) or {
+			}
+		}
+		TypeList {
+			return v.visit_type_list(&proper) or {
 				MypyTypeNode(AnyType{
 					type_of_any: .from_error
 				})
-			} }
-		TypeType { return v.visit_type_type(&proper) or {
+			}
+		}
+		TypeType {
+			return v.visit_type_type(&proper) or {
 				MypyTypeNode(AnyType{
 					type_of_any: .from_error
 				})
-			} }
-		TypeVarTupleType { return v.visit_type_var_tuple(&proper) or {
+			}
+		}
+		TypeVarTupleType {
+			return v.visit_type_var_tuple(&proper) or {
 				MypyTypeNode(AnyType{
 					type_of_any: .from_error
 				})
-			} }
-		TypeVarType { return v.visit_type_var(&proper) or {
+			}
+		}
+		TypeVarType {
+			return v.visit_type_var(&proper) or {
 				MypyTypeNode(AnyType{
 					type_of_any: .from_error
 				})
-			} }
-		UnboundType { return v.visit_unbound_type(&proper) or {
+			}
+		}
+		UnboundType {
+			return v.visit_unbound_type(&proper) or {
 				MypyTypeNode(AnyType{
 					type_of_any: .from_error
 				})
-			} }
-		UninhabitedType { return v.visit_uninhabited_type(&proper) or {
+			}
+		}
+		UninhabitedType {
+			return v.visit_uninhabited_type(&proper) or {
 				MypyTypeNode(AnyType{
 					type_of_any: .from_error
 				})
-			} }
-		UnionType { return v.visit_union_type(&proper) or {
+			}
+		}
+		UnionType {
+			return v.visit_union_type(&proper) or {
 				MypyTypeNode(AnyType{
 					type_of_any: .from_error
 				})
-			} }
-		UnpackType { return v.visit_unpack_type(&proper) or {
+			}
+		}
+		UnpackType {
+			return v.visit_unpack_type(&proper) or {
 				MypyTypeNode(AnyType{
 					type_of_any: .from_error
 				})
-			} }
-		else { return MypyTypeNode(AnyType{
+			}
+		}
+		else {
+			return MypyTypeNode(AnyType{
 				type_of_any: .from_error
-			}) }
+			})
+		}
 	}
 }
 
