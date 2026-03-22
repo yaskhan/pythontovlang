@@ -327,7 +327,6 @@ The transpiler generates helper functions for Python features without direct V e
 class TranspilerConfig:
     strict_types: bool      # Enable strict type checking
     output_dir: str         # Output directory
-    mypy_enabled: bool      # Enable mypy inference
     warn_dynamic: bool      # Warn about Any types
     no_helpers: bool        # Skip helper generation
     helpers_only: bool      # Generate only helpers

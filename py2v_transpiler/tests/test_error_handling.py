@@ -9,7 +9,7 @@ from py2v_transpiler.core.translator import VNodeVisitor
 class TestErrorRecoveryAndMapping(unittest.TestCase):
     def test_source_mapping_comments(self):
         source = "def foo():\n    pass\n\nclass Bar:\n    x: int = 1"
-        config = TranspilerConfig(source_mapping=True, mypy_enabled=False)
+        config = TranspilerConfig(source_mapping=True)
 
         parser = PyASTParser()
         tree = parser.parse(source)
@@ -45,7 +45,7 @@ class TestErrorRecoveryAndMapping(unittest.TestCase):
         analyzer = TypeInference()
         analyzer.analyze(tree)
 
-        config = TranspilerConfig(mypy_enabled=False)
+        config = TranspilerConfig()
         translator = FailingTranslator(analyzer, config=config)
         translator.current_file_name = "test_fail.py"
 
