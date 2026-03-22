@@ -34,10 +34,10 @@ if __name__ == "__main__":
         f.write(code)
 
     try:
-        # Transpile with --no-mypy for simple structure check
+        # Transpile
         import sys
         project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
-        result = subprocess.run([sys.executable, "py2v_transpiler/main.py", "temp_match_guards.py", "--no-mypy"],
+        result = subprocess.run([sys.executable, "py2v_transpiler/main.py", "temp_match_guards.py"],
                                capture_output=True, text=True, env={**os.environ, "PYTHONPATH": project_root})
         assert result.returncode == 0, f"Transpilation failed: {result.stderr}"
 
@@ -78,7 +78,7 @@ def test_main():
         # Transpile
         import sys
         project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
-        result = subprocess.run([sys.executable, "py2v_transpiler/main.py", "temp_fallthrough.py", "--no-mypy"],
+        result = subprocess.run([sys.executable, "py2v_transpiler/main.py", "temp_fallthrough.py"],
                                capture_output=True, text=True, env={**os.environ, "PYTHONPATH": project_root})
         assert result.returncode == 0
 

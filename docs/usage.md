@@ -36,7 +36,6 @@ py2v --analyze-deps path/to/project/
 |--------|-------|-------------|
 | `--recursive` | `-r` | Process directories recursively |
 | `--analyze-deps` | | Analyze import dependencies instead of transpiling |
-| `--no-mypy` | | Disable mypy type inference (faster, less accurate) |
 | `--warn-dynamic` | | Emit warnings for variables that fell back to `Any` type |
 | `--no-helpers` | | Don't generate helper functions file |
 | `--helpers-only` | | Only generate helpers file, skip transpiled sources |
@@ -137,7 +136,6 @@ from py2v_transpiler.config import TranspilerConfig
 config = TranspilerConfig(
     strict_types=True,      # Enable strict type checking
     output_dir="output",    # Output directory
-    mypy_enabled=True,      # Enable mypy type inference
     warn_dynamic=True,      # Warn about dynamic types
     no_helpers=False,       # Generate helpers
     helpers_only=False      # Generate only helpers

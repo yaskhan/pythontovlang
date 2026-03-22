@@ -7,7 +7,7 @@ def transpile(source_code: str, filename: str = "test.py") -> str:
     with open(filename, "w") as f:
         f.write(source_code)
 
-    subprocess.run([sys.executable, "-m", "py2v_transpiler.main", filename, "--no-mypy"], check=True)
+    subprocess.run([sys.executable, "-m", "py2v_transpiler.main", filename], check=True)
 
     v_filename = filename.replace(".py", ".v")
     with open(v_filename, "r") as f:

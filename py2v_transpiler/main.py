@@ -107,16 +107,15 @@ def transpile_file(source_file: str, config: TranspilerConfig, global_helpers: O
 
     # 3. Analyze types
     analyzer = TypeInference()
-    if config.mypy_enabled:
-        stdout, stderr, exit_code = analyzer.run_mypy(source_file, experimental=config.experimental)
-        if exit_code != 0:
-            print(f"Mypy found errors in {source_file}:")
-            print(stdout)
-            if stderr:
-                print(stderr, file=sys.stderr)
-            tips = get_mypy_tips(stdout)
-            if tips:
-                print(tips)
+    stdout, stderr, exit_code = analyzer.run_mypy(source_file, experimental=config.experimental)
+    if exit_code != 0:
+        print(f"Mypy found errors in {source_file}:")
+        print(stdout)
+        if stderr:
+            print(stderr, file=sys.stderr)
+        tips = get_mypy_tips(stdout)
+        if tips:
+            print(tips)
 
     # Run basic AST visitor for type inference regardless of mypy
     analyzer.analyze(tree)
@@ -370,7 +369,6 @@ Arguments:
 Options:
   -r, --recursive       Recursively process directories
   --analyze-deps        Analyze dependencies (for directories)
-  --no-mypy             Disable Mypy type analysis
   --warn-dynamic        Warn when falling back to dynamic Any type
   --no-helpers          Do not generate a helper V file
   --helpers-only        Only generate the helper V file
@@ -383,7 +381,6 @@ Examples:
   py2v script.py                    # Transpile a single file
   py2v script.py --run              # Transpile and run V code
   py2v src/ -r                      # Transpile all files in directory
-  py2v mylib/ --no-mypy             # Transpile without Mypy checks
   py2v project/ --helpers-only      # Generate only helpers file
 
 Quick Start:
@@ -407,14 +404,12 @@ Examples:
   py2v script.py                    # Transpile a single file
   py2v script.py --run              # Transpile and run V code
   py2v src/ -r                      # Transpile all files in directory
-  py2v mylib/ --no-mypy             # Transpile without Mypy checks
   py2v project/ --helpers-only      # Generate only helpers file
         """
     )
     parser.add_argument("path", help="Path to Python file or directory")
     parser.add_argument("--analyze-deps", action="store_true", help="Analyze dependencies (for directories)")
     parser.add_argument("--recursive", "-r", action="store_true", help="Recursively process directories")
-    parser.add_argument("--no-mypy", action="store_true", help="Disable Mypy type analysis")
     parser.add_argument("--warn-dynamic", action="store_true", help="Warn when falling back to dynamic Any type")
     parser.add_argument("--no-helpers", action="store_true", help="Do not generate a helper V file")
     parser.add_argument("--helpers-only", action="store_true", help="Only generate the helper V file (do not transpile individual scripts)")
@@ -445,7 +440,6 @@ Examples:
         return
 
     config = TranspilerConfig(
-        mypy_enabled=not args.no_mypy,
         warn_dynamic=args.warn_dynamic,
         no_helpers=args.no_helpers,
         helpers_only=args.helpers_only,
