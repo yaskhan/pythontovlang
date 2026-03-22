@@ -137,6 +137,74 @@ pub fn (n &ImportAll) get_context() Context { return n.base.ctx }
 pub fn (n &ImportAll) accept(v NodeVisitor) !string { return v.visit_import_all(n)! }
 
 // ---------------------------------------------------------------------------
+pub type MypyNode = AssignmentStmt
+	| Block
+	| BreakStmt
+	| ClassDef
+	| ContinueStmt
+	| Decorator
+	| DelStmt
+	| ExpressionStmt
+	| ForStmt
+	| FuncDef
+	| GlobalDecl
+	| IfStmt
+	| Import
+	| ImportAll
+	| ImportFrom
+	| MatchStmt
+	| NonlocalDecl
+	| OperatorAssignmentStmt
+	| OverloadedFuncDef
+	| PassStmt
+	| RaiseStmt
+	| ReturnStmt
+	| TryStmt
+	| TypeAliasStmt
+	| WhileStmt
+	| WithStmt
+	| AssignmentExpr
+	| AwaitExpr
+	| BytesExpr
+	| CallExpr
+	| CastExpr
+	| ComparisonExpr
+	| ComplexExpr
+	| DictExpr
+	| DictComprehension
+	| EllipsisExpr
+	| EnumCallExpr
+	| FloatExpr
+	| FormatStringExpr
+	| GeneratorExpr
+	| IndexExpr
+	| IntExpr
+	| LambdaExpr
+	| ListComprehension
+	| ListExpr
+	| MemberExpr
+	| NameExpr
+	| OpExpr
+	| OverloadPartExpr
+	| PlaceholderNode
+	| PromoteExpr
+	| RevealExpr
+	| SetComprehension
+	| SetExpr
+	| SliceExpr
+	| StarExpr
+	| StrExpr
+	| SuperExpr
+	| TupleExpr
+	| TypeAliasExpr
+	| TypeApplication
+	| UnaryExpr
+	| YieldExpr
+	| YieldFromExpr
+	| Var
+	| TypeInfo
+	| Argument
+
 // Block & basic statements
 // ---------------------------------------------------------------------------
 
@@ -530,6 +598,8 @@ pub mut:
 	removed_base_type_exprs []Expression
 	metaclass    ?string
 	decorators   []Expression
+	info         ?&TypeInfo
+
 	keywords     map[string]Expression
 	is_protocol  bool
 	is_abstract  bool
@@ -1061,7 +1131,10 @@ pub mut:
 	defn          ClassDef
 	// mro: method resolution order (list of TypeInfo fullnames)
 	mro           []string
+	type_vars     []MypyTypeNode
+	bases         []Instance
 }
+
 
 // TypeAlias — a type alias node in the symbol table
 pub struct TypeAlias {

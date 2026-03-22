@@ -46,6 +46,7 @@
 | `version.py` | `mypy/version.v` | ✅ Полностью (__version__, VersionInfo, parse_version, compare_versions) |
 | `pyinfo.py` | `mypy/pyinfo.v` | ✅ Полностью (getsitepackages, getsyspath, getsearchdirs, утилиты) |
 | `stubinfo.py` | `mypy/stubinfo.v` | ✅ Полностью (stub_distribution_name, is_module_from_legacy_bundled_package) |
+| `sharedparse.py` | `mypy/sharedparse.v` | ✅ Полностью (magic_methods, special_function_elide_names, argument_elide_name) |
 | `build.py` | `mypy/build.v` | 📝 Полуготово: State, BuildManager, SCC, BuildResult, topological sort |
 | `infer.py` | `mypy/infer.v` | 📝 Заглушки: `infer_type_arguments`, `infer_function_type_arguments`, `Constraint` |
 | `solve.py` | `mypy/solve.v` | 📝 Решатель ограничений (solve_one, join of lowers, meet of uppers) |
@@ -61,6 +62,7 @@
 | `stubinfo.py` | `mypy/stubinfo.v` | ✅ Полностью (stub_distribution_name, is_module_from_legacy_bundled_package) |
 | `freetree.py` | `mypy/freetree.v` | ✅ Полностью (TreeFreer, free_tree) |
 | `pyinfo.py` | `mypy/pyinfo.v` | ✅ Полностью (getsite_packages, getsyspath, getsearch_dirs) |
+| `version.py` | `mypy/version.v` | ✅ Полностью (__version__, base_version) |
 | `meet.py` | `mypy/meet.v` | 📝 Базовые `meet_types`, `is_overlapping_types` |
 | `join.py` | `mypy/join.v` | 📝 Базовые `join_types`, `join_type_list` |
 | `subtypes.py` | `mypy/subtypes.v` | 📝 Основная логика `is_subtype` (Instance, Callable, Union) |

@@ -121,19 +121,23 @@ pub fn (mut w ErrorWatcher) exit() {
 }
 
 pub fn (mut w ErrorWatcher) on_error(file string, info &ErrorInfo) bool {
-	if info.code != none && info.code.code == 'deprecated' {
-		if !w.filter_deprecated {
-			return false
+	if code := info.code {
+		if code.code == 'deprecated' {
+			if !w.filter_deprecated {
+				return false
+			}
 		}
 	}
 
+
 	w.has_new_errors = true
 	should_filter := w.filter_errors
-	if should_filter && w.filtered != none {
+	if should_filter {
 		if mut f := w.filtered {
 			f << info
 		}
 	}
+
 	return should_filter
 }
 
@@ -216,6 +220,13 @@ pub fn (e &Errors) simplify_path(file string) string {
 		f := os.norm_path(file)
 		return remove_path_prefix(f, e.ignore_prefix)
 	}
+}fn remove_path_prefix(path string, prefix ?string) string {
+	if p := prefix {
+		if path.starts_with(p) {
+			return path.replace(p, '')
+		}
+	}
+	return path
 }
 
 pub fn (mut e Errors) set_file(file string, mod ?string, options &Options, scope ?&Scope) {
@@ -487,8 +498,10 @@ fn (e &Errors) is_ignored_error(line int, info &ErrorInfo, ignores map[int][]str
 	if info.blocker {
 		return false
 	}
-	if info.code != none && !e.is_error_code_enabled(info.code.code) {
-		return true
+	if code := info.code {
+		if !e.is_error_code_enabled(code.code) {
+			return true
+		}
 	}
 	if line !in ignores {
 		return false
@@ -497,11 +510,20 @@ fn (e &Errors) is_ignored_error(line int, info &ErrorInfo, ignores map[int][]str
 	if line_ignores.len == 0 {
 		return true
 	}
-	if info.code != none && e.is_error_code_enabled(info.code.code) {
-		return info.code.code in line_ignores
-			|| (info.code.sub_code_of != none && info.code.sub_code_of.code in line_ignores)
+	if code := info.code {
+		if e.is_error_code_enabled(code.code) {
+			if code.code in line_ignores {
+				return true
+			}
+			if sub := code.sub_code_of {
+				if sub.code in line_ignores {
+					return true
+				}
+			}
+		}
 	}
 	return false
+
 }
 
 fn (e &Errors) is_error_code_enabled(error_code string) bool {
@@ -525,13 +547,19 @@ pub fn (mut e Errors) clear_errors_in_targets(path string, targets map[string]bo
 		mut new_errors := []&ErrorInfo{}
 		mut has_blocker := false
 		for info in e.error_info_map[path] {
-			if info.target == none || info.target !in targets {
+			if target := info.target {
+				if target !in targets {
+					new_errors << info
+					has_blocker = has_blocker || info.blocker
+				} else if info.only_once {
+					e.only_once_messages.delete(info.message)
+				}
+			} else {
 				new_errors << info
 				has_blocker = has_blocker || info.blocker
-			} else if info.only_once {
-				e.only_once_messages.delete(info.message)
 			}
 		}
+
 		e.error_info_map[path] = new_errors
 		if !has_blocker && path in e.has_blockers {
 			e.has_blockers.delete(path)
@@ -545,15 +573,16 @@ pub fn (mut e Errors) generate_unused_ignore_errors(file string, is_typeshed boo
 	}
 	ignored_lines := e.ignored_lines[file] or {
 		map[int][]string{}
-	}
+	}.clone()
 	used_ignored_lines := e.used_ignored_lines[file] or {
 		map[int][]string{}
-	}
+	}.clone()
 
 	for line, ignored_codes in ignored_lines {
 		skipped := e.skipped_lines[file] or {
 			map[int]bool{}
 		}
+
 		if line in skipped {
 			continue
 		}
@@ -644,9 +673,10 @@ pub fn (e &Errors) file_messages(path string) []ErrorTuple {
 	return e.render_messages(path, error_info)
 }
 
-pub fn (mut e Errors) format_messages(path string, error_tuples []ErrorTuple, formatter ?&ErrorFormatter) []string {
+pub fn (mut e Errors) format_messages(path string, error_tuples []ErrorTuple, formatter ?&Errors) []string {
 	e.flushed_files[path] = true
-	mut source_lines := none as ?[]string
+	mut source_lines := ?[]string(none)
+
 	if e.options.pretty && e.read_source != none {
 		mapped_path := e.find_shadow_file_mapping(path)
 		source_lines = e.read_source(mapped_path or { path })
@@ -692,8 +722,9 @@ pub fn (e &Errors) render_messages(file string, errors []&ErrorInfo) []ErrorTupl
 	simplified_file := e.simplify_path(file)
 	mut result := []ErrorTuple{}
 	mut prev_import_context := []ImportContext{}
-	mut prev_function := none as ?string
-	mut prev_type := none as ?string
+	mut prev_function := ?string(none)
+	mut prev_type := ?string(none)
+
 
 	for err in errors {
 		if e.options.show_error_context && err.import_ctx != prev_import_context {
@@ -759,9 +790,10 @@ pub fn (e &Errors) render_messages(file string, errors []&ErrorInfo) []ErrorTupl
 			code:       code_str
 		}
 
-		prev_import_context = err.import_ctx
+		prev_import_context = err.import_ctx.clone()
 		prev_function = err.local_function
 		prev_type = err.local_type
+
 	}
 	return result
 }
@@ -832,8 +864,11 @@ pub mut:
 
 pub struct IterationDependentErrors {
 pub mut:
-	errors map[string][]&ErrorInfo
+	errors             []map[string]bool
+	uselessness_errors []map[string]bool
+	unreachable_lines  []map[int]bool
 }
+
 
 pub fn IterationErrorWatcher.new(errors &Errors,
 	iteration_dependent_errors &IterationDependentErrors,
@@ -851,16 +886,21 @@ pub fn IterationErrorWatcher.new(errors &Errors,
 pub fn (mut w IterationErrorWatcher) on_error(file string, info &ErrorInfo) bool {
 	iter_errors := w.iteration_dependent_errors
 
-	if info.code != none && info.code.code in ['unreachable', 'redundant-expr', 'redundant-cast'] {
-		key := '${info.code.code}|${info.message}|${info.line}|${info.column}|${info.end_line}|${info.end_column}'
-		iter_errors.uselessness_errors.last()[key] = true
-		if info.code.code == 'unreachable' {
-			for i in info.line .. info.end_line + 1 {
-				iter_errors.unreachable_lines.last()[i] = true
+	if code := info.code {
+		if code.code in ['unreachable', 'redundant-expr', 'redundant-cast'] {
+			key := '${code.code}|${info.message}|${info.line}|${info.column}|${info.end_line}|${info.end_column}'
+			mut ud := w.iteration_dependent_errors.uselessness_errors.last()
+			ud[key] = true
+			if code.code == 'unreachable' {
+				mut ul := w.iteration_dependent_errors.unreachable_lines.last()
+				for i in info.line .. info.end_line + 1 {
+					ul[i] = true
+				}
 			}
+			return true
 		}
-		return true
 	}
+
 
 	return w.ErrorWatcher.on_error(file, info)
 }

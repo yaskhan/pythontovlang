@@ -13,6 +13,23 @@ pub mut:
 	is_coercion        bool // Для Any/TypeVar fallback heuristics
 }
 
+pub fn is_same_type(left MypyTypeNode, right MypyTypeNode) bool {
+	// 
+	p_left := get_proper_type(left)
+	p_right := get_proper_type(right)
+	
+	if p_left is Instance && p_right is Instance {
+		il := p_left as Instance
+		ir := p_right as Instance
+		return il.type_name == ir.type_name && il.args.len == ir.args.len
+	}
+	if p_left is AnyType && p_right is AnyType {
+		return true
+	}
+	// TODO: implement full structural equality
+	return false
+}
+
 // is_subtype - Проверяет, является ли 'left' подтипом для 'right'.
 pub fn is_subtype(left MypyTypeNode, right MypyTypeNode, ctx SubtypeContext) bool {
 	p_left := get_proper_type(left)

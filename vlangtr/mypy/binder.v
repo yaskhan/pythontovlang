@@ -55,18 +55,18 @@ pub fn (mut b ConditionalTypeBinder) push_frame(conditional_frame bool) &Frame {
 	return f
 }
 
-pub fn (mut b ConditionalTypeBinder) put(expr Expression, typ MypyTypeNode, from_assignment bool) {
-	key := chk_literal_hash(expr) or { return }
+pub fn (mut b ConditionalTypeBinder) put(node MypyNode, typ MypyTypeNode, from_assignment bool) {
+	key := chk_literal_hash(node) or { return }
 	if key !in b.declarations {
-		b.declarations[key] = get_declaration(expr) or { MypyTypeNode(AnyType{type_of_any: .unannotated}) }
+		b.declarations[key] = get_declaration(node) or { MypyTypeNode(AnyType{type_of_any: .unannotated}) }
 		// add dependencies
 	}
 	b.frames.last().types[key] = CurrentType{typ: typ, from_assignment: from_assignment}
 	b.version++
 }
 
-pub fn (b &ConditionalTypeBinder) get(expr Expression) ?MypyTypeNode {
-	key := chk_literal_hash(expr)?
+pub fn (b &ConditionalTypeBinder) get(node MypyNode) ?MypyTypeNode {
+	key := chk_literal_hash(node)?
 	for i := b.frames.len - 1; i >= 0; i-- {
 		if ct := b.frames[i].types[key] {
 			return ct.typ
@@ -120,21 +120,40 @@ pub fn (mut b ConditionalTypeBinder) update_from_options(frames []&Frame) bool {
 	return false
 }
 
+pub fn (mut b ConditionalTypeBinder) unreachable() {
+	b.frames.last().unreachable = true
+}
+
+pub fn (mut b ConditionalTypeBinder) handle_break() {
+	// Simplified break logic
+	b.unreachable()
+}
+
+pub fn (mut b ConditionalTypeBinder) handle_continue() {
+	// Simplified continue logic
+	b.unreachable()
+}
+
 // Helpers
-fn get_declaration(expr Expression) ?MypyTypeNode {
-	if expr is RefExpr {
-		if node := expr.node {
-			if node is Var {
-				return node.typ
-			}
+fn get_declaration(node MypyNode) ?MypyTypeNode {
+	if node is NameExpr {
+		if sym := node.node {
+			if sym is Var { return sym.type_ }
 		}
+	} else if node is MemberExpr {
+		if sym := node.node {
+			if sym is Var { return sym.type_ }
+		}
+	} else if node is Var {
+		return node.type_
 	}
 	return none
 }
 
-fn chk_literal_hash(expr Expression) ?string {
+fn chk_literal_hash(node MypyNode) ?string {
 	// Simplified hash for debugging/narrowing
-	if expr is NameExpr { return expr.name }
-	if expr is MemberExpr { return chk_literal_hash(expr.expr)? + "." + expr.name }
+	if node is NameExpr { return node.name }
+	if node is MemberExpr { return chk_literal_hash(node.expr)? + "." + node.name }
+	if node is Var { return node.name }
 	return none
 }

@@ -1,6 +1,4 @@
-// Я Qwen Code работаю над этим файлом. Начало: 2026-03-22 15:30
 // MRO (Method Resolution Order) calculation for mypy (mro.py)
-
 module mypy
 
 // MroError — raised if a consistent mro cannot be determined for a class.
@@ -14,47 +12,47 @@ pub fn (e MroError) error() string {
 
 // calculate_mro calculates and sets mro (method resolution order).
 // Raises MroError if cannot determine mro.
-pub fn calculate_mro(info &TypeInfo, obj_type ?&fn () Instance) ! {
-	mro := linearize_hierarchy(info, obj_type)!
-	assert mro.len > 0, 'Could not produce a MRO at all for ${info.defn.name}'
+pub fn calculate_mro(mut info TypeInfo) ! {
+	mro := linearize_hierarchy(&info)!
+	assert mro.len > 0, 'Could not produce a MRO at all for ${info.name}'
 	info.mro = mro
-	// The property of falling back to Any is inherited.
-	info.fallback_to_any = info.mro.any(it.fallback_to_any)
-	type_state.reset_all_subtype_caches_for(info)
 }
 
 // linearize_hierarchy linearizes the hierarchy for MRO calculation.
-pub fn linearize_hierarchy(info &TypeInfo, obj_type ?&fn () Instance) ![]TypeInfo {
-	// TODO describe
+// Returns a list of fullname strings representing the MRO.
+pub fn linearize_hierarchy(info &TypeInfo) ![]string {
+	// If already computed, return cached
 	if info.mro.len > 0 {
 		return info.mro
 	}
 
-	bases := info.direct_base_classes()
-
-	if bases.len == 0 && info.fullname != 'builtins.object' && obj_type != none {
-		// Probably an error, add a dummy `object` base class,
-		// otherwise MRO calculation may spuriously fail.
-		if obj_type != none {
-			instance := obj_type()
-			bases = [instance.type]
+	// Collect direct base classes from the bases field ([]Instance)
+	mut base_infos := []&TypeInfo{}
+	for b in info.bases {
+		if bi := b.typ {
+			base_infos << bi
 		}
 	}
 
-	mut lin_bases := [][]TypeInfo{}
-	for base in bases {
-		assert base != none, 'Cannot linearize bases for ${info.fullname} ${bases}'
-		lin_bases << linearize_hierarchy(base, obj_type)!
+	mut lin_bases := [][]string{}
+	for base in base_infos {
+		lin_bases << linearize_hierarchy(base)!
 	}
-	lin_bases << bases
 
-	return [info] + merge(lin_bases)
+	// Add the list of direct base class names
+	mut base_names := []string{}
+	for base in base_infos {
+		base_names << base.fullname
+	}
+	lin_bases << base_names
+
+	return [info.fullname] + merge(lin_bases)
 }
 
 // merge merges multiple sequences into a single linearized order using C3 linearization.
-pub fn merge(seqs [][]TypeInfo) []TypeInfo {
+pub fn merge(seqs [][]string) []string {
 	mut work_seqs := seqs.clone()
-	mut result := []TypeInfo{}
+	mut result := []string{}
 
 	for {
 		// Remove empty sequences
@@ -64,7 +62,7 @@ pub fn merge(seqs [][]TypeInfo) []TypeInfo {
 			return result
 		}
 
-		mut head := ?TypeInfo(none)
+		mut head := ?string(none)
 		mut found := false
 
 		// Find a valid head element
@@ -99,7 +97,7 @@ pub fn merge(seqs [][]TypeInfo) []TypeInfo {
 		result << head or { panic('head is none') }
 
 		// Remove head from all sequences
-		for s in work_seqs {
+		for mut s in work_seqs {
 			if s.len > 0 {
 				h := head or { continue }
 				if s[0] == h {

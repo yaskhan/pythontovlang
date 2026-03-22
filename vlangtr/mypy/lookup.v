@@ -14,13 +14,6 @@ module mypy
 // ---------------------------------------------------------------------------
 
 // lookup_fully_qualified finds a symbol using its fully qualified name.
-//
-// The algorithm has two steps: first we try splitting the name on '.' to find
-// the module, then iteratively look for each next chunk after a '.' (e.g. for
-// nested classes).
-//
-// This function should *not* be used to find a module. Those should be looked
-// in the modules dictionary.
 pub fn lookup_fully_qualified(name string, modules map[string]MypyFile, raise_on_missing bool) ?SymbolTableNode {
 	// 1. Exclude the names of ad hoc instance intersections from step 2.
 	i := name.index('<subclass ') or { -1 }
@@ -29,57 +22,60 @@ pub fn lookup_fully_qualified(name string, modules map[string]MypyFile, raise_on
 
 	// 2. Find a module tree in modules dictionary.
 	for {
-		if '.' !in head {
+		if !head.contains('.') {
 			if raise_on_missing {
 				panic('Cannot find module for ${name}')
 			}
 			return none
 		}
 		// Split on the last dot
-		parts := head.rsplit('.', 1)
-		head = parts[0]
-		tail := parts[1]
+		idx := head.last_index('.') or { -1 }
+		tail := if idx != -1 { head[idx + 1..] } else { head }
+		head = if idx != -1 { head[..idx] } else { '' }
 		rest << tail
-		mod := modules[head] or { continue }
-		// Found the module
-		names := mod.names
-		// 3. Find the symbol in the module tree.
-		if rest.len == 0 {
-			// Looks like a module, don't use this to avoid confusions.
-			if raise_on_missing {
-				panic('Cannot find ${name}, got a module symbol')
-			}
-			return none
-		}
-		if i != -1 {
-			rest[0] += name[i..]
-		}
-		// Traverse the rest of the path
-		mut current_names := names
-		for rest.len > 0 {
-			key := rest.pop()
-			if key !in current_names {
-				if raise_on_missing {
-					panic('Cannot find component ${key} for ${name}')
-				}
-				return none
-			}
-			stnode := current_names[key] or { return none }
+		if head in modules {
+			mod := modules[head] or { continue }
+			// Found the module
+			names := mod.names
+			// 3. Find the symbol in the module tree.
 			if rest.len == 0 {
-				return stnode
-			}
-			node := stnode.node
-			// In fine-grained mode, could be a cross-reference to a deleted module
-			// or a Var made up for a missing module.
-			if node !is TypeInfo {
+				// Looks like a module, don't use this to avoid confusions.
 				if raise_on_missing {
-					panic('Cannot find ${name}')
+					panic('Cannot find ${name}, got a module symbol')
 				}
 				return none
 			}
-			current_names = node.names
+			if i != -1 {
+				rest[0] += name[i..]
+			}
+			// Traverse the rest of the path
+			mut current_names := names
+			for rest.len > 0 {
+				key := rest.pop()
+				if key !in current_names {
+					if raise_on_missing {
+						panic('Cannot find component ${key} for ${name}')
+					}
+					return none
+				}
+				stnode := current_names[key] or { return none }
+				if rest.len == 0 {
+					return stnode
+				}
+				if n := stnode.node {
+					if n !is TypeInfo {
+						if raise_on_missing {
+							panic('Cannot find ${name}')
+						}
+						return none
+					}
+					current_names = (n as TypeInfo).names
+				} else {
+					return none
+				}
+			}
+			break
 		}
-		break
 	}
 	return none
 }

@@ -8,6 +8,7 @@ pub mut:
 	chk          &TypeChecker
 	msg          &MessageBuilder
 	type_context []?MypyTypeNode
+
 	// strfrm_checker           &StringFormatterChecker
 	// plugin                   &Plugin
 	is_callee      bool
@@ -17,8 +18,9 @@ pub mut:
 	type_overrides map[string]MypyTypeNode // РІСЂРµРјРµРЅРЅС‹Рµ РїРµСЂРµРѕРїСЂРµРґРµР»РµРЅРёСЏ С‚РёРїРѕРІ
 }
 
-pub fn new_expression_checker(chk &TypeChecker, msg &MessageBuilder) &ExpressionChecker {
+pub fn new_expression_checker(mut chk &TypeChecker, mut msg &MessageBuilder) &ExpressionChecker {
 	return &ExpressionChecker{
+
 		chk:          chk
 		msg:          msg
 		type_context: [none]
@@ -85,21 +87,22 @@ pub fn (mut e ExpressionChecker) accept(node Expression, type_context ?MypyTypeN
 		GeneratorExpr {
 			typ = e.visit_generator_expr(node)
 		}
-		ListCompExpr {
+		ListComprehension {
 			typ = e.visit_list_comp_expr(node)
 		}
-		DictCompExpr {
-			typ = e.visit_dict_comp_expr(node)
+		DictionaryComprehension {
+			typ = e.visit_dict_comp_expr(&node)
 		}
-		SetCompExpr {
-			typ = e.visit_set_comp_expr(node)
+		SetComprehension {
+			typ = e.visit_set_comp_expr(&node)
 		}
 		SliceExpr {
-			typ = e.visit_slice_expr(node)
+			typ = e.visit_slice_expr(&node)
 		}
 		LambdaExpr {
-			typ = e.visit_lambda_expr(node)
+			typ = e.visit_lambda_expr(&node)
 		}
+
 		YieldExpr {
 			typ = e.visit_yield_expr(node)
 		}
@@ -143,24 +146,25 @@ pub fn (mut e ExpressionChecker) accept(node Expression, type_context ?MypyTypeN
 // в”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђ
 
 pub fn (mut e ExpressionChecker) visit_int_expr(node &IntExpr) MypyTypeNode {
-	return e.chk.named_type('builtins.int', [])
+	return MypyTypeNode(*e.chk.named_type('builtins.int', []))
 }
 
 pub fn (mut e ExpressionChecker) visit_str_expr(node &StrExpr) MypyTypeNode {
-	return e.chk.named_type('builtins.str', [])
+	return MypyTypeNode(*e.chk.named_type('builtins.str', []))
 }
 
 pub fn (mut e ExpressionChecker) visit_float_expr(node &FloatExpr) MypyTypeNode {
-	return e.chk.named_type('builtins.float', [])
+	return MypyTypeNode(*e.chk.named_type('builtins.float', []))
 }
 
 pub fn (mut e ExpressionChecker) visit_bytes_expr(node &BytesExpr) MypyTypeNode {
-	return e.chk.named_type('builtins.bytes', [])
+	return MypyTypeNode(*e.chk.named_type('builtins.bytes', []))
 }
 
 pub fn (mut e ExpressionChecker) visit_ellipsis_expr(node &EllipsisExpr) MypyTypeNode {
-	return e.chk.named_type('builtins.ellipsis', [])
+	return MypyTypeNode(*e.chk.named_type('builtins.ellipsis', []))
 }
+
 
 // в”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђ
 // NameExpr / RefExpr
@@ -188,17 +192,21 @@ pub fn (mut e ExpressionChecker) analyze_ref_expr(node Expression, lvalue bool) 
 			if target is Var {
 				result = e.analyze_var_ref(target, node)
 			} else if target is Decorator {
-				result = e.analyze_var_ref(target.var, node)
+				result = e.analyze_var_ref(target.var_, node)
 			} else if target is OverloadedFuncDef {
-				if ot := target.typ {
+				if ot := target.type_ {
 					result = ot
 				} else {
 					result = MypyTypeNode(AnyType{
 						type_of_any: .from_error
 					})
 				}
-			} else if target is FuncDef || target is TypeInfo || target is TypeAlias {
-				result = e.analyze_static_reference(target, node, lvalue)
+			} else if target is FuncDef {
+				result = e.analyze_static_reference(target as Node, node, lvalue)
+			} else if target is TypeInfo {
+				result = e.analyze_static_reference(target as Node, node, lvalue)
+			} else if target is TypeAlias {
+				result = e.analyze_static_reference(target as Node, node, lvalue)
 			} else {
 				result = MypyTypeNode(AnyType{
 					type_of_any: .from_error
@@ -216,10 +224,10 @@ pub fn (mut e ExpressionChecker) analyze_ref_expr(node Expression, lvalue bool) 
 }
 
 pub fn (mut e ExpressionChecker) analyze_var_ref(target &Var, context Expression) MypyTypeNode {
-	if typ := target.typ {
+	if typ := target.type_ {
 		// РЎРїРµС†РёР°Р»СЊРЅС‹Р№ СЃР»СѓС‡Р°Р№: typing.Any в†’ _SpecialForm РІ runtime-РєРѕРЅС‚РµРєСЃС‚Рµ
 		if target.fullname == 'typing.Any' {
-			return e.chk.named_type('typing._SpecialForm', [])
+			return MypyTypeNode(*e.chk.named_type('typing._SpecialForm', []))
 		}
 		// True / False в†’ LiteralType
 		if target.name == 'True' {
@@ -240,14 +248,15 @@ pub fn (mut e ExpressionChecker) analyze_var_ref(target &Var, context Expression
 }
 
 pub fn (mut e ExpressionChecker) infer_literal_bool_type(value bool) MypyTypeNode {
-	// Р’РѕР·РІСЂР°С‰Р°РµС‚ Instance builtins.bool (Р·Р°РіР»СѓС€РєР°)
-	return e.chk.named_type('builtins.bool', [])
+	// Returns Instance builtins.bool
+	return MypyTypeNode(*e.chk.named_type('builtins.bool', []))
 }
+
 
 pub fn (mut e ExpressionChecker) analyze_static_reference(node Node, ctx Expression, is_lvalue bool) MypyTypeNode {
 	if node is FuncDef {
-		// return function_type(node, e.chk.named_type('builtins.function', []))
-		return e.chk.named_type('builtins.function', [])
+		// return function_type(node, e.chk.named_type))
+		return MypyTypeNode(*e.chk.named_type('builtins.function', []))
 	} else if node is TypeInfo {
 		if node.fullname == 'types.NoneType' {
 			return MypyTypeNode(TypeType{
@@ -255,15 +264,17 @@ pub fn (mut e ExpressionChecker) analyze_static_reference(node Node, ctx Express
 			})
 		}
 		// return type_object_type(node, e.chk.named_type)
-		return e.chk.named_type('builtins.type', [])
-	} else if node is TypeAlias {
+		return MypyTypeNode(*e.chk.named_type('builtins.type', []))
+	}
+ else if node is TypeAlias {
 		// return e.alias_type_in_runtime_context(node, ctx, is_lvalue)
 		return MypyTypeNode(AnyType{
 			type_of_any: .special_form
 		})
 	} else if node is TypeVarExpr {
-		return e.chk.named_type('typing.TypeVar', [])
+		return MypyTypeNode(*e.chk.named_type('typing.TypeVar', []))
 	} else if node is MypyFile {
+
 		return e.module_type(node)
 	}
 	return MypyTypeNode(AnyType{
@@ -290,12 +301,14 @@ pub fn (mut e ExpressionChecker) visit_call_expr(node &CallExpr, allow_none_retu
 	mut callable_name := ?string(none)
 	mut object_type := ?MypyTypeNode(none)
 
-	if node.callee is RefExpr {
-		callable_name = node.callee.fullname
+	if node.callee is NameExpr {
+		callable_name = (node.callee as NameExpr).fullname
 	} else if node.callee is MemberExpr {
-		callable_name = node.callee.name
-		object_type = e.chk.lookup_type(node.callee.expr)
+		m_expr := node.callee as MemberExpr
+		callable_name = m_expr.name
+		object_type = e.chk.lookup_type(m_expr.expr)
 	}
+
 
 	ret_type := e.check_call_expr_with_callee_type(callee_type, node, callable_name, object_type,
 		none)
@@ -311,12 +324,13 @@ pub fn (mut e ExpressionChecker) check_call_expr_with_callee_type(callee_type My
 		}
 	}
 
-	ret_type, _ := e.check_call(callee_type, node.args, node.arg_kinds, node, node.arg_names,
+	ret_type, _ := e.check_call(callee_type, node.args, node.arg_kinds, node.base.ctx, node.arg_names,
 		node.callee, actual_callable_name, object_type, none)
 	return ret_type
 }
 
-pub fn (mut e ExpressionChecker) check_call(callee MypyTypeNode, args []Expression, arg_kinds []int, context Context, arg_names []?string, callable_node ?Expression, callable_name ?string, object_type ?MypyTypeNode, original_type ?MypyTypeNode) (MypyTypeNode, MypyTypeNode) {
+pub fn (mut e ExpressionChecker) check_call(callee MypyTypeNode, args []Expression, arg_kinds []ArgKind, context Context, arg_names []?string, callable_node ?Expression, callable_name ?string, object_type ?MypyTypeNode, original_type ?MypyTypeNode) (MypyTypeNode, MypyTypeNode) {
+
 	if callee is CallableType {
 		return e.check_callable_call(callee, args, arg_kinds, context, arg_names, callable_node,
 			callable_name, object_type)
@@ -352,26 +366,35 @@ pub fn (mut e ExpressionChecker) check_call(callee MypyTypeNode, args []Expressi
 	}), callee
 }
 
-pub fn (mut e ExpressionChecker) check_callable_call(callee &CallableType, args []Expression, arg_kinds []int, context Context, arg_names []?string, callable_node ?Expression, callable_name ?string, object_type ?MypyTypeNode) (MypyTypeNode, MypyTypeNode) {
+pub fn (mut e ExpressionChecker) check_callable_call(callee &CallableType, args []Expression, arg_kinds []ArgKind, context Context, arg_names []?string, callable_node ?Expression, callable_name ?string, object_type ?MypyTypeNode) (MypyTypeNode, MypyTypeNode) {
+
 	mut actual_callee := callee
 
-	if actual_callee.is_type_obj() && actual_callee.type_object().is_abstract {
-		e.msg.fail('Cannot instantiate abstract class', context, false, false, none)
+	if callee.is_type_obj {
+		if ret := get_proper_type(callee.ret_type) as Instance {
+			if info := ret.typ {
+				if info.is_abstract {
+					e.msg.fail('Cannot instantiate abstract class', context, none)
+				}
+			}
+		}
 	}
 
-	formal_to_actual := map_actuals_to_formals(arg_kinds, arg_names, actual_callee.arg_kinds,
+	formal_to_actual := map_actuals_to_formals(arg_kinds, arg_names, callee.arg_kinds,
+
 		actual_callee.arg_names, fn (i int) MypyTypeNode {
 		return MypyTypeNode(AnyType{ type_of_any: .from_error }) // placeholder
 	})
 
 	arg_types := e.infer_arg_types_in_context(actual_callee, args, arg_kinds, formal_to_actual)
 
-	e.check_argument_count(actual_callee, arg_types, arg_kinds, arg_names, formal_to_actual,
+	e.check_argument_count(callee, arg_types, arg_kinds, arg_names, formal_to_actual,
 		context, object_type, callable_name)
-	e.check_argument_types(arg_types, arg_kinds, args, actual_callee, formal_to_actual,
+	e.check_argument_types(arg_types, arg_kinds, args, callee, formal_to_actual,
 		context, object_type)
 
-	return actual_callee.ret_type, actual_callee
+	return callee.ret_type, MypyTypeNode(*callee)
+
 }
 
 pub fn (mut e ExpressionChecker) check_overload_call(callee &Overloaded, args []Expression, arg_kinds []int, arg_names []?string, callable_name ?string, object_type ?MypyTypeNode, context Context) MypyTypeNode {
@@ -413,11 +436,11 @@ pub fn (mut e ExpressionChecker) infer_arg_types_in_context(callee &CallableType
 	return arg_types
 }
 
-pub fn (mut e ExpressionChecker) check_argument_count(callee &CallableType, arg_types []MypyTypeNode, arg_kinds []int, arg_names []?string, formal_to_actual [][]int, context Context, object_type ?MypyTypeNode, callable_name ?string) {
-	// РЎС‡РёС‚Р°РµРј РѕР±СЏР·Р°С‚РµР»СЊРЅС‹Рµ РїРѕР·РёС†РёРѕРЅРЅС‹Рµ РїР°СЂР°РјРµС‚СЂС‹
+pub fn (mut e ExpressionChecker) check_argument_count(callee &CallableType, arg_types []MypyTypeNode, arg_kinds []ArgKind, arg_names []?string, formal_to_actual [][]int, context Context, object_type ?MypyTypeNode, callable_name ?string) {
+	// 
 	mut required_pos := 0
 	for ak in callee.arg_kinds {
-		if ak == arg_kind_pos {
+		if ak == ArgKind.arg_pos {
 			required_pos++
 		}
 	}
@@ -428,32 +451,37 @@ pub fn (mut e ExpressionChecker) check_argument_count(callee &CallableType, arg_
 	}
 }
 
-pub fn (mut e ExpressionChecker) check_argument_types(arg_types []MypyTypeNode, arg_kinds []int, args []Expression, callee &CallableType, formal_to_actual [][]int, context Context, object_type ?MypyTypeNode) {
-	for i, arg_type in arg_types {
+pub fn (mut e ExpressionChecker) check_argument_types(arg_types []MypyTypeNode, arg_kinds []ArgKind, args []Expression, callee &CallableType, formal_to_actual [][]int, context Context, object_type ?MypyTypeNode) {
+
+	for i, at_i in arg_types {
 		if i < callee.arg_types.len {
-			e.chk.check_subtype(arg_type, callee.arg_types[i], context, 'Argument ${i + 1} has incompatible type',
+			e.chk.check_subtype(at_i, callee.arg_types[i], context, 'Argument ${i + 1} has incompatible type',
 				none, none, [], none, none)
 		}
 	}
+
 }
 
 pub fn (mut e ExpressionChecker) always_returns_none(node Expression) bool {
-	if node is RefExpr {
-		if nn := node.node {
+	if node is NameExpr {
+		if nn := (node as NameExpr).node {
 			return e.defn_returns_none(nn)
 		}
-	}
-	if node is MemberExpr {
+	} else if node is MemberExpr {
 		m_node := node as MemberExpr
+
 		typ := get_proper_type(e.chk.lookup_type(m_node.expr))
 		if typ is Instance {
 			inst := typ as Instance
-			if sym := inst.typ.names[m_node.name] {
-				if sn := sym.node {
-					return e.defn_returns_none(sn)
+			if info := inst.typ {
+				if sym := info.names[m_node.name] {
+					if sn := sym.node {
+						return e.defn_returns_none(sn)
+					}
 				}
 			}
 		}
+
 	}
 	return false
 }
@@ -517,14 +545,17 @@ pub fn (mut e ExpressionChecker) analyze_ordinary_member_access(node &MemberExpr
 
 	_ = is_self
 	member_type := analyze_member_access(node.name, original_type, node.base.ctx, is_lvalue, false,
-		false, original_type, e.chk, e.is_literal_context())
+		false, original_type, mut *e.chk, e.is_literal_context())
+
 	return member_type
 }
 
 pub fn (mut e ExpressionChecker) analyze_member_access_type(name string, typ MypyTypeNode, context Context) MypyTypeNode {
-	return analyze_member_access(name, typ, context, false, false, false, typ, e.chk,
+	return analyze_member_access(name, typ, context, false, false, false, typ, mut *e.chk,
 		false)
 }
+
+
 
 pub fn (mut e ExpressionChecker) is_literal_context() bool {
 	if e.type_context.len == 0 {
@@ -575,11 +606,12 @@ pub fn (mut e ExpressionChecker) visit_op_expr(node &OpExpr) MypyTypeNode {
 	}
 
 	if method != '' {
-		result, _ := e.check_op(method, left_type, node.right, node, true)
+		result, _ := e.check_op(method, left_type, node.right, node.base.ctx, true)
 		return result
 	}
 
-	e.msg.fail('Unknown operator ${node.op}', node.base.ctx, none)
+
+	e.msg.fail('Unknown operator ${node.op}', node.base.ctx, false, false, none)
 	return MypyTypeNode(AnyType{
 		type_of_any: .from_error
 	})
@@ -591,7 +623,8 @@ pub fn (mut e ExpressionChecker) check_op(method string, base_type MypyTypeNode,
 	method_type := e.analyze_member_access_type(method, base_type, context)
 	if method_type is CallableType {
 		argument_type := e.accept(arg, none, false, false, false)
-		ret, _ := e.check_callable_call(method_type as CallableType, [arg], [int(ArgKind.arg_pos)], context, [
+		ret, _ := e.check_callable_call(method_type as CallableType, [arg], [ArgKind.arg_pos], context, [
+
 			?string(none),
 		], none, method, none)
 		return ret, method_type
@@ -603,7 +636,7 @@ pub fn (mut e ExpressionChecker) check_op(method string, base_type MypyTypeNode,
 			right_type := e.accept(arg, none, false, false, false)
 			rmethod_type := e.analyze_member_access_type(reverse_method, right_type, context)
 			ret, _ := e.check_callable_call(rmethod_type as CallableType, [Expression(NameExpr{})],
-				[int(ArgKind.arg_pos)], context, [?string(none)], none, reverse_method, none)
+				[ArgKind.arg_pos], context, [?string(none)], none, reverse_method, none)
 			return ret, rmethod_type
 		}
 	}
@@ -651,8 +684,9 @@ pub fn (mut e ExpressionChecker) visit_unary_expr(node &UnaryExpr) MypyTypeNode 
 	operand_type := e.accept(node.expr, none, false, false, false)
 	op := node.op
 	if op == 'not' {
-		return MypyTypeNode(e.chk.named_type('builtins.bool', []))
+		return MypyTypeNode(*e.chk.named_type('builtins.bool', []))
 	}
+
 
 	mut method := ''
 	match op {
@@ -680,8 +714,9 @@ pub fn (mut e ExpressionChecker) visit_comparison_expr(node &ComparisonExpr) Myp
 	for op_node in node.operands {
 		e.accept(op_node, none, false, false, false)
 	}
-	return MypyTypeNode(e.chk.named_type('builtins.bool', []))
+	return MypyTypeNode(*e.chk.named_type('builtins.bool', []))
 }
+
 
 // в”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђ
 // РљРѕР»Р»РµРєС†РёРё
@@ -704,16 +739,17 @@ pub fn (mut e ExpressionChecker) check_lst_expr(items []Expression, fullname str
 
 	fallback := e.chk.named_type(fullname, [])
 	if types.len > 0 {
-		mut inst := fallback
+		mut inst := *fallback
 		inst.args = [types[0]] // TODO: join РІСЃРµС… С‚РёРїРѕРІ
 		return MypyTypeNode(inst)
 	} else {
-		mut inst := fallback
+		mut inst := *fallback
 		inst.args = [MypyTypeNode(AnyType{
 			type_of_any: .special_form
 		})]
 		return MypyTypeNode(inst)
 	}
+
 }
 
 pub fn (mut e ExpressionChecker) visit_dict_expr(node &DictExpr) MypyTypeNode {
@@ -726,7 +762,7 @@ pub fn (mut e ExpressionChecker) visit_dict_expr(node &DictExpr) MypyTypeNode {
 		value_types << e.accept(item.value, none, false, false, false)
 	}
 
-	mut inst := e.chk.named_type('builtins.dict', [])
+	mut inst := *e.chk.named_type('builtins.dict', [])
 	if key_types.len > 0 && value_types.len > 0 {
 		inst.args = [key_types[0], value_types[0]] // TODO: join
 	} else {
@@ -740,6 +776,7 @@ pub fn (mut e ExpressionChecker) visit_dict_expr(node &DictExpr) MypyTypeNode {
 		]
 	}
 	return MypyTypeNode(inst)
+
 }
 
 pub fn (mut e ExpressionChecker) visit_tuple_expr(node &TupleExpr) MypyTypeNode {
@@ -753,8 +790,9 @@ pub fn (mut e ExpressionChecker) visit_tuple_expr(node &TupleExpr) MypyTypeNode 
 	])
 	return MypyTypeNode(TupleType{
 		items:            items
-		partial_fallback: fallback
+		partial_fallback: *fallback
 	})
+
 }
 
 // в”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђ
@@ -771,7 +809,7 @@ pub fn (mut e ExpressionChecker) visit_generator_expr(node &GeneratorExpr) MypyT
 			e.accept(cond, none, false, false, false)
 		}
 	}
-	return MypyTypeNode(e.chk.named_type('typing.Generator', [
+	return MypyTypeNode(*e.chk.named_type('typing.Generator', [
 		MypyTypeNode(AnyType{ type_of_any: .special_form }),
 		MypyTypeNode(AnyType{
 			type_of_any: .special_form
@@ -780,6 +818,7 @@ pub fn (mut e ExpressionChecker) visit_generator_expr(node &GeneratorExpr) MypyT
 			type_of_any: .special_form
 		}),
 	]))
+
 }
 
 pub fn (mut e ExpressionChecker) visit_list_comp_expr(node &ListComprehension) MypyTypeNode {
@@ -792,11 +831,12 @@ pub fn (mut e ExpressionChecker) visit_list_comp_expr(node &ListComprehension) M
 			e.accept(cond, none, false, false, false)
 		}
 	}
-	mut inst := e.chk.named_type('builtins.list', [])
+	mut inst := *e.chk.named_type('builtins.list', [])
 	inst.args = [MypyTypeNode(AnyType{
 		type_of_any: .special_form
 	})]
 	return MypyTypeNode(inst)
+
 }
 
 pub fn (mut e ExpressionChecker) visit_dict_comp_expr(node &DictionaryComprehension) MypyTypeNode {
@@ -810,7 +850,7 @@ pub fn (mut e ExpressionChecker) visit_dict_comp_expr(node &DictionaryComprehens
 			e.accept(cond, none, false, false, false)
 		}
 	}
-	mut inst := e.chk.named_type('builtins.dict', [])
+	mut inst := *e.chk.named_type('builtins.dict', [])
 	inst.args = [
 		MypyTypeNode(AnyType{
 			type_of_any: .special_form
@@ -820,6 +860,7 @@ pub fn (mut e ExpressionChecker) visit_dict_comp_expr(node &DictionaryComprehens
 		}),
 	]
 	return MypyTypeNode(inst)
+
 }
 
 pub fn (mut e ExpressionChecker) visit_set_comp_expr(node &SetComprehension) MypyTypeNode {
@@ -832,11 +873,12 @@ pub fn (mut e ExpressionChecker) visit_set_comp_expr(node &SetComprehension) Myp
 			e.accept(cond, none, false, false, false)
 		}
 	}
-	mut inst := e.chk.named_type('builtins.set', [])
+	mut inst := *e.chk.named_type('builtins.set', [])
 	inst.args = [MypyTypeNode(AnyType{
 		type_of_any: .special_form
 	})]
 	return MypyTypeNode(inst)
+
 }
 
 // в”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђ
@@ -853,7 +895,7 @@ pub fn (mut e ExpressionChecker) visit_slice_expr(node &SliceExpr) MypyTypeNode 
 	if stride := node.stride {
 		e.accept(stride, none, false, false, false)
 	}
-	return MypyTypeNode(e.chk.named_type('builtins.slice', []))
+	return MypyTypeNode(*e.chk.named_type('builtins.slice', []))
 }
 
 pub fn (mut e ExpressionChecker) visit_index_expr(node &IndexExpr) MypyTypeNode {
@@ -867,7 +909,7 @@ pub fn (mut e ExpressionChecker) visit_index_expr(node &IndexExpr) MypyTypeNode 
 
 	getitem := e.analyze_member_access_type('__getitem__', base_type, node.base.ctx)
 	if getitem is CallableType {
-		ret, _ := e.check_callable_call(getitem as CallableType, [node.index], [int(ArgKind.arg_pos)], node.base.ctx, [
+		ret, _ := e.check_callable_call(getitem as CallableType, [node.index], [ArgKind.arg_pos], node.base.ctx, [
 			?string(none),
 		], none, '__getitem__', none)
 		return ret
@@ -921,10 +963,11 @@ pub fn (mut e ExpressionChecker) visit_lambda_expr(node &LambdaExpr) MypyTypeNod
 		arg_kinds:   arg_kinds
 		arg_names:   arg_names
 		ret_type:    body_type
-		fallback:    e.chk.named_type('builtins.function', [])
+		fallback:    *e.chk.named_type('builtins.function', [])
 		is_type_obj: false
 	})
 }
+
 
 pub fn (mut e ExpressionChecker) visit_yield_expr(node &YieldExpr) MypyTypeNode {
 	if expr := node.expr {
@@ -972,7 +1015,8 @@ pub fn (mut e ExpressionChecker) visit_await_expr(node &AwaitExpr) MypyTypeNode 
 
 pub fn (mut e ExpressionChecker) visit_conditional_expr(node &ConditionalExpr) MypyTypeNode {
 	// cond if test else alt
-	e.accept(node.cond, MypyTypeNode(e.chk.named_type('builtins.bool', [])), false, false, false)
+	e.accept(node.cond, MypyTypeNode(*e.chk.named_type('builtins.bool', [])), false, false, false)
+
 	if_type := e.accept(node.if_expr, e.type_context.last() or { MypyTypeNode(AnyType{type_of_any: .from_error}) }, false, false,
 		false)
 	else_type := e.accept(node.else_expr, e.type_context.last() or { MypyTypeNode(AnyType{type_of_any: .from_error}) }, false, false,
@@ -1045,8 +1089,9 @@ pub fn (mut e ExpressionChecker) named_type(fullname string) MypyTypeNode {
 }
 
 pub fn (mut e ExpressionChecker) object_type() MypyTypeNode {
-	return MypyTypeNode(e.chk.named_type('builtins.object', []))
+	return MypyTypeNode(*e.chk.named_type('builtins.object', []))
 }
+
 
 // в”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђ
 // TypedDict helpers (Р·Р°РіР»СѓС€РєРё)
@@ -1099,10 +1144,11 @@ pub fn (mut e ExpressionChecker) typeddict_callable_from_context(callee &TypedDi
 		arg_kinds:   arg_kinds
 		arg_names:   arg_names
 		ret_type:    MypyTypeNode(callee)
-		fallback:    e.chk.named_type('builtins.type', [])
+		fallback:    *e.chk.named_type('builtins.type', [])
 		is_type_obj: true
 	})
 }
+
 
 // в”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђ
 // try_infer_partial_type / get_partial_var (Р·Р°РіР»СѓС€РєРё)

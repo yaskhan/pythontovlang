@@ -3,7 +3,7 @@ module mypy
 
 pub fn erase_type(typ MypyTypeNode) MypyTypeNode {
 	t := get_proper_type(typ)
-	return t.accept_res(EraseTypeVisitor{}) or { MypyTypeNode(AnyType{type_of_any: .from_error}) }
+	return t.accept_res(mut EraseTypeVisitor{}) or { MypyTypeNode(AnyType{type_of_any: .from_error}) }
 }
 
 pub struct EraseTypeVisitor {}
@@ -86,7 +86,7 @@ pub fn (v EraseTypeVisitor) visit_callable_type(t &CallableType) !MypyTypeNode {
 	return MypyTypeNode(CallableType{
 		arg_types:        [any_t, any_t]
 		arg_kinds:        [ArgKind.arg_star, ArgKind.arg_star2]
-		arg_names:        [none, none]
+		arg_names:        [?string(none), none]
 		ret_type:         any_t
 		fallback:         t.fallback
 		is_ellipsis_args: true
@@ -95,16 +95,27 @@ pub fn (v EraseTypeVisitor) visit_callable_type(t &CallableType) !MypyTypeNode {
 }
 
 pub fn (v EraseTypeVisitor) visit_overloaded(t &Overloaded) !MypyTypeNode {
-	return t.fallback.accept_res(EraseTypeVisitor{})
+	if fb := t.fallback {
+		return MypyTypeNode(fb).accept_res(mut EraseTypeVisitor{})
+	}
+
+	return MypyTypeNode(AnyType{
+		type_of_any: .from_error
+	})
 }
+
 
 pub fn (v EraseTypeVisitor) visit_tuple_type(t &TupleType) !MypyTypeNode {
-	return t.partial_fallback.accept_res(EraseTypeVisitor{})
+	return MypyTypeNode(t.partial_fallback).accept_res(mut EraseTypeVisitor{})
 }
 
+
+
 pub fn (v EraseTypeVisitor) visit_typeddict_type(t &TypedDictType) !MypyTypeNode {
-	return t.fallback.accept_res(EraseTypeVisitor{})
+	return MypyTypeNode(t.fallback).accept_res(mut EraseTypeVisitor{})
 }
+
+
 
 pub fn (v EraseTypeVisitor) visit_literal_type(t &LiteralType) !MypyTypeNode {
 	return MypyTypeNode(*t)
@@ -119,7 +130,8 @@ pub fn (v EraseTypeVisitor) visit_union_type(t &UnionType) !MypyTypeNode {
 }
 
 pub fn (v EraseTypeVisitor) visit_type_type(t &TypeType) !MypyTypeNode {
-	item := t.item.accept_res(EraseTypeVisitor{})!
+	item := t.item.accept_res(mut EraseTypeVisitor{})!
+
 	return MypyTypeNode(TypeType{
 		item:         item
 		is_type_form: t.is_type_form

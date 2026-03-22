@@ -76,33 +76,28 @@ pub fn (mut chk TypeChecker) check_subtype(subtype MypyTypeNode, supertype MypyT
 	// Stub for checking subtype
 }
 
-pub fn (mut chk TypeChecker) accept(node MypyNode) {
-	match node {
-		Block { chk.visit_block(node) }
-		IfStmt { chk.visit_if_stmt(node) }
-		WhileStmt { chk.visit_while_stmt(node) }
-		ForStmt { chk.visit_for_stmt(node) }
-		TryStmt { chk.visit_try_stmt(node) }
-		WithStmt { chk.visit_with_stmt(node) }
-		ReturnStmt { chk.visit_return_stmt(node) }
-		BreakStmt { chk.visit_break_stmt(node) }
-		ContinueStmt { chk.visit_continue_stmt(node) }
-		PassStmt { chk.visit_pass_stmt(node) }
-		ExpressionStmt { chk.visit_expression_stmt(node) }
-		AssignmentStmt { chk.visit_assignment_stmt(node) }
-		FuncDef { chk.visit_func_def(node) }
-		ClassDef { chk.visit_class_def(node) }
-		GlobalDecl { chk.visit_global_decl(node) }
-		NonlocalDecl { chk.visit_nonlocal_decl(node) }
-		DelStmt { chk.visit_del_stmt(node) }
-		Import { chk.visit_import(node) }
-		ImportFrom { chk.visit_import_from(node) }
-		ImportAll { chk.visit_import_all(node) }
-		MatchStmt { chk.visit_match_stmt(node) }
-		else {
-			// fallback
-		}
-	}
+pub fn (mut chk TypeChecker) accept(node Node) {
+	if node is Block { chk.visit_block(node) }
+	else if node is IfStmt { chk.visit_if_stmt(node) }
+	else if node is WhileStmt { chk.visit_while_stmt(node) }
+	else if node is ForStmt { chk.visit_for_stmt(node) }
+	else if node is TryStmt { chk.visit_try_stmt(node) }
+	else if node is WithStmt { chk.visit_with_stmt(node) }
+	else if node is ReturnStmt { chk.visit_return_stmt(node) }
+	else if node is BreakStmt { chk.visit_break_stmt(node) }
+	else if node is ContinueStmt { chk.visit_continue_stmt(node) }
+	else if node is PassStmt { chk.visit_pass_stmt(node) }
+	else if node is ExpressionStmt { chk.visit_expression_stmt(node) }
+	else if node is AssignmentStmt { chk.visit_assignment_stmt(node) }
+	else if node is FuncDef { chk.visit_func_def(node) }
+	else if node is ClassDef { chk.visit_class_def(node) }
+	else if node is GlobalDecl { chk.visit_global_decl(node) }
+	else if node is NonlocalDecl { chk.visit_nonlocal_decl(node) }
+	else if node is DelStmt { chk.visit_del_stmt(node) }
+	else if node is Import { chk.visit_import(node) }
+	else if node is ImportFrom { chk.visit_import_from(node) }
+	else if node is ImportAll { chk.visit_import_all(node) }
+	else if node is MatchStmt { chk.visit_match_stmt(node) }
 }
 
 pub fn (mut chk TypeChecker) visit_block(b &Block) {
@@ -120,7 +115,7 @@ pub fn (mut chk TypeChecker) visit_while_stmt(s &WhileStmt) {
 	chk.accept_loop(if_node, s.else_body, s.expr)
 }
 
-pub fn (mut chk TypeChecker) accept_loop(body MypyNode, else_body ?&Block, exit_condition ?Expression) {
+pub fn (mut chk TypeChecker) accept_loop(body Node, else_body ?&Block, exit_condition ?Expression) {
 	chk.binder.push_frame(true) // conditional_frame
 	
 	mut iter := 0
@@ -135,8 +130,8 @@ pub fn (mut chk TypeChecker) accept_loop(body MypyNode, else_body ?&Block, exit_
 		}
 	}
 	
-	if else_body != none {
-		chk.accept(else_body or { panic("") })
+	if eb := else_body {
+		chk.accept(eb)
 	}
 	
 	if cond := exit_condition {
@@ -152,7 +147,7 @@ pub fn (mut chk TypeChecker) visit_if_stmt(s &IfStmt) {
 	for i := 0; i < s.expr.len; i++ {
 		e := s.expr[i]
 		b := s.body[i]
-		_ := chk.expr_checker_.accept(e, none, false, false, false)
+		_ = chk.expr_checker_.accept(e, none, false, false, false)
 		if_map, else_map := chk.find_isinstance_check(e)
 		chk.binder.push_frame(false)
 		chk.push_type_map(if_map)
@@ -160,28 +155,27 @@ pub fn (mut chk TypeChecker) visit_if_stmt(s &IfStmt) {
 		chk.binder.pop_frame(true, 2, false)
 		chk.push_type_map(else_map)
 	}
-	if s.else_body != none {
+	if eb := s.else_body {
 		chk.binder.push_frame(false)
-		chk.accept(s.else_body or { panic("") })
+		chk.accept(eb)
 		chk.binder.pop_frame(true, 2, false)
 	}
 	chk.binder.pop_frame(false, 0, false)
 }
 
 pub fn (mut chk TypeChecker) visit_for_stmt(s &ForStmt) {
-	chk.expr_checker_.accept(s.expr, none, false, false, false)
+	_ = chk.expr_checker_.accept(s.expr, none, false, false, false)
 	chk.accept_loop(s.body, s.else_body, none)
 }
 
 pub fn (mut chk TypeChecker) visit_return_stmt(s &ReturnStmt) {
-	if s.expr != none {
-		expr := s.expr or { panic("") }
+	if ex := s.expr {
 		mut return_type := MypyTypeNode(AnyType{type_of_any: .from_error})
 		if chk.return_types.len > 0 {
 			return_type = chk.return_types.last()
 		}
 		
-		chk.expr_checker_.accept(expr, return_type, true, false, false)
+		_ = chk.expr_checker_.accept(ex, return_type, true, false, false)
 	}
 	chk.binder.unreachable()
 }
@@ -198,7 +192,7 @@ pub fn (mut chk TypeChecker) visit_pass_stmt(s &PassStmt) {
 }
 
 pub fn (mut chk TypeChecker) visit_expression_stmt(s &ExpressionStmt) {
-	chk.expr_checker_.accept(s.expr, none, true, false, false)
+	_ = chk.expr_checker_.accept(s.expr, none, true, false, false)
 }
 
 pub fn (mut chk TypeChecker) visit_try_stmt(s &TryStmt) {
@@ -218,17 +212,19 @@ pub fn (mut chk TypeChecker) visit_try_stmt(s &TryStmt) {
 	}
 	chk.binder.pop_frame(true, 2, false)
 	
-	if s.else_body != none {
-		chk.accept(s.else_body or { panic("") })
+	if eb := s.else_body {
+		chk.accept(eb)
 	}
 	chk.binder.pop_frame(true, 2, false)
 	
-	if s.finally_body != none {
-		chk.accept(s.finally_body or { panic("") })
+	if fb := s.finally_body {
+		chk.accept(fb)
 	}
 	
-	if s.finally_body != none && !chk.binder.frames.last().unreachable {
-		chk.accept(s.finally_body or { panic("") })
+	if fb2 := s.finally_body {
+		if !chk.binder.frames.last().unreachable {
+			chk.accept(fb2)
+		}
 	}
 	
 	chk.binder.pop_frame(false, 0, false)
@@ -239,7 +235,7 @@ pub fn (mut chk TypeChecker) visit_with_stmt(s &WithStmt) {
 		e := s.expr[i]
 		t := s.target[i]
 		
-		chk.expr_checker_.accept(e, none, false, false, false)
+		_ = chk.expr_checker_.accept(e, none, false, false, false)
 		if t != none {
 			// analyze and assign to target
 		}
@@ -266,7 +262,7 @@ pub fn (mut chk TypeChecker) visit_assignment_stmt(s &AssignmentStmt) {
 	rvalue_type = get_proper_type(rvalue_type)
 	
 	for lvalue in s.lvalues {
-		chk.check_assignment(lvalue, s.rvalue, rvalue_type, s.typ, s.new_syntax)
+		chk.check_assignment(lvalue, s.rvalue, rvalue_type, s.type_annotation, false)
 	}
 }
 
@@ -278,9 +274,9 @@ pub fn (mut chk TypeChecker) check_assignment(lvalue Expression, rvalue Expressi
 	
 	if lvalue is NameExpr {
 		// Простая переменная
-		if type_ != none {
+		if t := type_ {
 			// type annotation check
-			chk.check_subtype(rvalue_type, type_ or { return }, lvalue, "Incompatible types in assignment", none, none, [], none, none)
+			chk.check_subtype(rvalue_type, t, lvalue.get_context(), "Incompatible types in assignment", none, none, [], none, none)
 		} else {
 			// type inference
 			chk.store_type(lvalue, rvalue_type)
@@ -293,7 +289,7 @@ pub fn (mut chk TypeChecker) check_assignment(lvalue Expression, rvalue Expressi
 }
 
 pub fn (mut chk TypeChecker) visit_func_def(defn &FuncDef) {
-	if !chk.recurse_into_functions && !defn.def_or_infer_vars {
+	if !chk.recurse_into_functions {
 		return
 	}
 	
@@ -302,14 +298,15 @@ pub fn (mut chk TypeChecker) visit_func_def(defn &FuncDef) {
 
 pub fn (mut chk TypeChecker) check_func_item(defn &FuncDef, type_override ?&CallableType) {
 	// 1. Узнаем тип функции
-	mut typ := MypyTypeNode(AnyType{type_of_any: .special_form})
-	if defn.typ != none {
-		typ = defn.typ or { return }
-	} else if type_override != none {
-		typ = MypyTypeNode(type_override or { return })
+	mut typ_node := MypyTypeNode(AnyType{type_of_any: .special_form})
+	if t := defn.type_ {
+		typ_node = t
+	} else if override := type_override {
+		typ_node = MypyTypeNode(*override)
 	}
 	
-	if typ is CallableType {
+	if typ_node is CallableType {
+		typ := typ_node as CallableType
 		// 2. Создаем новый фрейм для функции
 		old_binder := chk.binder
 		chk.binder = &ConditionalTypeBinder{ /* options: chk.options */ }
@@ -320,7 +317,7 @@ pub fn (mut chk TypeChecker) check_func_item(defn &FuncDef, type_override ?&Call
 		
 		// 3. Инициализация типов аргументов в binder
 		for i, arg in defn.arguments {
-			argument_type := typ.arg_types[i] or { MypyTypeNode(AnyType{type_of_any: .unannotated}) }
+			argument_type := if i < typ.arg_types.len { typ.arg_types[i] } else { MypyTypeNode(AnyType{type_of_any: .unannotated}) }
 			chk.binder.put(arg.variable, argument_type, false)
 		}
 		
@@ -335,9 +332,9 @@ pub fn (mut chk TypeChecker) check_func_item(defn &FuncDef, type_override ?&Call
 		chk.binder.pop_frame(true, 0, false)
 		chk.binder = old_binder
 		
-		if !is_unreachable && typ.ret_type !is NoneType && typ.ret_type !is AnyType {
+		if !is_unreachable && !(typ.ret_type is NoneType) && !(typ.ret_type is AnyType) {
 			// Missing return statement
-			chk.msg.fail("Missing return statement", defn, false, false, none)
+			chk.msg.fail("Missing return statement", defn.base.ctx, false, false, none)
 		}
 	} else {
 		// Динамическая функция (без аннотаций)
@@ -357,19 +354,12 @@ pub fn (mut chk TypeChecker) check_func_item(defn &FuncDef, type_override ?&Call
 pub fn (mut chk TypeChecker) visit_class_def(defn &ClassDef) {
 	// 1. Проверки мета-информации базовых классов (Final, disjoint bases)
 	typ := defn.info
-	if typ == none { return }
-	
-	// TODO: validate final inheritances
-	/*
-	for base in typ.mro[1..] {
-		if base.is_final {
-			chk.msg.fail("Cannot inherit from final class", defn, false, false, none)
-		}
+	if info := typ {
+		_ = info
+		// TODO: validate final inheritances
 	}
-	*/
 	
 	// 2. Входим в область видимости класса, подменяя scope
-	// old_scope := chk.tscope.class_scope(typ)
 	
 	// 3. Создаем новый фрейм (Scope) для переменных, определяемых внутри класса
 	old_binder := chk.binder
@@ -384,15 +374,11 @@ pub fn (mut chk TypeChecker) visit_class_def(defn &ClassDef) {
 	chk.binder = old_binder
 	
 	// 6. Проверка множественного наследования и метаклассов
-	// if !chk.can_skip_diagnostics { chk.check_multiple_inheritance(typ) }
 	
 	// 7. Проверка декораторов класса
 	if defn.decorators.len > 0 {
-		mut sig := MypyTypeNode(AnyType{type_of_any: .special_form})
-		// type_object_type(defn.info) ...
 		for dec in defn.decorators {
 			_ = chk.expr_checker_.accept(dec, none, false, false, false)
-			// decorator callee check (decorator(ClassNode))
 		}
 	}
 }
@@ -400,33 +386,29 @@ pub fn (mut chk TypeChecker) visit_class_def(defn &ClassDef) {
 pub fn (mut chk TypeChecker) visit_global_decl(node &GlobalDecl) {
 	// В Mypy глобальные объявления часто просто пробрасывают имена в глобальный scope
 	for name in node.names {
-		// val := chk.globals.get(name)
+		_ = name
 	}
 }
 
 pub fn (mut chk TypeChecker) visit_nonlocal_decl(node &NonlocalDecl) {
 	// Ищет переменную в ближайшем внешнем scope (кроме глобального)
 	for name in node.names {
-		// val := chk.scope.lookup(name)
+		_ = name
 	}
 }
 
 pub fn (mut chk TypeChecker) visit_del_stmt(node &DelStmt) {
 	// Тип проверка del_stmt: можно удалять NameExpr, IndexExpr, MemberExpr
-	chk.expr_checker_.accept(node.expr, none, false, false, false)
+	_ = chk.expr_checker_.accept(node.expr, none, false, false, false)
 }
 
 pub fn (mut chk TypeChecker) visit_import(node &Import) {
-	// mypy/checker.py ignores imports usually as semantic analyzer defines them,
-	// test if they are exported or private
 }
 
 pub fn (mut chk TypeChecker) visit_import_from(node &ImportFrom) {
-	// Аналогично
 }
 
 pub fn (mut chk TypeChecker) visit_import_all(node &ImportAll) {
-	// Аналогично
 }
 
 pub fn (mut chk TypeChecker) visit_match_stmt(node &MatchStmt) {
@@ -443,14 +425,13 @@ pub fn (mut chk TypeChecker) visit_match_stmt(node &MatchStmt) {
 		res := pc.accept(pattern, subject_type)
 		chk.binder.push_frame(true)
 		
-		for name, typ in res.captures {
+		for _, _ in res.captures {
 			// Привязываем переменные к scope
-			// chk.binder.put(...)
 		}
 		
 		// 4. Если есть guard (if case), тоже проверяем
 		if guard := node.guards[i] {
-			chk.expr_checker_.accept(guard, none, false, false, false)
+			_ = chk.expr_checker_.accept(guard, none, false, false, false)
 		}
 		
 		// 5. Обрабатываем тело

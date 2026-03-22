@@ -90,6 +90,7 @@ pub interface TypeVisitor {
 }
 
 pub interface TypeResultVisitor {
+mut:
 	visit_unbound_type(t &UnboundType) !MypyTypeNode
 	visit_any(t &AnyType) !MypyTypeNode
 	visit_none_type(t &NoneType) !MypyTypeNode
@@ -116,6 +117,7 @@ pub interface TypeResultVisitor {
 
 // SyntheticTypeVisitor adds synthetic / pre-analysis type nodes
 pub interface SyntheticTypeVisitor {
+mut:
 	// All TypeVisitor methods
 	visit_unbound_type(t &UnboundType) !string
 	visit_any(t &AnyType) !string
@@ -239,9 +241,10 @@ pub fn (t MypyTypeNode) accept(v TypeVisitor) !string {
 	}
 }
 
-pub fn (t MypyTypeNode) accept_res(v TypeResultVisitor) !MypyTypeNode {
+pub fn (t MypyTypeNode) accept_res(mut v TypeResultVisitor) !MypyTypeNode {
 	return match t {
 		AnyType            { v.visit_any(&t)! }
+
 		NoneType           { v.visit_none_type(&t)! }
 		UninhabitedType    { v.visit_uninhabited_type(&t)! }
 		ErasedType         { v.visit_erased_type(&t)! }
@@ -391,6 +394,7 @@ pub fn (t &UnboundType) accept(v TypeVisitor) !string { return v.visit_unbound_t
 pub struct Instance {
 pub mut:
 	base            TypeBase
+	typ             ?&TypeInfo
 	type_name       string   // fullname of the TypeInfo
 	args            []MypyTypeNode
 	last_known_value ?&LiteralType
@@ -502,7 +506,9 @@ pub mut:
 	name              ?string
 	definition        ?&FuncDef   // originating FuncDef if known
 	variables         []MypyTypeNode // TypeVarLike variables
+	is_type_obj       bool
 	is_ellipsis_args  bool
+	fallback          ?Instance
 	is_classmethod    bool
 	is_staticmethod   bool
 	is_protocol       bool
@@ -520,8 +526,9 @@ pub fn (t &CallableType) accept(v TypeVisitor) !string { return v.visit_callable
 // Overloaded — a set of overloaded callable types
 pub struct Overloaded {
 pub mut:
-	base  TypeBase
-	items []CallableType
+	base     TypeBase
+	items    []CallableType
+	fallback ?Instance
 }
 
 pub fn (t &Overloaded) accept(v TypeVisitor) !string { return v.visit_overloaded(t)! }
