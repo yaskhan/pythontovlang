@@ -272,10 +272,6 @@ pub mut:
 
 pub type BuildResult = []BuildSource | string
 
-pub struct FileSystemCache {
-// Placeholder
-}
-
 
 pub fn Options.new() Options {
 	mut o := Options{}

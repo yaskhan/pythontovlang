@@ -1,52 +1,34 @@
-// fscache.v — File system access with automatic caching
-// Translated from mypy/fscache.py to V 0.5.x
-//
-// Я Antigravity работаю над этим файлом. Начало: 2026-03-22 19:00
-
+// Я Codex работаю над этим файлом. Начало: 2026-03-22 21:24:00 +05:00
 module mypy
 
 import os
 
-// FileSystemCache — кэш для доступа к файловой системе
 pub struct FileSystemCache {
 pub mut:
-	package_root        []string
-	stat_or_none_cache  map[string]?os.FileInfo
-	listdir_cache       map[string][]string
-	listdir_error_cache map[string]string
-	isfile_case_cache   map[string]bool
-	exists_case_cache   map[string]bool
-	read_cache          map[string][]u8
-	read_error_cache    map[string]string
-	hash_cache          map[string]string
-	fake_package_cache  map[string]bool
+	package_root        []string            = []string{}
+	stat_cache          map[string]os.Stat  = map[string]os.Stat{}
+	missing_stat_cache  map[string]bool     = map[string]bool{}
+	listdir_cache       map[string][]string = map[string][]string{}
+	listdir_error_cache map[string]string   = map[string]string{}
+	isfile_case_cache   map[string]bool     = map[string]bool{}
+	exists_case_cache   map[string]bool     = map[string]bool{}
+	read_cache          map[string][]u8     = map[string][]u8{}
+	read_error_cache    map[string]string   = map[string]string{}
+	hash_cache          map[string]string   = map[string]string{}
+	fake_package_cache  map[string]bool     = map[string]bool{}
 }
 
-// new_file_system_cache создаёт новый FileSystemCache
 pub fn new_file_system_cache() FileSystemCache {
-	mut fs := FileSystemCache{
-		package_root:        []string{}
-		stat_or_none_cache:  map[string]?os.FileInfo{}
-		listdir_cache:       map[string][]string{}
-		listdir_error_cache: map[string]string{}
-		isfile_case_cache:   map[string]bool{}
-		exists_case_cache:   map[string]bool{}
-		read_cache:          map[string][]u8{}
-		read_error_cache:    map[string]string{}
-		hash_cache:          map[string]string{}
-		fake_package_cache:  map[string]bool{}
-	}
-	return fs
+	return FileSystemCache{}
 }
 
-// set_package_root устанавливает корневые директории пакетов
 pub fn (mut fs FileSystemCache) set_package_root(package_root []string) {
-	fs.package_root = package_root
+	fs.package_root = package_root.clone()
 }
 
-// flush начинает новую транзакцию и очищает все кэши
 pub fn (mut fs FileSystemCache) flush() {
-	fs.stat_or_none_cache = map[string]?os.FileInfo{}
+	fs.stat_cache = map[string]os.Stat{}
+	fs.missing_stat_cache = map[string]bool{}
 	fs.listdir_cache = map[string][]string{}
 	fs.listdir_error_cache = map[string]string{}
 	fs.isfile_case_cache = map[string]bool{}
@@ -57,152 +39,146 @@ pub fn (mut fs FileSystemCache) flush() {
 	fs.fake_package_cache = map[string]bool{}
 }
 
-// stat_or_none возвращает информацию о файле или none
-pub fn (mut fs FileSystemCache) stat_or_none(path string) ?os.FileInfo {
-	if path in fs.stat_or_none_cache {
-		return fs.stat_or_none_cache[path]
+pub fn (mut fs FileSystemCache) stat_or_none(path string) ?FileStatData {
+	st := fs.cached_stat_or_none(path)?
+	return stat_to_file_data(st)
+}
+
+fn (mut fs FileSystemCache) cached_stat_or_none(path string) ?os.Stat {
+	if path in fs.stat_cache {
+		return fs.stat_cache[path]
+	}
+	if path in fs.missing_stat_cache {
+		return none
 	}
 
 	st := os.stat(path) or {
 		if fs.init_under_package_root(path) {
-			fs.fake_init(path) or { return none }
+			fake_st := fs.fake_init(path) or {
+				fs.missing_stat_cache[path] = true
+				return none
+			}
+			fs.stat_cache[path] = fake_st
+			return fake_st
 		}
+		fs.missing_stat_cache[path] = true
 		return none
 	}
-
-	fs.stat_or_none_cache[path] = st
+	fs.stat_cache[path] = st
 	return st
 }
 
-// init_under_package_root проверяет, является ли путь __init__.py под корнем пакета
 pub fn (mut fs FileSystemCache) init_under_package_root(path string) bool {
 	if fs.package_root.len == 0 {
 		return false
 	}
 
-	dirname, basename := os.split(path)
+	dirname := os.dir(path)
+	basename := os.base(path)
 	if basename != '__init__.py' {
 		return false
 	}
-
 	if !is_identifier(os.base(dirname)) {
 		return false
 	}
 
-	st := fs.stat_or_none(dirname) or { return false }
-	if !st.is_dir() {
+	st := fs.cached_stat_or_none(dirname) or { return false }
+	if st.get_filetype() != .directory {
 		return false
 	}
 
-	// Проверка на разных дисках (Windows)
-	current_drive, _ := os.splitdrive(os.getcwd())
-	drive, _ := os.splitdrive(path)
-	if drive != current_drive {
+	current_drive := drive_prefix(os.abs_path(os.getwd()))
+	drive := drive_prefix(path)
+	if drive != '' && current_drive != '' && drive.to_lower() != current_drive.to_lower() {
 		return false
 	}
 
-	mut p := path
-	if os.is_abs(path) {
-		p = os.rel(path, os.getcwd()) or { path }
+	mut normalized := path
+	if os.is_abs_path(path) {
+		normalized = relativize_to_cwd(path)
 	}
-	p = os.clean(p)
+	normalized = normalize_rel_path(normalized)
 
 	for root in fs.package_root {
-		if p.starts_with(root) {
-			if p == root + basename {
-				// Корень пакета сам по себе не является пакетом
+		norm_root := normalize_rel_path(root)
+		if normalized.starts_with(norm_root) {
+			if normalized == norm_root + '__init__.py' {
 				return false
 			}
 			return true
 		}
 	}
-
 	return false
 }
 
-// is_identifier проверяет, является ли строка допустимым идентификатором
 pub fn is_identifier(s string) bool {
 	if s.len == 0 {
 		return false
 	}
-	// Упрощённая проверка — только первый символ
 	first := s[0]
-	if !first.is_letter() && first != '_' {
+	if !first.is_letter() && first != `_` {
 		return false
 	}
 	for i := 1; i < s.len; i++ {
 		c := s[i]
-		if !c.is_letter() && !c.is_digit() && c != '_' {
+		if !c.is_letter() && !c.is_digit() && c != `_` {
 			return false
 		}
 	}
 	return true
 }
 
-// fake_init создаёт фейковый __init__.py в кэше
-pub fn (mut fs FileSystemCache) fake_init(path string) ?os.FileInfo {
-	dirname, basename := os.split(path)
-	assert basename == '__init__.py'
-
-	dirname = os.clean(dirname)
+fn (mut fs FileSystemCache) fake_init(path string) ?os.Stat {
+	dirname := normalize_rel_path(os.dir(path))
+	if os.exists(path) {
+		return none
+	}
 	st := os.stat(dirname) or { return none }
-
-	// Создаём фейковый stat для файла
-	// В V нет прямого аналога os.stat_result, используем FileInfo
 	fs.fake_package_cache[dirname] = true
-
 	return st
 }
 
-// listdir возвращает список файлов в директории
 pub fn (mut fs FileSystemCache) listdir(path string) ![]string {
-	path = os.clean(path)
-
-	if path in fs.listdir_cache {
-		mut res := fs.listdir_cache[path]
-		if path in fs.fake_package_cache && '__init__.py' !in res {
+	normalized := normalize_rel_path(path)
+	if normalized in fs.listdir_cache {
+		mut res := fs.listdir_cache[normalized].clone()
+		if normalized in fs.fake_package_cache && '__init__.py' !in res {
 			res << '__init__.py'
+			fs.listdir_cache[normalized] = res.clone()
 		}
 		return res
 	}
-
-	if path in fs.listdir_error_cache {
-		return fs.listdir_error_cache[path]
+	if normalized in fs.listdir_error_cache {
+		return error(fs.listdir_error_cache[normalized])
 	}
 
-	results := os.ls(path) or {
-		err := 'OSError'
-		fs.listdir_error_cache[path] = err
+	mut results := os.ls(normalized) or {
+		fs.listdir_error_cache[normalized] = err.msg()
 		return err
 	}
-
-	fs.listdir_cache[path] = results
-
-	if path in fs.fake_package_cache && '__init__.py' !in results {
+	if normalized in fs.fake_package_cache && '__init__.py' !in results {
 		results << '__init__.py'
 	}
-
+	fs.listdir_cache[normalized] = results.clone()
 	return results
 }
 
-// isfile проверяет, является ли путь файлом
 pub fn (mut fs FileSystemCache) isfile(path string) bool {
-	st := fs.stat_or_none(path) or { return false }
-	return st.is_file()
+	st := fs.cached_stat_or_none(path) or { return false }
+	return st.get_filetype() == .regular || st.get_filetype() == .symbolic_link
 }
 
-// isfile_case проверяет, является ли путь файлом с учётом регистра
 pub fn (mut fs FileSystemCache) isfile_case(path string, prefix string) bool {
 	if !fs.isfile(path) {
 		return false
 	}
-
 	if path in fs.isfile_case_cache {
 		return fs.isfile_case_cache[path]
 	}
 
-	head, tail := os.split(path)
-	if tail == '' {
+	head := os.dir(path)
+	tail := os.base(path)
+	if tail == '' || tail == '.' {
 		fs.isfile_case_cache[path] = false
 		return false
 	}
@@ -211,24 +187,22 @@ pub fn (mut fs FileSystemCache) isfile_case(path string, prefix string) bool {
 		fs.isfile_case_cache[path] = false
 		return false
 	}
-
-	res := tail in names
+	mut res := tail in names
 	if res {
 		res = fs.exists_case(head, prefix)
 	}
-
 	fs.isfile_case_cache[path] = res
 	return res
 }
 
-// exists_case проверяет существование пути с учётом регистра
 pub fn (mut fs FileSystemCache) exists_case(path string, prefix string) bool {
 	if path in fs.exists_case_cache {
 		return fs.exists_case_cache[path]
 	}
 
-	head, tail := os.split(path)
-	if !head.starts_with(prefix) || tail == '' {
+	head := os.dir(path)
+	tail := os.base(path)
+	if !head.starts_with(prefix) || tail == '' || tail == '.' {
 		fs.exists_case_cache[path] = true
 		return true
 	}
@@ -237,64 +211,54 @@ pub fn (mut fs FileSystemCache) exists_case(path string, prefix string) bool {
 		fs.exists_case_cache[path] = false
 		return false
 	}
-
-	res := tail in names
+	mut res := tail in names
 	if res {
 		res = fs.exists_case(head, prefix)
 	}
-
 	fs.exists_case_cache[path] = res
 	return res
 }
 
-// isdir проверяет, является ли путь директорией
 pub fn (mut fs FileSystemCache) isdir(path string) bool {
-	st := fs.stat_or_none(path) or { return false }
-	return st.is_dir()
+	st := fs.cached_stat_or_none(path) or { return false }
+	return st.get_filetype() == .directory
 }
 
-// exists проверяет существование пути
 pub fn (mut fs FileSystemCache) exists(path string) bool {
-	st := fs.stat_or_none(path)
-	return st != none
+	if _ := fs.cached_stat_or_none(path) {
+		return true
+	}
+	return false
 }
 
-// read читает содержимое файла
 pub fn (mut fs FileSystemCache) read(path string) ![]u8 {
 	if path in fs.read_cache {
 		return fs.read_cache[path]
 	}
-
 	if path in fs.read_error_cache {
-		return fs.read_error_cache[path]
+		return error(fs.read_error_cache[path])
 	}
 
-	// Сначала stat для корректного mtime
-	fs.stat_or_none(path)
+	fs.cached_stat_or_none(path) or {}
 
-	dirname, basename := os.split(path)
-	dirname = os.clean(dirname)
-
-	// Проверка фейкового кэша
+	dirname := normalize_rel_path(os.dir(path))
+	basename := os.base(path)
 	if basename == '__init__.py' && dirname in fs.fake_package_cache {
 		data := []u8{}
 		fs.read_cache[path] = data
-		fs.hash_cache[path] = hash_digest(data)
+		fs.hash_cache[path] = hash_bytes_digest(data)
 		return data
 	}
 
-	data := os.read_file(path) or {
-		err := 'OSError'
-		fs.read_error_cache[path] = err
+	data := os.read_bytes(path) or {
+		fs.read_error_cache[path] = err.msg()
 		return err
 	}
-
-	fs.read_cache[path] = data
-	fs.hash_cache[path] = hash_digest(data)
+	fs.read_cache[path] = data.clone()
+	fs.hash_cache[path] = hash_bytes_digest(data)
 	return data
 }
 
-// hash_digest возвращает хэш содержимого файла
 pub fn (mut fs FileSystemCache) hash_digest(path string) string {
 	if path !in fs.hash_cache {
 		fs.read(path) or { return '' }
@@ -302,17 +266,57 @@ pub fn (mut fs FileSystemCache) hash_digest(path string) string {
 	return fs.hash_cache[path]
 }
 
-// samefile проверяет, ссылаются ли пути на один файл
 pub fn (mut fs FileSystemCache) samefile(f1 string, f2 string) bool {
-	s1 := fs.stat_or_none(f1) or { return false }
-	s2 := fs.stat_or_none(f2) or { return false }
+	s1 := fs.cached_stat_or_none(f1) or { return false }
+	s2 := fs.cached_stat_or_none(f2) or { return false }
 
-	// Сравниваем по inode/mtime/size
-	return s1.ino() == s2.ino() && s1.mod_time().unix() == s2.mod_time().unix()
+	if s1.dev == s2.dev && s1.inode != 0 && s1.inode == s2.inode {
+		return true
+	}
+	return os.norm_path(os.abs_path(f1)) == os.norm_path(os.abs_path(f2))
 }
 
-// hash_digest вычисляет хэш данных
-pub fn hash_digest(data []u8) string {
-	// Упрощённая версия — используем длину как хэш
+fn stat_to_file_data(st os.Stat) FileStatData {
+	return FileStatData{
+		st_mtime: f64(st.mtime)
+		st_size:  st.size
+	}
+}
+
+fn hash_bytes_digest(data []u8) string {
 	return '${data.len}'
+}
+
+fn drive_prefix(path string) string {
+	if path.len >= 2 && path[1] == `:` {
+		return path[..2]
+	}
+	return ''
+}
+
+fn normalize_rel_path(path string) string {
+	mut normalized := os.norm_path(path)
+	if normalized == '' {
+		return '.'
+	}
+	if normalized.ends_with(os.path_separator.str()) && normalized.len > 1 {
+		normalized = normalized.trim_right(os.path_separator.str())
+	}
+	return normalized
+}
+
+fn relativize_to_cwd(path string) string {
+	cwd := normalize_rel_path(os.abs_path(os.getwd()))
+	target := normalize_rel_path(os.abs_path(path))
+	if drive_prefix(cwd).to_lower() != drive_prefix(target).to_lower() {
+		return target
+	}
+	if target == cwd {
+		return '.'
+	}
+	prefix := cwd + os.path_separator.str()
+	if target.starts_with(prefix) {
+		return target[prefix.len..]
+	}
+	return target
 }

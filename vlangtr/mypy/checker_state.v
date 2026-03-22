@@ -30,23 +30,22 @@ pub fn (mut s TypeCheckerState) restore(value ?&TypeCheckerSharedApi) {
 	s.type_checker = value
 }
 
-// checker_state — глобальное состояние
-mut checker_state := TypeCheckerState{
-	type_checker: none
+// checker_state — возвращает указатель на глобальное состояние
+fn get_state() &TypeCheckerState {
+	unsafe {
+		mut static s := TypeCheckerState{
+			type_checker: none
+		}
+		return &s
+	}
 }
-
-// with_checker_state — context manager для установки состояния
-// Использование:
-//   saved := checker_state.set(&checker)
-//   defer { checker_state.restore(saved) }
-//   ... работа с checker ...
 
 // get_checker возвращает текущий type checker
 pub fn get_checker() ?&TypeCheckerSharedApi {
-	return checker_state.type_checker
+    return get_state().type_checker
 }
 
 // set_checker устанавливает type checker
 pub fn set_checker(checker &TypeCheckerSharedApi) ?&TypeCheckerSharedApi {
-	return checker_state.set(checker)
+    return get_state().set(checker)
 }
