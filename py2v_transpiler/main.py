@@ -105,10 +105,14 @@ def transpile_file(source_file: str, config: TranspilerConfig, global_helpers: O
         print(f"Syntax error in {source_file}: {e}")
         return False
 
-    # 3. Analyze types
+    # 3. Analyze types with mypy (required)
     analyzer = TypeInference()
     stdout, stderr, exit_code = analyzer.run_mypy(source_file, experimental=config.experimental)
     if exit_code != 0:
+        # Check if mypy is not installed
+        if "Mypy not installed" in stdout:
+            print("Error: Mypy is required but not installed. Please install mypy: pip install mypy")
+            return False
         print(f"Mypy found errors in {source_file}:")
         print(stdout)
         if stderr:
@@ -117,7 +121,7 @@ def transpile_file(source_file: str, config: TranspilerConfig, global_helpers: O
         if tips:
             print(tips)
 
-    # Run basic AST visitor for type inference regardless of mypy
+    # Run AST visitor for additional type inference
     analyzer.analyze(tree)
     
     if hasattr(analyzer, 'raw_type_map'):
