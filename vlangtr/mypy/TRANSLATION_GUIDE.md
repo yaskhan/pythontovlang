@@ -49,6 +49,12 @@
 | `sharedparse.py` | `mypy/sharedparse.v` | ✅ Полностью (magic_methods, special_function_elide_names, argument_elide_name) |
 | `build.py` | `mypy/build.v` | 📝 Полуготово: State, BuildManager, SCC, BuildResult, topological sort |
 | `bogus_type.py` | `mypy/bogus_type.v` | ✅ Полностью (константа `mypyc`, alias helpers `bogus`/`bogus_erased`) |
+| `__init__.py` | `mypy/__init__.v` | ? ��������� (������ ������-�������� ��� � Python) |
+| `__main__.py` | `mypy/__main__.v` | 📝 Каркас перенесён (entry wrapper: `console_entry`, `run_dunder_main`) |
+| `checker_state.py` | `mypy/checker_state.v` | ✅ Полностью (TypeCheckerState + временная установка контекста) |
+| `error_formatter.py` | `mypy/error_formatter.v` | ✅ Полностью (ErrorFormatter + JSONFormatter + `output_choices`) |
+| `api.py` | `mypy/api.v` | 📝 Каркас API (`_run`, `run`) до переноса `main.py` |
+| `fswatcher.py` | `mypy/fswatcher.v` | ✅ Полностью (FileSystemWatcher, FileData, изменения файлов по stat/hash) |
 | `infer.py` | `mypy/infer.v` | 📝 Заглушки: `infer_type_arguments`, `infer_function_type_arguments`, `Constraint` |
 | `solve.py` | `mypy/solve.v` | 📝 Решатель ограничений (solve_one, join of lowers, meet of uppers) |
 | `copytype.py` | `mypy/copytype.v` | ✅ Полностью (copy_type, TypeShallowCopier через match) |
@@ -73,8 +79,14 @@
 | `plugin.py` | `mypy/plugin.v` | 📝 Система плагинов (Contexts, Interfaces, ChainedPlugin) |
 | `typeanal.py` | `mypy/typeanal.v` | 📝 Семантический анализатор для типов (TypeAnalyser, UnboundType -> Instance) |
 | `constraints.py` | `mypy/constraints.v` | 📝 Вывод ограничений типов: Constraint, infer_constraints, any_constraints, filter_imprecise_kinds |
+| `constant_fold.py` | `mypy/constant_fold.v` | ✅ Полностью (constant_fold_expr, binary/unary ops, int/float/string) |
+| `strconv.py` | `mypy/strconv.v` | 📝 StrConv visitor: dump, visit_* для узлов AST, func_helper, pretty_name, IdMapper |
+| `partially_defined.py` | `mypy/partially_defined.v` | 📝 BranchState, BranchStatement, DefinedVariableTracker, Scope, Loop |
 | `indirection.py` | `mypy/indirection.v` | ✅ Полностью (TypeIndirectionVisitor для анализа зависимостей модулей) |
 | `stats.py` | `mypy/stats.v` | ✅ Полностью (StatisticsVisitor для сбора статистики о типах) |
+| `ipc.py` | `mypy/ipc.v` | ✅ Полностью (IPCBase, IPCClient, IPCServer, IPCMessage, WriteBuffer, ReadBuffer) |
+| `reachability.py` | `mypy/reachability.v` | ✅ Полностью (infer_reachability_of_if_statement, infer_condition_value, mark_block_unreachable) |
+| `evalexpr.py` | `mypy/evalexpr.v` | ✅ Полностью (NodeEvaluator, evaluate_expression для вычисления выражений) |
 
 ---
 

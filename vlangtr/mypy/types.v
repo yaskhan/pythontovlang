@@ -217,27 +217,27 @@ pub fn (t MypyTypeNode) type_str() string {
 pub fn (t MypyTypeNode) accept(mut v TypeVisitor) !string {
 	return match t {
 
-		AnyType            { v.visit_any(&t) }
-		NoneType           { v.visit_none_type(&t) }
-		UninhabitedType    { v.visit_uninhabited_type(&t) }
-		ErasedType         { v.visit_erased_type(&t) }
-		DeletedType        { v.visit_deleted_type(&t) }
-		UnboundType        { v.visit_unbound_type(&t) }
-		Instance           { v.visit_instance(&t) }
-		TypeVarType        { v.visit_type_var(&t) }
-		ParamSpecType      { v.visit_param_spec(&t) }
-		TypeVarTupleType   { v.visit_type_var_tuple(&t) }
-		ParametersType     { v.visit_parameters(&t) }
-		TupleType          { v.visit_tuple_type(&t) }
-		TypedDictType      { v.visit_typeddict_type(&t) }
-		LiteralType        { v.visit_literal_type(&t) }
-		UnionType          { v.visit_union_type(&t) }
-		CallableType       { v.visit_callable_type(&t) }
-		Overloaded         { v.visit_overloaded(&t) }
-		TypeType           { v.visit_type_type(&t) }
-		TypeAliasType      { v.visit_type_alias_type(&t) }
-		UnpackType         { v.visit_unpack_type(&t) }
-		PartialTypeT       { v.visit_partial_type(&t) }
+		AnyType            { v.visit_any(&t)! }
+		NoneType           { v.visit_none_type(&t)! }
+		UninhabitedType    { v.visit_uninhabited_type(&t)! }
+		ErasedType         { v.visit_erased_type(&t)! }
+		DeletedType        { v.visit_deleted_type(&t)! }
+		UnboundType        { v.visit_unbound_type(&t)! }
+		Instance           { v.visit_instance(&t)! }
+		TypeVarType        { v.visit_type_var(&t)! }
+		ParamSpecType      { v.visit_param_spec(&t)! }
+		TypeVarTupleType   { v.visit_type_var_tuple(&t)! }
+		ParametersType     { v.visit_parameters(&t)! }
+		TupleType          { v.visit_tuple_type(&t)! }
+		TypedDictType      { v.visit_typeddict_type(&t)! }
+		LiteralType        { v.visit_literal_type(&t)! }
+		UnionType          { v.visit_union_type(&t)! }
+		CallableType       { v.visit_callable_type(&t)! }
+		Overloaded         { v.visit_overloaded(&t)! }
+		TypeType           { v.visit_type_type(&t)! }
+		TypeAliasType      { v.visit_type_alias_type(&t)! }
+		UnpackType         { v.visit_unpack_type(&t)! }
+		PartialTypeT       { v.visit_partial_type(&t)! }
 		else {
 			return error('TypeVisitor: node ${t.type_str()} is not a standard type')
 		}
@@ -276,32 +276,32 @@ pub fn (t MypyTypeNode) accept_res(mut v TypeResultVisitor) !MypyTypeNode {
 pub fn (t MypyTypeNode) accept_synthetic(mut v SyntheticTypeVisitor) !string {
 	return match t {
 
-		AnyType            { v.visit_any(&t) }
-		NoneType           { v.visit_none_type(&t) }
-		UninhabitedType    { v.visit_uninhabited_type(&t) }
-		ErasedType         { v.visit_erased_type(&t) }
-		DeletedType        { v.visit_deleted_type(&t) }
-		UnboundType        { v.visit_unbound_type(&t) }
-		Instance           { v.visit_instance(&t) }
-		TypeVarType        { v.visit_type_var(&t) }
-		ParamSpecType      { v.visit_param_spec(&t) }
-		TypeVarTupleType   { v.visit_type_var_tuple(&t) }
-		ParametersType     { v.visit_parameters(&t) }
-		TupleType          { v.visit_tuple_type(&t) }
-		TypedDictType      { v.visit_typeddict_type(&t) }
-		LiteralType        { v.visit_literal_type(&t) }
-		UnionType          { v.visit_union_type(&t) }
-		CallableType       { v.visit_callable_type(&t) }
-		Overloaded         { v.visit_overloaded(&t) }
-		TypeType           { v.visit_type_type(&t) }
-		TypeAliasType      { v.visit_type_alias_type(&t) }
-		UnpackType         { v.visit_unpack_type(&t) }
-		PartialTypeT       { v.visit_partial_type(&t) }
-		TypeList           { v.visit_type_list(&t) }
-		CallableArgument   { v.visit_callable_argument(&t) }
-		EllipsisType       { v.visit_ellipsis_type(&t) }
-		RawExpressionType  { v.visit_raw_expression_type(&t) }
-		PlaceholderType    { v.visit_placeholder_type(&t) }
+		AnyType            { v.visit_any(&t)! }
+		NoneType           { v.visit_none_type(&t)! }
+		UninhabitedType    { v.visit_uninhabited_type(&t)! }
+		ErasedType         { v.visit_erased_type(&t)! }
+		DeletedType        { v.visit_deleted_type(&t)! }
+		UnboundType        { v.visit_unbound_type(&t)! }
+		Instance           { v.visit_instance(&t)! }
+		TypeVarType        { v.visit_type_var(&t)! }
+		ParamSpecType      { v.visit_param_spec(&t)! }
+		TypeVarTupleType   { v.visit_type_var_tuple(&t)! }
+		ParametersType     { v.visit_parameters(&t)! }
+		TupleType          { v.visit_tuple_type(&t)! }
+		TypedDictType      { v.visit_typeddict_type(&t)! }
+		LiteralType        { v.visit_literal_type(&t)! }
+		UnionType          { v.visit_union_type(&t)! }
+		CallableType       { v.visit_callable_type(&t)! }
+		Overloaded         { v.visit_overloaded(&t)! }
+		TypeType           { v.visit_type_type(&t)! }
+		TypeAliasType      { v.visit_type_alias_type(&t)! }
+		UnpackType         { v.visit_unpack_type(&t)! }
+		PartialTypeT       { v.visit_partial_type(&t)! }
+		TypeList           { v.visit_type_list(&t)! }
+		CallableArgument   { v.visit_callable_argument(&t)! }
+		EllipsisType       { v.visit_ellipsis_type(&t)! }
+		RawExpressionType  { v.visit_raw_expression_type(&t)! }
+		PlaceholderType    { v.visit_placeholder_type(&t)! }
 	}
 }
 

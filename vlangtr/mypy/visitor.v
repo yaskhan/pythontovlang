@@ -17,6 +17,8 @@ module mypy
 // ---------------------------------------------------------------------------
 
 pub interface ExpressionVisitor {
+mut:
+
 	visit_int_expr(o &IntExpr) !string
 	visit_str_expr(o &StrExpr) !string
 	visit_bytes_expr(o &BytesExpr) !string
@@ -69,6 +71,8 @@ pub interface ExpressionVisitor {
 // ---------------------------------------------------------------------------
 
 pub interface StatementVisitor {
+mut:
+
 	// Definitions
 	visit_assignment_stmt(o &AssignmentStmt) !string
 	visit_for_stmt(o &ForStmt) !string
@@ -106,6 +110,8 @@ pub interface StatementVisitor {
 // ---------------------------------------------------------------------------
 
 pub interface PatternVisitor {
+mut:
+
 	visit_as_pattern(o &AsPattern) !string
 	visit_or_pattern(o &OrPattern) !string
 	visit_value_pattern(o &ValuePattern) !string
@@ -125,6 +131,8 @@ pub interface PatternVisitor {
 // ---------------------------------------------------------------------------
 
 pub interface NodeVisitor {
+mut:
+
 	// --- top-level file ---
 	visit_mypy_file(o &MypyFile) !string
 	visit_var(o &Var) !string

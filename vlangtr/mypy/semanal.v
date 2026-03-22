@@ -7,6 +7,7 @@ module mypy
 // выявить иерархическое наследование, загрузить плагины, создать TypeInfo для классов.
 
 pub struct SemanticAnalyzer {
+	NodeTraverser
 pub mut:
 	modules  map[string]&MypyFile
 	options  &Options
@@ -28,6 +29,7 @@ pub mut:
 	// type_analyzer ?&TypeAnalyser
 }
 
+
 // -----------------------------------------------------
 // Основные методы входа
 // -----------------------------------------------------
@@ -37,7 +39,8 @@ pub fn (mut s SemanticAnalyzer) visit_file(file_node &MypyFile, fnam string, opt
 	s.is_stub_file = file_node.is_stub
 	s.is_typeshed_file = file_node.is_stub // Упрощенно
 	
-	s.globals = file_node.names
+	s.globals = &file_node.names
+
 	s.locals = []
 	
 	// Предварительная инициализация модуля/__builtins__
@@ -54,19 +57,13 @@ pub fn (mut s SemanticAnalyzer) visit_file(file_node &MypyFile, fnam string, opt
 	}
 }
 
-pub fn (mut s SemanticAnalyzer) accept(node MypyNode) {
-	// Диспетчеризация по типу узла. 
-	// Реализация `NodeVisitor` из traverser.v
-	match node {
-		Statement {
-			stmt_accept(node, mut s) or { s.errors.add_error_info(ErrorInfo{message: err.msg()}) }
-		}
-		Expression {
-			expr_accept(node, mut s) or { s.errors.add_error_info(ErrorInfo{message: err.msg()}) }
-		}
-		else {}
+pub fn (mut s SemanticAnalyzer) accept(node Node) {
+	node.accept(mut s) or {
+		s.errors.add_error_info(&ErrorInfo{message: err.msg()}, none)
+		return
 	}
 }
+
 
 // -----------------------------------------------------
 // Обработка Statements
@@ -78,7 +75,8 @@ pub fn (mut s SemanticAnalyzer) visit_class_def(defn &ClassDef) !string {
 	if info == none {
 		info = &TypeInfo{
 			fullname: defn.fullname
-			names: &SymbolTable{}
+			names: SymbolTable{symbols: map[string]SymbolTableNode{}}
+
 			module_name: defn.fullname // TODO: выделить module
 		}
 		defn.info = info
@@ -97,7 +95,8 @@ pub fn (mut s SemanticAnalyzer) visit_class_def(defn &ClassDef) !string {
 	}
 	
 	s.current_class_node = defn
-	s.locals << info.names
+	s.locals << &info.names
+
 	
 	// Рекурсивно перебираем методы и свойства класса
 	for stmt in defn.defs.body {
@@ -120,7 +119,8 @@ pub fn (mut s SemanticAnalyzer) visit_func_def(defn &FuncDef) !string {
 	s.current_func_node = defn
 	
 	// Символы внутри функции
-	func_locals := &SymbolTable{}
+	func_locals := &SymbolTable{symbols: map[string]SymbolTableNode{}}
+
 	s.locals << func_locals
 	
 	// Заносим аргументы в scope
@@ -211,4 +211,5 @@ pub fn (mut s SemanticAnalyzer) is_defined_in_scope(name string) bool {
 pub fn (mut s SemanticAnalyzer) visit_name_expr(expr &NameExpr) !string { return '' }
 pub fn (mut s SemanticAnalyzer) visit_int_expr(expr &IntExpr) !string { return '' }
 pub fn (mut s SemanticAnalyzer) visit_str_expr(expr &StrExpr) !string { return '' }
+
 // ... остальные expr
