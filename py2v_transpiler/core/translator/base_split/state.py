@@ -40,6 +40,7 @@ class TranslatorStateMixin:
         self.current_class_bases: List[str] = []
         self.current_class_generic_bases: Dict[str, str] = {}
         self.current_class_is_unittest: bool = False
+        self.is_unittest_class: bool = False  # Alias for compatibility with tests
         self._zip_counter: int = 0
         self.defined_classes: Dict[str, Dict[str, Any]] = {}
         self.used_builtins: Set[str] = set()
@@ -102,8 +103,25 @@ class TranslatorStateMixin:
         self.readonly_fields: Dict[str, Set[str]] = {}
         self._cond_optional_var_type: Dict[str, str] = {}
 
-        # Build hierarchy from type inference
+        # Note: class_hierarchy and known_interfaces are built lazily
+        # via _update_class_hierarchy() when needed, since type_inference.class_hierarchy
+        # is populated after analyzer.analyze() which may happen after __init__
+        self._class_hierarchy_initialized = False
+
+    def _update_class_hierarchy(self) -> None:
+        """Update class_hierarchy and known_interfaces from type_inference.
+        
+        This is called lazily since type_inference.class_hierarchy is populated
+        after analyzer.analyze() which may happen after __init__.
+        
+        Builds reverse hierarchy: parent -> [children]
+        """
+        if self._class_hierarchy_initialized:
+            return
+        
         if hasattr(self.type_inference, "class_hierarchy"):
+            # type_inference.class_hierarchy is: child -> [parents]
+            # We need to build reverse: parent -> [children]
             for child, parents in self.type_inference.class_hierarchy.items():
                 for parent in parents:
                     if parent not in self.class_hierarchy:
@@ -112,6 +130,8 @@ class TranslatorStateMixin:
                         self.class_hierarchy[parent].append(child)
                     # Any class that has a child is a potential interface
                     self.known_interfaces.add(parent)
+        
+        self._class_hierarchy_initialized = True
 
     def _get_source_info(self, node: Optional[ast.AST] = None) -> str:
         """Returns formatted source information for the given node or current_node."""

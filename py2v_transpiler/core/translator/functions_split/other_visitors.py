@@ -20,7 +20,7 @@ class OtherFunctionVisitorsMixin(TranslatorBase):
         #
         # IMPORTANT: arguments.defaults covers the LAST N args of the combined
         # posonlyargs + args list, not just args. Use the combined list here.
-        defaults_map = {}
+        defaults_map: dict[str, ast.expr] = {}
         if node.args.defaults:
             posonly = list(getattr(node.args, 'posonlyargs', []))
             positional = posonly + list(node.args.args)
@@ -45,9 +45,9 @@ class OtherFunctionVisitorsMixin(TranslatorBase):
             arg_name = self._sanitize_name(arg.arg)
 
             # Detect i=i pattern: default is ast.Name whose id matches arg name
-            if (arg.arg in defaults_map
-                    and isinstance(defaults_map[arg.arg], ast.Name)
-                    and defaults_map[arg.arg].id == arg.arg):
+            default_expr = defaults_map.get(arg.arg)
+            if (isinstance(default_expr, ast.Name)
+                    and default_expr.id == arg.arg):
                 extra_captures.append(arg_name)
                 continue
 

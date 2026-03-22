@@ -29,6 +29,9 @@ class VNodeVisitor(
     TranslatorBase
 ):
     def visit(self, node: ast.AST) -> Any:
+        # Ensure class hierarchy is updated from type_inference before processing
+        self._update_class_hierarchy()
+        
         self.parent_stack.append(node)
         prev_node = self.current_node
         self.current_node = node
@@ -94,7 +97,6 @@ class VNodeVisitor(
         self.loop_stack: List[Dict[str, Any]] = [] # Stack of active loops for break/continue tracking
         self.unique_id_counter: int = 0
         self.vexc_depth: int = 0
-        self.parent_stack: List[ast.AST] = []
         self.parent_stack: List[ast.AST] = []
         self.mapper = StdLibMapper()
         self.imported_symbols: Dict[str, str] = {} # alias -> module_name.symbol

@@ -482,7 +482,7 @@ class AssignmentsMixin(TranslatorBase):
         positional = posonly + list(args.args)
 
         # Build defaults_map for positional args (last N of positional list)
-        defaults_map: Dict[str, ast.AST] = {}
+        defaults_map: Dict[str, ast.expr] = {}
         if args.defaults:
             defaults_start = len(positional) - len(args.defaults)
             for idx, default in enumerate(args.defaults):
@@ -496,7 +496,7 @@ class AssignmentsMixin(TranslatorBase):
 
         # Determine which args are i=i capture-by-value (Issue #35).
         # Those are NOT real callable parameters — skip them.
-        capture_names: set = set()
+        capture_names: Set[str] = set()
         for arg_name, default in defaults_map.items():
             if isinstance(default, ast.Name) and default.id == arg_name:
                 capture_names.add(arg_name)

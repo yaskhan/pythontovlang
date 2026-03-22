@@ -379,7 +379,7 @@ class TypeGuessingMixin:
         Returns a string like 'fn(int) int' for use as array element type.
         """
         # arguments.defaults covers the LAST N args of posonlyargs + args combined.
-        defaults_map: Dict[str, ast.AST] = {}
+        defaults_map: Dict[str, ast.expr] = {}
         if node.args.defaults:
             posonly = list(getattr(node.args, 'posonlyargs', []))
             positional = posonly + list(node.args.args)
@@ -396,9 +396,9 @@ class TypeGuessingMixin:
         param_types: List[str] = []
         for arg in all_args:
             # Skip i=i capture-by-value args — not parameters in V
-            if (arg.arg in defaults_map
-                    and isinstance(defaults_map[arg.arg], ast.Name)
-                    and defaults_map[arg.arg].id == arg.arg):
+            default_expr = defaults_map.get(arg.arg)
+            if (isinstance(default_expr, ast.Name)
+                    and default_expr.id == arg.arg):
                 continue
             arg_type = "int"
             if hasattr(self, "type_inference") and hasattr(self.type_inference, "type_map"):
