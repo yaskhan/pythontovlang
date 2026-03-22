@@ -16,7 +16,10 @@ pub fn analyze_member_access(name string, typ MypyTypeNode, context Context, is_
 	} else if typ is AnyType {
 		return MypyTypeNode(AnyType{type_of_any: typ.type_of_any})
 	} else if typ is UnionType {
-		// return analyze_union_member_access
+		return analyze_union_member_access(name, typ, context, is_lvalue, original_type, chk)
+	} else if typ is TupleType {
+		// Tuple has methods like count, index. Map everything to Tuple's fallback Instance.
+		return analyze_member_access(name, MypyTypeNode(typ.tuple_fallback()), context, is_lvalue, is_super, is_operator, original_type, chk, in_literal_context)
 	}
 	
 	if result is AnyType {
@@ -82,4 +85,17 @@ pub fn analyze_member_var_access(name string, itype Instance, info &TypeInfo, mx
 	
 	chk.msg.fail("Has no attribute '\${name}'", mx, false, false, none)
 	return MypyTypeNode(AnyType{type_of_any: .from_error})
+}
+
+pub fn analyze_union_member_access(name string, typ UnionType, mx Context, is_lvalue bool, original_type MypyTypeNode, chk &TypeChecker) MypyTypeNode {
+	mut results := []MypyTypeNode{}
+	
+	for subtype in typ.items {
+		// Рекурсивно вызываем analyze_member_access для каждого элемента объединения
+		res := analyze_member_access(name, subtype, mx, is_lvalue, false, false, subtype, chk, false)
+		results << res
+	}
+	
+	// Возвращаем склеенный (simplified) Union из результатов. Но в нашей реализации это пока просто UnionType
+	return MypyTypeNode(UnionType{items: results})
 }

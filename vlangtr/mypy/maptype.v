@@ -36,7 +36,7 @@ pub fn map_instance_to_supertype(instance Instance, superclass TypeInfo) Instanc
 	if superclass.type_vars.len == 0 {
 		return Instance{
 			type_name: superclass.fullname
-			args: []
+			args:      []
 		}
 	}
 
@@ -77,7 +77,7 @@ pub fn map_instance_to_supertypes(instance Instance, supertype TypeInfo) []Insta
 		}
 		return [Instance{
 			type_name: supertype.fullname
-			args: args
+			args:      args
 		}]
 	}
 }
@@ -97,11 +97,15 @@ pub fn class_derivation_paths(typ TypeInfo, supertype TypeInfo) [][]TypeInfo {
 
 	for base in typ.bases {
 		if base.fullname == supertype.fullname {
-			result << [TypeInfo{fullname: base.fullname}]
+			result << [TypeInfo{
+				fullname: base.fullname
+			}]
 		} else {
 			// Try constructing a longer path via the base class.
-			for path in class_derivation_paths(TypeInfo{fullname: base.fullname}, supertype) {
-				mut new_path := [TypeInfo{fullname: base.fullname}]
+			for path in class_derivation_paths(TypeInfo{ fullname: base.fullname }, supertype) {
+				mut new_path := [TypeInfo{
+					fullname: base.fullname
+				}]
 				new_path << path
 				result << new_path
 			}
@@ -126,7 +130,7 @@ pub fn map_instance_to_direct_supertypes(instance Instance, supertype TypeInfo) 
 			// with the type arguments from the base
 			result << Instance{
 				type_name: supertype.fullname
-				args: b.args
+				args:      b.args
 			}
 		}
 	}
@@ -145,7 +149,7 @@ pub fn map_instance_to_direct_supertypes(instance Instance, supertype TypeInfo) 
 		}
 		return [Instance{
 			type_name: supertype.fullname
-			args: args
+			args:      args
 		}]
 	}
 }

@@ -36,14 +36,21 @@
 | `mro.py` | `mypy/mro.v` | ✅ Полностью (C3 linearization для MRO) |
 | `literals.py` | `mypy/literals.v` | ✅ Полностью (literal_hash, _Hasher visitor) |
 | `typevars.py` | `mypy/typevars.v` | ✅ Полностью (fill_typevars, fill_typevars_with_any, has_no_typevars) |
+| `tvar_scope.py` | `mypy/tvar_scope.v` | ✅ Полностью (TypeVarLikeScope, TypeVarLikeDefaultFixer) |
 | `erasetype.py` | `mypy/erasetype.v` | ✅ Полностью (erase_type, erase_typevars, TypeVarEraser, LastKnownValueEraser) |
+| `typestate.py` | `mypy/typestate.v` | ✅ Полностью (TypeState, subtype caches, protocol dependencies) |
 | `build.py` | `mypy/build.v` | 📝 Полуготово: State, BuildManager, SCC, BuildResult, topological sort |
 | `infer.py` | `mypy/infer.v` | 📝 Заглушки: `infer_type_arguments`, `infer_function_type_arguments`, `Constraint` |
+| `solve.py` | `mypy/solve.v` | 📝 Решатель ограничений (solve_one, join of lowers, meet of uppers) |
 | `copytype.py` | `mypy/copytype.v` | ✅ Полностью (copy_type, TypeShallowCopier через match) |
 | `maptype.py` | `mypy/maptype.v` | ✅ Полностью (map_instance_to_supertype, map_instance_to_supertypes, class_derivation_paths) |
+| `typevartuples.py` | `mypy/typevartuples.v` | ✅ Полностью (split_with_instance, erased_vars) |
+| `graph_utils.py` | `mypy/graph_utils.v` | ✅ Полностью (strongly_connected_components, prepare_sccs, TopSort) |
 | `meet.py` | `mypy/meet.v` | 📝 Базовые `meet_types`, `is_overlapping_types` |
 | `join.py` | `mypy/join.v` | 📝 Базовые `join_types`, `join_type_list` |
+| `subtypes.py` | `mypy/subtypes.v` | 📝 Основная логика `is_subtype` (Instance, Callable, Union) |
 | `checkpattern.py` | `mypy/checkpattern.v` | 📝 PatternChecker: `visit_match_stmt` |
+| `expandtype.py` | `mypy/expandtype.v` | 📝 Подстановка `TypeVar` через контекст инстанса (`expand_type`) |
 
 ---
 

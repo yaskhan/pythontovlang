@@ -4,10 +4,8 @@
 
 module mypy
 
-const (
-	max_negative_cache_types   = 1000
-	max_negative_cache_entries = 10000
-)
+const max_negative_cache_types = 1000
+const max_negative_cache_entries = 10000
 
 // SubtypeKind represents the conditions under which we performed the subtype check.
 // (e.g. did we want a proper subtype? A regular subtype while ignoring variance?)
@@ -30,31 +28,31 @@ pub struct TypeState {
 pub mut:
 	// '_subtype_caches' keeps track of (subtype, supertype) pairs where supertypes are
 	// instances of the given TypeInfo.
-	_subtype_caches        SubtypeCache
+	_subtype_caches          SubtypeCache
 	_negative_subtype_caches SubtypeCache
-	
+
 	// This contains protocol dependencies generated after running a full build.
 	proto_deps map[string]map[string]bool
-	
+
 	// Protocols (full names) a given class attempted to implement.
-	_attempted_protocols   map[string]map[string]bool
+	_attempted_protocols     map[string]map[string]bool
 	_checked_against_members map[string]map[string]bool
-	
+
 	// TypeInfos that appeared as a left type (subtype) in a subtype check.
-	_rechecked_types       map[TypeInfo]bool
-	
+	_rechecked_types map[TypeInfo]bool
+
 	// Assumption stacks for subtyping relationships between recursive type aliases.
-	_assuming              []TypePair
-	_assuming_proper       []TypePair
-	
+	_assuming        []TypePair
+	_assuming_proper []TypePair
+
 	// For inference of generic constraints against recursive type aliases.
-	inferring              []TypePair
-	
+	inferring []TypePair
+
 	// Whether to use unions when solving constraints.
-	infer_unions           bool
-	
+	infer_unions bool
+
 	// Whether to use new type inference algorithm that can infer polymorphic types.
-	infer_polymorphic      bool
+	infer_polymorphic bool
 }
 
 // TypePair represents a pair of types for assumptions.
@@ -66,17 +64,17 @@ pub struct TypePair {
 // new_type_state creates a new TypeState instance.
 pub fn new_type_state() TypeState {
 	return TypeState{
-		_subtype_caches:        map[TypeInfo]map[SubtypeKind][]SubtypePair{}
+		_subtype_caches:          map[TypeInfo]map[SubtypeKind][]SubtypePair{}
 		_negative_subtype_caches: map[TypeInfo]map[SubtypeKind][]SubtypePair{}
-		proto_deps:             map[string]map[string]bool{}
-		_attempted_protocols:   map[string]map[string]bool{}
+		proto_deps:               map[string]map[string]bool{}
+		_attempted_protocols:     map[string]map[string]bool{}
 		_checked_against_members: map[string]map[string]bool{}
-		_rechecked_types:       map[TypeInfo]bool{}
-		_assuming:              []TypePair{}
-		_assuming_proper:       []TypePair{}
-		inferring:              []TypePair{}
-		infer_unions:           false
-		infer_polymorphic:      false
+		_rechecked_types:         map[TypeInfo]bool{}
+		_assuming:                []TypePair{}
+		_assuming_proper:         []TypePair{}
+		inferring:                []TypePair{}
+		infer_unions:             false
+		infer_polymorphic:        false
 	}
 }
 
@@ -96,7 +94,8 @@ type_state := TypeState{}
 pub fn (mut ts TypeState) is_assumed_subtype(left Type, right Type) bool {
 	for i := ts._assuming.len - 1; i >= 0; i-- {
 		pair := ts._assuming[i]
-		if get_proper_type(pair.left) == get_proper_type(left) && get_proper_type(pair.right) == get_proper_type(right) {
+		if get_proper_type(pair.left) == get_proper_type(left)
+			&& get_proper_type(pair.right) == get_proper_type(right) {
 			return true
 		}
 	}
@@ -107,7 +106,8 @@ pub fn (mut ts TypeState) is_assumed_subtype(left Type, right Type) bool {
 pub fn (mut ts TypeState) is_assumed_proper_subtype(left Type, right Type) bool {
 	for i := ts._assuming_proper.len - 1; i >= 0; i-- {
 		pair := ts._assuming_proper[i]
-		if get_proper_type(pair.left) == get_proper_type(left) && get_proper_type(pair.right) == get_proper_type(right) {
+		if get_proper_type(pair.left) == get_proper_type(left)
+			&& get_proper_type(pair.right) == get_proper_type(right) {
 			return true
 		}
 	}
@@ -198,7 +198,10 @@ pub fn (mut ts TypeState) record_subtype_cache_entry(kind SubtypeKind, left Inst
 	if kind !in cache {
 		cache[kind] = []SubtypePair{}
 	}
-	cache[kind] << SubtypePair{left: left, right: right}
+	cache[kind] << SubtypePair{
+		left:  left
+		right: right
+	}
 }
 
 // record_negative_subtype_cache_entry records a negative subtype cache entry.
@@ -220,7 +223,10 @@ pub fn (mut ts TypeState) record_negative_subtype_cache_entry(kind SubtypeKind, 
 	if subcache.len > max_negative_cache_entries {
 		cache[kind] = []SubtypePair{}
 	}
-	cache[kind] << SubtypePair{left: left, right: right}
+	cache[kind] << SubtypePair{
+		left:  left
+		right: right
+	}
 }
 
 // reset_protocol_deps resets dependencies after a full run or before a daemon shutdown.
@@ -239,7 +245,7 @@ pub fn (mut ts TypeState) record_protocol_subtype_check(left_type TypeInfo, righ
 		ts._attempted_protocols[left_type.fullname] = map[string]bool{}
 	}
 	ts._attempted_protocols[left_type.fullname][right_type.fullname] = true
-	
+
 	if left_type.fullname !in ts._checked_against_members {
 		ts._checked_against_members[left_type.fullname] = map[string]bool{}
 	}
@@ -259,21 +265,27 @@ pub fn (mut ts TypeState) update_protocol_deps(second_map ?map[string]map[string
 			ts.proto_deps[trigger][target] = true
 		}
 	}
+
 	if second_map != none {
-		sm := second_map!
-		for trigger in new_deps.keys() {
-			targets := new_deps[trigger]
-			if trigger !in sm {
-				sm[trigger] = map[string]bool{}
-			}
-			for target in targets.keys() {
-				sm[trigger][target] = true
-			}
-		}
+		sm := second_map or { return }
+		ts.update_second_map(sm, new_deps)
 	}
+
 	ts._rechecked_types.clear()
 	ts._attempted_protocols.clear()
 	ts._checked_against_members.clear()
+}
+
+// update_second_map updates the second map with new dependencies.
+fn (mut ts TypeState) update_second_map(sm map[string]map[string]bool, new_deps map[string]map[string]bool) {
+	for trigger, targets in new_deps {
+		if trigger !in sm {
+			sm[trigger] = map[string]bool{}
+		}
+		for target in targets {
+			sm[trigger][target] = true
+		}
+	}
 }
 
 // snapshot_protocol_deps collects protocol attribute dependencies.
@@ -282,7 +294,7 @@ pub fn (mut ts TypeState) snapshot_protocol_deps() map[string]map[string]bool {
 	for info in ts._rechecked_types.keys() {
 		checked := ts._checked_against_members[info.fullname] or { continue }
 		for attr in checked.keys() {
-			for base_info in info.mro[..info.mro.len-1] {
+			for base_info in info.mro[..info.mro.len - 1] {
 				trigger := make_trigger('${base_info.fullname}.${attr}')
 				if 'typing' in trigger || 'builtins' in trigger {
 					continue
