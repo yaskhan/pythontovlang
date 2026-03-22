@@ -263,6 +263,19 @@ pub mut:
 	glob_options     []GlobOption
 }
 
+pub struct BuildSource {
+pub mut:
+    path     string
+    module   string
+    base_dir string
+}
+
+pub type BuildResult = []BuildSource | string
+
+pub struct FileSystemCache {
+// Placeholder
+}
+
 
 pub fn Options.new() Options {
 	mut o := Options{}

@@ -1,45 +1,50 @@
-// Я Antigravity работаю над этим файлом. Начало: 2026-03-22 03:10
+// error_formatter.v — Different custom formats in which mypy can output
+// Translated from mypy/error_formatter.py to V 0.5.x
+//
+// Я Antigravity работаю над этим файлом. Начало: 2026-03-22 16:30
+
 module mypy
 
 import json
 
-// ErrorFormatter describes how a single mypy error is serialized.
-pub interface ErrorFormatter {
-	report_error(err &ErrorInfo) string
+// MypyError — структура ошибки mypy
+pub struct MypyError {
+pub mut:
+	file_path  string
+	line       int
+	column     int
+	end_line   ?int
+	end_column ?int
+	message    string
+	hints      []string
+	errorcode  ?string
+	severity   string
 }
 
-// JSONFormatter emits one static JSON object per error.
+// ErrorFormatter — интерфейс для форматирования ошибок
+pub interface ErrorFormatter {
+	report_error(error MypyError) string
+}
+
+// JSONFormatter — форматирование ошибок в JSON
 pub struct JSONFormatter {}
 
-struct JsonErrorLine {
-	file       string  @[json: file]
-	line       int     @[json: line]
-	column     int     @[json: column]
-	end_line   int     @[json: end_line]
-	end_column int     @[json: end_column]
-	message    string  @[json: message]
-	hint       ?string @[json: hint]
-	code       ?string @[json: code]
-	severity   string  @[json: severity]
+// report_error форматирует ошибку как JSON строку
+pub fn (f JSONFormatter) report_error(error MypyError) string {
+	// В V json.encode можно вызывать напрямую на структурах
+	return json.encode(error)
 }
 
-pub fn (f JSONFormatter) report_error(err &ErrorInfo) string {
-	// В ErrorInfo нет hints, используем message
-	return json.encode(JsonErrorLine{
-		file:       err.file
-		line:       err.line
-		column:     err.column
-		end_line:   err.end_line
-		end_column: err.end_column
-		message:    err.message
-		hint:       none
-		code:       err.code
-		severity:   err.severity
-	})
-}
+// OUTPUT_CHOICES — доступные варианты вывода
+// В V константные мапы объявляются по-другому, если это интерфейсы.
+// pub const output_choices = {
+// 	'json': JSONFormatter{}
+// }
 
-pub fn output_choices() map[string]ErrorFormatter {
-	return {
-		'json': ErrorFormatter(JSONFormatter{})
+// get_formatter возвращает форматтер по имени
+pub fn get_formatter(name string) ?ErrorFormatter {
+	if name == 'json' {
+		return ErrorFormatter(JSONFormatter{})
 	}
+	return none
 }

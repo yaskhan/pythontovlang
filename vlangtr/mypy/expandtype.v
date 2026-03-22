@@ -1,4 +1,5 @@
 // Я Cline работаю над этим файлом. Начало: 2026-03-22 15:48
+// Version: 5377
 // expandtype.v — Substitute type variables in types
 // Переведён из mypy/expandtype.py
 
@@ -8,280 +9,264 @@ module mypy
 // согласно окружению типов
 pub fn expand_type(typ MypyTypeNode, env map[TypeVarId]MypyTypeNode) MypyTypeNode {
 	mut v := ExpandTypeVisitor{ variables: env }
-	return typ.accept_translator(mut v)
+    proper := get_proper_type(typ)
+    match proper {
+        AnyType { return v.visit_any(&proper) or { MypyTypeNode(AnyType{type_of_any: .from_error}) } }
+        CallableArgument { return v.visit_callable_argument(&proper) or { MypyTypeNode(AnyType{type_of_any: .from_error}) } }
+        CallableType { return v.visit_callable_type(&proper) or { MypyTypeNode(AnyType{type_of_any: .from_error}) } }
+        DeletedType { return v.visit_deleted_type(&proper) or { MypyTypeNode(AnyType{type_of_any: .from_error}) } }
+        EllipsisType { return v.visit_ellipsis_type(&proper) or { MypyTypeNode(AnyType{type_of_any: .from_error}) } }
+        ErasedType { return v.visit_erased_type(&proper) or { MypyTypeNode(AnyType{type_of_any: .from_error}) } }
+        Instance { return v.visit_instance(&proper) or { MypyTypeNode(AnyType{type_of_any: .from_error}) } }
+        LiteralType { return v.visit_literal_type(&proper) or { MypyTypeNode(AnyType{type_of_any: .from_error}) } }
+        NoneType { return v.visit_none_type(&proper) or { MypyTypeNode(AnyType{type_of_any: .from_error}) } }
+        Overloaded { return v.visit_overloaded(&proper) or { MypyTypeNode(AnyType{type_of_any: .from_error}) } }
+        ParamSpecType { return v.visit_param_spec(&proper) or { MypyTypeNode(AnyType{type_of_any: .from_error}) } }
+        ParametersType { return v.visit_parameters(&proper) or { MypyTypeNode(AnyType{type_of_any: .from_error}) } }
+        PartialTypeT { return v.visit_partial_type(&proper) or { MypyTypeNode(AnyType{type_of_any: .from_error}) } }
+        PlaceholderType { return v.visit_placeholder_type(&proper) or { MypyTypeNode(AnyType{type_of_any: .from_error}) } }
+        RawExpressionType { return v.visit_raw_expression_type(&proper) or { MypyTypeNode(AnyType{type_of_any: .from_error}) } }
+        TupleType { return v.visit_tuple_type(&proper) or { MypyTypeNode(AnyType{type_of_any: .from_error}) } }
+        TypeAliasType { return v.visit_type_alias_type(&proper) or { MypyTypeNode(AnyType{type_of_any: .from_error}) } }
+        TypeList { return v.visit_type_list(&proper) or { MypyTypeNode(AnyType{type_of_any: .from_error}) } }
+        TypeType { return v.visit_type_type(&proper) or { MypyTypeNode(AnyType{type_of_any: .from_error}) } }
+        TypeVarTupleType { return v.visit_type_var_tuple(&proper) or { MypyTypeNode(AnyType{type_of_any: .from_error}) } }
+        TypeVarType { return v.visit_type_var(&proper) or { MypyTypeNode(AnyType{type_of_any: .from_error}) } }
+        UnboundType { return v.visit_unbound_type(&proper) or { MypyTypeNode(AnyType{type_of_any: .from_error}) } }
+        UninhabitedType { return v.visit_uninhabited_type(&proper) or { MypyTypeNode(AnyType{type_of_any: .from_error}) } }
+        UnionType { return v.visit_union_type(&proper) or { MypyTypeNode(AnyType{type_of_any: .from_error}) } }
+        UnpackType { return v.visit_unpack_type(&proper) or { MypyTypeNode(AnyType{type_of_any: .from_error}) } }
+        else { return MypyTypeNode(AnyType{type_of_any: .from_error}) }
+    }
 }
 
-// expand_type_by_instance подставляет типовые переменные в типе
-// используя значения из Instance
 pub fn expand_type_by_instance(typ MypyTypeNode, instance Instance) MypyTypeNode {
-	if instance.args.len == 0 && !(instance.typ or { return typ }).has_type_var_tuple_type {
+	if instance.args.len == 0 { // Simplification
 		return typ
 	}
-
 	mut variables := map[TypeVarId]MypyTypeNode{}
-
-	if (instance.typ or { return typ }).has_type_var_tuple_type {
-		// TODO: обработка TypeVarTuple
-		return typ
-	} else {
-		for i, binder in (instance.typ or { return typ }).defn.type_vars {
-			if i < instance.args.len {
-				variables[binder.id] = instance.args[i]
-			}
-		}
-	}
-
+    binders := (instance.type_.defn or { return typ }).type_vars
+    for i, binder in binders {
+        if i < instance.args.len {
+            proper_binder := get_proper_type(binder)
+            if id := extract_type_var_id(proper_binder) {
+                variables[id] = instance.args[i]
+            }
+        }
+    }
 	return expand_type(typ, variables)
 }
 
-// freshen_function_type_vars подставляет свежие типовые переменные
-// для обобщённых функций
-pub fn freshen_function_type_vars(callee CallableType) CallableType {
-	if !callee.is_generic() {
-		return callee
-	}
-	mut tvs := []TypeVarLikeType{}
+pub fn freshen_function_type_vars(callee &CallableType) CallableType {
+	if !callee.is_generic() { return *callee }
+	mut tvs := []MypyTypeNode{}
 	mut tvmap := map[TypeVarId]MypyTypeNode{}
-
 	for v in callee.variables {
-		tv := v.new_unification_variable(v)
+		proper_v := get_proper_type(v)
+		tv := new_unification_variable(proper_v)
 		tvs << tv
-		tvmap[v.id] = tv
+        if id := extract_type_var_id(proper_v) {
+            tvmap[id] = tv
+        }
 	}
-
-	mut fresh := expand_type(callee, tvmap)
-	if fresh is CallableType {
-		return fresh.copy_modified(CallableCopyArgs{variables: tvs})
-	}
-	return callee
+	res := expand_type(MypyTypeNode(*callee), tvmap)
+	proper_res := get_proper_type(res)
+    if proper_res is CallableType {
+        // redundant 'as' removal
+        return proper_res.copy_modified(variables: tvs)
+    }
+	return *callee
 }
 
-// freshen_all_functions_type_vars обновляет все обобщённые функции в типе
 pub fn freshen_all_functions_type_vars(t MypyTypeNode) MypyTypeNode {
-	if !has_generic_callable(t) {
-		return t
-	}
+	if !has_generic_callable(t) { return t }
 	mut v := FreshenCallableVisitor{}
-	return t.accept_translator(mut v)
+    proper := get_proper_type(t)
+    match proper {
+        AnyType { return v.visit_any(&proper) or { t } }
+        CallableArgument { return v.visit_callable_argument(&proper) or { t } }
+        CallableType { return v.visit_callable_type(&proper) or { t } }
+        DeletedType { return v.visit_deleted_type(&proper) or { t } }
+        EllipsisType { return v.visit_ellipsis_type(&proper) or { t } }
+        ErasedType { return v.visit_erased_type(&proper) or { t } }
+        Instance { return v.visit_instance(&proper) or { t } }
+        LiteralType { return v.visit_literal_type(&proper) or { t } }
+        NoneType { return v.visit_none_type(&proper) or { t } }
+        Overloaded { return v.visit_overloaded(&proper) or { t } }
+        ParamSpecType { return v.visit_param_spec(&proper) or { t } }
+        ParametersType { return v.visit_parameters(&proper) or { t } }
+        PartialTypeT { return v.visit_partial_type(&proper) or { t } }
+        PlaceholderType { return v.visit_placeholder_type(&proper) or { t } }
+        RawExpressionType { return v.visit_raw_expression_type(&proper) or { t } }
+        TupleType { return v.visit_tuple_type(&proper) or { t } }
+        TypeAliasType { return v.visit_type_alias_type(&proper) or { t } }
+        TypeList { return v.visit_type_list(&proper) or { t } }
+        TypeType { return v.visit_type_type(&proper) or { t } }
+        TypeVarTupleType { return v.visit_type_var_tuple(&proper) or { t } }
+        TypeVarType { return v.visit_type_var(&proper) or { t } }
+        UnboundType { return v.visit_unbound_type(&proper) or { t } }
+        UninhabitedType { return v.visit_uninhabited_type(&proper) or { t } }
+        UnionType { return v.visit_union_type(&proper) or { t } }
+        UnpackType { return v.visit_unpack_type(&proper) or { t } }
+        else { return t }
+    }
 }
 
-// has_generic_callable проверяет, содержит ли тип обобщённый callable
 pub fn has_generic_callable(t MypyTypeNode) bool {
-	if t is CallableType {
-		return t.is_generic()
-	}
-	// TODO: рекурсивная проверка для других типов
+    proper := get_proper_type(t)
+    if proper is CallableType {
+        // redundant 'as' removal
+        return proper.is_generic()
+    }
 	return false
 }
 
-// ExpandTypeVisitor — посетитель для подстановки типовых переменных
+// ---------------------------------------------------------------------------
+// ExpandTypeVisitor
+// ---------------------------------------------------------------------------
+
 pub struct ExpandTypeVisitor {
-pub:
+mut:
 	variables map[TypeVarId]MypyTypeNode
 }
 
-// visit_unbound_type обрабатывает UnboundType
-pub fn (v ExpandTypeVisitor) visit_unbound_type(t &UnboundType) MypyTypeNode {
-	return t
+pub fn (mut v ExpandTypeVisitor) expand_types(types []MypyTypeNode) []MypyTypeNode {
+	mut res := []MypyTypeNode{}
+	for tv in types { res << expand_type(tv, v.variables) }
+	return res
 }
 
-// visit_any обрабатывает AnyType
-pub fn (v ExpandTypeVisitor) visit_any(t &AnyType) MypyTypeNode {
-	return t
-}
+pub fn (mut v ExpandTypeVisitor) visit_unbound_type(t &UnboundType) !MypyTypeNode { return MypyTypeNode(*t) }
+pub fn (mut v ExpandTypeVisitor) visit_any(t &AnyType) !MypyTypeNode { return MypyTypeNode(*t) }
+pub fn (mut v ExpandTypeVisitor) visit_none_type(t &NoneType) !MypyTypeNode { return MypyTypeNode(*t) }
+pub fn (mut v ExpandTypeVisitor) visit_uninhabited_type(t &UninhabitedType) !MypyTypeNode { return MypyTypeNode(*t) }
+pub fn (mut v ExpandTypeVisitor) visit_erased_type(t &ErasedType) !MypyTypeNode { return MypyTypeNode(*t) }
+pub fn (mut v ExpandTypeVisitor) visit_deleted_type(t &DeletedType) !MypyTypeNode { return MypyTypeNode(*t) }
 
-// visit_none_type обрабатывает NoneType
-pub fn (v ExpandTypeVisitor) visit_none_type(t &NoneType) MypyTypeNode {
-	return t
-}
-
-// visit_uninhabited_type обрабатывает UninhabitedType (Never)
-pub fn (v ExpandTypeVisitor) visit_uninhabited_type(t &UninhabitedType) MypyTypeNode {
-	return t
-}
-
-// visit_deleted_type обрабатывает DeletedType
-pub fn (v ExpandTypeVisitor) visit_deleted_type(t &DeletedType) MypyTypeNode {
-	return t
-}
-
-// visit_erased_type обрабатывает ErasedType
-pub fn (v ExpandTypeVisitor) visit_erased_type(t &ErasedType) MypyTypeNode {
-	return t
-}
-
-// visit_instance обрабатывает Instance
-pub fn (v ExpandTypeVisitor) visit_instance(t &Instance) MypyTypeNode {
-	if t.args.len == 0 {
-		return t
-	}
-
+pub fn (mut v ExpandTypeVisitor) visit_instance(t &Instance) !MypyTypeNode {
+	if t.args.len == 0 { return MypyTypeNode(*t) }
 	args := v.expand_types(t.args)
-	return t.copy_modified(args: args)
+	return MypyTypeNode(t.copy_modified(args: args, last_known_value: none))
 }
 
-// visit_type_var обрабатывает TypeVar
-pub fn (v ExpandTypeVisitor) visit_type_var(t &TypeVarType) MypyTypeNode {
-	repl := v.variables[t.id] or { return t }
-	if repl is Instance {
-		return repl.copy_modified(last_known_value: none)
-	}
+pub fn (mut v ExpandTypeVisitor) visit_type_var(t &TypeVarType) !MypyTypeNode {
+	repl := v.variables[t.id] or { return MypyTypeNode(*t) }
+	proper_repl := get_proper_type(repl)
+    if proper_repl is Instance {
+        return MypyTypeNode(proper_repl.copy_modified(args: proper_repl.args, last_known_value: none))
+    }
 	return repl
 }
 
-// visit_param_spec обрабатывает ParamSpec
-pub fn (v ExpandTypeVisitor) visit_param_spec(t &ParamSpecType) MypyTypeNode {
-	repl := v.variables[t.id] or { return t }
+pub fn (mut v ExpandTypeVisitor) visit_param_spec(t &ParamSpecType) !MypyTypeNode {
+	repl := v.variables[t.id] or { return MypyTypeNode(*t) }
 	return repl
 }
 
-// visit_type_var_tuple обрабатывает TypeVarTuple
-pub fn (v ExpandTypeVisitor) visit_type_var_tuple(t &TypeVarTupleType) MypyTypeNode {
-	repl := v.variables[t.id] or { return t }
-	if repl is TypeVarTupleType {
-		return repl
-	}
-	return t
+pub fn (mut v ExpandTypeVisitor) visit_parameters(t &ParametersType) !MypyTypeNode { return MypyTypeNode(*t) }
+pub fn (mut v ExpandTypeVisitor) visit_type_var_tuple(t &TypeVarTupleType) !MypyTypeNode {
+	repl := v.variables[t.id] or { return MypyTypeNode(*t) }
+	return repl
 }
 
-// visit_callable_type обрабатывает CallableType
-pub fn (v ExpandTypeVisitor) visit_callable_type(t &CallableType) MypyTypeNode {
+pub fn (mut v ExpandTypeVisitor) visit_callable_type(t &CallableType) !MypyTypeNode {
 	arg_types := v.expand_types(t.arg_types)
-	ret_type := t.ret_type.accept_translator(mut v)
-
-	return t.copy_modified(
-		arg_types: arg_types
-		ret_type:  ret_type
-	)
+	res_typ := expand_type(t.ret_type, v.variables)
+	return MypyTypeNode(t.copy_modified(arg_types: arg_types, ret_type: res_typ, variables: t.variables))
 }
 
-// visit_overloaded обрабатывает Overloaded
-pub fn (v ExpandTypeVisitor) visit_overloaded(t &OverloadedNode) MypyTypeNode {
-	mut items := []CallableType{}
+pub fn (mut v ExpandTypeVisitor) visit_overloaded(t &Overloaded) !MypyTypeNode {
+	mut items := []&CallableType{}
 	for item in t.items {
-		new_item := item.accept_translator(mut v)
-		if new_item is CallableType {
-			items << new_item
-		}
+		expanded := v.visit_callable_type(item)!
+		proper := get_proper_type(expanded)
+        if proper is CallableType {
+            // redundant 'as' removal
+            items << &proper
+        }
 	}
-	return OverloadedNode{
-		items: items
-	}
+	return MypyTypeNode(Overloaded{ items: items, line: t.line })
 }
 
-// visit_tuple_type обрабатывает TupleType
-pub fn (v ExpandTypeVisitor) visit_tuple_type(t &TupleType) MypyTypeNode {
+pub fn (mut v ExpandTypeVisitor) visit_tuple_type(t &TupleType) !MypyTypeNode {
 	items := v.expand_types(t.items)
-	fallback := t.partial_fallback.accept_translator(mut v)
-	if fallback is Instance {
-		return t.copy_modified(items: items, partial_fallback: fallback)
+	mut partial_fallback := t.partial_fallback
+	if pf := t.partial_fallback {
+		expanded_pf := v.visit_instance(pf)!
+        proper_pf := get_proper_type(expanded_pf)
+        if proper_pf is Instance {
+            // redundant 'as' removal
+            res := proper_pf
+            partial_fallback = &Instance{...res}
+        }
 	}
-	return t
+	return MypyTypeNode(t.copy_modified(items: items, partial_fallback: partial_fallback))
 }
 
-// visit_typeddict_type обрабатывает TypedDictType
-pub fn (v ExpandTypeVisitor) visit_typeddict_type(t &TypedDictType) MypyTypeNode {
-	mut item_types := []MypyTypeNode{}
-	for item in t.items.values() {
-		item_types << item.accept_translator(mut v)
-	}
-	fallback := t.fallback.accept_translator(mut v)
-	if fallback is Instance {
-		return t.copy_modified(item_types: item_types, fallback: fallback)
-	}
-	return t
+pub fn (mut v ExpandTypeVisitor) visit_typeddict_type(t &TypedDictType) !MypyTypeNode { return MypyTypeNode(*t) }
+pub fn (mut v ExpandTypeVisitor) visit_literal_type(t &LiteralType) !MypyTypeNode { return MypyTypeNode(*t) }
+pub fn (mut v ExpandTypeVisitor) visit_union_type(t &UnionType) !MypyTypeNode {
+	items := v.expand_types(t.items)
+	return MypyTypeNode(UnionType{ items: items, line: t.line, column: t.column })
 }
-
-// visit_literal_type обрабатывает LiteralType
-pub fn (v ExpandTypeVisitor) visit_literal_type(t &LiteralTypeNode) MypyTypeNode {
-	return t
+pub fn (mut v ExpandTypeVisitor) visit_partial_type(t &PartialTypeT) !MypyTypeNode { return MypyTypeNode(*t) }
+pub fn (mut v ExpandTypeVisitor) visit_type_type(t &TypeType) !MypyTypeNode {
+	item_typ := expand_type(t.item, v.variables)
+	return MypyTypeNode(TypeType{ item: item_typ, line: t.line, column: t.column })
 }
+pub fn (mut v ExpandTypeVisitor) visit_type_alias_type(t &TypeAliasType) !MypyTypeNode { return MypyTypeNode(*t) }
+pub fn (mut v ExpandTypeVisitor) visit_unpack_type(t &UnpackType) !MypyTypeNode { return MypyTypeNode(*t) }
+pub fn (mut v ExpandTypeVisitor) visit_callable_argument(t &CallableArgument) !MypyTypeNode { return MypyTypeNode(*t) }
+pub fn (mut v ExpandTypeVisitor) visit_ellipsis_type(t &EllipsisType) !MypyTypeNode { return MypyTypeNode(*t) }
+pub fn (mut v ExpandTypeVisitor) visit_placeholder_type(t &PlaceholderType) !MypyTypeNode { return MypyTypeNode(*t) }
+pub fn (mut v ExpandTypeVisitor) visit_raw_expression_type(t &RawExpressionType) !MypyTypeNode { return MypyTypeNode(*t) }
+pub fn (mut v ExpandTypeVisitor) visit_type_list(t &TypeList) !MypyTypeNode { return MypyTypeNode(*t) }
 
-// visit_union_type обрабатывает UnionType
-pub fn (v ExpandTypeVisitor) visit_union_type(t &UnionType) MypyTypeNode {
-	expanded := v.expand_types(t.items)
-	return make_union(expanded)
-}
+// ---------------------------------------------------------------------------
+// FreshenCallableVisitor
+// ---------------------------------------------------------------------------
 
-// visit_type_type обрабатывает TypeType
-pub fn (v ExpandTypeVisitor) visit_type_type(t &TypeType) MypyTypeNode {
-	item := t.item.accept_translator(mut v)
-	return TypeType.make_normalized(item)
-}
-
-// visit_type_alias_type обрабатывает TypeAliasType
-pub fn (v ExpandTypeVisitor) visit_type_alias_type(t &TypeAliasType) MypyTypeNode {
-	if t.args.len == 0 {
-		return t
-	}
-	args := v.expand_types(t.args)
-	return t.copy_modified(args: args)
-}
-
-// expand_types расширяет список типов
-pub fn (v ExpandTypeVisitor) expand_types(types []MypyTypeNode) []MypyTypeNode {
-	mut result := []MypyTypeNode{}
-	for t in types {
-		result << t.accept_translator(mut v)
-	}
-	return result
-}
-
-// FreshenCallableVisitor — посетитель для обновления callable типов
 pub struct FreshenCallableVisitor {}
 
-// visit_callable_type обновляет типовые переменные в CallableType
-pub fn (v FreshenCallableVisitor) visit_callable_type(t &CallableType) MypyTypeNode {
-	result := freshen_function_type_vars(t)
-	return result
+pub fn (mut v FreshenCallableVisitor) visit_unbound_type(t &UnboundType) !MypyTypeNode { return MypyTypeNode(*t) }
+pub fn (mut v FreshenCallableVisitor) visit_any(t &AnyType) !MypyTypeNode { return MypyTypeNode(*t) }
+pub fn (mut v FreshenCallableVisitor) visit_none_type(t &NoneType) !MypyTypeNode { return MypyTypeNode(*t) }
+pub fn (mut v FreshenCallableVisitor) visit_uninhabited_type(t &UninhabitedType) !MypyTypeNode { return MypyTypeNode(*t) }
+pub fn (mut v FreshenCallableVisitor) visit_erased_type(t &ErasedType) !MypyTypeNode { return MypyTypeNode(*t) }
+pub fn (mut v FreshenCallableVisitor) visit_deleted_type(t &DeletedType) !MypyTypeNode { return MypyTypeNode(*t) }
+pub fn (mut v FreshenCallableVisitor) visit_instance(t &Instance) !MypyTypeNode { return MypyTypeNode(*t) }
+pub fn (mut v FreshenCallableVisitor) visit_type_var(t &TypeVarType) !MypyTypeNode { return MypyTypeNode(*t) }
+pub fn (mut v FreshenCallableVisitor) visit_param_spec(t &ParamSpecType) !MypyTypeNode { return MypyTypeNode(*t) }
+pub fn (mut v FreshenCallableVisitor) visit_parameters(t &ParametersType) !MypyTypeNode { return MypyTypeNode(*t) }
+pub fn (mut v FreshenCallableVisitor) visit_type_var_tuple(t &TypeVarTupleType) !MypyTypeNode { return MypyTypeNode(*t) }
+
+pub fn (mut v FreshenCallableVisitor) visit_callable_type(t &CallableType) !MypyTypeNode {
+	if t.is_generic() { return MypyTypeNode(freshen_function_type_vars(t)) }
+	return MypyTypeNode(*t)
 }
 
-// expand_self_type раскрывает Self тип в типе переменной
-pub fn expand_self_type(var VarNode, typ MypyTypeNode, replacement MypyTypeNode) MypyTypeNode {
-	if var.info.self_type != none && !var.is_property {
-		self_type := var.info.self_type or { return typ }
-		return expand_type(typ, {
-			self_type.id: replacement
-		})
+pub fn (mut v FreshenCallableVisitor) visit_overloaded(t &Overloaded) !MypyTypeNode {
+	mut items := []&CallableType{}
+	for item in t.items {
+		expanded := v.visit_callable_type(item)!
+		proper := get_proper_type(expanded)
+        if proper is CallableType {
+            items << &proper
+        }
 	}
-	return typ
+	return MypyTypeNode(Overloaded{ items: items, line: t.line })
 }
 
-// remove_trivial упрощает список типов без вызова is_subtype
-pub fn remove_trivial(types []MypyTypeNode) []MypyTypeNode {
-	mut new_types := []MypyTypeNode{}
-	mut all_types := map[string]bool{}
-
-	for t in types {
-		p_t := get_proper_type(t)
-		if p_t is UninhabitedType {
-			continue
-		}
-		if p_t is Instance && p_t.typ.fullname == 'builtins.object' {
-			return [p_t]
-		}
-		key := p_t.str()
-		if key !in all_types {
-			new_types << t
-			all_types[key] = true
-		}
-	}
-
-	if new_types.len > 0 {
-		return new_types
-	}
-	return [UninhabitedType{}]
-}
-
-// Вспомогательные функции
-
-
-fn make_union(items []MypyTypeNode) MypyTypeNode {
-	if items.len == 1 {
-		return items[0]
-	}
-	return UnionType{
-		items: items
-	}
-}
-
+pub fn (mut v FreshenCallableVisitor) visit_tuple_type(t &TupleType) !MypyTypeNode { return MypyTypeNode(*t) }
+pub fn (mut v FreshenCallableVisitor) visit_typeddict_type(t &TypedDictType) !MypyTypeNode { return MypyTypeNode(*t) }
+pub fn (mut v FreshenCallableVisitor) visit_literal_type(t &LiteralType) !MypyTypeNode { return MypyTypeNode(*t) }
+pub fn (mut v FreshenCallableVisitor) visit_union_type(t &UnionType) !MypyTypeNode { return MypyTypeNode(*t) }
+pub fn (mut v FreshenCallableVisitor) visit_partial_type(t &PartialTypeT) !MypyTypeNode { return MypyTypeNode(*t) }
+pub fn (mut v FreshenCallableVisitor) visit_type_type(t &TypeType) !MypyTypeNode { return MypyTypeNode(*t) }
+pub fn (mut v FreshenCallableVisitor) visit_type_alias_type(t &TypeAliasType) !MypyTypeNode { return MypyTypeNode(*t) }
+pub fn (mut v FreshenCallableVisitor) visit_unpack_type(t &UnpackType) !MypyTypeNode { return MypyTypeNode(*t) }
+pub fn (mut v FreshenCallableVisitor) visit_callable_argument(t &CallableArgument) !MypyTypeNode { return MypyTypeNode(*t) }
+pub fn (mut v FreshenCallableVisitor) visit_ellipsis_type(t &EllipsisType) !MypyTypeNode { return MypyTypeNode(*t) }
+pub fn (mut v FreshenCallableVisitor) visit_placeholder_type(t &PlaceholderType) !MypyTypeNode { return MypyTypeNode(*t) }
+pub fn (mut v FreshenCallableVisitor) visit_raw_expression_type(t &RawExpressionType) !MypyTypeNode { return MypyTypeNode(*t) }
+pub fn (mut v FreshenCallableVisitor) visit_type_list(t &TypeList) !MypyTypeNode { return MypyTypeNode(*t) }

@@ -205,6 +205,96 @@ pub type MypyNode = AssignmentStmt
 	| TypeInfo
 	| Argument
 
+pub fn (n MypyNode) is_statement() bool {
+    match n {
+        AssignmentStmt, Block, BreakStmt, ClassDef, ContinueStmt, Decorator, DelStmt,
+        ExpressionStmt, ForStmt, FuncDef, GlobalDecl, IfStmt, Import, ImportAll,
+        ImportFrom, MatchStmt, NonlocalDecl, OperatorAssignmentStmt, OverloadedFuncDef,
+        PassStmt, RaiseStmt, ReturnStmt, TryStmt, TypeAliasStmt, WhileStmt, WithStmt { return true }
+        else { return false }
+    }
+}
+
+pub fn (n MypyNode) is_expression() bool {
+     match n {
+        AssignmentExpr, AwaitExpr, BytesExpr, CallExpr, CastExpr, ComparisonExpr,
+        ComplexExpr, DictExpr, DictComprehension, EllipsisExpr, EnumCallExpr,
+        FloatExpr, FormatStringExpr, GeneratorExpr, IndexExpr, IntExpr, LambdaExpr,
+        ListComprehension, ListExpr, MemberExpr, NameExpr, OpExpr, OverloadPartExpr,
+        PromoteExpr, RevealExpr, SetComprehension, SetExpr, SliceExpr, StarExpr,
+        StrExpr, SuperExpr, TupleExpr, TypeAliasExpr, TypeApplication, UnaryExpr,
+        YieldExpr, YieldFromExpr { return true }
+        else { return false }
+    }
+}
+
+pub fn (n MypyNode) as_statement() ?Statement {
+    match n {
+        AssignmentStmt { return Statement(n) }
+        Block { return Statement(n) }
+        BreakStmt { return Statement(n) }
+        ClassDef { return Statement(n) }
+        ContinueStmt { return Statement(n) }
+        Decorator { return Statement(n) }
+        DelStmt { return Statement(n) }
+        ExpressionStmt { return Statement(n) }
+        ForStmt { return Statement(n) }
+        FuncDef { return Statement(n) }
+        GlobalDecl { return Statement(n) }
+        IfStmt { return Statement(n) }
+        Import { return Statement(n) }
+        ImportAll { return Statement(n) }
+        ImportFrom { return Statement(n) }
+        MatchStmt { return Statement(n) }
+        NonlocalDecl { return Statement(n) }
+        WithStmt { return Statement(n) }
+        else { return none }
+    }
+}
+
+pub fn (n MypyNode) as_expression() ?Expression {
+    match n {
+        AssignmentExpr { return Expression(n) }
+        AwaitExpr { return Expression(n) }
+        BytesExpr { return Expression(n) }
+        CallExpr { return Expression(n) }
+        CastExpr { return Expression(n) }
+        ComparisonExpr { return Expression(n) }
+        ComplexExpr { return Expression(n) }
+        DictExpr { return Expression(n) }
+        DictComprehension { return Expression(n) }
+        EllipsisExpr { return Expression(n) }
+        EnumCallExpr { return Expression(n) }
+        FloatExpr { return Expression(n) }
+        FormatStringExpr { return Expression(n) }
+        GeneratorExpr { return Expression(n) }
+        IndexExpr { return Expression(n) }
+        IntExpr { return Expression(n) }
+        LambdaExpr { return Expression(n) }
+        ListComprehension { return Expression(n) }
+        ListExpr { return Expression(n) }
+        MemberExpr { return Expression(n) }
+        NameExpr { return Expression(n) }
+        OpExpr { return Expression(n) }
+        OverloadPartExpr { return Expression(n) }
+        PromoteExpr { return Expression(n) }
+        RevealExpr { return Expression(n) }
+        SetComprehension { return Expression(n) }
+        SetExpr { return Expression(n) }
+        SliceExpr { return Expression(n) }
+        StarExpr { return Expression(n) }
+        StrExpr { return Expression(n) }
+        SuperExpr { return Expression(n) }
+        TupleExpr { return Expression(n) }
+        TypeAliasExpr { return Expression(n) }
+        TypeApplication { return Expression(n) }
+        UnaryExpr { return Expression(n) }
+        YieldExpr { return Expression(n) }
+        YieldFromExpr { return Expression(n) }
+        else { return none }
+    }
+}
+
 // Block & basic statements
 // ---------------------------------------------------------------------------
 
@@ -270,34 +360,34 @@ pub fn (s Statement) get_context() Context {
 	}
 }
 
-pub fn (s Statement) accept(mut v NodeVisitor) !string {
-	return match s {
-		AssignmentStmt { v.visit_assignment_stmt(&s)! }
-		Block { v.visit_block(&s)! }
-		BreakStmt { v.visit_break_stmt(&s)! }
-		ClassDef { v.visit_class_def(&s)! }
-		ContinueStmt { v.visit_continue_stmt(&s)! }
-		Decorator { v.visit_decorator(&s)! }
-		DelStmt { v.visit_del_stmt(&s)! }
-		ExpressionStmt { v.visit_expression_stmt(&s)! }
-		ForStmt { v.visit_for_stmt(&s)! }
-		FuncDef { v.visit_func_def(&s)! }
-		GlobalDecl { v.visit_global_decl(&s)! }
-		IfStmt { v.visit_if_stmt(&s)! }
-		Import { v.visit_import(&s)! }
-		ImportAll { v.visit_import_all(&s)! }
-		ImportFrom { v.visit_import_from(&s)! }
-		MatchStmt { v.visit_match_stmt(&s)! }
-		NonlocalDecl { v.visit_nonlocal_decl(&s)! }
-		OperatorAssignmentStmt { v.visit_operator_assignment_stmt(&s)! }
-		OverloadedFuncDef { v.visit_overloaded_func_def(&s)! }
-		PassStmt { v.visit_pass_stmt(&s)! }
-		RaiseStmt { v.visit_raise_stmt(&s)! }
-		ReturnStmt { v.visit_return_stmt(&s)! }
-		TryStmt { v.visit_try_stmt(&s)! }
-		TypeAliasStmt { v.visit_type_alias_stmt(&s)! }
-		WhileStmt { v.visit_while_stmt(&s)! }
-		WithStmt { v.visit_with_stmt(&s)! }
+pub fn (mut s Statement) accept(mut v NodeVisitor) !string {
+	return match mut s {
+		AssignmentStmt { v.visit_assignment_stmt(mut s)! }
+		Block { v.visit_block(mut s)! }
+		BreakStmt { v.visit_break_stmt(mut s)! }
+		ClassDef { v.visit_class_def(mut s)! }
+		ContinueStmt { v.visit_continue_stmt(mut s)! }
+		Decorator { v.visit_decorator(mut s)! }
+		DelStmt { v.visit_del_stmt(mut s)! }
+		ExpressionStmt { v.visit_expression_stmt(mut s)! }
+		ForStmt { v.visit_for_stmt(mut s)! }
+		FuncDef { v.visit_func_def(mut s)! }
+		GlobalDecl { v.visit_global_decl(mut s)! }
+		IfStmt { v.visit_if_stmt(mut s)! }
+		Import { v.visit_import(mut s)! }
+		ImportAll { v.visit_import_all(mut s)! }
+		ImportFrom { v.visit_import_from(mut s)! }
+		MatchStmt { v.visit_match_stmt(mut s)! }
+		NonlocalDecl { v.visit_nonlocal_decl(mut s)! }
+		OperatorAssignmentStmt { v.visit_operator_assignment_stmt(mut s)! }
+		OverloadedFuncDef { v.visit_overloaded_func_def(mut s)! }
+		PassStmt { v.visit_pass_stmt(mut s)! }
+		RaiseStmt { v.visit_raise_stmt(mut s)! }
+		ReturnStmt { v.visit_return_stmt(mut s)! }
+		TryStmt { v.visit_try_stmt(mut s)! }
+		TypeAliasStmt { v.visit_type_alias_stmt(mut s)! }
+		WhileStmt { v.visit_while_stmt(mut s)! }
+		WithStmt { v.visit_with_stmt(mut s)! }
 	}
 }
 
@@ -393,53 +483,53 @@ pub fn (e Expression) get_context() Context {
 	}
 }
 
-pub fn (e Expression) accept(mut v NodeVisitor) !string {
-	return match e {
-		AssignmentExpr { v.visit_assignment_expr(&e)! }
-		AwaitExpr { v.visit_await_expr(&e)! }
-		BytesExpr { v.visit_bytes_expr(&e)! }
-		CallExpr { v.visit_call_expr(&e)! }
-		CastExpr { v.visit_cast_expr(&e)! }
-		ComparisonExpr { v.visit_comparison_expr(&e)! }
-		ComplexExpr { v.visit_complex_expr(&e)! }
-		ConditionalExpr { v.visit_conditional_expr(&e)! }
-		DictExpr { v.visit_dict_expr(&e)! }
-		DictionaryComprehension { v.visit_dictionary_comprehension(&e)! }
-		EllipsisExpr { v.visit_ellipsis(&e)! }
-		EnumCallExpr { v.visit_enum_call_expr(&e)! }
-		FloatExpr { v.visit_float_expr(&e)! }
-		GeneratorExpr { v.visit_generator_expr(&e)! }
-		IndexExpr { v.visit_index_expr(&e)! }
-		IntExpr { v.visit_int_expr(&e)! }
-		LambdaExpr { v.visit_lambda_expr(&e)! }
-		ListComprehension { v.visit_list_comprehension(&e)! }
-		ListExpr { v.visit_list_expr(&e)! }
-		MemberExpr { v.visit_member_expr(&e)! }
-		NameExpr { v.visit_name_expr(&e)! }
-		NamedTupleExpr { v.visit_namedtuple_expr(&e)! }
-		NewTypeExpr { v.visit_newtype_expr(&e)! }
-		OpExpr { v.visit_op_expr(&e)! }
-		ParamSpecExpr { v.visit_paramspec_expr(&e)! }
-		PromoteExpr { v.visit_promote_expr(&e)! }
-		RevealExpr { v.visit_reveal_expr(&e)! }
-		SetComprehension { v.visit_set_comprehension(&e)! }
-		SetExpr { v.visit_set_expr(&e)! }
-		SliceExpr { v.visit_slice_expr(&e)! }
-		StarExpr { v.visit_star_expr(&e)! }
-		StrExpr { v.visit_str_expr(&e)! }
-		SuperExpr { v.visit_super_expr(&e)! }
-		TempNode { v.visit_temp_node(&e)! }
-		TemplateStrExpr { v.visit_template_str_expr(&e)! }
-		TupleExpr { v.visit_tuple_expr(&e)! }
-		TypeAliasExpr { v.visit_type_alias_expr(&e)! }
-		TypeApplication { v.visit_type_application(&e)! }
-		TypeVarExpr { v.visit_type_var_expr(&e)! }
-		TypeVarTupleExpr { v.visit_type_var_tuple_expr(&e)! }
-		TypedDictExpr { v.visit_typeddict_expr(&e)! }
-		UnaryExpr { v.visit_unary_expr(&e)! }
-		AssertTypeExpr { v.visit_assert_type_expr(&e)! }
-		YieldExpr { v.visit_yield_expr(&e)! }
-		YieldFromExpr { v.visit_yield_from_expr(&e)! }
+pub fn (mut e Expression) accept(mut v NodeVisitor) !string {
+	return match mut e {
+		AssignmentExpr { v.visit_assignment_expr(mut e)! }
+		AwaitExpr { v.visit_await_expr(mut e)! }
+		BytesExpr { v.visit_bytes_expr(mut e)! }
+		CallExpr { v.visit_call_expr(mut e)! }
+		CastExpr { v.visit_cast_expr(mut e)! }
+		ComparisonExpr { v.visit_comparison_expr(mut e)! }
+		ComplexExpr { v.visit_complex_expr(mut e)! }
+		ConditionalExpr { v.visit_conditional_expr(mut e)! }
+		DictExpr { v.visit_dict_expr(mut e)! }
+		DictionaryComprehension { v.visit_dictionary_comprehension(mut e)! }
+		EllipsisExpr { v.visit_ellipsis(mut e)! }
+		EnumCallExpr { v.visit_enum_call_expr(mut e)! }
+		FloatExpr { v.visit_float_expr(mut e)! }
+		GeneratorExpr { v.visit_generator_expr(mut e)! }
+		IndexExpr { v.visit_index_expr(mut e)! }
+		IntExpr { v.visit_int_expr(mut e)! }
+		LambdaExpr { v.visit_lambda_expr(mut e)! }
+		ListComprehension { v.visit_list_comprehension(mut e)! }
+		ListExpr { v.visit_list_expr(mut e)! }
+		MemberExpr { v.visit_member_expr(mut e)! }
+		NameExpr { v.visit_name_expr(mut e)! }
+		NamedTupleExpr { v.visit_namedtuple_expr(mut e)! }
+		NewTypeExpr { v.visit_newtype_expr(mut e)! }
+		OpExpr { v.visit_op_expr(mut e)! }
+		ParamSpecExpr { v.visit_paramspec_expr(mut e)! }
+		PromoteExpr { v.visit_promote_expr(mut e)! }
+		RevealExpr { v.visit_reveal_expr(mut e)! }
+		SetComprehension { v.visit_set_comprehension(mut e)! }
+		SetExpr { v.visit_set_expr(mut e)! }
+		SliceExpr { v.visit_slice_expr(mut e)! }
+		StarExpr { v.visit_star_expr(mut e)! }
+		StrExpr { v.visit_str_expr(mut e)! }
+		SuperExpr { v.visit_super_expr(mut e)! }
+		TempNode { v.visit_temp_node(mut e)! }
+		TemplateStrExpr { v.visit_template_str_expr(mut e)! }
+		TupleExpr { v.visit_tuple_expr(mut e)! }
+		TypeAliasExpr { v.visit_type_alias_expr(mut e)! }
+		TypeApplication { v.visit_type_application(mut e)! }
+		TypeVarExpr { v.visit_type_var_expr(mut e)! }
+		TypeVarTupleExpr { v.visit_type_var_tuple_expr(mut e)! }
+		TypedDictExpr { v.visit_typeddict_expr(mut e)! }
+		UnaryExpr { v.visit_unary_expr(mut e)! }
+		AssertTypeExpr { v.visit_assert_type_expr(mut e)! }
+		YieldExpr { v.visit_yield_expr(mut e)! }
+		YieldFromExpr { v.visit_yield_from_expr(mut e)! }
 	}
 }
 
@@ -740,7 +830,7 @@ pub mut:
 	info               ?&TypeInfo
 }
 pub fn (mut n Var) get_context() Context { return n.base.ctx }
-pub fn (mut n &Var) accept(mut v NodeVisitor) !string { return v.visit_var(mut n)! }
+pub fn (mut n Var) accept(mut v NodeVisitor) !string { return v.visit_var(mut n)! }
 
 pub struct ClassDef {
 pub mut:
@@ -1252,7 +1342,7 @@ pub interface ImportBase {
 }
 
 pub fn (mut n MypyFile) get_context() Context { return n.base.ctx }
-pub fn (mut n &MypyFile) accept(mut v NodeVisitor) !string { return v.visit_mypy_file(mut n)! }
+pub fn (mut n MypyFile) accept(mut v NodeVisitor) !string { return v.visit_mypy_file(mut n)! }
 
 // ---------------------------------------------------------------------------
 // Symbol table
@@ -1274,6 +1364,7 @@ pub mut:
 	implicit   bool
 	plugin_generated bool
 	no_serialize bool
+    cross_ref    ?string
 }
 
 pub struct SymbolTable {
@@ -1328,7 +1419,7 @@ pub mut:
 	eager        bool
 }
 pub fn (mut n TypeAlias) get_context() Context { return n.base.ctx }
-pub fn (mut n &TypeAlias) accept(mut v NodeVisitor) !string { return v.visit_type_alias(mut n)! }
+pub fn (mut n TypeAlias) accept(mut v NodeVisitor) !string { return v.visit_type_alias(mut n)! }
 pub fn (mut i TypeInfo) has_base(fullname string) bool {
 	for it in i.mro {
 		if it.fullname == fullname { return true }
@@ -1344,18 +1435,15 @@ pub mut:
 	node         Node
 	becomes_typeinfo bool
 }
-pub fn (mut n PlaceholderNode) get_context() Context { return n.base.ctx }
-pub fn (mut n &PlaceholderNode) accept(mut v NodeVisitor) !string { return v.visit_placeholder_node(mut n)! }
-
-// ---------------------------------------------------------------------------
-// MypyTypeNode — opaque wrapper used in nodes to avoid a circular import with
-// types.v. The real type hierarchy lives in types.v.
-// ---------------------------------------------------------------------------
-
-// MypyTypeNode is an interface so that types.v can implement it fully.
-pub interface MypyTypeNode {
-	accept(mut v TypeVisitor) !string
+pub fn (mut n PlaceholderNode) get_context() Context {
+	return n.base.ctx
 }
+
+pub fn (mut n PlaceholderNode) accept(mut v NodeVisitor) !string {
+	return v.visit_placeholder_node(mut n)!
+}
+
+// MypyTypeNode is defined in types.v
 
 // Pattern is an interface implemented by all match-pattern nodes in patterns.v.
 pub interface Pattern {

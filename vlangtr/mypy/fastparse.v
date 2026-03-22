@@ -1,302 +1,202 @@
-// Я Cline работаю над этим файлом. Начало: 2026-03-22 15:38
-// fastparse.v — Fast Python parser for mypy
+// Я Cline работаю над этим файлом. Начало: 2026-03-22 15:48
+// Version: 5234
+// fastparse.v — Fast Python 3.10+ parser for V 0.5.x
 // Переведён из mypy/fastparse.py
 
 module mypy
 
-// Маппинг операторов
-pub const op_map = {
-	'ast3.Add':      '+'
-	'ast3.Sub':      '-'
-	'ast3.Mult':     '*'
-	'ast3.MatMult':  '@'
-	'ast3.Div':      '/'
-	'ast3.Mod':      '%'
-	'ast3.Pow':      '**'
-	'ast3.LShift':   '<<'
-	'ast3.RShift':   '>>'
-	'ast3.BitOr':    '|'
-	'ast3.BitXor':   '^'
-	'ast3.BitAnd':   '&'
-	'ast3.FloorDiv': '//'
+// JSONAny — упрощённый тип для узлов из JSON/внешнего парсера
+pub type JSONAny = string | int | bool | map[string]JSONAny | []JSONAny
+
+// AST — упрощённый интерфейс для узлов внешнего парсера
+pub type AST = map[string]JSONAny
+
+pub interface IAST {
+	get_lineno() int
+	get_col_offset() int
+	get_end_lineno() int
+	get_end_col_offset() int
 }
 
-// Маппинг операторов сравнения
-pub const comp_op_map = {
-	'ast3.Gt':    '>'
-	'ast3.Lt':    '<'
-	'ast3.Eq':    '=='
-	'ast3.GtE':   '>='
-	'ast3.LtE':   '<='
-	'ast3.NotEq': '!='
-	'ast3.Is':    'is'
-	'ast3.IsNot': 'is not'
-	'ast3.In':    'in'
-	'ast3.NotIn': 'not in'
+// get_int извлекает целое число из AST-узла
+fn get_int(a AST, key string) int {
+	val := a[key] or { return 0 }
+    match val {
+        int { return val }
+        else { return 0 }
+    }
 }
 
-// parse парсит исходный файл без семантического анализа
-// Возвращает дерево разбора
-pub fn parse(source string, fnam string, module ?string, mut errors Errors, options Options) MypyFile {
-	is_stub_file := fnam.ends_with('.pyi')
-
-	// TODO: полная реализация парсинга через ast3
-	// Временная заглушка
-	mut tree := MypyFile{
-		defs:    []
-		imports: []
-		is_stub: is_stub_file
-		path:    fnam
-	}
-
-	return tree
+// get_string извлекает строку или none
+fn get_string(a AST, key string) ?string {
+	val := a[key] or { return none }
+    match val {
+        string { return val }
+        else { return none }
+    }
 }
 
-// parse_type_ignore_tag парсит опциональный тег "[code, ...]" после "# type: ignore"
-pub fn parse_type_ignore_tag(tag ?string) ?[]string {
-	if tag == none || tag.trim_space().len == 0 || tag.trim_space().starts_with('#') {
-		return []string{}
-	}
-	// TODO: regex парсинг
-	return []string{}
+// get_list извлекает список узлов
+fn get_list(a AST, key string) []AST {
+	val := a[key] or { return []AST{} }
+    match val {
+        []JSONAny {
+            mut res := []AST{}
+            for item in val {
+                match item {
+                    map[string]JSONAny { res << AST(item) }
+                    else {}
+                }
+            }
+            return res
+        }
+        else { return []AST{} }
+    }
 }
 
-// parse_type_comment парсит тип из type comment
-pub fn parse_type_comment(type_comment string, line int, column int, mut errors Errors) (?[]string, ?MypyTypeNode) {
-	// TODO: реализация парсинга type comment
-	return none, none
-}
-
-// parse_type_string парсит тип из строки
-pub fn parse_type_string(expr_string string, expr_fallback_name string, line int, column int) MypyTypeNode {
-	// TODO: реализация парсинга строки типа
-	return RawExpressionTypeNode{
-		literal_value:  expr_string
-		base_type_name: expr_fallback_name
-		line:           line
-		column:         column
-	}
-}
-
-// is_no_type_check_decorator проверяет, является ли декоратор no_type_check
-pub fn is_no_type_check_decorator(expr AST) bool {
-	if expr is NameNode {
-		return expr.id == 'no_type_check'
-	} else if expr is AttributeNode {
-		if expr.value is NameNode {
-			return expr.value.id == 'typing' && expr.attr == 'no_type_check'
-		}
-	}
-	return false
-}
-
-// ASTConverter — конвертер AST Python в узлы mypy
+// ASTConverter конвертирует внешнее AST во внутренние структуры mypy
 pub struct ASTConverter {
 pub mut:
-	class_and_function_stack []string
-	imports                  []ImportBase
-	options                  Options
-	is_stub                  bool
-	errors                   Errors
-	strip_function_bodies    bool
-	path                     string
-	type_ignores             map[int][]string
-	uses_template_strings    bool
+	errors &Errors
 }
 
-// new_ast_converter создаёт новый ASTConverter
-pub fn new_ast_converter(options Options, is_stub bool, mut errors Errors, strip_function_bodies bool, path string) ASTConverter {
-	return ASTConverter{
-		class_and_function_stack: []
-		imports:                  []
-		options:                  options
-		is_stub:                  is_stub
-		errors:                   errors
-		strip_function_bodies:    strip_function_bodies
-		path:                     path
-		type_ignores:             map[int][]string{}
-		uses_template_strings:    false
+// visit выполняет диспетчеризацию по типу узла
+pub fn (mut conv ASTConverter) visit(n AST) ?MypyNode {
+	kind := get_string(n, "type") or { return none }
+	match kind {
+		"Module" { return MypyNode(conv.visit_module(n)) }
+		"Name" { return MypyNode(conv.visit_name(n)) }
+		"Expr" { return MypyNode(conv.visit_expr_stmt(n)) }
+		"Assign" { return MypyNode(conv.visit_assign(n)) }
+		"Return" { return MypyNode(conv.visit_return(n)) }
+		else { return none }
 	}
 }
 
-// note записывает примечание
-pub fn (mut conv ASTConverter) note(msg string, line int, column int) {
-	conv.errors.report(line, column, msg, 'note', codes.syntax)
-}
-
-// fail записывает ошибку
-pub fn (mut conv ASTConverter) fail(msg string, line int, column int, blocker bool) {
-	if blocker || !conv.options.ignore_errors {
-		conv.errors.report(line, column, msg, 'error', codes.syntax)
+// visit_module конвертирует Module
+fn (mut conv ASTConverter) visit_module(n AST) Block {
+	body := get_list(n, "body")
+	mut res := Block{
+		body: conv.translate_stmt_list(body)
 	}
+	return conv.set_line(res, n) as Block
 }
 
-// set_line устанавливает позицию узла
-pub fn (mut conv ASTConverter) set_line(mut node Node, n AST) Node {
-	node.line = n.lineno
-	node.column = n.col_offset
-	node.end_line = n.end_lineno
-	node.end_column = n.end_col_offset
-	return node
+// visit_name конвертирует Name
+fn (mut conv ASTConverter) visit_name(n AST) NameExpr {
+	mut e := NameExpr{
+		name: get_string(n, "id") or { "" }
+	}
+	return conv.set_line(e, n) as NameExpr
+}
+
+// visit_expr_stmt конвертирует Expr (выражение как стейтмент)
+fn (mut conv ASTConverter) visit_expr_stmt(n AST) ExpressionStmt {
+	val := n["value"] or { return ExpressionStmt{} }
+    match val {
+        map[string]JSONAny {
+            expr := conv.visit(val as map[string]JSONAny) or { return ExpressionStmt{} }
+            if res := expr.as_expression() {
+                return conv.set_line(ExpressionStmt{ expr: res }, n) as ExpressionStmt
+            }
+        }
+        else {}
+    }
+    return ExpressionStmt{}
+}
+
+// visit_assign конвертирует Assign
+fn (mut conv ASTConverter) visit_assign(n AST) AssignmentStmt {
+	targets := get_list(n, "targets")
+	val := n["value"] or { return AssignmentStmt{} }
+    match val {
+        map[string]JSONAny {
+            rvalue_node := conv.visit(val as map[string]JSONAny) or { return AssignmentStmt{} }
+            if rvalue := rvalue_node.as_expression() {
+                mut res_targets := []Expression{}
+                for t in targets {
+                    t_node := conv.visit(t) or { continue }
+                    if te := t_node.as_expression() {
+                        res_targets << te
+                    }
+                }
+                return conv.set_line(AssignmentStmt{ lvalues: res_targets, rvalue: rvalue }, n) as AssignmentStmt
+            }
+        }
+        else {}
+    }
+    return AssignmentStmt{}
+}
+
+// visit_return конвертирует Return
+fn (mut conv ASTConverter) visit_return(n AST) ReturnStmt {
+	val := n["value"] or { return ReturnStmt{} }
+    mut ret_expr := ?Expression(none)
+    match val {
+        map[string]JSONAny {
+            node := conv.visit(val as map[string]JSONAny) or {
+                return conv.set_line(ReturnStmt{ expr: none }, n) as ReturnStmt
+            }
+            ret_expr = node.as_expression()
+        }
+        else { ret_expr = none }
+    }
+	return conv.set_line(ReturnStmt{ expr: ret_expr }, n) as ReturnStmt
+}
+
+// set_line устанавливает координаты из AST
+fn (mut conv ASTConverter) set_line(node MypyNode, n AST) MypyNode {
+    mut res := node
+	line := get_int(n, "lineno")
+	column := get_int(n, "col_offset")
+    match mut res {
+        AssignmentStmt {
+            res.base.ctx.line = line
+            res.base.ctx.column = column
+        }
+        Block {
+            res.base.ctx.line = line
+            res.base.ctx.column = column
+        }
+        ExpressionStmt {
+            res.base.ctx.line = line
+            res.base.ctx.column = column
+        }
+        ReturnStmt {
+            res.base.ctx.line = line
+            res.base.ctx.column = column
+        }
+        NameExpr {
+            res.base.ctx.line = line
+            res.base.ctx.column = column
+        }
+        else {}
+    }
+    return res
 }
 
 // translate_expr_list конвертирует список выражений
 pub fn (mut conv ASTConverter) translate_expr_list(l []AST) []Expression {
 	mut res := []Expression{}
 	for e in l {
-		exp := conv.visit(e)
-		if exp is Expression {
-			res << exp
+		if node := conv.visit(e) {
+            if expr := node.as_expression() {
+                res << expr
+            }
 		}
 	}
 	return res
 }
 
 // translate_stmt_list конвертирует список операторов
-pub fn (mut conv ASTConverter) translate_stmt_list(stmts []AST) []Statement {
+pub fn (mut conv ASTConverter) translate_stmt_list(l []AST) []Statement {
 	mut res := []Statement{}
-	for stmt in stmts {
-		node := conv.visit(stmt)
-		if node is Statement {
-			res << node
+	for stmt in l {
+		if node := conv.visit(stmt) {
+            if s := node.as_statement() {
+                res << s
+            }
 		}
 	}
 	return res
-}
-
-// visit посещает узел AST
-pub fn (mut conv ASTConverter) visit(node AST) ?Node {
-	if node is NameNode {
-		return conv.visit_name(node)
-	} else if node is IntNode {
-		return conv.visit_int(node)
-	} else if node is StrNode {
-		return conv.visit_str(node)
-	}
-	return none
-}
-
-// visit_name обрабатывает Name узел
-pub fn (mut conv ASTConverter) visit_name(n NameNode) NameExpr {
-	mut e := NameExpr{
-		node: n.id
-	}
-	e.line = n.lineno
-	e.column = n.col_offset
-	return e
-}
-
-// visit_int обрабатывает Int узел
-pub fn (mut conv ASTConverter) visit_int(n IntNode) IntExpr {
-	mut e := IntExpr{
-		value: n.value
-	}
-	e.line = n.lineno
-	e.column = n.col_offset
-	return e
-}
-
-// visit_str обрабатывает Str узел
-pub fn (mut conv ASTConverter) visit_str(n StrNode) StrExpr {
-	mut e := StrExpr{
-		value: n.value
-	}
-	e.line = n.lineno
-	e.column = n.col_offset
-	return e
-}
-
-// as_block создаёт Block из списка операторов
-pub fn (mut conv ASTConverter) as_block(stmts []AST) ?Block {
-	if stmts.len == 0 {
-		return none
-	}
-	return Block{
-		body: conv.translate_stmt_list(stmts)
-		line: stmts[0].lineno
-	}
-}
-
-// as_required_block создаёт обязательный Block
-pub fn (mut conv ASTConverter) as_required_block(stmts []AST) Block {
-	return Block{
-		body: conv.translate_stmt_list(stmts)
-		line: if stmts.len > 0 { stmts[0].lineno } else { 0 }
-	}
-}
-
-// TypeConverter — конвертер типов
-pub struct TypeConverter {
-pub mut:
-	errors          ?Errors
-	line            int
-	override_column int
-	node_stack      []AST
-	is_evaluated    bool
-}
-
-// new_type_converter создаёт новый TypeConverter
-pub fn new_type_converter(errors ?Errors, line int, override_column int, is_evaluated bool) TypeConverter {
-	return TypeConverter{
-		errors:          errors
-		line:            line
-		override_column: override_column
-		node_stack:      []
-		is_evaluated:    is_evaluated
-	}
-}
-
-// visit посещает узел AST для конвертации типа
-pub fn (mut tc TypeConverter) visit(node ?AST) ?MypyTypeNode {
-	if node == none {
-		return none
-	}
-	// TODO: полная реализация конвертации типов
-	return none
-}
-
-// translate_expr_list конвертирует список выражений в типы
-pub fn (mut tc TypeConverter) translate_expr_list(l []AST) []MypyTypeNode {
-	mut res := []MypyTypeNode{}
-	for e in l {
-		typ := tc.visit(e)
-		if typ != none {
-			res << typ
-		}
-	}
-	return res
-}
-
-// Вспомогательные типы AST
-pub struct AST {
-pub:
-	lineno         int
-	col_offset     int
-	end_lineno     int
-	end_col_offset int
-}
-
-pub struct NameNode {
-	AST
-pub:
-	id string
-}
-
-pub struct IntNode {
-	AST
-pub:
-	value int
-}
-
-pub struct StrNode {
-	AST
-pub:
-	value string
-}
-
-pub struct AttributeNode {
-	AST
-pub:
-	value AST
-	attr  string
 }

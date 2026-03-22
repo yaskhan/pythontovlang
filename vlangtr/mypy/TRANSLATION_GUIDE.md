@@ -13,6 +13,7 @@
 | `types.py` | `mypy/types.v` | ✅ Все типы + TypeTranslator + BoolTypeQuery |
 | `type_visitor.py` | `mypy/types.v` | ✅ Включён в types.v |
 | `traverser.py` | `mypy/traverser.v` | ✅ Полностью + dispatch helpers |
+| `treetransform.py` | `mypy/treetransform.v` | ✅ Полностью (TransformVisitor с FuncMapInitializer) |
 | `util.py` | `mypy/util.v` | ✅ Полностью (кроме JUNIT/orjson) |
 | `checker.py` | `mypy/checker.v` | 📝 TypeChecker: все Statements (classes, funcs, ifs, loops, imports, assignments) |
 | `checkexpr.py` | `mypy/checkexpr.v` | 📝 Завершены визиторы: все базовые Expressions (в т.ч. Slice, Lambda, Yield) |
@@ -54,9 +55,11 @@
 | `checker_state.py` | `mypy/checker_state.v` | ✅ Полностью (TypeCheckerState + временная установка контекста) |
 | `error_formatter.py` | `mypy/error_formatter.v` | ✅ Полностью (ErrorFormatter + JSONFormatter + `output_choices`) |
 | `api.py` | `mypy/api.v` | 📝 Каркас API (`_run`, `run`) до переноса `main.py` |
+| `fscache.py` | `mypy/fscache.v` | ✅ Полностью (кэш stat/listdir/read/hash, fake `__init__.py`, case-sensitive checks, samefile) |
 | `fswatcher.py` | `mypy/fswatcher.v` | ✅ Полностью (FileSystemWatcher, FileData, изменения файлов по stat/hash) |
 | `semanal_infer.py` | `mypy/semanal_infer.v` | 📝 Перенесены ключевые эвристики для декораторов (`infer_decorator_signature_if_simple`) |
 | `parse.py` | `mypy/parse.v` | 📝 Каркас парсинга и `load_from_raw` (native/fast parser hooks) |
+| `nativeparse.py` | `mypy/nativeparse.v` | 📝 Начало: `State`, `native_parse`, десериализация базовых Statements |
 | `infer.py` | `mypy/infer.v` | 📝 Заглушки: `infer_type_arguments`, `infer_function_type_arguments`, `Constraint` |
 | `solve.py` | `mypy/solve.v` | 📝 Решатель ограничений (solve_one, join of lowers, meet of uppers) |
 | `copytype.py` | `mypy/copytype.v` | ✅ Полностью (copy_type, TypeShallowCopier через match) |
@@ -100,6 +103,11 @@
 | `expandtype.py` | `mypy/expandtype.v` | 📝 expand_type, expand_type_by_instance, ExpandTypeVisitor, freshen_function_type_vars |
 | `join.py` | `mypy/join.v` | 📝 InstanceJoiner, join_types, TypeJoinVisitor, join_type_list, trivial_join |
 | `meet.py` | `mypy/meet.v` | 📝 meet_types, TypeMeetVisitor, narrow_declared_type, is_overlapping_types, trivial_meet |
+| `plugin.py` | `mypy/plugin.v` | 📝 Plugin, ChainedPlugin, Contexts (FunctionContext, MethodContext, AttributeContext, ClassDefContext) |
+| `solve.py` | `mypy/solve.v` | 📝 solve_constraints, solve_one, transitive_closure, find_linear, Bounds, Graph |
+| `applytype.py` | `mypy/applytype.v` | 📝 apply_generic_arguments, get_target_type, apply_poly, PolyTranslator |
+| `semanal.py` | `mypy/semanal.v` | 📝 SemanticAnalyzer: visit_file, visit_func_def, visit_class_def, visit_import, analyze_class |
+| `checker.py` | `mypy/checker.v` | 📝 TypeChecker: visit_func_def, visit_class_def, visit_if_stmt, check_assignment, DeferredNode |
 | `indirection.py` | `mypy/indirection.v` | ✅ Полностью (TypeIndirectionVisitor для анализа зависимостей модулей) |
 | `stats.py` | `mypy/stats.v` | ✅ Полностью (StatisticsVisitor для сбора статистики о типах) |
 | `ipc.py` | `mypy/ipc.v` | ✅ Полностью (IPCBase, IPCClient, IPCServer, IPCMessage, WriteBuffer, ReadBuffer) |
@@ -109,6 +117,10 @@
 | `find_sources.py` | `mypy/find_sources.v` | ✅ Полностью (SourceFinder, create_source_list, crawl_up, find_sources_in_dir) |
 | `metastore.py` | `mypy/metastore.v` | ✅ Полностью (MetadataStore интерфейс, FilesystemMetadataStore, SqliteMetadataStore) |
 | `fixup.py` | `mypy/fixup.v` | ✅ Полностью (NodeFixer, TypeFixer, fixup_module, lookup_fully_qualified_typeinfo) |
+| `checker_shared.py` | `mypy/checker_shared.v` | ✅ Полностью (TypeRange, CheckerScope, TypeAndType, TypeAndStringList, fill_typevars) |
+| `exprtotype.py` | `mypy/exprtotype.v` | ✅ Полностью (expr_to_unanalyzed_type, _extract_argument_name, TypeTranslationError) |
+| `applytype.py` | `mypy/applytype.v` | ✅ Полностью (apply_generic_arguments, get_target_type, apply_poly, PolyTranslator) |
+| `fscache.py` | `mypy/fscache.v` | ✅ Полностью (FileSystemCache, stat_or_none, listdir, read, isfile_case, exists_case) |
 
 ---
 

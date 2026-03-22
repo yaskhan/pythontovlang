@@ -623,7 +623,7 @@ pub fn (mut e ExpressionChecker) check_op(method string, base_type MypyTypeNode,
 	// РС‰РµРј РјРµС‚РѕРґ Сѓ Р»РµРІРѕРіРѕ РѕРїРµСЂР°РЅРґР°
 	method_type := e.analyze_member_access_type(method, base_type, context)
 	if method_type is CallableType {
-		argument_type := e.accept(arg, none, false, false, false)
+		_argument_type := e.accept(arg, none, false, false, false)
 		ret, _ := e.check_callable_call(method_type, [arg], [ArgKind.arg_pos], context, [
 
 			?string(none),
@@ -1020,8 +1020,8 @@ pub fn (mut e ExpressionChecker) visit_conditional_expr(node &ConditionalExpr) M
 
 	if_type := e.accept(node.if_expr, e.type_context.last() or { MypyTypeNode(AnyType{type_of_any: .from_error}) }, false, false,
 		false)
-	else_type := e.accept(node.else_expr, e.type_context.last() or { MypyTypeNode(AnyType{type_of_any: .from_error}) }, false, false,
-		false)
+	_else_type := e.accept(node.else_expr, e.type_context.last() or { MypyTypeNode(AnyType{type_of_any: .from_error}) }, false, false,
+        false)
 	// TODO: return make_simplified_union([if_type, else_type])
 	return if_type
 }
