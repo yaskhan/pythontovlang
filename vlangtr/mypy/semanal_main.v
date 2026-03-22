@@ -438,10 +438,10 @@ fn check_type_arguments(graph &Graph, scc []string, errors &Errors) {
 		state := graph[mod_id]
 		assert state.tree != none
 		analyzer := TypeArgumentAnalyzer{
-			errors:        errors
-			options:       state.options
-			is_typeshed:   state.tree.is_typeshed_file(state.options)
-			named_type_fn: state.manager.semantic_analyzer.named_type
+			errors:           errors
+			options:          state.options
+			is_typeshed_file: state.tree.is_typeshed_file(state.options)
+			named_type_func:  state.manager.semantic_analyzer.named_type
 		}
 		ctx := state.wrap_context()
 		opt_ctx := mypy_state_strict_optional_set(state.options.strict_optional)
@@ -460,10 +460,10 @@ fn check_type_arguments_in_targets(targets []FineGrainedDeferredNode,
 
 	assert state.tree != none
 	analyzer := TypeArgumentAnalyzer{
-		errors:        errors
-		options:       state.options
-		is_typeshed:   state.tree.is_typeshed_file(state.options)
-		named_type_fn: state.manager.semantic_analyzer.named_type
+		errors:           errors
+		options:          state.options
+		is_typeshed_file: state.tree.is_typeshed_file(state.options)
+		named_type_func:  state.manager.semantic_analyzer.named_type
 	}
 	ctx := state.wrap_context()
 	opt_ctx := mypy_state_strict_optional_set(state.options.strict_optional)
@@ -639,126 +639,6 @@ fn remove_imported_names_from_symtable(names map[string]SymbolTableNode, mod_nam
 	}
 }
 
-// ============================================================================
-// Forward declarations (to be defined in other modules)
-// ============================================================================
 
-pub interface Graph {
-	get(id string) State
-	keys() []string
-}
 
-pub interface State {
-	id      string
-	tree    ?MypyFile
-	manager SemanticAnalyzerManager
-	options Options
-	wrap_context(check_blockers bool) StateContext
-}
 
-pub interface SemanticAnalyzerManager {
-	semantic_analyzer     SemanticAnalyzer
-	incomplete_namespaces map[string]bool
-	processed_targets     [](string, string)
-	errors                Errors
-	add_stats(type_expression_parse_count int,
-	type_expression_full_parse_success_count int,
-	type_expression_full_parse_failure_count int)
-}
-
-pub interface SemanticAnalyzer {
-	global_decls                             []set[string]
-	nonlocal_decls                           []set[string]
-	globals                                  map[string]SymbolTableNode
-	imports                                  set[string]
-	progress                                 bool
-	deferred                                 bool
-	incomplete                               bool
-	statement                                ?Statement
-	cur_mod_node                             ?MypyFile
-	deferral_debug_context                   []string
-	saved_locals                             map[string]map[string]SymbolTableNode
-	incomplete_namespaces                    set[string]
-	type_expression_parse_count              int
-	type_expression_full_parse_success_count int
-	type_expression_full_parse_failure_count int
-	plugin                                   Plugin
-	named_type(name string) Type
-	prepare_file(file &MypyFile)
-	refresh_partial(node TargetNode,
-	patches Patches,
-	final_iteration bool,
-	file_node MypyFile,
-	options Options,
-	active_type ?TypeInfo)
-	file_context(file &MypyFile, options &Options, info ?TypeInfo) FileContext
-	report_hang()
-	get_fullname_for_hook(expr &Expression) ?string
-}
-
-pub interface TypeArgumentAnalyzer {
-	recurse_into_functions bool
-}
-
-pub interface FineGrainedDeferredNode {
-	node            TargetNode
-	active_typeinfo ?TypeInfo
-}
-
-pub interface ClassDefContext {
-	defn   ClassDef
-	reason Expression
-	api    SemanticAnalyzer
-}
-
-pub interface ClassDecoratorHook {
-	fn(ctx ClassDefContext) bool
-}
-
-pub interface DataclassTransformer {
-	transform fn () bool
-}
-
-pub interface Plugin {
-	get_class_decorator_hook_2(name string) ?ClassDecoratorHook
-}
-
-pub interface FileContext {
-	// Context manager for file-level operations
-}
-
-pub interface StateContext {
-	// Context manager for state operations
-}
-
-pub interface SavedScope {
-	module   string
-	class    ?TypeInfo
-	function ?FunctionNode
-}
-
-pub interface ErrorScope {
-	saved_scope(scope SavedScope) ErrorScopeContext
-}
-
-pub interface ErrorScopeContext {
-	// Context manager for error scope
-}
-
-fn no_context() NoContext {
-	return NoContext{}
-}
-
-pub interface NoContext {
-	// Empty context manager
-}
-
-fn mypy_state_strict_optional_set(value bool) StrictOptionalContext {
-	return StrictOptionalContext{
-		value: value
-	}
-}
-
-pub struct StrictOptionalContext {
-	value bool
-}

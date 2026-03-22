@@ -36,31 +36,31 @@ pub fn type_shallow_copy(t MypyTypeNode) !MypyTypeNode {
 				source_any:          t.source_any
 				missing_import_name: t.missing_import_name
 			}
-			copy_common(&t.base, &mut dup.base)
+			copy_common(&t.base, mut &dup.base)
 			dup
 		}
 		NoneType {
 			mut dup := NoneType{}
-			copy_common(&t.base, &mut dup.base)
+			copy_common(&t.base, mut &dup.base)
 			dup
 		}
 		UninhabitedType {
 			mut dup := UninhabitedType{
 				ambiguous: t.ambiguous
 			}
-			copy_common(&t.base, &mut dup.base)
+			copy_common(&t.base, mut &dup.base)
 			dup
 		}
 		ErasedType {
 			mut dup := ErasedType{}
-			copy_common(&t.base, &mut dup.base)
+			copy_common(&t.base, mut &dup.base)
 			dup
 		}
 		DeletedType {
 			mut dup := DeletedType{
 				source: t.source
 			}
-			copy_common(&t.base, &mut dup.base)
+			copy_common(&t.base, mut &dup.base)
 			dup
 		}
 		Instance {
@@ -69,7 +69,7 @@ pub fn type_shallow_copy(t MypyTypeNode) !MypyTypeNode {
 				args:             t.args
 				last_known_value: t.last_known_value
 			}
-			copy_common(&t.base, &mut dup.base)
+			copy_common(&t.base, mut &dup.base)
 			dup
 		}
 		TypeVarType {
@@ -82,7 +82,7 @@ pub fn type_shallow_copy(t MypyTypeNode) !MypyTypeNode {
 				default_:    t.default_
 				variance:    t.variance
 			}
-			copy_common(&t.base, &mut dup.base)
+			copy_common(&t.base, mut &dup.base)
 			dup
 		}
 		ParamSpecType {
@@ -95,7 +95,7 @@ pub fn type_shallow_copy(t MypyTypeNode) !MypyTypeNode {
 				default_:    t.default_
 				prefix:      t.prefix
 			}
-			copy_common(&t.base, &mut dup.base)
+			copy_common(&t.base, mut &dup.base)
 			dup
 		}
 		ParametersType {
@@ -104,7 +104,7 @@ pub fn type_shallow_copy(t MypyTypeNode) !MypyTypeNode {
 				arg_kinds: t.arg_kinds
 				arg_names: t.arg_names
 			}
-			copy_common(&t.base, &mut dup.base)
+			copy_common(&t.base, mut &dup.base)
 			dup
 		}
 		TypeVarTupleType {
@@ -116,14 +116,14 @@ pub fn type_shallow_copy(t MypyTypeNode) !MypyTypeNode {
 				tuple_fallback: t.tuple_fallback
 				default_:       t.default_
 			}
-			copy_common(&t.base, &mut dup.base)
+			copy_common(&t.base, mut &dup.base)
 			dup
 		}
 		UnpackType {
 			mut dup := UnpackType{
 				type_: t.type_
 			}
-			copy_common(&t.base, &mut dup.base)
+			copy_common(&t.base, mut &dup.base)
 			dup
 		}
 		PartialTypeT {
@@ -132,7 +132,7 @@ pub fn type_shallow_copy(t MypyTypeNode) !MypyTypeNode {
 				var_:       t.var_
 				value_type: t.value_type
 			}
-			copy_common(&t.base, &mut dup.base)
+			copy_common(&t.base, mut &dup.base)
 			dup
 		}
 		CallableType {
@@ -155,7 +155,7 @@ pub fn type_shallow_copy(t MypyTypeNode) !MypyTypeNode {
 				unpack_kwargs:       t.unpack_kwargs
 				param_spec_id:       t.param_spec_id
 			}
-			copy_common(&t.base, &mut dup.base)
+			copy_common(&t.base, mut &dup.base)
 			dup
 		}
 		TupleType {
@@ -164,7 +164,7 @@ pub fn type_shallow_copy(t MypyTypeNode) !MypyTypeNode {
 				partial_fallback: t.partial_fallback
 				implicit:         t.implicit
 			}
-			copy_common(&t.base, &mut dup.base)
+			copy_common(&t.base, mut &dup.base)
 			dup
 		}
 		TypedDictType {
@@ -174,7 +174,7 @@ pub fn type_shallow_copy(t MypyTypeNode) !MypyTypeNode {
 				readonly_keys: t.readonly_keys
 				fallback:      t.fallback
 			}
-			copy_common(&t.base, &mut dup.base)
+			copy_common(&t.base, mut &dup.base)
 			dup
 		}
 		LiteralType {
@@ -182,7 +182,7 @@ pub fn type_shallow_copy(t MypyTypeNode) !MypyTypeNode {
 				value:    t.value
 				fallback: t.fallback
 			}
-			copy_common(&t.base, &mut dup.base)
+			copy_common(&t.base, mut &dup.base)
 			dup
 		}
 		UnionType {
@@ -190,14 +190,14 @@ pub fn type_shallow_copy(t MypyTypeNode) !MypyTypeNode {
 				items:              t.items
 				uses_pep604_syntax: t.uses_pep604_syntax
 			}
-			copy_common(&t.base, &mut dup.base)
+			copy_common(&t.base, mut &dup.base)
 			dup
 		}
 		Overloaded {
 			mut dup := Overloaded{
 				items: t.items
 			}
-			copy_common(&t.base, &mut dup.base)
+			copy_common(&t.base, mut &dup.base)
 			dup
 		}
 		TypeType {
@@ -206,7 +206,7 @@ pub fn type_shallow_copy(t MypyTypeNode) !MypyTypeNode {
 				item:         t.item
 				is_type_form: t.is_type_form
 			}
-			copy_common(&t.base, &mut dup.base)
+			copy_common(&t.base, mut &dup.base)
 			dup
 		}
 		TypeAliasType {

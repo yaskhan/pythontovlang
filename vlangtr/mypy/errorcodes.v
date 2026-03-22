@@ -5,6 +5,7 @@ module mypy
 // ErrorCode - Classification of possible errors mypy can detect
 // ============================================================================
 
+@[heap]
 pub struct ErrorCode {
 pub:
 	code            string

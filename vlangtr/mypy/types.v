@@ -89,6 +89,31 @@ pub interface TypeVisitor {
 	visit_unpack_type(t &UnpackType) !string
 }
 
+pub interface TypeResultVisitor {
+	visit_unbound_type(t &UnboundType) !MypyTypeNode
+	visit_any(t &AnyType) !MypyTypeNode
+	visit_none_type(t &NoneType) !MypyTypeNode
+	visit_uninhabited_type(t &UninhabitedType) !MypyTypeNode
+	visit_erased_type(t &ErasedType) !MypyTypeNode
+	visit_deleted_type(t &DeletedType) !MypyTypeNode
+	visit_type_var(t &TypeVarType) !MypyTypeNode
+	visit_param_spec(t &ParamSpecType) !MypyTypeNode
+	visit_parameters(t &ParametersType) !MypyTypeNode
+	visit_type_var_tuple(t &TypeVarTupleType) !MypyTypeNode
+	visit_instance(t &Instance) !MypyTypeNode
+	visit_callable_type(t &CallableType) !MypyTypeNode
+	visit_overloaded(t &Overloaded) !MypyTypeNode
+	visit_tuple_type(t &TupleType) !MypyTypeNode
+	visit_typeddict_type(t &TypedDictType) !MypyTypeNode
+	visit_literal_type(t &LiteralType) !MypyTypeNode
+	visit_union_type(t &UnionType) !MypyTypeNode
+	visit_partial_type(t &PartialTypeT) !MypyTypeNode
+	visit_type_type(t &TypeType) !MypyTypeNode
+	visit_type_alias_type(t &TypeAliasType) !MypyTypeNode
+	visit_unpack_type(t &UnpackType) !MypyTypeNode
+}
+
+
 // SyntheticTypeVisitor adds synthetic / pre-analysis type nodes
 pub interface SyntheticTypeVisitor {
 	// All TypeVisitor methods
@@ -214,6 +239,34 @@ pub fn (t MypyTypeNode) accept(v TypeVisitor) !string {
 	}
 }
 
+pub fn (t MypyTypeNode) accept_res(v TypeResultVisitor) !MypyTypeNode {
+	return match t {
+		AnyType            { v.visit_any(&t)! }
+		NoneType           { v.visit_none_type(&t)! }
+		UninhabitedType    { v.visit_uninhabited_type(&t)! }
+		ErasedType         { v.visit_erased_type(&t)! }
+		DeletedType        { v.visit_deleted_type(&t)! }
+		UnboundType        { v.visit_unbound_type(&t)! }
+		Instance           { v.visit_instance(&t)! }
+		TypeVarType        { v.visit_type_var(&t)! }
+		ParamSpecType      { v.visit_param_spec(&t)! }
+		TypeVarTupleType   { v.visit_type_var_tuple(&t)! }
+		ParametersType     { v.visit_parameters(&t)! }
+		TupleType          { v.visit_tuple_type(&t)! }
+		TypedDictType      { v.visit_typeddict_type(&t)! }
+		LiteralType        { v.visit_literal_type(&t)! }
+		UnionType          { v.visit_union_type(&t)! }
+		CallableType       { v.visit_callable_type(&t)! }
+		Overloaded         { v.visit_overloaded(&t)! }
+		TypeType           { v.visit_type_type(&t)! }
+		TypeAliasType      { v.visit_type_alias_type(&t)! }
+		UnpackType         { v.visit_unpack_type(&t)! }
+		PartialTypeT       { v.visit_partial_type(&t)! }
+		else { AnyType{type_of_any: .from_error} }
+	}
+}
+
+
 pub fn (t MypyTypeNode) accept_synthetic(v SyntheticTypeVisitor) !string {
 	return match t {
 		AnyType            { v.visit_any(&t) }
@@ -310,6 +363,7 @@ pub fn (t &ErasedType) type_str() string { return '<erased>' }
 pub fn (t &ErasedType) accept(v TypeVisitor) !string { return v.visit_erased_type(t)! }
 
 // DeletedType — type of a deleted variable
+// DeletedType вЂ” type of a deleted variable
 pub struct DeletedType {
 pub mut:
 	base   TypeBase
@@ -570,7 +624,7 @@ pub mut:
 
 pub fn (t &TypeAliasType) accept(v TypeVisitor) !string { return v.visit_type_alias_type(t)! }
 
-// PlaceholderType — for names that couldn't be resolved yet
+// PlaceholderType вЂ” for names that couldn't be resolved yet
 pub struct PlaceholderType {
 pub mut:
 	base     TypeBase
@@ -870,3 +924,11 @@ pub fn (mut q BoolTypeQuery) visit_type_alias(t &TypeAliasType) bool {
 	// Would normally expand via get_proper_type; here just query args
 	return q.query_types(t.args)
 }
+
+
+pub fn get_proper_type(typ MypyTypeNode) MypyTypeNode {
+	// В Mypy это разворачивание TypeAliasType.
+	// Пока заглушка: возвращаем как есть.
+	return typ
+}
+

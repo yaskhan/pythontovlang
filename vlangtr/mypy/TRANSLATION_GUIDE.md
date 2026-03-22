@@ -43,6 +43,9 @@
 | `defaults.py` | `mypy/defaults.v` | ✅ Полностью (константы: версии Python, cache, config, reporter names) |
 | `operators.py` | `mypy/operators.v` | ✅ Полностью (op_methods, reverse_op_methods, inplace_operator_methods, утилиты) |
 | `split_namespace.py` | `mypy/split_namespace.v` | ✅ Полностью (SplitNamespace для argparse с префиксами) |
+| `version.py` | `mypy/version.v` | ✅ Полностью (__version__, VersionInfo, parse_version, compare_versions) |
+| `pyinfo.py` | `mypy/pyinfo.v` | ✅ Полностью (getsitepackages, getsyspath, getsearchdirs, утилиты) |
+| `stubinfo.py` | `mypy/stubinfo.v` | ✅ Полностью (stub_distribution_name, is_module_from_legacy_bundled_package) |
 | `build.py` | `mypy/build.v` | 📝 Полуготово: State, BuildManager, SCC, BuildResult, topological sort |
 | `infer.py` | `mypy/infer.v` | 📝 Заглушки: `infer_type_arguments`, `infer_function_type_arguments`, `Constraint` |
 | `solve.py` | `mypy/solve.v` | 📝 Решатель ограничений (solve_one, join of lowers, meet of uppers) |
@@ -55,6 +58,9 @@
 | `lookup.py` | `mypy/lookup.v` | ✅ Полностью (lookup_fully_qualified) |
 | `state.py` | `mypy/state.v` | ✅ Полностью (StrictOptionalState, state, find_occurrences) |
 | `defaults.py` | `mypy/defaults.v` | ✅ Полностью (Python3_VERSION, CACHE_DIR, CONFIG_NAMES, reporter_names, timeouts) |
+| `stubinfo.py` | `mypy/stubinfo.v` | ✅ Полностью (stub_distribution_name, is_module_from_legacy_bundled_package) |
+| `freetree.py` | `mypy/freetree.v` | ✅ Полностью (TreeFreer, free_tree) |
+| `pyinfo.py` | `mypy/pyinfo.v` | ✅ Полностью (getsite_packages, getsyspath, getsearch_dirs) |
 | `meet.py` | `mypy/meet.v` | 📝 Базовые `meet_types`, `is_overlapping_types` |
 | `join.py` | `mypy/join.v` | 📝 Базовые `join_types`, `join_type_list` |
 | `subtypes.py` | `mypy/subtypes.v` | 📝 Основная логика `is_subtype` (Instance, Callable, Union) |

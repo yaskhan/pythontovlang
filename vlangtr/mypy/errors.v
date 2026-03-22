@@ -35,6 +35,7 @@ pub:
 // ErrorInfo - Representation of a single error message
 // ============================================================================
 
+@[heap]
 pub struct ErrorInfo {
 pub mut:
 	import_ctx     []ImportContext
@@ -78,52 +79,14 @@ pub:
 	line int
 }
 
-pub fn ErrorInfo.new(import_ctx []ImportContext,
-	local_type ?string,
-	local_function ?string,
-	line int,
-	column int,
-	end_line int,
-	end_column int,
-	severity string,
-	message string,
-	code ?&ErrorCode,
-	blocker bool,
-	only_once bool,
-	mod ?string,
-	target ?string,
-	origin_span []int,
-	priority int,
-	parent_error ?&ErrorInfo) &ErrorInfo {
-	if parent_error != none {
-		assert severity == 'note', 'Only notes can specify parent errors'
-	}
-	span := if origin_span.len > 0 { origin_span } else { [line] }
-	return &ErrorInfo{
-		import_ctx:     import_ctx
-		local_type:     local_type
-		local_function: local_function
-		line:           line
-		column:         column
-		end_line:       end_line
-		end_column:     end_column
-		severity:       severity
-		message:        message
-		code:           code
-		blocker:        blocker
-		only_once:      only_once
-		mod:            mod
-		target:         target
-		origin_span:    span
-		priority:       priority
-		parent_error:   parent_error
-	}
-}
+// ErrorInfo.new is replaced by direct struct initialization in report()
+
 
 // ============================================================================
 // ErrorWatcher - Context manager for tracking new errors
 // ============================================================================
 
+@[heap]
 pub struct ErrorWatcher {
 pub mut:
 	errors               &Errors
@@ -178,6 +141,7 @@ pub fn (mut w ErrorWatcher) on_error(file string, info &ErrorInfo) bool {
 // Errors - Container for compile errors
 // ============================================================================
 
+@[heap]
 pub struct Errors {
 pub mut:
 	error_info_map     map[string][]&ErrorInfo
@@ -217,7 +181,8 @@ pub fn (mut e Errors) initialize() {
 	e.error_info_map = map[string][]&ErrorInfo{}
 	e.flushed_files = map[string]bool{}
 	e.import_ctx = []
-	e.function_or_member = [none]
+	e.function_or_member = []
+	e.function_or_member << ?string(none)
 	e.ignored_lines = map[string]map[int][]string{}
 	e.skipped_lines = map[string]map[int]bool{}
 	e.used_ignored_lines = map[string]map[int][]string{}
@@ -261,14 +226,14 @@ pub fn (mut e Errors) set_file(file string, mod ?string, options &Options, scope
 }
 
 pub fn (mut e Errors) set_file_ignored_lines(file string, ignored_lines map[int][]string, ignore_all bool) {
-	e.ignored_lines[file] = ignored_lines
+	e.ignored_lines[file] = ignored_lines.clone()
 	if ignore_all {
 		e.ignored_files[file] = true
 	}
 }
 
 pub fn (mut e Errors) set_skipped_lines(file string, skipped_lines map[int]bool) {
-	e.skipped_lines[file] = skipped_lines
+	e.skipped_lines[file] = skipped_lines.clone()
 }
 
 pub fn (e &Errors) current_target() ?string {
@@ -302,8 +267,8 @@ pub fn (mut e Errors) report(line int,
 	end_line ?int,
 	end_column ?int,
 	parent_error ?&ErrorInfo) &ErrorInfo {
-	mut type_name := none as ?string
-	mut function_name := none as ?string
+	mut type_name := ?string(none)
+	mut function_name := ?string(none)
 
 	if s := e.scope {
 		type_name = s.current_type_name()
@@ -340,7 +305,7 @@ pub fn (mut e Errors) report(line int,
 		actual_code = parent_error.code
 	}
 
-	info := ErrorInfo.new(
+	info := &ErrorInfo{
 		import_ctx:     e.import_context()
 		local_type:     type_name
 		local_function: function_name
@@ -358,12 +323,13 @@ pub fn (mut e Errors) report(line int,
 		origin_span:    origin_span or { []int{len: 1, init: line} }
 		priority:       0
 		parent_error:   parent_error
-	)
+	}
+
 
 	if e.global_watcher {
 		e.recorded[e.file] << info
 	}
-	e.add_error_info(info)
+	e.add_error_info(info, none)
 	return info
 }
 
@@ -414,13 +380,16 @@ pub fn (mut e Errors) add_error_info(info &ErrorInfo, file ?string) {
 		e.only_once_messages[info.message] = true
 	}
 
-	if e.seen_import_error && info.code != none
-		&& info.code.code !in ['import', 'import-untyped', 'import-not-found']
-		&& e.has_many_errors() {
-		mut hidden_info := *info
-		hidden_info.hidden = true
-		e.report_hidden_errors(actual_file, &hidden_info)
+	if e.seen_import_error && e.has_many_errors() {
+		if code := info.code {
+			if code.code !in ['import', 'import-untyped', 'import-not-found'] {
+				mut hidden_info := *info
+				hidden_info.hidden = true
+				e.report_hidden_errors(actual_file, &hidden_info)
+			}
+		}
 	}
+
 
 	if actual_file !in e.error_info_map {
 		e.error_info_map[actual_file] = []
@@ -429,9 +398,12 @@ pub fn (mut e Errors) add_error_info(info &ErrorInfo, file ?string) {
 	if info.blocker {
 		e.has_blockers[actual_file] = true
 	}
-	if info.code != none && info.code.code in ['import', 'import-untyped', 'import-not-found'] {
-		e.seen_import_error = true
+	if code := info.code {
+		if code.code in ['import', 'import-untyped', 'import-not-found'] {
+			e.seen_import_error = true
+		}
 	}
+
 
 	if actual_file in e.ignored_lines {
 		ignored_codes := e.ignored_lines[actual_file][info.line] or { []string{} }
@@ -450,14 +422,18 @@ pub fn (mut e Errors) add_error_info(info &ErrorInfo, file ?string) {
 		}
 	}
 
-	if e.options.show_error_code_links && !e.options.hide_error_codes && info.code != none
-		&& info.code.code !in hide_link_codes && info.code.code in mypy_error_codes {
-		link_msg := 'See ${base_rtd_url}-${info.code.code} for more info'
-		if link_msg !in e.only_once_messages {
-			e.only_once_messages[link_msg] = true
-			e.note_for_info(actual_file, info, link_msg, info.code, true, 20)
+	if e.options.show_error_code_links && !e.options.hide_error_codes {
+		if code := info.code {
+			if code.code !in hide_link_codes && code.code in mypy_error_codes {
+				link_msg := 'See ${base_rtd_url}-${code.code} for more info'
+				if link_msg !in e.only_once_messages {
+					e.only_once_messages[link_msg] = true
+					e.note_for_info(actual_file, info, link_msg, info.code, true, 20)
+				}
+			}
 		}
 	}
+
 }
 
 fn (e &Errors) has_many_errors() bool {
@@ -854,6 +830,11 @@ pub mut:
 	iteration_dependent_errors &IterationDependentErrors
 }
 
+pub struct IterationDependentErrors {
+pub mut:
+	errors map[string][]&ErrorInfo
+}
+
 pub fn IterationErrorWatcher.new(errors &Errors,
 	iteration_dependent_errors &IterationDependentErrors,
 	filter_errors bool,
@@ -954,46 +935,7 @@ pub fn create_errors(error_tuples []ErrorTuple) []MypyError {
 	return errors
 }
 
-// ============================================================================
-// Interfaces and Forward Declarations
-// ============================================================================
 
-pub interface Scope {
-	ignored int
-	current_target() ?string
-	current_type_name() ?string
-	current_function_name() ?string
-}
-
-pub interface Options {
-	show_absolute_path    bool
-	show_column_numbers   bool
-	show_error_end        bool
-	show_error_context    bool
-	show_error_code_links bool
-	hide_error_codes      bool
-	ignore_errors         bool
-	pretty                bool
-	raise_exceptions      bool
-	show_traceback        bool
-	many_errors_threshold int
-	disabled_error_codes  map[string]bool
-	enabled_error_codes   map[string]bool
-	shadow_file           ?[][]string
-}
-
-pub interface ErrorFormatter {
-	report_error(err &MypyError) string
-}
-
-pub struct IterationDependentErrors {
-pub mut:
-	uselessness_errors   []map[string]bool
-	unreachable_lines    []map[int]bool
-	nonoverlapping_types []map[string](&MypyTypeNode, &MypyTypeNode)
-}
-
-pub type MypyTypeNode = any
 
 const show_note_codes = ['note']
 const mypy_version = '1.11.0'

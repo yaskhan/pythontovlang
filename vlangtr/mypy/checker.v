@@ -320,8 +320,8 @@ pub fn (mut chk TypeChecker) check_func_item(defn &FuncDef, type_override ?&Call
 		
 		// 3. Инициализация типов аргументов в binder
 		for i, arg in defn.arguments {
-			arg_type := typ.arg_types[i] or { MypyTypeNode(AnyType{type_of_any: .unannotated}) }
-			chk.binder.put(arg.variable, arg_type, false)
+			argument_type := typ.arg_types[i] or { MypyTypeNode(AnyType{type_of_any: .unannotated}) }
+			chk.binder.put(arg.variable, argument_type, false)
 		}
 		
 		// 4. Обход тела!

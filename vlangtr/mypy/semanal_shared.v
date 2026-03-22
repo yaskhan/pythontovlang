@@ -47,34 +47,17 @@ pub interface SemanticAnalyzerInterface {
 	// Pass 2/3 spezifisch
 	get_tvar_scope() &TypeVarLikeScope
 	lookup(name string, ctx Context, suppress_errors bool) ?&SymbolTableNode
-	named_type(fullname string, args []MypyType) &Instance
-	named_type_or_none(fullname string, args []MypyType) ?&Instance
+	named_type(fullname string, args []MypyTypeNode) &Instance
+	named_type_or_none(fullname string, args []MypyTypeNode) ?&Instance
 	accept(node Node) // Use Node interface from nodes.v
-	anal_type(
-		typ MypyType
-		tvar_scope ?&TypeVarLikeScope
-		allow_tuple_literal bool
-		allow_unbound_tvars bool
-		allow_typed_dict_special_forms bool
-		allow_placeholder bool
-		report_invalid_types bool
-		prohibit_self_type ?string
-		prohibit_special_class_field_types ?string
-	) ?MypyType
-	get_and_bind_all_tvars(type_exprs []Expression) []MypyType
+	anal_type(typ MypyTypeNode, tvar_scope ?&TypeVarLikeScope, allow_tuple_literal bool, allow_unbound_tvars bool, allow_typed_dict_special_forms bool, allow_placeholder bool, report_invalid_types bool, prohibit_self_type ?string, prohibit_special_class_field_types ?string) ?MypyTypeNode
+	get_and_bind_all_tvars(type_exprs []Expression) []MypyTypeNode
 	basic_new_typeinfo(name string, basetype_or_fallback &Instance, line int) &TypeInfo
 	schedule_patch(priority int, patch fn ())
 	add_symbol_table_node(name string, symbol &SymbolTableNode) bool
 	current_symbol_table() map[string]&SymbolTableNode
-	add_symbol(
-		name string
-		node SymbolNode
-		context Context
-		module_public bool
-		module_hidden bool
-		can_defer bool
-	) bool
-	add_symbol_skip_local(name string, node SymbolNode)
+	add_symbol(name string, node SymbolNodeRef, context Context, module_public bool, module_hidden bool, can_defer bool) bool
+	add_symbol_skip_local(name string, node SymbolNodeRef)
 	parse_bool(expr Expression) ?bool
 	qualified_name(name string) string
 	is_typeshed_stub_file() bool
@@ -84,7 +67,7 @@ pub interface SemanticAnalyzerInterface {
 	get_plugin() &Plugin
 }
 
-pub fn set_callable_name(sig MypyType, fdef &FuncDef) MypyType {
+pub fn set_callable_name(sig MypyTypeNode, fdef &FuncDef) MypyTypeNode {
 	mut p_sig := get_proper_type(sig)
 	if p_sig is FunctionLike {
 		mut class_name := ''
@@ -105,7 +88,7 @@ pub fn set_callable_name(sig MypyType, fdef &FuncDef) MypyType {
 pub fn calculate_tuple_fallback(mut typ TupleType) {
 	mut fallback := typ.partial_fallback
 	assert fallback.typ.fullname == 'builtins.tuple'
-	mut items := []MypyType{}
+	mut items := []MypyTypeNode{}
 	flat_items := flatten_nested_tuples(typ.items)
 	for item in flat_items {
 		if item is UnpackType {
@@ -116,7 +99,7 @@ pub fn calculate_tuple_fallback(mut typ TupleType) {
 			if unpacked_type is Instance && unpacked_type.typ.fullname == 'builtins.tuple' {
 				items << unpacked_type.args[0]
 			} else {
-				items << MypyType(&AnyType{
+				items << MypyTypeNode(&AnyType{
 					kind: .from_error
 				})
 			}
@@ -127,7 +110,7 @@ pub fn calculate_tuple_fallback(mut typ TupleType) {
 	fallback.args = [make_simplified_union(items)]
 }
 
-pub fn has_placeholder(typ MypyType) bool {
+pub fn has_placeholder(typ MypyTypeNode) bool {
 	mut query := HasPlaceholders{}
 	return typ.accept(mut query)
 }
@@ -148,7 +131,7 @@ pub fn find_dataclass_transform_spec(node ?Node) ?&DataclassTransformSpec {
 	}
 
 	if n is RefExpr {
-		// In V, RefExpr might have a 'node' field that is a SymbolNode or similar
+		// In V, RefExpr might have a 'node' field that is a SymbolNodeRef or similar
 		// This needs proper implementation based on nodes.v
 	}
 

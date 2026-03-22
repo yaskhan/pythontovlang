@@ -605,28 +605,32 @@ pub fn (n &StarExpr) accept(v NodeVisitor) !string { return v.visit_star_expr(n)
 // NameExpr — a bare identifier reference
 pub struct NameExpr {
 pub mut:
-	base     NodeBase
-	name     string
-	fullname string
-	// resolved node (could be FuncDef, Var, ClassDef, …)
-	node     ?SymbolNodeRef
+	base            NodeBase
+	name            string
+	fullname        string
+	kind            int = ldef
+	node            ?SymbolNodeRef
 	is_special_form bool
 }
 pub fn (n &NameExpr) get_context() Context { return n.base.ctx }
 pub fn (n &NameExpr) accept(v NodeVisitor) !string { return v.visit_name_expr(n)! }
 
+// RefExpr — a reference expression (NameExpr or MemberExpr)
+pub type RefExpr = NameExpr | MemberExpr
+
 // SymbolNodeRef wraps resolved references to avoid circular sum-type issues.
-pub type SymbolNodeRef = ClassDef | Decorator | FuncDef | MypyFile | OverloadedFuncDef | TypeAlias | Var
+pub type SymbolNodeRef = ClassDef | Decorator | FuncDef | MypyFile | OverloadedFuncDef | TypeAlias | TypeInfo | Var
 
 pub struct MemberExpr {
 pub mut:
-	base     NodeBase
-	expr     Expression
-	name     string
-	fullname ?string
-	node     ?SymbolNodeRef
+	base            NodeBase
+	expr            Expression
+	name            string
+	fullname        ?string
+	kind            int = ldef
+	node            ?SymbolNodeRef
 	is_inferred_def bool
-	def_var  ?Var
+	def_var         ?Var
 }
 pub fn (n &MemberExpr) get_context() Context { return n.base.ctx }
 pub fn (n &MemberExpr) accept(v NodeVisitor) !string { return v.visit_member_expr(n)! }
@@ -871,7 +875,7 @@ pub mut:
 	arguments []Argument
 	arg_names []?string
 	arg_kinds []ArgKind
-	body      Block
+	body      Expression
 	type_     ?MypyType
 }
 pub fn (n &LambdaExpr) get_context() Context { return n.base.ctx }
@@ -1090,9 +1094,7 @@ pub fn (n &PlaceholderNode) accept(v NodeVisitor) !string { return v.visit_place
 // ---------------------------------------------------------------------------
 
 // MypyType is an interface so that types.v can implement it fully.
-pub interface MypyType {
-	type_str() string
-}
+pub type MypyType = MypyTypeNode
 
 // Pattern is an interface implemented by all match-pattern nodes in patterns.v.
 pub interface Pattern {
