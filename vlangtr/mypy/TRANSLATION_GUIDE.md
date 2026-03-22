@@ -39,6 +39,10 @@
 | `tvar_scope.py` | `mypy/tvar_scope.v` | ✅ Полностью (TypeVarLikeScope, TypeVarLikeDefaultFixer) |
 | `erasetype.py` | `mypy/erasetype.v` | ✅ Полностью (erase_type, erase_typevars, TypeVarEraser, LastKnownValueEraser) |
 | `typestate.py` | `mypy/typestate.v` | ✅ Полностью (TypeState, subtype caches, protocol dependencies) |
+| `state.py` | `mypy/state.v` | ✅ Полностью (StrictOptionalState, global state, with_strict_optional) |
+| `defaults.py` | `mypy/defaults.v` | ✅ Полностью (константы: версии Python, cache, config, reporter names) |
+| `operators.py` | `mypy/operators.v` | ✅ Полностью (op_methods, reverse_op_methods, inplace_operator_methods, утилиты) |
+| `split_namespace.py` | `mypy/split_namespace.v` | ✅ Полностью (SplitNamespace для argparse с префиксами) |
 | `build.py` | `mypy/build.v` | 📝 Полуготово: State, BuildManager, SCC, BuildResult, topological sort |
 | `infer.py` | `mypy/infer.v` | 📝 Заглушки: `infer_type_arguments`, `infer_function_type_arguments`, `Constraint` |
 | `solve.py` | `mypy/solve.v` | 📝 Решатель ограничений (solve_one, join of lowers, meet of uppers) |
@@ -46,11 +50,19 @@
 | `maptype.py` | `mypy/maptype.v` | ✅ Полностью (map_instance_to_supertype, map_instance_to_supertypes, class_derivation_paths) |
 | `typevartuples.py` | `mypy/typevartuples.v` | ✅ Полностью (split_with_instance, erased_vars) |
 | `graph_utils.py` | `mypy/graph_utils.v` | ✅ Полностью (strongly_connected_components, prepare_sccs, TopSort) |
+| `refinfo.py` | `mypy/refinfo.v` | ✅ Полностью (RefInfoVisitor, type_fullname, get_undocumented_ref_info_json) |
+| `scope.py` | `mypy/scope.v` | ✅ Полностью (Scope, SavedScope, module/class/function scopes) |
+| `lookup.py` | `mypy/lookup.v` | ✅ Полностью (lookup_fully_qualified) |
+| `state.py` | `mypy/state.v` | ✅ Полностью (StrictOptionalState, state, find_occurrences) |
+| `defaults.py` | `mypy/defaults.v` | ✅ Полностью (Python3_VERSION, CACHE_DIR, CONFIG_NAMES, reporter_names, timeouts) |
 | `meet.py` | `mypy/meet.v` | 📝 Базовые `meet_types`, `is_overlapping_types` |
 | `join.py` | `mypy/join.v` | 📝 Базовые `join_types`, `join_type_list` |
 | `subtypes.py` | `mypy/subtypes.v` | 📝 Основная логика `is_subtype` (Instance, Callable, Union) |
 | `checkpattern.py` | `mypy/checkpattern.v` | 📝 PatternChecker: `visit_match_stmt` |
 | `expandtype.py` | `mypy/expandtype.v` | 📝 Подстановка `TypeVar` через контекст инстанса (`expand_type`) |
+| `lookup.py` | `mypy/lookup.v` | 📝 Поиск символов в глобальной таблице (lookup_fully_qualified) |
+| `plugin.py` | `mypy/plugin.v` | 📝 Система плагинов (Contexts, Interfaces, ChainedPlugin) |
+| `typeanal.py` | `mypy/typeanal.v` | 📝 Семантический анализатор для типов (TypeAnalyser, UnboundType -> Instance) |
 
 ---
 
