@@ -18,20 +18,18 @@ pub fn (mut a NewTypeAnalyzer) process_newtype_declaration(s &AssignmentStmt) bo
 	
 	mut nt_name := name
 	if a.api.is_func_scope() {
-		nt_name += '@' + s.line.str()
+		nt_name += '@' + s.base.ctx.line.str()
 	}
 	
-	// В V мы можем сразу попытаться разобрать аргументы.
-	// Если база не готова, api.defer() вызовется внутри.
-	
-	old_type, should_defer := a.check_newtype_args(name, call or { return false }, s)
+	mut c := call or { return false }
+	old_type_raw, should_defer := a.check_newtype_args(name, c, s.get_context())
 	
 	if should_defer {
-		a.api.defer()
+		a.api.defer(s.get_context(), false)
 		return true
 	}
 	
-	mut actual_old_type := old_type or { MypyTypeNode(AnyType{type_of_any: .from_error}) }
+	mut actual_old_type := old_type_raw or { MypyTypeNode(AnyType{type_of_any: .from_error}) }
 	
 	// Build TypeInfo
 	mut base_type := a.api.named_type('builtins.object', [])
@@ -41,12 +39,11 @@ pub fn (mut a NewTypeAnalyzer) process_newtype_declaration(s &AssignmentStmt) bo
 		base_type = actual_old_type.partial_fallback
 	}
 	
-	info := a.build_newtype_typeinfo(nt_name, actual_old_type, base_type, s.line, none)
+	info := a.build_newtype_typeinfo(nt_name, actual_old_type, base_type, s.base.ctx.line, none)
 	
-	// call.analyzed = NewTypeExpr(...)
-	a.api.add_symbol(name, info, s, true, false, true)
+	a.api.add_symbol(name, SymbolNodeRef(info), s, true, false, true)
 	if a.api.is_func_scope() {
-		a.api.add_symbol_skip_local(nt_name, info)
+		a.api.add_symbol_skip_local(nt_name, SymbolNodeRef(info))
 	}
 	
 	return true
@@ -57,7 +54,7 @@ pub fn (mut a NewTypeAnalyzer) analyze_newtype_declaration(s &AssignmentStmt) (s
 		r := s.rvalue
 		if r is CallExpr {
 			callee := r.callee
-			if callee is RefExpr {
+			if callee is NameExpr {
 				if callee.fullname in ["typing.NewType", "typing_extensions.NewType"] {
 					return (s.lvalues[0] as NameExpr).name, r
 				}
@@ -85,11 +82,9 @@ pub fn (mut a NewTypeAnalyzer) check_newtype_args(name string, call &CallExpr, c
 	}
 	
 	// Check base type
-	arg1 := args[1]
-	// expr_to_unanalyzed_type(arg1) ...
-	// api.anal_type(...)
+	// arg1 := args[1]
 	
-	mut old_type := a.api.anal_type(MypyTypeNode(AnyType{type_of_any: .unannotated}), none, false, false, true, false, true, '', '')
+	mut old_type := a.api.anal_type(MypyTypeNode(AnyType{type_of_any: .unannotated}), none, false, false, true, false, true, none, none)
 	
 	if old_type == none {
 		return none, true // should defer
@@ -99,13 +94,14 @@ pub fn (mut a NewTypeAnalyzer) check_newtype_args(name string, call &CallExpr, c
 }
 
 pub fn (mut a NewTypeAnalyzer) build_newtype_typeinfo(name string, old_type MypyTypeNode, base_type &Instance, line int, existing_info ?&TypeInfo) &TypeInfo {
-	info := existing_info or { a.api.basic_new_typeinfo(name, base_type, line) }
-	info.is_newtype = true
+	info := or_existing_info(existing_info, a.api.basic_new_typeinfo(name, base_type, line))
+	mut mut_info := unsafe { &TypeInfo(info) }
+	mut_info.is_newtype = true
 	
 	// Add __init__(self, item: old_type)
 	mut init_args := [
-		&Argument{ variable: &Var{name: "self", typ: MypyTypeNode(NoneType{})}, kind: .pos },
-		&Argument{ variable: &Var{name: "item", typ: old_type}, kind: .pos }
+		Argument{ variable: &Var{name: "self", type_: MypyTypeNode(NoneType{})}, kind: .arg_pos },
+		Argument{ variable: &Var{name: "item", type_: old_type}, kind: .arg_pos }
 	]
 	
 	mut signature := &CallableType{
@@ -121,15 +117,15 @@ pub fn (mut a NewTypeAnalyzer) build_newtype_typeinfo(name string, old_type Mypy
 	mut init_func := &FuncDef{
 		name: "__init__"
 		arguments: init_args
-		body: &Block{}
-		typ: signature
+		body: Block{}
+		type_: MypyTypeNode(signature)
 	}
 	init_func.info = info
 	init_func.fullname = '${info.fullname}.__init__'
 	
-	info.names['__init__'] = &SymbolTableNode{
+	mut_info.names.symbols['__init__'] = SymbolTableNode{
 		kind: .mdef
-		node: init_func
+		node: SymbolNodeRef(init_func)
 	}
 	
 	return info

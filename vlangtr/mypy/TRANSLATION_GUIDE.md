@@ -91,6 +91,7 @@
 | `semanal_infer.py` | `mypy/semanal_infer.v` | 📝 infer_decorator_signature_if_simple, is_identity_signature, calculate_return_type |
 | `checkstrformat.py` | `mypy/checkstrformat.v` | 📝 StringFormatterChecker, ConversionSpecifier, parse_conversion_specifiers, conversion_type |
 | `cache.py` | `mypy/cache.v` | 📝 CacheMeta, ErrorInfo, FF serialization tags, read/write literals, lists, JSON |
+| `exportjson.py` | `mypy/exportjson.v` | 📝 convert_binary_cache_to_json, convert_mypy_file_to_json, convert_type (partial) |
 | `indirection.py` | `mypy/indirection.v` | ✅ Полностью (TypeIndirectionVisitor для анализа зависимостей модулей) |
 | `stats.py` | `mypy/stats.v` | ✅ Полностью (StatisticsVisitor для сбора статистики о типах) |
 | `ipc.py` | `mypy/ipc.v` | ✅ Полностью (IPCBase, IPCClient, IPCServer, IPCMessage, WriteBuffer, ReadBuffer) |

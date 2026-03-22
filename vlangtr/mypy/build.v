@@ -65,20 +65,21 @@ pub type Graph = map[string]&State
 pub struct State {
 pub mut:
 	id             string
+	manager        &BuildManager = unsafe { nil }
+	tree           ?&MypyFile
 	dependencies   []string
 	priorities     map[string]int
 	trans_dep_hash []u8
-	// other Mypy fields:
-	// tree           ?&MypyFile
-	// type_map       map[Expression]MypyTypeNode
-	// error_messages []string
+	options        &Options      = unsafe { nil }
 }
 
 pub struct BuildManager {
 pub mut:
-	errors     &Errors
-	options    &Options
-	// modules    map[string]&MypyFile
+	errors                &Errors      = unsafe { nil }
+	options               &Options     = unsafe { nil }
+	semantic_analyzer      &SemanticAnalyzer = unsafe { nil }
+	incomplete_namespaces  map[string]bool
+	processed_targets      [][]string
 	// fg_manager &FineGrainedBuildManager
 }
 

@@ -735,6 +735,8 @@ pub mut:
 	final_value        ?Expression
 	explicit_self_type ?MypyType
 	is_abstract_var    bool
+	has_explicit_value bool
+	info               ?&TypeInfo
 }
 pub fn (n &Var) get_context() Context { return n.base.ctx }
 pub fn (n &Var) accept(mut v NodeVisitor) !string { return v.visit_var(n)! }
@@ -1293,6 +1295,8 @@ pub mut:
 	typeddict_type      ?MypyType
 	declared_metaclass  ?Instance
 	is_final            bool
+	tuple_type          ?&TupleType
+	metaclass_type      ?&Instance
 }
 
 

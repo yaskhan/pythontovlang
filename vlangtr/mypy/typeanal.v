@@ -2,91 +2,144 @@
 module mypy
 
 // typeanal.v — Семантический анализатор для типов.
-// Преобразует неразрешённые (Unbound) типы, полученные из парсинга AST (например, тип "List[int]"),
-// в семантически корректные MypyTypeNode (например, Instance(list) с аргументом Instance(int)).
+// Преобразует неразрешённые (Unbound) типы в семантически корректные MypyTypeNode.
 
 pub struct TypeAnalyser {
 pub mut:
 	options           &Options
 	errors            &Errors
 	is_typeshed_file  bool
-	// lookup_node    fn(name string) ?SymbolTableNode
+	
+	// Состояние обхода
 	allow_any         bool
 	allow_tuple_literal bool
 	allow_unbound_tvars bool
+	
+	// Контекст для lookup (интерфейс из semanal_shared.v)
+	api               &SemanticAnalyzerInterface = unsafe { nil }
 }
 
 pub fn (mut t TypeAnalyser) accept(typ MypyTypeNode) MypyTypeNode {
-	// Основная точка входа.
-	return typ.accept_synthetic(mut t) or {
-		// Ошибка преобразования — возвращаем Any
+	return typ.accept_translator(mut t)
+}
+
+// --- Реализация TypeTranslator ---
+
+pub fn (mut t TypeAnalyser) visit_unbound_type(typ &UnboundType) MypyTypeNode {
+	// 1. Поиск символа через API семантического анализатора
+	if t.api == unsafe { nil } {
+		return MypyTypeNode(*typ)
+	}
+	
+	sym := t.api.lookup(typ.name, Context(NodeBase{ctx: typ.ctx}), false) or {
+		// t.errors.report(typ.ctx.line, typ.ctx.column, "Name '${typ.name}' is not defined", .error, none)
 		return MypyTypeNode(AnyType{type_of_any: .from_error})
 	}
-}
-
-pub fn (mut t TypeAnalyser) visit_unbound_type(typ &UnboundType) !string {
-	// 1. Поиск символа
-	// sym := t.lookup_node(typ.name)
 	
-	// 2. Если символ найден и это класс (TypeInfo), то собираем аргументы
-	// if sym.node is TypeInfo ...
-	
-	// Заглушка, если ничего не найдено или мы еще не реализовали lookup:
-	// t.fail("Name '\${typ.name}' is not defined", typ)
-	// В V мы не можем изменить саму ссылку typ. Нужно возвращать новый MypyTypeNode.
-	// Для совместимости с accept_synthetic, мы пока просто ничего не меняем.
-	return ''
-}
-
-pub fn (mut t TypeAnalyser) visit_any(typ &AnyType) !string {
-	return ''
-}
-
-pub fn (mut t TypeAnalyser) visit_none_type(typ &NoneType) !string {
-	return ''
-}
-
-pub fn (mut t TypeAnalyser) visit_instance(typ &Instance) !string {
-	// Анализируем аргументы типов
-	/*
-	for i in 0 .. typ.args.len {
-		typ.args[i] = t.accept(typ.args[i])
+	node := sym.node or {
+		return MypyTypeNode(AnyType{type_of_any: .from_error})
 	}
-	*/
-	return ''
+	
+	if node is TypeInfo {
+		// Собираем аргументы
+		mut args := []MypyTypeNode{}
+		for arg in typ.args {
+			args << t.accept(arg)
+		}
+		return MypyTypeNode(Instance{
+			typ: node
+			args: args
+		})
+	}
+	
+	if node is TypeAlias {
+		return MypyTypeNode(TypeAliasType{
+			alias_name: typ.name
+			// target_type: node.target
+		})
+	}
+
+	return MypyTypeNode(AnyType{type_of_any: .from_error})
 }
 
-pub fn (mut t TypeAnalyser) visit_callable_type(typ &CallableType) !string {
-	// Анализируем типы аргументов и возвращаемое значение
-	/*
-	for i in 0 .. typ.arg_types.len {
-		if arg := typ.arg_types[i] {
-			typ.arg_types[i] = t.accept(arg)
+pub fn (mut t TypeAnalyser) visit_any(typ &AnyType) MypyTypeNode {
+	return MypyTypeNode(*typ)
+}
+
+pub fn (mut t TypeAnalyser) visit_none_type(typ &NoneType) MypyTypeNode {
+	return MypyTypeNode(*typ)
+}
+
+pub fn (mut t TypeAnalyser) visit_instance(typ &Instance) MypyTypeNode {
+	mut new_args := []MypyTypeNode{}
+	for arg in typ.args {
+		new_args << t.accept(arg)
+	}
+	return MypyTypeNode(Instance{
+		typ: typ.typ
+		args: new_args
+		last_known_value: typ.last_known_value
+	})
+}
+
+pub fn (mut t TypeAnalyser) visit_callable_type(typ &CallableType) MypyTypeNode {
+	mut new_arg_types := []?MypyTypeNode{}
+	for arg in typ.arg_types {
+		if a := arg {
+			new_arg_types << t.accept(a)
+		} else {
+			new_arg_types << none
 		}
 	}
-	typ.ret_type = t.accept(typ.ret_type)
-	*/
-	return ''
+	return MypyTypeNode(CallableType{
+		base: typ.base
+		arg_types: new_arg_types
+		arg_kinds: typ.arg_kinds
+		arg_names: typ.arg_names
+		ret_type: t.accept(typ.ret_type)
+	})
 }
 
-pub fn (mut t TypeAnalyser) visit_tuple_type(typ &TupleType) !string {
-	// Анализируем элементы кортежа
-	/*
-	for i in 0 .. typ.items.len {
-		typ.items[i] = t.accept(typ.items[i])
+pub fn (mut t TypeAnalyser) visit_tuple_type(typ &TupleType) MypyTypeNode {
+	mut new_items := []MypyTypeNode{}
+	for item in typ.items {
+		new_items << t.accept(item)
 	}
-	*/
-	return ''
+	return MypyTypeNode(TupleType{
+		base: typ.base
+		items: new_items
+		partial_fallback: typ.partial_fallback // Instance
+	})
 }
 
-pub fn (mut t TypeAnalyser) visit_union_type(typ &UnionType) !string {
-	// Анализируем элементы объединения
-	/*
-	for i in 0 .. typ.items.len {
-		typ.items[i] = t.accept(typ.items[i])
+pub fn (mut t TypeAnalyser) visit_union_type(typ &UnionType) MypyTypeNode {
+	mut new_items := []MypyTypeNode{}
+	for item in typ.items {
+		new_items << t.accept(item)
 	}
-	*/
-	return ''
+	return MypyTypeNode(UnionType{
+		base: typ.base
+		items: new_items
+	})
 }
 
-// TODO: методы для AnalyzeTypeAlias, ClassDef
+// --- Заглушки для остальных типов ---
+
+pub fn (mut t TypeAnalyser) visit_uninhabited_type(typ &UninhabitedType) MypyTypeNode { return MypyTypeNode(*typ) }
+pub fn (mut t TypeAnalyser) visit_erased_type(typ &ErasedType) MypyTypeNode { return MypyTypeNode(*typ) }
+pub fn (mut t TypeAnalyser) visit_deleted_type(typ &DeletedType) MypyTypeNode { return MypyTypeNode(*typ) }
+pub fn (mut t TypeAnalyser) visit_type_var(typ &TypeVarType) MypyTypeNode { return MypyTypeNode(*typ) }
+pub fn (mut t TypeAnalyser) visit_param_spec(typ &ParamSpecType) MypyTypeNode { return MypyTypeNode(*typ) }
+pub fn (mut t TypeAnalyser) visit_parameters(typ &ParametersType) MypyTypeNode { return MypyTypeNode(*typ) }
+pub fn (mut t TypeAnalyser) visit_type_var_tuple(typ &TypeVarTupleType) MypyTypeNode { return MypyTypeNode(*typ) }
+pub fn (mut t TypeAnalyser) visit_typeddict_type(typ &TypedDictType) MypyTypeNode { return MypyTypeNode(*typ) }
+pub fn (mut t TypeAnalyser) visit_literal_type(typ &LiteralType) MypyTypeNode { return MypyTypeNode(*typ) }
+pub fn (mut t TypeAnalyser) visit_partial_type(typ &PartialTypeT) MypyTypeNode { return MypyTypeNode(*typ) }
+pub fn (mut t TypeAnalyser) visit_type_type(typ &TypeType) MypyTypeNode { return MypyTypeNode(*typ) }
+pub fn (mut t TypeAnalyser) visit_type_alias_type(typ &TypeAliasType) MypyTypeNode { return MypyTypeNode(*typ) }
+pub fn (mut t TypeAnalyser) visit_unpack_type(typ &UnpackType) MypyTypeNode { return MypyTypeNode(*typ) }
+pub fn (mut t TypeAnalyser) visit_type_list(typ &TypeList) MypyTypeNode { return MypyTypeNode(*typ) }
+pub fn (mut t TypeAnalyser) visit_callable_argument(typ &CallableArgument) MypyTypeNode { return MypyTypeNode(*typ) }
+pub fn (mut t TypeAnalyser) visit_ellipsis_type(typ &EllipsisType) MypyTypeNode { return MypyTypeNode(*typ) }
+pub fn (mut t TypeAnalyser) visit_raw_expression_type(typ &RawExpressionType) MypyTypeNode { return MypyTypeNode(*typ) }
+pub fn (mut t TypeAnalyser) visit_placeholder_type(typ &PlaceholderType) MypyTypeNode { return MypyTypeNode(*typ) }

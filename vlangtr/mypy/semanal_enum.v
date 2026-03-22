@@ -39,7 +39,7 @@ pub fn (mut a EnumCallAnalyzer) process_enum_call(s &AssignmentStmt, is_func_sco
 	}
 	
 	// Добавляем в таблицу символов
-	a.api.add_symbol(name, info, s, true, false, true)
+	a.api.add_symbol(name, SymbolNodeRef(info), s, true, false, true)
 	return true
 }
 
@@ -50,18 +50,24 @@ pub fn (mut a EnumCallAnalyzer) check_enum_call(node Expression, var_name string
 	callee := call.callee
 	if callee !is RefExpr { return none }
 	
-	fullname := callee.fullname
+	mut fullname := ''
+	if callee is NameExpr {
+		fullname = callee.fullname
+	} else if callee is MemberExpr {
+		fullname = callee.fullname or { '' }
+	}
+
 	if fullname !in enum_bases { return none }
 
 	new_class_name, items, values, ok := a.parse_enum_call_args(call, fullname.split('.').last())
 	
-	mut info := &TypeInfo(0)
+	mut info := unsafe { &TypeInfo(nil) }
 	if !ok {
 		mut name := var_name
 		if is_func_scope {
-			name += '@' + call.line.str()
+			name += '@' + call.base.ctx.line.str()
 		}
-		info = a.build_enum_call_typeinfo(name, [], fullname, node.line)
+		info = a.build_enum_call_typeinfo(name, [], fullname, node.get_context().line)
 	} else {
 		if new_class_name != var_name {
 			msg := 'String argument 1 "${new_class_name}" to ${fullname}(...) does not match variable name "${var_name}"'
@@ -75,17 +81,14 @@ pub fn (mut a EnumCallAnalyzer) check_enum_call(node Expression, var_name string
 		}
 		
 		if name != var_name || is_func_scope {
-			name += '@' + call.line.str()
+			name += '@' + call.base.ctx.line.str()
 		}
-		info = a.build_enum_call_typeinfo(name, items, fullname, call.line)
+		info = a.build_enum_call_typeinfo(name, items, fullname, call.base.ctx.line)
 	}
 	
 	if info.name != var_name || is_func_scope {
-		a.api.add_symbol_skip_local(info.name, info)
+		a.api.add_symbol_skip_local(info.name, SymbolNodeRef(info))
 	}
-	
-	// В Python: call.analyzed = EnumCallExpr(...)
-	// В V: нужно предусмотреть соответствующее поле в CallExpr или использовать механизм analyzed
 	
 	return info
 }
@@ -96,8 +99,9 @@ pub fn (mut a EnumCallAnalyzer) build_enum_call_typeinfo(name string, items []st
 		a.api.named_type('builtins.object', [])
 	}
 	info := a.api.basic_new_typeinfo(name, base, line)
-	// info.metaclass_type = info.calculate_metaclass_type()
-	info.is_enum = true
+	mut mut_info := unsafe { &TypeInfo(info) }
+	
+	mut_info.is_enum = true
 	
 	for item in items {
 		mut v := &Var{
@@ -107,9 +111,9 @@ pub fn (mut a EnumCallAnalyzer) build_enum_call_typeinfo(name string, items []st
 			has_explicit_value: true
 		}
 		v.fullname = '${info.fullname}.${item}'
-		info.names[item] = &SymbolTableNode{
+		mut_info.names.symbols[item] = SymbolTableNode{
 			kind: .mdef
-			node: v
+			node: SymbolNodeRef(v)
 		}
 	}
 	return info
@@ -117,7 +121,6 @@ pub fn (mut a EnumCallAnalyzer) build_enum_call_typeinfo(name string, items []st
 
 pub fn (mut a EnumCallAnalyzer) parse_enum_call_args(call &CallExpr, class_name string) (string, []string, []?Expression, bool) {
 	args := call.args
-	// kinds := call.arg_kinds
 	
 	if args.len < 2 {
 		return a.fail_enum_call_arg('Too few arguments for ${class_name}()', call)
@@ -148,9 +151,11 @@ pub fn (mut a EnumCallAnalyzer) parse_enum_call_args(call &CallExpr, class_name 
 		}
 	} else if names_arg is DictExpr {
 		for i, key in names_arg.keys {
-			if key is StrExpr {
-				items << key.value
-				values << names_arg.values[i]
+			if k := key {
+				if k is StrExpr {
+					items << k.value
+					values << names_arg.values[i]
+				}
 			}
 		}
 	}

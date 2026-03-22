@@ -50,7 +50,8 @@ pub fn convert_symbol_table(self SymbolTable, cfg Config) Json {
 		if key == '__builtins__' || value.no_serialize {
 			continue
 		}
-		if !cfg.implicit_names && key in ['__spec__', '__package__', '__file__', '__doc__', '__annotations__', '__name__'] {
+		if !cfg.implicit_names
+			&& key in ['__spec__', '__package__', '__file__', '__doc__', '__annotations__', '__name__'] {
 			continue
 		}
 		data[key] = Any(convert_symbol_table_node(value, cfg))
@@ -104,22 +105,28 @@ pub fn convert_symbol_node(self SymbolNode, cfg Config) Json {
 	} else if self is TypeVarTupleExprNode {
 		return convert_type_var_tuple_expr(self)
 	}
-	return {'ERROR': Any('${typeof(self)} unrecognized')}
+	return {
+		'ERROR': Any('${typeof(self)} unrecognized')
+	}
 }
 
 // convert_func_def конвертирует FuncDef в JSON
 pub fn convert_func_def(self FuncDefNode) Json {
 	return {
-		'.class':                    Any('FuncDef')
-		'name':                      Any(self._name)
-		'fullname':                  Any(self._fullname)
-		'arg_names':                 Any(self.arg_names)
-		'arg_kinds':                 Any(self.arg_kinds.map(int(it)))
-		'type':                      Any(if self.typ == none { none } else { convert_type(self.typ) })
-		'flags':                     Any(get_flags(self, funcdef_flags))
-		'abstract_status':           Any(self.abstract_status)
-		'deprecated':                Any(self.deprecated)
-		'original_first_arg':        Any(self.original_first_arg)
+		'.class':             Any('FuncDef')
+		'name':               Any(self._name)
+		'fullname':           Any(self._fullname)
+		'arg_names':          Any(self.arg_names)
+		'arg_kinds':          Any(self.arg_kinds.map(int(it)))
+		'type':               Any(if self.typ == none {
+			none
+		} else {
+			convert_type(self.typ)
+		})
+		'flags':              Any(get_flags(self, funcdef_flags))
+		'abstract_status':    Any(self.abstract_status)
+		'deprecated':         Any(self.deprecated)
+		'original_first_arg': Any(self.original_first_arg)
 	}
 }
 
@@ -128,9 +135,17 @@ pub fn convert_overloaded_func_def(self OverloadedFuncDefNode) Json {
 	return {
 		'.class':     Any('OverloadedFuncDef')
 		'items':      Any(self.items.map(convert_overload_part(it)))
-		'type':       Any(if self.typ == none { none } else { convert_type(self.typ) })
+		'type':       Any(if self.typ == none {
+			none
+		} else {
+			convert_type(self.typ)
+		})
 		'fullname':   Any(self._fullname)
-		'impl':       Any(if self.impl == none { none } else { convert_overload_part(self.impl) })
+		'impl':       Any(if self.impl == none {
+			none
+		} else {
+			convert_overload_part(self.impl)
+		})
 		'flags':      Any(get_flags(self, funcbase_flags))
 		'deprecated': Any(self.deprecated)
 	}
@@ -161,7 +176,11 @@ pub fn convert_var(self VarNode) Json {
 	data['name'] = Any(self._name)
 	data['fullname'] = Any(self._fullname)
 	data['type'] = Any(if self.typ == none { none } else { convert_type(self.typ) })
-	data['setter_type'] = Any(if self.setter_type == none { none } else { convert_type(self.setter_type) })
+	data['setter_type'] = Any(if self.setter_type == none {
+		none
+	} else {
+		convert_type(self.setter_type)
+	})
 	data['flags'] = Any(get_flags(self, var_flags))
 	if self.final_value != none {
 		data['final_value'] = Any(self.final_value)
@@ -172,22 +191,34 @@ pub fn convert_var(self VarNode) Json {
 // convert_type_info конвертирует TypeInfo в JSON
 pub fn convert_type_info(self TypeInfoNode, cfg Config) Json {
 	return {
-		'.class':                    Any('TypeInfo')
-		'module_name':               Any(self.module_name)
-		'fullname':                  Any(self.fullname)
-		'names':                     Any(convert_symbol_table(self.names, cfg))
-		'defn':                      Any(convert_class_def(self.defn))
-		'abstract_attributes':       Any(self.abstract_attributes)
-		'type_vars':                 Any(self.type_vars)
-		'bases':                     Any(self.bases.map(convert_type(it)))
-		'mro':                       Any(self._mro_refs)
-		'_promote':                  Any(self._promote.map(convert_type(it)))
-		'tuple_type':                Any(if self.tuple_type == none { none } else { convert_type(self.tuple_type) })
-		'typeddict_type':            Any(if self.typeddict_type == none { none } else { convert_typeddict_type(self.typeddict_type) })
-		'flags':                     Any(get_flags(self, TypeInfoNode.flags))
-		'metadata':                  Any(self.metadata)
-		'slots':                     Any(if self.slots == none { none } else { self.slots.sorted() })
-		'deprecated':                Any(self.deprecated)
+		'.class':              Any('TypeInfo')
+		'module_name':         Any(self.module_name)
+		'fullname':            Any(self.fullname)
+		'names':               Any(convert_symbol_table(self.names, cfg))
+		'defn':                Any(convert_class_def(self.defn))
+		'abstract_attributes': Any(self.abstract_attributes)
+		'type_vars':           Any(self.type_vars)
+		'bases':               Any(self.bases.map(convert_type(it)))
+		'mro':                 Any(self._mro_refs)
+		'_promote':            Any(self._promote.map(convert_type(it)))
+		'tuple_type':          Any(if self.tuple_type == none {
+			none
+		} else {
+			convert_type(self.tuple_type)
+		})
+		'typeddict_type':      Any(if self.typeddict_type == none {
+			none
+		} else {
+			convert_typeddict_type(self.typeddict_type)
+		})
+		'flags':               Any(get_flags(self, TypeInfoNode.flags))
+		'metadata':            Any(self.metadata)
+		'slots':               Any(if self.slots == none {
+			none
+		} else {
+			self.slots.sorted()
+		})
+		'deprecated':          Any(self.deprecated)
 	}
 }
 
@@ -204,14 +235,14 @@ pub fn convert_class_def(self ClassDefNode) Json {
 // convert_type_alias конвертирует TypeAlias в JSON
 pub fn convert_type_alias(self TypeAliasNode) Json {
 	return {
-		'.class':                  Any('TypeAlias')
-		'fullname':                Any(self._fullname)
-		'module':                  Any(self.module)
-		'target':                  Any(convert_type(self.target))
-		'alias_tvars':             Any(self.alias_tvars.map(convert_type(it)))
-		'no_args':                 Any(self.no_args)
-		'normalized':              Any(self.normalized)
-		'python_3_12_type_alias':  Any(self.python_3_12_type_alias)
+		'.class':                 Any('TypeAlias')
+		'fullname':               Any(self._fullname)
+		'module':                 Any(self.module)
+		'target':                 Any(convert_type(self.target))
+		'alias_tvars':            Any(self.alias_tvars.map(convert_type(it)))
+		'no_args':                Any(self.no_args)
+		'normalized':             Any(self.normalized)
+		'python_3_12_type_alias': Any(self.python_3_12_type_alias)
 	}
 }
 
@@ -226,7 +257,9 @@ pub fn convert_type(typ MypyTypeNode) Json {
 	} else if tp is AnyTypeNode {
 		return convert_any_type(tp)
 	} else if tp is NoneTypeNode {
-		return {'.class': Any('NoneType')}
+		return {
+			'.class': Any('NoneType')
+		}
 	} else if tp is UnionTypeNode {
 		return convert_union_type(tp)
 	} else if tp is TupleTypeNode {
@@ -234,17 +267,32 @@ pub fn convert_type(typ MypyTypeNode) Json {
 	} else if tp is CallableTypeNode {
 		return convert_callable_type(tp)
 	} else if tp is OverloadedNode {
-		return {'.class': Any('Overloaded'), 'items': Any(tp.items.map(convert_type(it)))}
+		return {
+			'.class': Any('Overloaded')
+			'items':  Any(tp.items.map(convert_type(it)))
+		}
 	} else if tp is LiteralTypeNode {
-		return {'.class': Any('LiteralType'), 'value': Any(tp.value), 'fallback': Any(convert_type(tp.fallback))}
+		return {
+			'.class':   Any('LiteralType')
+			'value':    Any(tp.value)
+			'fallback': Any(convert_type(tp.fallback))
+		}
 	} else if tp is TypeVarTypeNode {
 		return convert_type_var_type(tp)
 	} else if tp is TypeTypeNode {
-		return {'.class': Any('TypeType'), 'item': Any(convert_type(tp.item))}
+		return {
+			'.class': Any('TypeType')
+			'item':   Any(convert_type(tp.item))
+		}
 	} else if tp is UninhabitedTypeNode {
-		return {'.class': Any('UninhabitedType')}
+		return {
+			'.class': Any('UninhabitedType')
+		}
 	} else if tp is UnpackTypeNode {
-		return {'.class': Any('UnpackType'), 'type': Any(convert_type(tp.typ))}
+		return {
+			'.class': Any('UnpackType')
+			'type':   Any(convert_type(tp.typ))
+		}
 	} else if tp is ParamSpecTypeNode {
 		return convert_param_spec_type(tp)
 	} else if tp is TypeVarTupleTypeNode {
@@ -256,7 +304,9 @@ pub fn convert_type(typ MypyTypeNode) Json {
 	} else if tp is UnboundTypeNode {
 		return convert_unbound_type(tp)
 	}
-	return {'ERROR': Any('${typeof(tp)} unrecognized')}
+	return {
+		'ERROR': Any('${typeof(tp)} unrecognized')
+	}
 }
 
 // convert_instance конвертирует Instance в JSON
@@ -271,38 +321,50 @@ pub fn convert_instance(self InstanceNode) Json {
 	if self.last_known_value != none {
 		data['last_known_value'] = Any(convert_type(self.last_known_value))
 	}
-	data['extra_attrs'] = Any(if self.extra_attrs == none { none } else { convert_extra_attrs(self.extra_attrs) })
+	data['extra_attrs'] = Any(if self.extra_attrs == none {
+		none
+	} else {
+		convert_extra_attrs(self.extra_attrs)
+	})
 	return data
 }
 
 // convert_callable_type конвертирует CallableType в JSON
 pub fn convert_callable_type(self CallableTypeNode) Json {
 	return {
-		'.class':               Any('CallableType')
-		'arg_types':            Any(self.arg_types.map(convert_type(it)))
-		'arg_kinds':            Any(self.arg_kinds.map(int(it)))
-		'arg_names':            Any(self.arg_names)
-		'ret_type':             Any(convert_type(self.ret_type))
-		'fallback':             Any(convert_type(self.fallback))
-		'name':                 Any(self.name)
-		'variables':            Any(self.variables.map(convert_type(it)))
-		'is_ellipsis_args':     Any(self.is_ellipsis_args)
-		'implicit':             Any(self.implicit)
-		'is_bound':             Any(self.is_bound)
-		'type_guard':           Any(if self.type_guard == none { none } else { convert_type(self.type_guard) })
-		'type_is':              Any(if self.type_is == none { none } else { convert_type(self.type_is) })
-		'unpack_kwargs':        Any(self.unpack_kwargs)
+		'.class':           Any('CallableType')
+		'arg_types':        Any(self.arg_types.map(convert_type(it)))
+		'arg_kinds':        Any(self.arg_kinds.map(int(it)))
+		'arg_names':        Any(self.arg_names)
+		'ret_type':         Any(convert_type(self.ret_type))
+		'fallback':         Any(convert_type(self.fallback))
+		'name':             Any(self.name)
+		'variables':        Any(self.variables.map(convert_type(it)))
+		'is_ellipsis_args': Any(self.is_ellipsis_args)
+		'implicit':         Any(self.implicit)
+		'is_bound':         Any(self.is_bound)
+		'type_guard':       Any(if self.type_guard == none {
+			none
+		} else {
+			convert_type(self.type_guard)
+		})
+		'type_is':          Any(if self.type_is == none {
+			none
+		} else {
+			convert_type(self.type_is)
+		})
+		'unpack_kwargs':    Any(self.unpack_kwargs)
 	}
 }
 
 // convert_typeddict_type конвертирует TypedDictType в JSON
 pub fn convert_typeddict_type(self TypedDictTypeNode) Json {
 	return {
-		'.class':         Any('TypedDictType')
-		'items':          Any(self.items.keys().map([it, convert_type(self.items[it])]))
-		'required_keys':  Any(self.required_keys.sorted())
-		'readonly_keys':  Any(self.readonly_keys.sorted())
-		'fallback':       Any(convert_type(self.fallback))
+		'.class':        Any('TypedDictType')
+		'items':         Any(self.items.keys().map([it, convert_type(self.items[it])]))
+		'required_keys': Any(self.required_keys.sorted())
+		'readonly_keys': Any(self.readonly_keys.sorted())
+		'fallback':      Any(convert_type(self.fallback))
 	}
 }
 
@@ -352,65 +414,91 @@ fn get_proper_type(t MypyTypeNode) MypyTypeNode {
 
 fn convert_extra_attrs(self ExtraAttrsNode) Json {
 	// TODO: реализация
-	return {'.class': Any('ExtraAttrs')}
+	return {
+		'.class': Any('ExtraAttrs')
+	}
 }
 
 fn convert_type_alias_type(self TypeAliasTypeNode) Json {
 	// TODO: реализация
-	return {'.class': Any('TypeAliasType')}
+	return {
+		'.class': Any('TypeAliasType')
+	}
 }
 
 fn convert_any_type(self AnyTypeNode) Json {
 	// TODO: реализация
-	return {'.class': Any('AnyType')}
+	return {
+		'.class': Any('AnyType')
+	}
 }
 
 fn convert_union_type(self UnionTypeNode) Json {
 	// TODO: реализация
-	return {'.class': Any('UnionType')}
+	return {
+		'.class': Any('UnionType')
+	}
 }
 
 fn convert_tuple_type(self TupleTypeNode) Json {
 	// TODO: реализация
-	return {'.class': Any('TupleType')}
+	return {
+		'.class': Any('TupleType')
+	}
 }
 
 fn convert_type_var_type(self TypeVarTypeNode) Json {
 	// TODO: реализация
-	return {'.class': Any('TypeVarType')}
+	return {
+		'.class': Any('TypeVarType')
+	}
 }
 
 fn convert_param_spec_type(self ParamSpecTypeNode) Json {
 	// TODO: реализация
-	return {'.class': Any('ParamSpecType')}
+	return {
+		'.class': Any('ParamSpecType')
+	}
 }
 
 fn convert_type_var_tuple_type(self TypeVarTupleTypeNode) Json {
 	// TODO: реализация
-	return {'.class': Any('TypeVarTupleType')}
+	return {
+		'.class': Any('TypeVarTupleType')
+	}
 }
 
 fn convert_parameters(self ParametersNode) Json {
 	// TODO: реализация
-	return {'.class': Any('Parameters')}
+	return {
+		'.class': Any('Parameters')
+	}
 }
 
 fn convert_unbound_type(self UnboundTypeNode) Json {
 	// TODO: реализация
-	return {'.class': Any('UnboundType')}
+	return {
+		'.class': Any('UnboundType')
+	}
 }
 
 fn convert_type_var_expr(self TypeVarExprNode) Json {
 	// TODO: реализация
-	return {'.class': Any('TypeVarExpr')}
+	return {
+		'.class': Any('TypeVarExpr')
+	}
 }
 
 fn convert_param_spec_expr(self ParamSpecExprNode) Json {
 	// TODO: реализация
-	return {'.class': Any('ParamSpecExpr')}
+	return {
+		'.class': Any('ParamSpecExpr')
+	}
 }
 
 fn convert_type_var_tuple_expr(self TypeVarTupleExprNode) Json {
 	// TODO: реализация
-	return {'.class': Any('TypeVarTupleExpr')}
+	return {
+		'.class': Any('TypeVarTupleExpr')
+	}
 }

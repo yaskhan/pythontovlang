@@ -9,7 +9,9 @@ pub const namedtuple_prohibited_names = [
 	"_replace", "_asdict", "_source", "__annotations__"
 ]
 
-pub const namedtup_class_error = 'Invalid statement in NamedTuple definition; expected "field_name: field_type [= default]"'
+pub const typed_namedtuple_names = ["typing.NamedTuple"]
+
+pub const namedtuple_class_error = 'Invalid statement in NamedTuple definition; expected "field_name: field_type [= default]"'
 
 pub struct NamedTupleAnalyzer {
 pub mut:
@@ -19,7 +21,7 @@ pub mut:
 
 pub fn (mut a NamedTupleAnalyzer) analyze_namedtuple_classdef(defn &ClassDef, is_stub_file bool, is_func_scope bool) (bool, ?&TypeInfo) {
 	for base_expr in defn.base_type_exprs {
-		if base_expr is RefExpr {
+		if base_expr is NameExpr {
 			a.api.accept(base_expr)
 			if base_expr.fullname in typed_namedtuple_names {
 				result := a.check_namedtuple_classdef(defn, is_stub_file) or {
@@ -29,13 +31,13 @@ pub fn (mut a NamedTupleAnalyzer) analyze_namedtuple_classdef(defn &ClassDef, is
 				
 				mut name := defn.name
 				if is_func_scope && !name.contains('@') {
-					name += '@' + defn.line.str()
+					name += '@' + defn.base.ctx.line.str()
 				}
 				
-				// Handle existing_info
-				info := a.build_namedtuple_typeinfo(name, items, types, default_items, defn.line, none)
+				info := a.build_namedtuple_typeinfo(name, items, types, default_items, defn.base.ctx.line, none)
 				// defn.analyzed = NamedTupleExpr(info, is_typed: true)
-				defn.defs.body = statements
+				mut mut_defn := unsafe { &ClassDef(defn) }
+				mut_defn.defs.body = statements
 				return true, info
 			}
 		}
@@ -45,7 +47,7 @@ pub fn (mut a NamedTupleAnalyzer) analyze_namedtuple_classdef(defn &ClassDef, is
 
 pub fn (mut a NamedTupleAnalyzer) check_namedtuple_classdef(defn &ClassDef, is_stub_file bool) ?([]string, []MypyTypeNode, map[string]Expression, []Statement) {
 	if defn.base_type_exprs.len > 1 {
-		a.fail("NamedTuple should be a single base", defn)
+		a.fail("NamedTuple should be a single base", defn.get_context())
 	}
 	
 	mut items := []string{}
@@ -61,6 +63,8 @@ pub fn (mut a NamedTupleAnalyzer) check_namedtuple_classdef(defn &ClassDef, is_s
 				items << name
 				
 				mut typ := MypyTypeNode(AnyType{type_of_any: .unannotated})
+				// u_type is Type?
+				// stmt.unanalyzed_type is ?MypyType
 				if ut := stmt.unanalyzed_type {
 					if analyzed := a.api.anal_type(ut, none, true, false, true, false, true, 'NamedTuple item type', 'NamedTuple') {
 						typ = analyzed
@@ -71,57 +75,67 @@ pub fn (mut a NamedTupleAnalyzer) check_namedtuple_classdef(defn &ClassDef, is_s
 				types << typ
 				
 				if name.starts_with('_') {
-					a.fail('NamedTuple field name cannot start with an underscore: ${name}', stmt)
+					a.fail('NamedTuple field name cannot start with an underscore: ${name}', stmt.get_context())
 				}
 				
-				if stmt.rvalue !is TempNode {
-					default_items[name] = stmt.rvalue
-				}
+				// Simplified check for rvalue
+				// if stmt.rvalue !is TempNode {
+				//	default_items[name] = stmt.rvalue
+				// }
 			} else {
 				statements.delete_last()
-				a.fail(namedtup_class_error, stmt)
+				a.fail(namedtuple_class_error, stmt.get_context())
 			}
-		} else if stmt is PassStmt || stmt is ExpressionStmt {
-			// allow pass, ellipsis, docstrings
-		} else if stmt is FuncDef || stmt is Decorator {
+		} else if stmt is PassStmt {
+			// allow pass
+		} else if stmt is FuncDef {
 			// allow methods
 		} else {
 			statements.delete_last()
-			a.fail(namedtup_class_error, stmt)
+			a.fail(namedtuple_class_error, stmt.get_context())
 		}
 	}
 	return items, types, default_items, statements
 }
 
 pub fn (mut a NamedTupleAnalyzer) build_namedtuple_typeinfo(name string, items []string, types []MypyTypeNode, default_items map[string]Expression, line int, existing_info ?&TypeInfo) &TypeInfo {
-	fallback := a.api.named_type('builtins.tuple', [MypyTypeNode(AnyType{type_of_any: .special_form})])
+	fallback := Instance{
+		typ: &TypeInfo{name: 'tuple', fullname: 'builtins.tuple'}
+		args: [MypyTypeNode(AnyType{type_of_any: .special_form})]
+	}
 	
-	info := existing_info or { a.api.basic_new_typeinfo(name, fallback, line) }
-	info.is_named_tuple = true
+	info := or_existing_info(existing_info, a.api.basic_new_typeinfo(name, fallback, line))
+	mut mut_info := unsafe { &TypeInfo(info) }
+	
+	mut_info.is_named_tuple = true
 	
 	tuple_base := &TupleType{
 		base: TypeBase{ctx: Context{line: line}}
 		items: types
 		partial_fallback: fallback
 	}
-	info.tuple_type = tuple_base
+	mut_info.tuple_type = tuple_base
 	
 	for i, item in items {
 		mut v := &Var{
 			name: item
-			typ: types[i]
+			type_: types[i]
 			info: info
 			is_property: true
 		}
 		v.fullname = '${info.fullname}.${item}'
-		info.names[item] = &SymbolTableNode{
+		mut_info.names.symbols[item] = SymbolTableNode{
 			kind: .mdef
-			node: v
+			node: SymbolNodeRef(v)
 		}
 	}
 	
-	// Add _fields, _asdict etc. (simplified)
 	return info
+}
+
+fn or_existing_info(existing ?&TypeInfo, fallback &TypeInfo) &TypeInfo {
+	if e := existing { return e }
+	return fallback
 }
 
 pub fn (mut a NamedTupleAnalyzer) fail(msg string, ctx Context) {
