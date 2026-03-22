@@ -5,23 +5,23 @@
 module mypy
 
 // trivial_meet возвращает один из типов если он является подтипом другого
-pub fn trivial_meet(s MypyTypeNode, t MypyTypeNode) ProperTypeNode {
+pub fn trivial_meet(s MypyTypeNode, t MypyTypeNode) ProperType {
 	if is_subtype(s, t) {
 		return get_proper_type(s)
 	} else if is_subtype(t, s) {
 		return get_proper_type(t)
 	} else {
-		return UninhabitedTypeNode{}
+		return UninhabitedType{}
 	}
 }
 
 // meet_types вычисляет greatest lower bound двух типов
-pub fn meet_types(s MypyTypeNode, t MypyTypeNode) ProperTypeNode {
+pub fn meet_types(s MypyTypeNode, t MypyTypeNode) ProperType {
 	s_proper := get_proper_type(s)
 	t_proper := get_proper_type(t)
 
 	// Проверяем extra_attrs для Instance
-	if s_proper is InstanceNode && t_proper is InstanceNode {
+	if s_proper is Instance && t_proper is Instance {
 		if s_proper.typ == t_proper.typ {
 			if is_same_type(s_proper, t_proper) {
 				if s_proper.extra_attrs != none && t_proper.extra_attrs != none {
@@ -38,7 +38,7 @@ pub fn meet_types(s MypyTypeNode, t MypyTypeNode) ProperTypeNode {
 		}
 	}
 
-	if s_proper !is UnboundTypeNode && t_proper !is UnboundTypeNode {
+	if s_proper !is UnboundType && t_proper !is UnboundType {
 		if is_proper_subtype(s_proper, t_proper) {
 			return s_proper
 		}
@@ -47,17 +47,18 @@ pub fn meet_types(s MypyTypeNode, t MypyTypeNode) ProperTypeNode {
 		}
 	}
 
-	if s_proper is ErasedTypeNode {
+	if s_proper is ErasedType {
 		return s_proper
 	}
-	if s_proper is AnyTypeNode {
+	if s_proper is AnyType {
 		return t_proper
 	}
-	if s_proper is UnionTypeNode && t_proper !is UnionTypeNode {
+	if s_proper is UnionType && t_proper !is UnionType {
 		return meet_types(t_proper, s_proper)
 	}
 
-	return t_proper.accept(TypeMeetVisitor{s: s_proper})
+	mut v := TypeMeetVisitor{ s: s_proper }
+	return t_proper.accept_translator(mut v)
 }
 
 // narrow_declared_type сужает объявленный тип до другого типа
@@ -69,9 +70,9 @@ pub fn narrow_declared_type(declared MypyTypeNode, narrowed MypyTypeNode) MypyTy
 		return declared
 	}
 
-	if declared_proper is UnionTypeNode {
+	if declared_proper is UnionType {
 		mut items := []MypyTypeNode{}
-		if narrowed_proper is UnionTypeNode {
+		if narrowed_proper is UnionType {
 			for d in declared_proper.items {
 				for n in narrowed_proper.items {
 					if is_overlapping_types(d, n) || is_subtype(n, d) {
@@ -90,10 +91,10 @@ pub fn narrow_declared_type(declared MypyTypeNode, narrowed MypyTypeNode) MypyTy
 	}
 
 	if !is_overlapping_types(declared_proper, narrowed_proper) {
-		return UninhabitedTypeNode{}
+		return UninhabitedType{}
 	}
 
-	if narrowed_proper is UnionTypeNode {
+	if narrowed_proper is UnionType {
 		mut items := []MypyTypeNode{}
 		for n in narrowed_proper.items {
 			items << narrow_declared_type(declared, n)
@@ -101,7 +102,7 @@ pub fn narrow_declared_type(declared MypyTypeNode, narrowed MypyTypeNode) MypyTy
 		return make_simplified_union(items)
 	}
 
-	if narrowed_proper is AnyTypeNode {
+	if narrowed_proper is AnyType {
 		return narrowed
 	}
 
@@ -113,7 +114,7 @@ pub fn is_overlapping_types(left MypyTypeNode, right MypyTypeNode) bool {
 	left_proper := get_proper_type(left)
 	right_proper := get_proper_type(right)
 
-	if left_proper is AnyTypeNode || right_proper is AnyTypeNode {
+	if left_proper is AnyType || right_proper is AnyType {
 		return true
 	}
 
@@ -122,7 +123,7 @@ pub fn is_overlapping_types(left MypyTypeNode, right MypyTypeNode) bool {
 	}
 
 	// Обработка Instance
-	if left_proper is InstanceNode && right_proper is InstanceNode {
+	if left_proper is Instance && right_proper is Instance {
 		if left_proper.typ.has_base(right_proper.typ.fullname) {
 			return true
 		}
@@ -133,7 +134,7 @@ pub fn is_overlapping_types(left MypyTypeNode, right MypyTypeNode) bool {
 	}
 
 	// Обработка Union
-	if left_proper is UnionTypeNode {
+	if left_proper is UnionType {
 		for item in left_proper.items {
 			if is_overlapping_types(item, right_proper) {
 				return true
@@ -141,7 +142,7 @@ pub fn is_overlapping_types(left MypyTypeNode, right MypyTypeNode) bool {
 		}
 		return false
 	}
-	if right_proper is UnionTypeNode {
+	if right_proper is UnionType {
 		for item in right_proper.items {
 			if is_overlapping_types(left_proper, item) {
 				return true
@@ -151,7 +152,7 @@ pub fn is_overlapping_types(left MypyTypeNode, right MypyTypeNode) bool {
 	}
 
 	// Обработка Callable
-	if left_proper is CallableTypeNode && right_proper is CallableTypeNode {
+	if left_proper is CallableType && right_proper is CallableType {
 		return is_callable_compatible(left_proper, right_proper)
 	}
 
@@ -161,30 +162,32 @@ pub fn is_overlapping_types(left MypyTypeNode, right MypyTypeNode) bool {
 // TypeMeetVisitor — посетитель для вычисления meet
 pub struct TypeMeetVisitor {
 pub:
-	s ProperTypeNode
+	s ProperType
 }
 
 // visit_unbound_type обрабатывает UnboundType
-pub fn (v TypeMeetVisitor) visit_unbound_type(t UnboundTypeNode) ProperTypeNode {
-	if v.s is NoneTypeNode {
-		return UninhabitedTypeNode{}
-	} else if v.s is UninhabitedTypeNode {
+pub fn (v TypeMeetVisitor) visit_unbound_type(t &UnboundType) ProperType {
+	if v.s is NoneType {
+		return UninhabitedType{}
+	} else if v.s is UninhabitedType {
 		return v.s
 	}
-	return AnyTypeNode{reason: TypeOfAny.special_form}
+	return AnyType{
+		type_of_any: TypeOfAny.special_form
+	}
 }
 
 // visit_any обрабатывает AnyType
-pub fn (v TypeMeetVisitor) visit_any(t AnyTypeNode) ProperTypeNode {
+pub fn (v TypeMeetVisitor) visit_any(t &AnyType) ProperType {
 	return v.s
 }
 
 // visit_union_type обрабатывает UnionType
-pub fn (v TypeMeetVisitor) visit_union_type(t UnionTypeNode) ProperTypeNode {
+pub fn (v TypeMeetVisitor) visit_union_type(t &UnionType) ProperType {
 	mut meets := []MypyTypeNode{}
-	if v.s is UnionTypeNode {
+	if v.s is UnionType {
 		for x in t.items {
-			for y in (v.s as UnionTypeNode).items {
+			for y in (v.s as UnionType).items {
 				meets << meet_types(x, y)
 			}
 		}
@@ -197,35 +200,36 @@ pub fn (v TypeMeetVisitor) visit_union_type(t UnionTypeNode) ProperTypeNode {
 }
 
 // visit_none_type обрабатывает NoneType
-pub fn (v TypeMeetVisitor) visit_none_type(t NoneTypeNode) ProperTypeNode {
-	if v.s is NoneTypeNode || (v.s is InstanceNode && (v.s as InstanceNode).typ.fullname == 'builtins.object') {
+pub fn (v TypeMeetVisitor) visit_none_type(t &NoneType) ProperType {
+	if v.s is NoneType
+		|| (v.s is Instance && (v.s as Instance).typ.fullname == 'builtins.object') {
 		return t
 	}
-	return UninhabitedTypeNode{}
+	return UninhabitedType{}
 }
 
 // visit_uninhabited_type обрабатывает UninhabitedType
-pub fn (v TypeMeetVisitor) visit_uninhabited_type(t UninhabitedTypeNode) ProperTypeNode {
+pub fn (v TypeMeetVisitor) visit_uninhabited_type(t &UninhabitedType) ProperType {
 	return t
 }
 
 // visit_deleted_type обрабатывает DeletedType
-pub fn (v TypeMeetVisitor) visit_deleted_type(t DeletedTypeNode) ProperTypeNode {
-	if v.s is NoneTypeNode || v.s is UninhabitedTypeNode {
+pub fn (v TypeMeetVisitor) visit_deleted_type(t &DeletedType) ProperType {
+	if v.s is NoneType || v.s is UninhabitedType {
 		return v.s
 	}
 	return t
 }
 
 // visit_erased_type обрабатывает ErasedType
-pub fn (v TypeMeetVisitor) visit_erased_type(t ErasedTypeNode) ProperTypeNode {
+pub fn (v TypeMeetVisitor) visit_erased_type(t &ErasedType) ProperType {
 	return v.s
 }
 
 // visit_type_var обрабатывает TypeVar
-pub fn (v TypeMeetVisitor) visit_type_var(t TypeVarTypeNode) ProperTypeNode {
-	if v.s is TypeVarTypeNode {
-		s_tvar := v.s as TypeVarTypeNode
+pub fn (v TypeMeetVisitor) visit_type_var(t &TypeVarType) ProperType {
+	if v.s is TypeVarType {
+		s_tvar := v.s as TypeVarType
 		if s_tvar.id == t.id {
 			if s_tvar.upper_bound.str() == t.upper_bound.str() {
 				return s_tvar
@@ -239,9 +243,9 @@ pub fn (v TypeMeetVisitor) visit_type_var(t TypeVarTypeNode) ProperTypeNode {
 }
 
 // visit_instance обрабатывает Instance
-pub fn (v TypeMeetVisitor) visit_instance(t InstanceNode) ProperTypeNode {
-	if v.s is InstanceNode {
-		s_inst := v.s as InstanceNode
+pub fn (v TypeMeetVisitor) visit_instance(t &Instance) ProperType {
+	if v.s is Instance {
+		s_inst := v.s as Instance
 		if t.typ == s_inst.typ {
 			if is_subtype(t, s_inst) || is_subtype(s_inst, t) {
 				mut args := []MypyTypeNode{}
@@ -251,25 +255,28 @@ pub fn (v TypeMeetVisitor) visit_instance(t InstanceNode) ProperTypeNode {
 					}
 					args << meet_types(t.args[i], s_inst.args[i])
 				}
-				return InstanceNode{typ: t.typ, args: args}
+				return Instance{
+					typ:  t.typ
+					args: args
+				}
 			}
-			return UninhabitedTypeNode{}
+			return UninhabitedType{}
 		} else {
 			if is_subtype(t, s_inst) {
 				return t
 			} else if is_subtype(s_inst, t) {
 				return s_inst
 			}
-			return UninhabitedTypeNode{}
+			return UninhabitedType{}
 		}
 	}
 	return object_from_type(v.s)
 }
 
 // visit_callable_type обрабатывает CallableType
-pub fn (v TypeMeetVisitor) visit_callable_type(t CallableTypeNode) ProperTypeNode {
-	if v.s is CallableTypeNode {
-		s_callable := v.s as CallableTypeNode
+pub fn (v TypeMeetVisitor) visit_callable_type(t &CallableType) ProperType {
+	if v.s is CallableType {
+		s_callable := v.s as CallableType
 		if is_similar_callables(t, s_callable) {
 			return meet_similar_callables(t, s_callable)
 		}
@@ -278,23 +285,26 @@ pub fn (v TypeMeetVisitor) visit_callable_type(t CallableTypeNode) ProperTypeNod
 }
 
 // visit_tuple_type обрабатывает TupleType
-pub fn (v TypeMeetVisitor) visit_tuple_type(t TupleTypeNode) ProperTypeNode {
-	if v.s is TupleTypeNode {
-		s_tuple := v.s as TupleTypeNode
+pub fn (v TypeMeetVisitor) visit_tuple_type(t &TupleType) ProperType {
+	if v.s is TupleType {
+		s_tuple := v.s as TupleType
 		if t.items.len == s_tuple.items.len {
 			mut items := []MypyTypeNode{}
 			for i in 0 .. t.items.len {
 				items << meet_types(t.items[i], s_tuple.items[i])
 			}
-			return TupleTypeNode{items: items, partial_fallback: t.partial_fallback}
+			return TupleType{
+				items:            items
+				partial_fallback: t.partial_fallback
+			}
 		}
 	}
 	return object_from_type(v.s)
 }
 
 // visit_typeddict_type обрабатывает TypedDictType
-pub fn (v TypeMeetVisitor) visit_typeddict_type(t TypedDictTypeNode) ProperTypeNode {
-	if v.s is TypedDictTypeNode {
+pub fn (v TypeMeetVisitor) visit_typeddict_type(t &TypedDictType) ProperType {
+	if v.s is TypedDictType {
 		// TODO: полная реализация meet для TypedDict
 		if is_subtype(t, v.s) {
 			return t
@@ -304,7 +314,7 @@ pub fn (v TypeMeetVisitor) visit_typeddict_type(t TypedDictTypeNode) ProperTypeN
 }
 
 // visit_literal_type обрабатывает LiteralType
-pub fn (v TypeMeetVisitor) visit_literal_type(t LiteralTypeNode) ProperTypeNode {
+pub fn (v TypeMeetVisitor) visit_literal_type(t &LiteralTypeNode) ProperType {
 	if v.s is LiteralTypeNode && v.s as LiteralTypeNode == t {
 		return t
 	}
@@ -312,18 +322,18 @@ pub fn (v TypeMeetVisitor) visit_literal_type(t LiteralTypeNode) ProperTypeNode 
 }
 
 // visit_type_type обрабатывает TypeType
-pub fn (v TypeMeetVisitor) visit_type_type(t TypeTypeNode) ProperTypeNode {
-	if v.s is TypeTypeNode {
-		typ := meet_types(t.item, (v.s as TypeTypeNode).item)
-		if typ !is NoneTypeNode {
-			return TypeTypeNode.make_normalized(typ)
+pub fn (v TypeMeetVisitor) visit_type_type(t &TypeType) ProperType {
+	if v.s is TypeType {
+		typ := meet_types(t.item, (v.s as TypeType).item)
+		if typ !is NoneType {
+			return TypeType.make_normalized(typ)
 		}
 	}
 	return object_from_type(v.s)
 }
 
 // Вспомогательные функции
-pub fn meet_similar_callables(t CallableTypeNode, s CallableTypeNode) CallableTypeNode {
+pub fn meet_similar_callables(t CallableType, s CallableType) CallableType {
 	mut arg_types := []MypyTypeNode{}
 	for i in 0 .. t.arg_types.len {
 		arg_types << join_types(t.arg_types[i], s.arg_types[i])
@@ -337,7 +347,9 @@ pub fn meet_similar_callables(t CallableTypeNode, s CallableTypeNode) CallableTy
 
 pub fn meet_type_list(types []MypyTypeNode) MypyTypeNode {
 	if types.len == 0 {
-		return AnyTypeNode{reason: TypeOfAny.implementation_artifact}
+		return AnyType{
+			type_of_any: TypeOfAny.implementation_artifact
+		}
 	}
 	mut met := types[0]
 	for i := 1; i < types.len; i++ {
@@ -346,39 +358,48 @@ pub fn meet_type_list(types []MypyTypeNode) MypyTypeNode {
 	return met
 }
 
-pub fn object_from_type(typ ProperTypeNode) ProperTypeNode {
-	if typ is InstanceNode {
-		return InstanceNode{typ: typ.typ.mro.last(), args: []}
-	} else if typ is CallableTypeNode {
-		return InstanceNode{typ: typ.fallback.typ.mro.last(), args: []}
-	} else if typ is TupleTypeNode {
-		return InstanceNode{typ: typ.partial_fallback.typ.mro.last(), args: []}
+pub fn object_from_type(typ ProperType) ProperType {
+	if typ is Instance {
+		return Instance{
+			typ:  typ.typ.mro.last()
+			args: []
+		}
+	} else if typ is CallableType {
+		return Instance{
+			typ:  typ.fallback.typ.mro.last()
+			args: []
+		}
+	} else if typ is TupleType {
+		return Instance{
+			typ:  typ.partial_fallback.typ.mro.last()
+			args: []
+		}
 	}
-	return AnyTypeNode{reason: TypeOfAny.special_form}
+	return AnyType{
+		type_of_any: TypeOfAny.special_form
+	}
 }
 
 // Вспомогательные функции-заглушки
-fn get_proper_type(t MypyTypeNode) ProperTypeNode {
-	return t as ProperTypeNode
-}
+
 
 fn is_subtype(left MypyTypeNode, right MypyTypeNode) bool {
 	return true
 }
 
-fn is_proper_subtype(left ProperTypeNode, right ProperTypeNode) bool {
+fn is_proper_subtype(left ProperType, right ProperType) bool {
 	return true
 }
 
-fn is_same_type(left ProperTypeNode, right ProperTypeNode) bool {
+fn is_same_type(left ProperType, right ProperType) bool {
 	return left.str() == right.str()
 }
 
-fn is_similar_callables(t CallableTypeNode, s CallableTypeNode) bool {
+fn is_similar_callables(t CallableType, s CallableType) bool {
 	return t.arg_types.len == s.arg_types.len
 }
 
-fn is_callable_compatible(t CallableTypeNode, s CallableTypeNode) bool {
+fn is_callable_compatible(t CallableType, s CallableType) bool {
 	return true
 }
 
@@ -386,10 +407,13 @@ fn make_simplified_union(items []MypyTypeNode) MypyTypeNode {
 	if items.len == 1 {
 		return items[0]
 	}
-	return UnionTypeNode{items: items}
+	return UnionType{
+		items: items
+	}
 }
 
 fn join_types(s MypyTypeNode, t MypyTypeNode) MypyTypeNode {
 	// TODO: вызов из join.v
 	return s
 }
+

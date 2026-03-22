@@ -1,6 +1,8 @@
 // Я Cline работаю над этим файлом. Начало: 2026-03-22 15:23
 // modulefinder.v — Low-level infrastructure to find modules
 // Переведён из mypy/modulefinder.py
+//
+// ---------------------------------------------------------------------------
 
 module mypy
 
@@ -69,8 +71,8 @@ pub fn (r ModuleNotFoundReason) error_message_templates(daemon bool) (string, []
 // ModuleSearchResult — результат поиска модуля
 pub type ModuleSearchResult = ModuleNotFoundReason | string
 
-// BuildSource — исходный файл для сборки
-pub struct BuildSource {
+// MypyBuildSource — исходный файл для сборки
+pub struct MypyBuildSource {
 pub:
 	path     ?string
 	module   string
@@ -79,9 +81,9 @@ pub:
 	followed bool
 }
 
-// new_build_source создаёт новый BuildSource
-pub fn new_build_source(path ?string, mod_name ?string, text ?string, base_dir ?string, followed bool) BuildSource {
-	return BuildSource{
+// new_build_source создаёт новый MypyBuildSource
+pub fn new_build_source(path ?string, mod_name ?string, text ?string, base_dir ?string, followed bool) MypyBuildSource {
+	return MypyBuildSource{
 		path:     path
 		module:   mod_name or { '__main__' }
 		text:     text
@@ -90,9 +92,9 @@ pub fn new_build_source(path ?string, mod_name ?string, text ?string, base_dir ?
 	}
 }
 
-// str возвращает строковое представление BuildSource
-pub fn (bs BuildSource) str() string {
-	return 'BuildSource(path=${bs.path}, module=${bs.module}, has_text=${bs.text != none}, base_dir=${bs.base_dir}, followed=${bs.followed})'
+// str возвращает строковое представление MypyBuildSource
+pub fn (bs MypyBuildSource) str() string {
+	return 'MypyBuildSource(path=${bs.path}, module=${bs.module}, has_text=${bs.text != none}, base_dir=${bs.base_dir}, followed=${bs.followed})'
 }
 
 // BuildSourceSet — набор исходных файлов для быстрой проверки принадлежности
@@ -104,7 +106,7 @@ pub mut:
 }
 
 // new_build_source_set создаёт новый BuildSourceSet
-pub fn new_build_source_set(sources []BuildSource) BuildSourceSet {
+pub fn new_build_source_set(sources []MypyBuildSource) BuildSourceSet {
 	mut bss := BuildSourceSet{
 		source_text_present: false
 		source_modules:      map[string]string{}
@@ -122,12 +124,11 @@ pub fn new_build_source_set(sources []BuildSource) BuildSourceSet {
 	return bss
 }
 
-// FindModuleCache — кэш для поиска модулей
-pub struct FindModuleCache {
+// MypyFindModuleCache — кэш для поиска модулей
+pub struct MypyFindModuleCache {
 pub mut:
 	search_paths       SearchPaths
 	source_set         ?BuildSourceSet
-	fscache            FileSystemCache
 	initial_components map[string]map[string][]string
 	results            map[string]ModuleSearchResult
 	ns_ancestors       map[string]string
@@ -135,12 +136,11 @@ pub mut:
 	stdlib_py_versions map[string]((int, int), ?(int, int))
 }
 
-// new_find_module_cache создаёт новый FindModuleCache
-pub fn new_find_module_cache(search_paths SearchPaths, fscache FileSystemCache, options ?Options) FindModuleCache {
-	return FindModuleCache{
+// new_find_module_cache создаёт новый MypyFindModuleCache
+pub fn new_find_module_cache(search_paths SearchPaths, options ?Options) MypyFindModuleCache {
+	return MypyFindModuleCache{
 		search_paths:       search_paths
 		source_set:         none
-		fscache:            fscache
 		initial_components: map[string]map[string][]string{}
 		results:            map[string]ModuleSearchResult{}
 		ns_ancestors:       map[string]string{}
@@ -150,14 +150,14 @@ pub fn new_find_module_cache(search_paths SearchPaths, fscache FileSystemCache, 
 }
 
 // clear очищает кэш
-pub fn (mut fmc FindModuleCache) clear() {
+pub fn (mut fmc MypyFindModuleCache) clear() {
 	fmc.results.clear()
 	fmc.initial_components.clear()
 	fmc.ns_ancestors.clear()
 }
 
 // find_module ищет модуль и возвращает путь или причину неудачи
-pub fn (mut fmc FindModuleCache) find_module(id string) ModuleSearchResult {
+pub fn (mut fmc MypyFindModuleCache) find_module(id string) ModuleSearchResult {
 	if id in fmc.results {
 		return fmc.results[id]
 	}
@@ -168,7 +168,7 @@ pub fn (mut fmc FindModuleCache) find_module(id string) ModuleSearchResult {
 }
 
 // find_module_internal — внутренняя реализация поиска модуля
-fn (mut fmc FindModuleCache) find_module_internal(id string) ModuleSearchResult {
+fn (mut fmc MypyFindModuleCache) find_module_internal(id string) ModuleSearchResult {
 	components := id.split('.')
 	dir_chain := components[..components.len - 1].join(os.path_separator)
 
@@ -218,7 +218,7 @@ fn (mut fmc FindModuleCache) find_module_internal(id string) ModuleSearchResult 
 }
 
 // find_lib_path_dirs находит директории в lib_path, содержащие модуль
-pub fn (fmc FindModuleCache) find_lib_path_dirs(id string, lib_path []string) []string {
+pub fn (fmc MypyFindModuleCache) find_lib_path_dirs(id string, lib_path []string) []string {
 	components := id.split('.')
 	dir_chain := components[..components.len - 1].join(os.path_separator)
 
@@ -239,7 +239,7 @@ pub fn (fmc FindModuleCache) find_lib_path_dirs(id string, lib_path []string) []
 }
 
 // get_toplevel_possibilities находит возможные директории для top-level модуля
-pub fn (mut fmc FindModuleCache) get_toplevel_possibilities(lib_path []string, id string) []string {
+pub fn (mut fmc MypyFindModuleCache) get_toplevel_possibilities(lib_path []string, id string) []string {
 	lib_path_key := lib_path.join(':')
 	if lib_path_key in fmc.initial_components {
 		return fmc.initial_components[lib_path_key][id] or { []string{} }
@@ -268,7 +268,7 @@ pub fn is_init_file(path string) bool {
 }
 
 // verify_module проверяет, что все пакеты, содержащие id, имеют __init__ файл
-pub fn verify_module(fscache FileSystemCache, id string, path string) bool {
+pub fn verify_module(id string, path string) bool {
 	mut check_path := if is_init_file(path) { os.dir(path) } else { path }
 	for _ in 0 .. id.count('.') {
 		check_path = os.dir(check_path)
@@ -281,7 +281,7 @@ pub fn verify_module(fscache FileSystemCache, id string, path string) bool {
 }
 
 // compute_search_paths вычисляет пути поиска модулей
-pub fn compute_search_paths(sources []BuildSource, options Options, data_dir string, alt_lib_path ?string) SearchPaths {
+pub fn compute_search_paths(sources []MypyBuildSource, options Options, data_dir string, alt_lib_path ?string) SearchPaths {
 	mut lib_path := []string{}
 
 	// Добавляем стандартную библиотеку
@@ -316,23 +316,4 @@ pub fn compute_search_paths(sources []BuildSource, options Options, data_dir str
 		package_path:  package_path
 		typeshed_path: lib_path
 	}
-}
-
-// Вспомогательные типы
-pub struct FileSystemCache {
-}
-
-// is_file проверяет существование файла
-pub fn (fsc FileSystemCache) is_file(path string) bool {
-	return os.is_file(path)
-}
-
-// is_dir проверяет существование директории
-pub fn (fsc FileSystemCache) is_dir(path string) bool {
-	return os.is_dir(path)
-}
-
-// listdir возвращает список файлов в директории
-pub fn (fsc FileSystemCache) listdir(path string) []string {
-	return os.ls(path) or { []string{} }
 }

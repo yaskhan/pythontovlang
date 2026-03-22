@@ -55,16 +55,16 @@ fn is_subtype_internal(left MypyTypeNode, right MypyTypeNode, ctx SubtypeContext
 
 	// AnyType подтип любого типа (для non-proper)
 	if !ctx.erase_instances && !ctx.keep_erased_types {
-		if right_proper is AnyTypeNode || right_proper is UnboundTypeNode
-			|| right_proper is ErasedTypeNode {
-			if left_proper !is UnpackTypeNode {
+		if right_proper is AnyType || right_proper is UnboundType
+			|| right_proper is ErasedType {
+			if left_proper !is UnpackType {
 				return true
 			}
 		}
 	}
 
 	// UnionType проверка
-	if right_proper is UnionTypeNode && left_proper !is UnionTypeNode {
+	if right_proper is UnionType && left_proper !is UnionType {
 		for item in right_proper.items {
 			if is_subtype(left, item, ctx) {
 				return true
@@ -74,30 +74,30 @@ fn is_subtype_internal(left MypyTypeNode, right MypyTypeNode, ctx SubtypeContext
 	}
 
 	// Instance -> Instance
-	if left_proper is InstanceNode && right_proper is InstanceNode {
+	if left_proper is Instance && right_proper is Instance {
 		return is_instance_subtype(left_proper, right_proper, ctx)
 	}
 
 	// NoneType
-	if left_proper is NoneTypeNode {
-		if right_proper is NoneTypeNode || is_named_instance(right_proper, 'builtins.object') {
+	if left_proper is NoneType {
+		if right_proper is NoneType || is_named_instance(right_proper, 'builtins.object') {
 			return true
 		}
 		return false
 	}
 
 	// AnyType
-	if left_proper is AnyTypeNode {
+	if left_proper is AnyType {
 		return !ctx.erase_instances
 	}
 
 	// UninhabitedType (Never) — подтип всего
-	if left_proper is UninhabitedTypeNode {
+	if left_proper is UninhabitedType {
 		return true
 	}
 
 	// TypeVarType
-	if left_proper is TypeVarTypeNode && right_proper is TypeVarTypeNode {
+	if left_proper is TypeVarType && right_proper is TypeVarType {
 		if left_proper.id == right_proper.id {
 			return true
 		}
@@ -105,12 +105,12 @@ fn is_subtype_internal(left MypyTypeNode, right MypyTypeNode, ctx SubtypeContext
 	}
 
 	// CallableType
-	if left_proper is CallableTypeNode && right_proper is CallableTypeNode {
+	if left_proper is CallableType && right_proper is CallableType {
 		return is_callable_subtype(left_proper, right_proper, ctx)
 	}
 
 	// TupleType
-	if left_proper is TupleTypeNode && right_proper is TupleTypeNode {
+	if left_proper is TupleType && right_proper is TupleType {
 		if left_proper.items.len != right_proper.items.len {
 			return false
 		}
@@ -123,7 +123,7 @@ fn is_subtype_internal(left MypyTypeNode, right MypyTypeNode, ctx SubtypeContext
 	}
 
 	// TypedDictType
-	if left_proper is TypedDictTypeNode && right_proper is TypedDictTypeNode {
+	if left_proper is TypedDictType && right_proper is TypedDictType {
 		return is_typeddict_subtype(left_proper, right_proper, ctx)
 	}
 
@@ -131,7 +131,7 @@ fn is_subtype_internal(left MypyTypeNode, right MypyTypeNode, ctx SubtypeContext
 }
 
 // is_instance_subtype проверяет подтип для Instance
-fn is_instance_subtype(left InstanceNode, right InstanceNode, ctx SubtypeContext) bool {
+fn is_instance_subtype(left Instance, right Instance, ctx SubtypeContext) bool {
 	// Проверяем кэш
 	if type_state.is_cached_subtype(left, right) {
 		return true
@@ -155,20 +155,20 @@ fn is_instance_subtype(left InstanceNode, right InstanceNode, ctx SubtypeContext
 	}
 
 	// Номинальная проверка
-	rname := right.typ.fullname
-	if left.typ.has_base(rname) || rname == 'builtins.object' {
+	rname := (right.typ or { return "" }).fullname
+	if (left.typ or { return false }).has_base(rname) || rname == 'builtins.object' {
 		mapped := map_instance_to_supertype(left, right.typ)
 
 		// Проверка аргументов типов
 		if !ctx.ignore_type_params {
-			for i, tvar in right.typ.defn.type_vars {
+			for i, tvar in (right.typ or { return false }).defn.type_vars {
 				if i >= mapped.args.len || i >= right.args.len {
 					continue
 				}
 				left_arg := mapped.args[i]
 				right_arg := right.args[i]
 
-				if tvar is TypeVarTypeNode {
+				if tvar is TypeVarType {
 					variance := tvar.variance
 					if ctx.always_covariant && variance == 0 {
 						variance = 1 // COVARIANT
@@ -209,7 +209,7 @@ fn check_type_parameter(left MypyTypeNode, right MypyTypeNode, variance int, ctx
 }
 
 // is_callable_subtype проверяет подтип для CallableType
-fn is_callable_subtype(left CallableTypeNode, right CallableTypeNode, ctx SubtypeContext) bool {
+fn is_callable_subtype(left CallableType, right CallableType, ctx SubtypeContext) bool {
 	// Проверка возвращаемого типа (ковариантно)
 	if !is_subtype(left.ret_type, right.ret_type, ctx) {
 		return false
@@ -229,7 +229,7 @@ fn is_callable_subtype(left CallableTypeNode, right CallableTypeNode, ctx Subtyp
 }
 
 // is_typeddict_subtype проверяет подтип для TypedDictType
-fn is_typeddict_subtype(left TypedDictTypeNode, right TypedDictTypeNode, ctx SubtypeContext) bool {
+fn is_typeddict_subtype(left TypedDictType, right TypedDictType, ctx SubtypeContext) bool {
 	// Проверяем что left содержит все ключи right
 	for key in right.items.keys() {
 		if key !in left.items {
@@ -266,10 +266,24 @@ fn is_typeddict_subtype(left TypedDictTypeNode, right TypedDictTypeNode, ctx Sub
 	return true
 }
 
-// is_protocol_implementation проверяет, реализует ли left протокол right
-pub fn is_protocol_implementation(left InstanceNode, right InstanceNode, ctx SubtypeContext) bool {
-	// TODO: полная реализация проверки протоколов
-	return false
+pub fn is_protocol_implementation(left Instance, right Instance, ctx SubtypeContext) bool {
+	right_info := right.typ or { return false }
+	left_info := left.typ or { return false }
+	
+	for name, sym in right_info.names.symbols {
+		if name.starts_with('__') && name.ends_with('__') && name !in ['__call__', '__iter__'] {
+			continue
+		}
+		
+		left_sym := left_info.names.symbols[name] or {
+			return false
+		}
+		
+		// TODO: Проверка совместимости типов членов протокола.
+		// Пока только проверка наличия.
+	}
+	
+	return true
 }
 
 // is_proper_subtype проверяет proper subtype
@@ -290,20 +304,17 @@ pub fn is_same_type(a MypyTypeNode, b MypyTypeNode, ctx SubtypeContext) bool {
 
 // is_named_instance проверяет, является ли тип именованным экземпляром
 fn is_named_instance(typ MypyTypeNode, fullname string) bool {
-	if typ is InstanceNode {
+	if typ is Instance {
 		return typ.typ.fullname == fullname
 	}
 	return false
 }
 
 // get_proper_type возвращает proper type
-fn get_proper_type(t MypyTypeNode) MypyTypeNode {
-	// TODO: реализация из types.v
-	return t
-}
+
 
 // map_instance_to_supertype маппит Instance к супертипу
-fn map_instance_to_supertype(inst InstanceNode, supertype TypeInfoNode) InstanceNode {
+fn map_instance_to_supertype(inst Instance, supertype TypeInfo) Instance {
 	// TODO: реализация из maptype.v
 	return inst
 }
@@ -313,3 +324,4 @@ fn erase_type(t MypyTypeNode) MypyTypeNode {
 	// TODO: реализация из erasetype.v
 	return t
 }
+

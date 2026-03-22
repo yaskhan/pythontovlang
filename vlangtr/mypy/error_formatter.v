@@ -1,11 +1,11 @@
-// Я Codex работаю над этим файлом. Начало: 2026-03-22 14:45:16 +05:00
+// Я Antigravity работаю над этим файлом. Начало: 2026-03-22 03:10
 module mypy
 
 import json
 
 // ErrorFormatter describes how a single mypy error is serialized.
 pub interface ErrorFormatter {
-	report_error(err MypyError) string
+	report_error(err &ErrorInfo) string
 }
 
 // JSONFormatter emits one static JSON object per error.
@@ -23,17 +23,17 @@ struct JsonErrorLine {
 	severity   string  @[json: severity]
 }
 
-pub fn (f JSONFormatter) report_error(err MypyError) string {
-	hint := if err.hints.len == 0 { none } else { err.hints.join('\n') }
+pub fn (f JSONFormatter) report_error(err &ErrorInfo) string {
+	// В ErrorInfo нет hints, используем message
 	return json.encode(JsonErrorLine{
-		file:       err.file_path
+		file:       err.file
 		line:       err.line
 		column:     err.column
 		end_line:   err.end_line
 		end_column: err.end_column
 		message:    err.message
-		hint:       hint
-		code:       err.errorcode
+		hint:       none
+		code:       err.code
 		severity:   err.severity
 	})
 }

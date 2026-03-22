@@ -614,7 +614,7 @@ pub fn (mut e ExpressionChecker) visit_op_expr(node &OpExpr) MypyTypeNode {
 
 	e.msg.fail('Unknown operator ${node.op}', node.base.ctx, false, false, none)
 	return MypyTypeNode(AnyType{
-		type_of_any: .from_error
+		type_of_any: TypeOfAny.from_error
 	})
 }
 
@@ -624,7 +624,7 @@ pub fn (mut e ExpressionChecker) check_op(method string, base_type MypyTypeNode,
 	method_type := e.analyze_member_access_type(method, base_type, context)
 	if method_type is CallableType {
 		argument_type := e.accept(arg, none, false, false, false)
-		ret, _ := e.check_callable_call(method_type as CallableType, [arg], [ArgKind.arg_pos], context, [
+		ret, _ := e.check_callable_call(method_type, [arg], [ArgKind.arg_pos], context, [
 
 			?string(none),
 		], none, method, none)
@@ -636,15 +636,15 @@ pub fn (mut e ExpressionChecker) check_op(method string, base_type MypyTypeNode,
 		if reverse_method != '' {
 			right_type := e.accept(arg, none, false, false, false)
 			rmethod_type := e.analyze_member_access_type(reverse_method, right_type, context)
-			ret, _ := e.check_callable_call(rmethod_type as CallableType, [Expression(NameExpr{})],
+			ret, _ := e.check_callable_call(rmethod_type, [Expression(NameExpr{})],
 				[ArgKind.arg_pos], context, [?string(none)], none, reverse_method, none)
 			return ret, rmethod_type
 		}
 	}
 	return MypyTypeNode(AnyType{
-		type_of_any: .from_error
+		type_of_any: TypeOfAny.from_error
 	}), MypyTypeNode(AnyType{
-		type_of_any: .from_error
+		type_of_any: TypeOfAny.from_error
 	})
 }
 

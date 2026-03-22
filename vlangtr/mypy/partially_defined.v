@@ -189,8 +189,8 @@ pub enum ScopeType {
 	generator
 }
 
-// Scope — область видимости с отслеживанием ветвлений
-pub struct Scope {
+// PartiallyDefinedScope — область видимости с отслеживанием ветвлений
+pub struct PartiallyDefinedScope {
 pub mut:
 	branch_stmts   []BranchStatement
 	scope_type     ScopeType

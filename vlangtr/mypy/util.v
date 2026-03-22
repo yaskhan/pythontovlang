@@ -63,6 +63,7 @@ pub fn split_target(modules []string, target string) ?TargetSplit {
 	return none
 }
 
+/*
 pub fn short_type(obj any) string {
 	// In V, 'any' stores type information.
 	// This is a simplified version for transpiled code.
@@ -70,19 +71,23 @@ pub fn short_type(obj any) string {
 	parts := t.split('.')
 	return parts.last()
 }
+*/
 
-pub struct IdMapper {
+pub struct MypyIdMapper {
 pub mut:
-	id_map  map[voidptr]int
+	id_map  map[string]int
 	next_id int
 }
 
-pub fn (mut m IdMapper) id(o voidptr) int {
-	if o !in m.id_map {
-		m.id_map[o] = m.next_id
-		m.next_id++
+pub fn (mut m MypyIdMapper) id(o voidptr) int {
+	key := u64(o).str()
+	if key in m.id_map {
+		return m.id_map[key]
 	}
-	return m.id_map[o]
+	val := m.next_id
+	m.id_map[key] = val
+	m.next_id++
+	return val
 }
 
 pub fn get_prefix(fullname string) string {

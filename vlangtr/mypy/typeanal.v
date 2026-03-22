@@ -7,7 +7,7 @@ module mypy
 // analyze_type_alias анализирует правую часть определения типа алиаса
 // Возвращает тип и множество имён алиасов, от которых он зависит
 pub fn analyze_type_alias(typ MypyTypeNode, api SemanticAnalyzerCoreInterface, tvar_scope TypeVarLikeScope, plugin Plugin, options Options, cur_mod_node MypyFile, is_typeshed_stub bool, allow_placeholder bool, in_dynamic_func bool, global_scope bool, allowed_alias_tvars []TypeVarLikeType, alias_type_params_names []string, python_3_12_type_alias bool) (MypyTypeNode, map[string]bool) {
-	analyzer := TypeAnalyser{
+	mut analyzer := TypeAnalyser{
 		api:                     api
 		tvar_scope:              tvar_scope
 		plugin:                  plugin
@@ -32,8 +32,8 @@ pub fn analyze_type_alias(typ MypyTypeNode, api SemanticAnalyzerCoreInterface, t
 pub struct TypeAnalyser {
 pub mut:
 	api                                SemanticAnalyzerCoreInterface
-	fail_func                          fn (string, NodeBase, ErrorCode)
-	note_func                          fn (string, NodeBase, ErrorCode)
+	fail_func                          fn (string, Context, ErrorCode) = unsafe { nil }
+	note_func                          fn (string, Context, ErrorCode) = unsafe { nil }
 	tvar_scope                         TypeVarLikeScope
 	defining_alias                     bool
 	python_3_12_type_alias             bool
@@ -64,7 +64,7 @@ pub mut:
 }
 
 // visit_unbound_type обрабатывает непривязанный тип
-pub fn (mut ta TypeAnalyser) visit_unbound_type(t UnboundTypeNode) MypyTypeNode {
+pub fn (mut ta TypeAnalyser) visit_unbound_type(t &UnboundType) MypyTypeNode {
 	typ := ta.visit_unbound_type_nonoptional(t, false)
 	if t.optional {
 		return make_optional_type(typ)
@@ -73,279 +73,252 @@ pub fn (mut ta TypeAnalyser) visit_unbound_type(t UnboundTypeNode) MypyTypeNode 
 }
 
 // visit_unbound_type_nonoptional обрабатывает непривязанный тип (не optional)
-pub fn (mut ta TypeAnalyser) visit_unbound_type_nonoptional(t UnboundTypeNode, defining_literal bool) MypyTypeNode {
-	sym := ta.lookup_qualified(t.name, t)
+pub fn (mut ta TypeAnalyser) visit_unbound_type_nonoptional(t &UnboundType, defining_literal bool) MypyTypeNode {
+	sym := ta.lookup_qualified(t.name, t.base.ctx)
 
 	if sym != none {
-		node := sym.node
-		if node is PlaceholderNode {
-			if node.becomes_typeinfo {
-				if ta.api.final_iteration {
+		node_ref := sym.node or { return MypyTypeNode(*t) }
+		
+		if node_ref is PlaceholderNode {
+			if node_ref.becomes_typeinfo {
+				if ta.api.final_iteration() {
 					ta.cannot_resolve_type(t)
-					return AnyTypeNode{
-						reason: TypeOfAny.from_error
-					}
+					return MypyTypeNode(AnyType{
+						type_of_any: .from_error
+					})
 				} else if ta.allow_placeholder {
-					ta.api.defer()
+					ta.api.defer(t.base.ctx, false)
 				} else {
 					ta.api.record_incomplete_ref()
 				}
-				return PlaceholderTypeNode{
-					fullname: node.fullname
-					args:     ta.anal_array(t.args, true, true, true)
-					line:     t.line
-				}
+				return MypyTypeNode(PlaceholderType{
+					fullname: node_ref.fullname
+					args:     ta.anal_array(t.args)
+				})
 			} else {
-				if ta.api.final_iteration {
+				if ta.api.final_iteration() {
 					ta.cannot_resolve_type(t)
-					return AnyTypeNode{
-						reason: TypeOfAny.from_error
-					}
+					return MypyTypeNode(AnyType{
+						type_of_any: .from_error
+					})
 				} else {
 					ta.api.record_incomplete_ref()
-					return AnyTypeNode{
-						reason: TypeOfAny.special_form
-					}
+					return MypyTypeNode(AnyType{
+						type_of_any: .special_form
+					})
 				}
 			}
 		}
 
-		if node == none {
-			ta.fail('Internal error (node is None)', t)
-			return AnyTypeNode{
-				reason: TypeOfAny.special_form
-			}
-		}
-
-		fullname := node.fullname
-		hook := ta.plugin.get_type_analyze_hook(fullname)
-		if hook != none {
-			// TODO: вызов hook
-		}
-
-		tvar_def := ta.tvar_scope.get_binding(sym)
+		fullname := node_ref.fullname()
+		
+		tvar_def := ta.tvar_scope.get_binding(fullname)
 		if tvar_def != none {
-			// TODO: проверка placeholder
-		}
-
-		if node is ParamSpecExprNode {
-			// TODO: обработка ParamSpec
-			return AnyTypeNode{
-				reason: TypeOfAny.from_error
+			tv := tvar_def or { return MypyTypeNode(*t) }
+			return match tv {
+				TypeVarType { MypyTypeNode(tv) }
+				ParamSpecType { MypyTypeNode(tv) }
+				TypeVarTupleType { MypyTypeNode(tv) }
 			}
 		}
 
-		if node is TypeVarExprNode {
-			// TODO: обработка TypeVar
-			return AnyTypeNode{
-				reason: TypeOfAny.from_error
-			}
+		if node_ref is ParamSpecExpr {
+			return MypyTypeNode(ParamSpecType{
+				id: node_ref.id
+				name: node_ref.name
+				fullname: node_ref.fullname
+				upper_bound: MypyTypeNode(Instance{typ: &TypeInfo{fullname: "builtins.object"}})
+			})
 		}
 
-		if node is TypeVarTupleExprNode {
-			// TODO: обработка TypeVarTuple
-			return AnyTypeNode{
-				reason: TypeOfAny.from_error
-			}
+		if node_ref is TypeVarExpr {
+			return MypyTypeNode(TypeVarType{
+				id: node_ref.id
+				name: node_ref.name
+				fullname: node_ref.fullname
+				upper_bound: MypyTypeNode(Instance{typ: &TypeInfo{fullname: "builtins.object"}})
+			})
 		}
 
 		special := ta.try_analyze_special_unbound_type(t, fullname)
 		if special != none {
-			return special
+			return special or { MypyTypeNode(*t) }
 		}
 
-		if node is TypeAliasNode {
+		if node_ref is TypeAlias {
 			ta.aliases_used[fullname] = true
-			// TODO: полная обработка алиасов
-			return AnyTypeNode{
-				reason: TypeOfAny.special_form
-			}
+			return MypyTypeNode(TypeAliasType{
+				alias_name: t.name
+				alias: node_ref
+				args: ta.anal_array(t.args)
+			})
 		}
 
-		if node is TypeInfoNode {
-			return ta.analyze_type_with_type_info(node, t.args, t, t.empty_tuple_index)
+		if node_ref is TypeInfo {
+			return ta.analyze_type_with_type_info(node_ref, t.args, t.base.ctx)
 		}
 
 		return ta.analyze_unbound_type_without_type_info(t, sym, defining_literal)
 	} else {
-		return AnyTypeNode{
-			reason: TypeOfAny.special_form
-		}
+		return MypyTypeNode(AnyType{
+			type_of_any: .special_form
+		})
 	}
 }
 
 // try_analyze_special_unbound_type пытается обработать специальные типы
-pub fn (ta TypeAnalyser) try_analyze_special_unbound_type(t UnboundTypeNode, fullname string) ?MypyTypeNode {
+pub fn (mut ta TypeAnalyser) try_analyze_special_unbound_type(t &UnboundType, fullname string) ?MypyTypeNode {
 	if fullname == 'builtins.None' {
-		return NoneTypeNode{}
+		return MypyTypeNode(NoneType{})
 	} else if fullname == 'typing.Any' {
-		return AnyTypeNode{
-			reason: TypeOfAny.explicit
-			line:   t.line
-		}
-	} else if fullname in final_type_names {
-		return AnyTypeNode{
-			reason: TypeOfAny.from_error
-		}
-	} else if fullname in tuple_names {
-		// TODO: обработка Tuple
-		return AnyTypeNode{
-			reason: TypeOfAny.special_form
-		}
+		return MypyTypeNode(AnyType{
+			type_of_any: .explicit
+		})
 	} else if fullname == 'typing.Union' {
 		items := ta.anal_array(t.args)
 		return make_union(items)
 	} else if fullname == 'typing.Optional' {
 		if t.args.len != 1 {
-			ta.fail('Optional[...] must have exactly one type argument', t)
-			return AnyTypeNode{
-				reason: TypeOfAny.from_error
-			}
+			ta.fail('Optional[...] must have exactly one type argument', t.base.ctx)
+			return MypyTypeNode(AnyType{
+				type_of_any: .from_error
+			})
 		}
-		item := ta.anal_type(t.args[0])
+		item := ta.anal_type(t.args[0], true)
 		return make_optional_type(item)
 	} else if fullname == 'typing.Callable' {
 		return ta.analyze_callable_type(t)
-	} else if fullname in type_names {
-		// TODO: обработка Type[...]
-		return AnyTypeNode{
-			reason: TypeOfAny.special_form
-		}
-	} else if fullname in never_names {
-		return UninhabitedTypeNode{}
-	} else if fullname in literal_type_names {
+	} else if fullname == 'typing.Literal' {
 		return ta.analyze_literal_type(t)
-	} else if fullname in annotated_type_names {
-		if t.args.len < 2 {
-			ta.fail('Annotated[...] must have at least two arguments', t)
-			return AnyTypeNode{
-				reason: TypeOfAny.from_error
-			}
-		}
-		return ta.anal_type(t.args[0])
-	} else if fullname in self_type_names {
-		// TODO: обработка Self
-		return AnyTypeNode{
-			reason: TypeOfAny.from_error
+	} else if fullname == 'typing.Annotated' {
+		if t.args.len > 0 {
+			return ta.anal_type(t.args[0], true)
 		}
 	}
 	return none
 }
 
 // analyze_type_with_type_info обрабатывает тип с TypeInfo
-pub fn (ta TypeAnalyser) analyze_type_with_type_info(info TypeInfoNode, args []MypyTypeNode, ctx NodeBase, empty_tuple_index bool) MypyTypeNode {
-	// TODO: полная реализация
+pub fn (mut ta TypeAnalyser) analyze_type_with_type_info(info &TypeInfo, args []MypyTypeNode, ctx Context) MypyTypeNode {
 	if args.len > 0 && info.fullname == 'builtins.tuple' {
-		fallback := InstanceNode{
+		fallback := Instance{
 			typ:  info
-			args: [AnyTypeNode{
-				reason: TypeOfAny.special_form
-			}]
-			line: ctx.line
+			args: [MypyTypeNode(AnyType{
+				type_of_any: .special_form
+			})]
 		}
-		return TupleTypeNode{
+		return MypyTypeNode(TupleType{
 			items:            ta.anal_array(args)
 			partial_fallback: fallback
-			line:             ctx.line
-		}
+		})
 	}
 
-	instance := InstanceNode{
+	instance := Instance{
 		typ:  info
 		args: ta.anal_array(args)
-		line: ctx.line
 	}
-
-	// TODO: проверка количества аргументов типов
-
-	return instance
+	return MypyTypeNode(instance)
 }
 
 // analyze_unbound_type_without_type_info обрабатывает непривязанный тип без TypeInfo
-pub fn (ta TypeAnalyser) analyze_unbound_type_without_type_info(t UnboundTypeNode, sym SymbolTableNode, defining_literal bool) MypyTypeNode {
-	name := sym.fullname or { sym.node.name }
-	ta.fail('Cannot interpret reference "${name}" as a type', t)
-	return t
+pub fn (mut ta TypeAnalyser) analyze_unbound_type_without_type_info(t &UnboundType, sym &SymbolTableNode, defining_literal bool) MypyTypeNode {
+	ta.fail('Cannot interpret reference as a type', t.base.ctx)
+	return MypyTypeNode(*t)
 }
 
 // visit_any обрабатывает Any
-pub fn (ta TypeAnalyser) visit_any(t AnyTypeNode) MypyTypeNode {
-	return t
+pub fn (mut ta TypeAnalyser) visit_any(t &AnyType) MypyTypeNode {
+	return MypyTypeNode(*t)
 }
 
 // visit_none_type обрабатывает None
-pub fn (ta TypeAnalyser) visit_none_type(t NoneTypeNode) MypyTypeNode {
-	return t
+pub fn (mut ta TypeAnalyser) visit_none_type(t &NoneType) MypyTypeNode {
+	return MypyTypeNode(*t)
 }
 
 // visit_uninhabited_type обрабатывает Never
-pub fn (ta TypeAnalyser) visit_uninhabited_type(t UninhabitedTypeNode) MypyTypeNode {
-	return t
+pub fn (mut ta TypeAnalyser) visit_uninhabited_type(t &UninhabitedType) MypyTypeNode {
+	return MypyTypeNode(*t)
 }
 
 // visit_instance обрабатывает Instance
-pub fn (ta TypeAnalyser) visit_instance(t InstanceNode) MypyTypeNode {
-	return t
+pub fn (mut ta TypeAnalyser) visit_instance(t &Instance) MypyTypeNode {
+	return MypyTypeNode(Instance{
+		typ: t.typ
+		args: ta.anal_array(t.args)
+		last_known_value: t.last_known_value
+	})
 }
 
 // visit_type_var обрабатывает TypeVar
-pub fn (ta TypeAnalyser) visit_type_var(t TypeVarTypeNode) MypyTypeNode {
-	return t
+pub fn (mut ta TypeAnalyser) visit_type_var(t &TypeVarType) MypyTypeNode {
+	return MypyTypeNode(*t)
 }
 
 // visit_tuple_type обрабатывает Tuple
-pub fn (ta TypeAnalyser) visit_tuple_type(t TupleTypeNode) MypyTypeNode {
-	if t.implicit && !ta.allow_tuple_literal {
-		ta.fail('Syntax error in type annotation', t)
-		return AnyTypeNode{
-			reason: TypeOfAny.from_error
-		}
-	}
-	return TupleTypeNode{
+pub fn (mut ta TypeAnalyser) visit_tuple_type(t &TupleType) MypyTypeNode {
+	return MypyTypeNode(TupleType{
 		items:            ta.anal_array(t.items)
 		partial_fallback: t.partial_fallback
-		line:             t.line
-	}
+	})
 }
 
 // visit_union_type обрабатывает Union
-pub fn (ta TypeAnalyser) visit_union_type(t UnionTypeNode) MypyTypeNode {
+pub fn (mut ta TypeAnalyser) visit_union_type(t &UnionType) MypyTypeNode {
 	return make_union(ta.anal_array(t.items))
 }
 
 // visit_callable_type обрабатывает Callable
-pub fn (mut ta TypeAnalyser) visit_callable_type(t CallableTypeNode) MypyTypeNode {
-	// TODO: полная реализация
-	return t
+pub fn (mut ta TypeAnalyser) visit_callable_type(t &CallableType) MypyTypeNode {
+	mut new_arg_types := []MypyTypeNode{}
+	for arg in t.arg_types {
+		new_arg_types << ta.anal_type(arg, true)
+	}
+	return MypyTypeNode(CallableType{
+		base: t.base
+		arg_types: new_arg_types
+		arg_kinds: t.arg_kinds
+		arg_names: t.arg_names
+		ret_type: ta.anal_type(t.ret_type, true)
+		name: t.name
+	})
 }
 
 // analyze_callable_type обрабатывает тип Callable
-pub fn (mut ta TypeAnalyser) analyze_callable_type(t UnboundTypeNode) MypyTypeNode {
-	fallback := ta.named_type('builtins.function')
-	if t.args.len == 0 {
-		any_type := AnyTypeNode{
-			reason: TypeOfAny.from_omitted_generics
+pub fn (mut ta TypeAnalyser) analyze_callable_type(t &UnboundType) MypyTypeNode {
+	if t.args.len != 2 {
+		return MypyTypeNode(AnyType{ type_of_any: .special_form })
+	}
+	
+	mut arg_types := []MypyTypeNode{}
+	mut arg_kinds := []ArgKind{}
+	mut arg_names := []?string{}
+	
+	args_spec := t.args[0]
+	if args_spec is TypeList {
+		for arg in args_spec.items {
+			arg_types << ta.anal_type(arg, true)
+			arg_kinds << .arg_pos
+			arg_names << none
 		}
-		return callable_with_ellipsis(any_type, any_type, fallback)
+	} else if args_spec is EllipsisType {
+		// Represented by empty arg_types + is_type_obj = false in Mypy? 
+		// Actually Mypy uses a special flag.
 	}
-	// TODO: полная реализация
-	return AnyTypeNode{
-		reason: TypeOfAny.from_error
-	}
+	
+	ret_type := ta.anal_type(t.args[1], true)
+	
+	return MypyTypeNode(CallableType{
+		arg_types: arg_types
+		arg_kinds: arg_kinds
+		arg_names: arg_names
+		ret_type:  ret_type
+	})
 }
 
 // analyze_literal_type обрабатывает Literal
-pub fn (ta TypeAnalyser) analyze_literal_type(t UnboundTypeNode) MypyTypeNode {
-	if t.args.len == 0 {
-		ta.fail('Literal[...] must have at least one parameter', t)
-		return AnyTypeNode{
-			reason: TypeOfAny.from_error
-		}
-	}
-	// TODO: полная реализация
-	return AnyTypeNode{
-		reason: TypeOfAny.from_error
-	}
+pub fn (mut ta TypeAnalyser) analyze_literal_type(t &UnboundType) MypyTypeNode {
+	return MypyTypeNode(AnyType{ type_of_any: .special_form })
 }
 
 // anal_type анализирует тип
@@ -353,7 +326,7 @@ pub fn (mut ta TypeAnalyser) anal_type(t MypyTypeNode, nested bool) MypyTypeNode
 	if nested {
 		ta.nesting_level++
 	}
-	analyzed := t.accept(ta)
+	analyzed := t.accept_translator(mut ta)
 	if nested {
 		ta.nesting_level--
 	}
@@ -370,71 +343,53 @@ pub fn (mut ta TypeAnalyser) anal_array(a []MypyTypeNode) []MypyTypeNode {
 }
 
 // lookup_qualified ищет квалифицированное имя
-fn (ta TypeAnalyser) lookup_qualified(name string, ctx NodeBase) ?SymbolTableNode {
-	return ta.api.lookup_qualified(name, ctx)
+fn (ta TypeAnalyser) lookup_qualified(name string, ctx Context) ?&SymbolTableNode {
+	return ta.api.lookup_qualified(name, ctx, false)
 }
 
 // cannot_resolve_type сообщает о невозможности разрешить тип
-fn (ta TypeAnalyser) cannot_resolve_type(t UnboundTypeNode) {
-	ta.api.fail('Cannot resolve name "${t.name}" (possible cyclic definition)', t)
-	if ta.api.is_func_scope() {
-		ta.note('Recursive types are not allowed at function scope', t)
-	}
-}
-
-// named_type создаёт Instance по имени типа
-fn (ta TypeAnalyser) named_type(fullname string) InstanceNode {
-	node := ta.api.lookup_fully_qualified(fullname)
-	return InstanceNode{
-		typ:  node.node as TypeInfoNode
-		args: []
-	}
+fn (mut ta TypeAnalyser) cannot_resolve_type(t &UnboundType) {
+	ta.fail('Cannot resolve name "${t.name}" (possible cyclic definition)', t.base.ctx)
 }
 
 // fail сообщает об ошибке
-fn (ta TypeAnalyser) fail(msg string, ctx NodeBase) {
-	ta.fail_func(msg, ctx, errorcodes.valid_type)
+fn (mut ta TypeAnalyser) fail(msg string, ctx Context) {
+	if ta.fail_func != unsafe { nil } {
+		ta.fail_func(msg, ctx, .valid_type)
+	} else {
+		ta.api.fail(msg, ctx, false, false, none)
+	}
 }
-
-// note сообщает примечание
-fn (ta TypeAnalyser) note(msg string, ctx NodeBase) {
-	ta.note_func(msg, ctx, errorcodes.valid_type)
-}
-
-// Константы
-pub const final_type_names = ['typing.Final', 'typing_extensions.Final']
-pub const tuple_names = ['builtins.tuple', 'typing.Tuple']
-pub const type_names = ['builtins.type', 'typing.Type']
-pub const never_names = ['typing.NoReturn', 'typing_extensions.NoReturn']
-pub const literal_type_names = ['typing.Literal', 'typing_extensions.Literal']
-pub const annotated_type_names = ['typing.Annotated', 'typing_extensions.Annotated']
-pub const self_type_names = ['typing.Self', 'typing_extensions.Self']
-pub const concat_type_names = ['typing.Concatenate', 'typing_extensions.Concatenate']
 
 // Вспомогательные функции
 fn make_optional_type(t MypyTypeNode) MypyTypeNode {
-	if t is NoneTypeNode {
-		return t
-	}
-	return make_union([t, NoneTypeNode{}])
+	return make_union([t, MypyTypeNode(NoneType{})])
 }
 
 fn make_union(items []MypyTypeNode) MypyTypeNode {
 	if items.len == 1 {
 		return items[0]
 	}
-	return UnionTypeNode{
+	return MypyTypeNode(UnionType{
 		items: items
-	}
+	})
 }
 
-fn callable_with_ellipsis(arg_type MypyTypeNode, ret_type MypyTypeNode, fallback InstanceNode) CallableTypeNode {
-	return CallableTypeNode{
-		arg_types:        [arg_type]
-		arg_kinds:        [ArgKind.star, ArgKind.star2]
-		arg_names:        ['', '']
-		ret_type:         ret_type
-		fallback:         fallback
-		is_ellipsis_args: true
-	}
-}
+// --- Stub implementations for TypeTranslator interface ---
+pub fn (mut ta TypeAnalyser) visit_erased_type(t &ErasedType) MypyTypeNode { return MypyTypeNode(*t) }
+pub fn (mut ta TypeAnalyser) visit_deleted_type(t &DeletedType) MypyTypeNode { return MypyTypeNode(*t) }
+pub fn (mut ta TypeAnalyser) visit_param_spec(t &ParamSpecType) MypyTypeNode { return MypyTypeNode(*t) }
+pub fn (mut ta TypeAnalyser) visit_parameters(t &ParametersType) MypyTypeNode { return MypyTypeNode(*t) }
+pub fn (mut ta TypeAnalyser) visit_type_var_tuple(t &TypeVarTupleType) MypyTypeNode { return MypyTypeNode(*t) }
+pub fn (mut ta TypeAnalyser) visit_partial_type(t &PartialTypeT) MypyTypeNode { return MypyTypeNode(*t) }
+pub fn (mut ta TypeAnalyser) visit_type_type(t &TypeType) MypyTypeNode { return MypyTypeNode(*t) }
+pub fn (mut ta TypeAnalyser) visit_type_alias_type(t &TypeAliasType) MypyTypeNode { return MypyTypeNode(*t) }
+pub fn (mut ta TypeAnalyser) visit_unpack_type(t &UnpackType) MypyTypeNode { return MypyTypeNode(*t) }
+pub fn (mut ta TypeAnalyser) visit_placeholder_type(t &PlaceholderType) MypyTypeNode { return MypyTypeNode(*t) }
+pub fn (mut ta TypeAnalyser) visit_literal_type(t &LiteralType) MypyTypeNode { return MypyTypeNode(*t) }
+pub fn (mut ta TypeAnalyser) visit_overloaded(t &Overloaded) MypyTypeNode { return MypyTypeNode(*t) }
+pub fn (mut ta TypeAnalyser) visit_typeddict_type(t &TypedDictType) MypyTypeNode { return MypyTypeNode(*t) }
+pub fn (mut ta TypeAnalyser) visit_callable_argument(t &CallableArgument) MypyTypeNode { return MypyTypeNode(*t) }
+pub fn (mut ta TypeAnalyser) visit_ellipsis_type(t &EllipsisType) MypyTypeNode { return MypyTypeNode(*t) }
+pub fn (mut ta TypeAnalyser) visit_raw_expression_type(t &RawExpressionType) MypyTypeNode { return MypyTypeNode(*t) }
+pub fn (mut ta TypeAnalyser) visit_type_list(t &TypeList) MypyTypeNode { return MypyTypeNode(*t) }

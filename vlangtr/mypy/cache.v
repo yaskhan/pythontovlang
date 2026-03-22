@@ -8,17 +8,7 @@ module mypy
 pub const cache_version = 7
 
 // ErrorInfo — структура для представления ошибок
-pub struct ErrorInfo {
-pub:
-	path       ?string
-	line       int
-	column     int
-	end_line   int
-	end_column int
-	severity   string
-	message    string
-	code       ?string
-}
+
 
 // CacheMeta — метаданные кэша для модуля
 pub struct CacheMeta {

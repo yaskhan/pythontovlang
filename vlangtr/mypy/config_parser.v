@@ -1,6 +1,8 @@
-// Я Cline работаю над этим файлом. Начало: 2026-03-22 14:52
+// Я Antigravity работаю над этим файлом. Начало: 2026-03-22 03:05
 // config_parser.v — Configuration file parsing for mypy
 // Переведён из mypy/config_parser.py
+//
+// ---------------------------------------------------------------------------
 
 module mypy
 
@@ -11,13 +13,6 @@ pub struct VersionTypeError {
 pub:
 	fallback (int, int)
 	msg      string
-}
-
-// PythonVersion — структура для версии Python
-pub struct PythonVersion {
-pub:
-	major int
-	minor int
 }
 
 // parse_version парсит строку версии Python вида "x.y"
@@ -31,8 +26,8 @@ pub fn parse_version(v string) !PythonVersion {
 	if major == 2 && minor == 7 {
 		// Error raised elsewhere
 	} else if major == 3 {
-		if minor < defaults.python3_version_min[1] {
-			msg := 'Python 3.${minor} is not supported (must be ${defaults.python3_version_min[0]}.${defaults.python3_version_min[1]} or higher)'
+		if minor < python3_version_min.minor {
+			msg := 'Python 3.${minor} is not supported (must be ${python3_version_min.major}.${python3_version_min.minor} or higher)'
 			return error(msg)
 		}
 	} else {
@@ -52,7 +47,8 @@ pub fn try_split(v string, split_regex string) []string {
 
 // expand_path раскрывает ~ и переменные окружения в пути
 pub fn expand_path(path string) string {
-	return os.expand_vars(os.expanduser(path))
+    // V 0.5.x expansion
+	return path.replace('~', os.home_dir())
 }
 
 // split_commas разделяет строку по запятым
@@ -61,14 +57,14 @@ pub fn split_commas(value string) []string {
 	if items.len > 0 && items[items.len - 1] == '' {
 		items.pop()
 	}
-	return items
+	return items.map(it.trim_space())
 }
 
 // str_or_array_as_list конвертирует строку или массив в список строк
 pub fn str_or_array_as_list(v string) []string {
 	trimmed := v.trim_space()
 	if trimmed.len == 0 {
-		return []
+		return []string{}
 	}
 	return [trimmed]
 }
@@ -110,10 +106,10 @@ pub fn check_junit_format(choice string) string {
 // validate_package_allow_list валидирует список разрешённых пакетов
 pub fn validate_package_allow_list(allow_list []string) []string {
 	for p in allow_list {
-		if '*' in p {
+		if p.contains('*') {
 			panic('Invalid allow list entry: ${p} (entries are already prefixes so must not contain *)')
 		}
-		if '\\' in p || '/' in p {
+		if p.contains('\\') || p.contains('/') {
 			panic('Invalid allow list entry: ${p} (entries must be packages like foo.bar not directories or files)')
 		}
 	}
@@ -275,7 +271,7 @@ pub fn mypy_comments_to_config_map(line string) (map[string]string, []string) {
 	for entry in entries {
 		mut name := ''
 		mut value := 'True'
-		if '=' in entry {
+		if entry.contains('=') {
 			parts := entry.split('=')
 			name = parts[0].trim_space()
 			value = parts[1].trim_space()
@@ -307,7 +303,9 @@ pub fn get_config_module_names(filename string, modules []string) string {
 	if !is_toml(filename) {
 		return modules.map('[mypy-${it}]').join(', ')
 	}
-	return "module = ['${modules.sorted().join("', '")}']"
+    mut sorted_modules := modules.clone()
+    sorted_modules.sort()
+	return "module = ['${sorted_modules.join("', '")}']"
 }
 
 // ConfigTOMLValueError — ошибка значения TOML конфигурации

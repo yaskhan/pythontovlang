@@ -99,6 +99,7 @@
 | `fastparse.py` | `mypy/fastparse.v` | 📝 ASTConverter, TypeConverter, parse, op_map, comp_op_map |
 | `expandtype.py` | `mypy/expandtype.v` | 📝 expand_type, expand_type_by_instance, ExpandTypeVisitor, freshen_function_type_vars |
 | `join.py` | `mypy/join.v` | 📝 InstanceJoiner, join_types, TypeJoinVisitor, join_type_list, trivial_join |
+| `meet.py` | `mypy/meet.v` | 📝 meet_types, TypeMeetVisitor, narrow_declared_type, is_overlapping_types, trivial_meet |
 | `indirection.py` | `mypy/indirection.v` | ✅ Полностью (TypeIndirectionVisitor для анализа зависимостей модулей) |
 | `stats.py` | `mypy/stats.v` | ✅ Полностью (StatisticsVisitor для сбора статистики о типах) |
 | `ipc.py` | `mypy/ipc.v` | ✅ Полностью (IPCBase, IPCClient, IPCServer, IPCMessage, WriteBuffer, ReadBuffer) |

@@ -40,8 +40,8 @@ pub fn new_type_var_like_scope(parent ?&TypeVarLikeScope,
 	mut scope := TypeVarLikeScope{
 		scope:          map[string]TypeVarLikeType{}
 		parent:         parent
-		func_id:        0
-		class_id:       0
+		func_raw_id:        0
+		class_raw_id:       0
 		is_class_scope: is_class_scope
 		prohibited:     prohibited
 		namespace:      namespace
@@ -102,7 +102,7 @@ pub fn (mut s TypeVarLikeScope) class_frame(namespace string) TypeVarLikeScope {
 pub fn (mut s TypeVarLikeScope) new_unique_func_id() TypeVarId {
 	s.func_id -= 1
 	return TypeVarId{
-		id:        s.func_id
+		raw_id:        s.func_id
 		namespace: s.namespace
 	}
 }
@@ -136,8 +136,8 @@ pub fn (mut s TypeVarLikeScope) bind_new(name string,
 				base:        TypeBase{}
 				name:        name
 				fullname:    tve.fullname
-				id:          TypeVarId{
-					id:        i
+				raw_id:          TypeVarId{
+					raw_id:        i
 					namespace: namespace
 				}
 				values:      tve.values
@@ -154,8 +154,8 @@ pub fn (mut s TypeVarLikeScope) bind_new(name string,
 				base:        TypeBase{}
 				name:        name
 				fullname:    pse.fullname
-				id:          TypeVarId{
-					id:        i
+				raw_id:          TypeVarId{
+					raw_id:        i
 					namespace: namespace
 				}
 				flavor:      param_spec_flavor_bare
@@ -171,8 +171,8 @@ pub fn (mut s TypeVarLikeScope) bind_new(name string,
 				base:           TypeBase{}
 				name:           name
 				fullname:       tvte.fullname
-				id:             TypeVarId{
-					id:        i
+				raw_id:             TypeVarId{
+					raw_id:        i
 					namespace: namespace
 				}
 				upper_bound:    tvte.upper_bound

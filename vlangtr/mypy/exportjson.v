@@ -248,23 +248,23 @@ pub fn convert_type_alias(self TypeAliasNode) Json {
 
 // convert_type конвертирует Type в JSON
 pub fn convert_type(typ MypyTypeNode) Json {
-	if typ is TypeAliasTypeNode {
+	if typ is TypeAliasType {
 		return convert_type_alias_type(typ)
 	}
 	tp := get_proper_type(typ)
-	if tp is InstanceNode {
+	if tp is Instance {
 		return convert_instance(tp)
-	} else if tp is AnyTypeNode {
+	} else if tp is AnyType {
 		return convert_any_type(tp)
-	} else if tp is NoneTypeNode {
+	} else if tp is NoneType {
 		return {
 			'.class': Any('NoneType')
 		}
-	} else if tp is UnionTypeNode {
+	} else if tp is UnionType {
 		return convert_union_type(tp)
-	} else if tp is TupleTypeNode {
+	} else if tp is TupleType {
 		return convert_tuple_type(tp)
-	} else if tp is CallableTypeNode {
+	} else if tp is CallableType {
 		return convert_callable_type(tp)
 	} else if tp is OverloadedNode {
 		return {
@@ -277,31 +277,31 @@ pub fn convert_type(typ MypyTypeNode) Json {
 			'value':    Any(tp.value)
 			'fallback': Any(convert_type(tp.fallback))
 		}
-	} else if tp is TypeVarTypeNode {
+	} else if tp is TypeVarType {
 		return convert_type_var_type(tp)
-	} else if tp is TypeTypeNode {
+	} else if tp is TypeType {
 		return {
 			'.class': Any('TypeType')
 			'item':   Any(convert_type(tp.item))
 		}
-	} else if tp is UninhabitedTypeNode {
+	} else if tp is UninhabitedType {
 		return {
 			'.class': Any('UninhabitedType')
 		}
-	} else if tp is UnpackTypeNode {
+	} else if tp is UnpackType {
 		return {
 			'.class': Any('UnpackType')
 			'type':   Any(convert_type(tp.typ))
 		}
-	} else if tp is ParamSpecTypeNode {
+	} else if tp is ParamSpecType {
 		return convert_param_spec_type(tp)
-	} else if tp is TypeVarTupleTypeNode {
+	} else if tp is TypeVarTupleType {
 		return convert_type_var_tuple_type(tp)
 	} else if tp is ParametersNode {
 		return convert_parameters(tp)
-	} else if tp is TypedDictTypeNode {
+	} else if tp is TypedDictType {
 		return convert_typeddict_type(tp)
-	} else if tp is UnboundTypeNode {
+	} else if tp is UnboundType {
 		return convert_unbound_type(tp)
 	}
 	return {
@@ -310,7 +310,7 @@ pub fn convert_type(typ MypyTypeNode) Json {
 }
 
 // convert_instance конвертирует Instance в JSON
-pub fn convert_instance(self InstanceNode) Json {
+pub fn convert_instance(self Instance) Json {
 	if self.args.len == 0 && self.last_known_value == none && self.extra_attrs == none {
 		return self.typ.fullname
 	}
@@ -330,7 +330,7 @@ pub fn convert_instance(self InstanceNode) Json {
 }
 
 // convert_callable_type конвертирует CallableType в JSON
-pub fn convert_callable_type(self CallableTypeNode) Json {
+pub fn convert_callable_type(self CallableType) Json {
 	return {
 		'.class':           Any('CallableType')
 		'arg_types':        Any(self.arg_types.map(convert_type(it)))
@@ -358,7 +358,7 @@ pub fn convert_callable_type(self CallableTypeNode) Json {
 }
 
 // convert_typeddict_type конвертирует TypedDictType в JSON
-pub fn convert_typeddict_type(self TypedDictTypeNode) Json {
+pub fn convert_typeddict_type(self TypedDictType) Json {
 	return {
 		'.class':        Any('TypedDictType')
 		'items':         Any(self.items.keys().map([it, convert_type(self.items[it])]))
@@ -419,49 +419,49 @@ fn convert_extra_attrs(self ExtraAttrsNode) Json {
 	}
 }
 
-fn convert_type_alias_type(self TypeAliasTypeNode) Json {
+fn convert_type_alias_type(self TypeAliasType) Json {
 	// TODO: реализация
 	return {
 		'.class': Any('TypeAliasType')
 	}
 }
 
-fn convert_any_type(self AnyTypeNode) Json {
+fn convert_any_type(self AnyType) Json {
 	// TODO: реализация
 	return {
 		'.class': Any('AnyType')
 	}
 }
 
-fn convert_union_type(self UnionTypeNode) Json {
+fn convert_union_type(self UnionType) Json {
 	// TODO: реализация
 	return {
 		'.class': Any('UnionType')
 	}
 }
 
-fn convert_tuple_type(self TupleTypeNode) Json {
+fn convert_tuple_type(self TupleType) Json {
 	// TODO: реализация
 	return {
 		'.class': Any('TupleType')
 	}
 }
 
-fn convert_type_var_type(self TypeVarTypeNode) Json {
+fn convert_type_var_type(self TypeVarType) Json {
 	// TODO: реализация
 	return {
 		'.class': Any('TypeVarType')
 	}
 }
 
-fn convert_param_spec_type(self ParamSpecTypeNode) Json {
+fn convert_param_spec_type(self ParamSpecType) Json {
 	// TODO: реализация
 	return {
 		'.class': Any('ParamSpecType')
 	}
 }
 
-fn convert_type_var_tuple_type(self TypeVarTupleTypeNode) Json {
+fn convert_type_var_tuple_type(self TypeVarTupleType) Json {
 	// TODO: реализация
 	return {
 		'.class': Any('TypeVarTupleType')
@@ -475,7 +475,7 @@ fn convert_parameters(self ParametersNode) Json {
 	}
 }
 
-fn convert_unbound_type(self UnboundTypeNode) Json {
+fn convert_unbound_type(self UnboundType) Json {
 	// TODO: реализация
 	return {
 		'.class': Any('UnboundType')
