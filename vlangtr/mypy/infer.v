@@ -10,25 +10,11 @@ pub:
 	iterable_type Instance
 }
 
-// Заглушка: Constraint (ограничение на тип T: супертип, подтип) 
-// в реальности они живут в constraints.py
-pub enum ConstraintOp {
-	subtype_of
-	supertype_of
-}
-
-pub struct Constraint {
-pub:
-	type_var MypyTypeNode
-	op       ConstraintOp
-	target   MypyTypeNode
-}
-
 // infer_function_type_arguments - вычисляет типы аргументов для Generic-функции
 pub fn infer_function_type_arguments(
 	callee_type &CallableType,
 	arg_types []?MypyTypeNode,
-	arg_kinds []int, // ArgKind
+	arg_kinds []ArgKind,
 	arg_names []?string,
 	formal_to_actual [][]int,
 	context ArgumentInferContext,
@@ -38,7 +24,7 @@ pub fn infer_function_type_arguments(
 	
 	// 1. Вывод ограничений (infer_constraints_for_callable)
 	constraints := infer_constraints_for_callable(
-		callee_type, arg_types, arg_kinds, arg_names, formal_to_actual, context
+		callee_type, arg_types, arg_kinds, arg_names, formal_to_actual
 	)
 	
 	// 2. Решение ограничений (solve_constraints)
@@ -58,26 +44,6 @@ pub fn infer_type_arguments(
 	
 	inferred, _ := solve_constraints(type_vars, constraints, false, false)
 	return inferred
-}
-
-// ---- Заглушки из constraints.py и solve.py ----
-
-pub fn infer_constraints_for_callable(
-	callee_type &CallableType,
-	arg_types []?MypyTypeNode,
-	arg_kinds []int,
-	arg_names []?string,
-	formal_to_actual [][]int,
-	context ArgumentInferContext
-) []Constraint {
-	// В Mypy просматриваются все actual arguments и сверяются с formal.
-	// Если formal arg — это T (тип TypeVar), то добавляется Constraint(T, subtype_of, actual_arg_type)
-	mut res := []Constraint{}
-	return res
-}
-
-pub fn infer_constraints(template MypyTypeNode, actual MypyTypeNode, op ConstraintOp) []Constraint {
-	return []Constraint{}
 }
 
 pub fn solve_constraints(

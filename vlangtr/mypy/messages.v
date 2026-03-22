@@ -15,14 +15,13 @@ pub mut:
 pub fn (mut m MessageBuilder) report(msg string, context Context, severity string, code ?ErrorCode) {
 	// Основная функция для ошибок/нотаций
 	mut err_info := &ErrorInfo{
-		line: context.line
-		column: context.column
-		end_line: context.end_line
-		end_column: context.end_column
-		message: msg
-		severity: severity
-		// Handle pointer to code
-		code: if c := code { &c } else { none }
+		line:           context.line
+		column:         context.column
+		end_line:       context.end_line
+		end_column:     context.end_column
+		message:        msg
+		severity:       severity
+		code:           code
 	}
 	m.errors.add_error_info(err_info, none)
 }

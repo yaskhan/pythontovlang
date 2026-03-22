@@ -368,13 +368,14 @@ pub fn (mut e ExpressionChecker) check_call(callee MypyTypeNode, args []Expressi
 
 pub fn (mut e ExpressionChecker) check_callable_call(callee &CallableType, args []Expression, arg_kinds []ArgKind, context Context, arg_names []?string, callable_node ?Expression, callable_name ?string, object_type ?MypyTypeNode) (MypyTypeNode, MypyTypeNode) {
 
-	mut actual_callee := callee
+	mut actual_callee := *callee
 
 	if callee.is_type_obj {
 		if ret := get_proper_type(callee.ret_type) as Instance {
 			if info := ret.typ {
 				if info.is_abstract {
-					e.msg.fail('Cannot instantiate abstract class', context, none)
+					e.msg.fail('Cannot instantiate abstract class', context, false, false, none)
+
 				}
 			}
 		}
@@ -397,7 +398,7 @@ pub fn (mut e ExpressionChecker) check_callable_call(callee &CallableType, args 
 
 }
 
-pub fn (mut e ExpressionChecker) check_overload_call(callee &Overloaded, args []Expression, arg_kinds []int, arg_names []?string, callable_name ?string, object_type ?MypyTypeNode, context Context) MypyTypeNode {
+pub fn (mut e ExpressionChecker) check_overload_call(callee &Overloaded, args []Expression, arg_kinds []ArgKind, arg_names []?string, callable_name ?string, object_type ?MypyTypeNode, context Context) MypyTypeNode {
 	// РџРµСЂРµР±РёСЂР°РµРј РїРµСЂРµРіСЂСѓР·РєРё РІ РїРѕСЂСЏРґРєРµ РѕР±СЉСЏРІР»РµРЅРёСЏ, РІРѕР·РІСЂР°С‰Р°РµРј РїРµСЂРІСѓСЋ РїРѕРґС…РѕРґСЏС‰СѓСЋ
 	for item in callee.items {
 		// РџСЂРѕР±СѓРµРј Р±РµР· СЃРѕРѕР±С‰РµРЅРёР№ РѕР± РѕС€РёР±РєР°С…
@@ -411,7 +412,7 @@ pub fn (mut e ExpressionChecker) check_overload_call(callee &Overloaded, args []
 	})
 }
 
-pub fn (mut e ExpressionChecker) check_any_type_call(args []Expression, arg_kinds []int, callee AnyType, context Context) MypyTypeNode {
+pub fn (mut e ExpressionChecker) check_any_type_call(args []Expression, arg_kinds []ArgKind, callee AnyType, context Context) MypyTypeNode {
 	for arg in args {
 		e.accept(arg, none, false, false, false)
 	}
@@ -420,7 +421,7 @@ pub fn (mut e ExpressionChecker) check_any_type_call(args []Expression, arg_kind
 	})
 }
 
-pub fn (mut e ExpressionChecker) infer_arg_types_in_context(callee &CallableType, args []Expression, arg_kinds []int, formal_to_actual [][]int) []MypyTypeNode {
+pub fn (mut e ExpressionChecker) infer_arg_types_in_context(callee &CallableType, args []Expression, arg_kinds []ArgKind, formal_to_actual [][]int) []MypyTypeNode {
 	mut arg_types := []MypyTypeNode{}
 	for i, arg in args {
 		// Р’С‹Р±РёСЂР°РµРј РєРѕРЅС‚РµРєСЃС‚ С‚РёРїР° РёР· СЃРѕРѕС‚РІРµС‚СЃС‚РІСѓСЋС‰РµРіРѕ С„РѕСЂРјР°Р»СЊРЅРѕРіРѕ РїР°СЂР°РјРµС‚СЂР°

@@ -60,7 +60,7 @@ pub fn map_instance_to_supertypes(instance Instance, supertype TypeInfo) []Insta
 		return [Instance{
 			type_name:  supertype.fullname
 			args:       args
-			type_name_n: none
+			typ:        supertype
 		}]
 	}
 }

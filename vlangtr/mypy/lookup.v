@@ -49,7 +49,7 @@ pub fn lookup_fully_qualified(name string, modules map[string]MypyFile, raise_on
 				rest[0] += name[i..]
 			}
 			// Traverse the rest of the path
-			mut current_names := names
+			mut current_names := names.clone()
 			for rest.len > 0 {
 				key := rest.pop()
 				if key !in current_names {

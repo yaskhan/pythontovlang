@@ -43,11 +43,13 @@ pub mut:
 	local_function ?string
 	line           int
 	column         int
-	end_line       int
-	end_column     int
+	end_line       ?int
+	end_column     ?int
+
 	severity       string
 	message        string
-	code           ?&ErrorCode
+	code           ?ErrorCode
+
 	blocker        bool
 	only_once      bool
 
@@ -88,14 +90,18 @@ pub:
 
 @[heap]
 pub struct ErrorWatcher {
-pub mut:
+
+
+pub:
 	errors               &Errors
+pub mut:
 	has_new_errors       bool
 	filter_errors        bool
 	filter_deprecated    bool
 	filter_revealed_type bool
 	filtered             ?[]&ErrorInfo
 }
+
 
 pub fn ErrorWatcher.new(errors &Errors,
 	filter_errors bool,
@@ -147,6 +153,8 @@ pub fn (mut w ErrorWatcher) on_error(file string, info &ErrorInfo) bool {
 
 @[heap]
 pub struct Errors {
+
+
 pub mut:
 	error_info_map     map[string][]&ErrorInfo
 	has_blockers       map[string]bool
@@ -165,11 +173,14 @@ pub mut:
 	watchers           []&ErrorWatcher
 	global_watcher     bool
 	recorded           map[string][]&ErrorInfo
+pub:
 	options            &Options
+pub mut:
 	read_source        ?fn (string) []string
 	hide_error_codes   bool
 	function_or_member []?string
 }
+
 
 pub fn Errors.new(options &Options, read_source ?fn (string) []string, hide_error_codes ?bool) Errors {
 	mut e := Errors{
@@ -579,9 +590,11 @@ pub fn (mut e Errors) generate_unused_ignore_errors(file string, is_typeshed boo
 	}.clone()
 
 	for line, ignored_codes in ignored_lines {
-		skipped := e.skipped_lines[file] or {
-			map[int]bool{}
+		mut skipped := e.skipped_lines[file].clone()
+		if skipped.len == 0 {
+			skipped = map[int]bool{}
 		}
+
 
 		if line in skipped {
 			continue

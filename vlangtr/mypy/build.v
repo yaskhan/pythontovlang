@@ -335,7 +335,7 @@ pub fn transitive_dep_hash(scc SCC, graph Graph) []u8 {
 // ===== Cache utilities =====
 
 pub fn get_errors_name(meta_name string) string {
-	parts := meta_name.split('.')
+	mut parts := meta_name.split('.')
 	if parts.len >= 3 {
 		parts[1] = 'err'
 		return parts.join('.')

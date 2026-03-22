@@ -48,6 +48,7 @@
 | `stubinfo.py` | `mypy/stubinfo.v` | ✅ Полностью (stub_distribution_name, is_module_from_legacy_bundled_package) |
 | `sharedparse.py` | `mypy/sharedparse.v` | ✅ Полностью (magic_methods, special_function_elide_names, argument_elide_name) |
 | `build.py` | `mypy/build.v` | 📝 Полуготово: State, BuildManager, SCC, BuildResult, topological sort |
+| `bogus_type.py` | `mypy/bogus_type.v` | ✅ Полностью (константа `mypyc`, alias helpers `bogus`/`bogus_erased`) |
 | `infer.py` | `mypy/infer.v` | 📝 Заглушки: `infer_type_arguments`, `infer_function_type_arguments`, `Constraint` |
 | `solve.py` | `mypy/solve.v` | 📝 Решатель ограничений (solve_one, join of lowers, meet of uppers) |
 | `copytype.py` | `mypy/copytype.v` | ✅ Полностью (copy_type, TypeShallowCopier через match) |
@@ -71,22 +72,13 @@
 | `lookup.py` | `mypy/lookup.v` | 📝 Поиск символов в глобальной таблице (lookup_fully_qualified) |
 | `plugin.py` | `mypy/plugin.v` | 📝 Система плагинов (Contexts, Interfaces, ChainedPlugin) |
 | `typeanal.py` | `mypy/typeanal.v` | 📝 Семантический анализатор для типов (TypeAnalyser, UnboundType -> Instance) |
+| `constraints.py` | `mypy/constraints.v` | 📝 Вывод ограничений типов: Constraint, infer_constraints, any_constraints, filter_imprecise_kinds |
+| `indirection.py` | `mypy/indirection.v` | ✅ Полностью (TypeIndirectionVisitor для анализа зависимостей модулей) |
+| `stats.py` | `mypy/stats.v` | ✅ Полностью (StatisticsVisitor для сбора статистики о типах) |
 
 ---
 
-## 2. Что транслировать следующим (приоритеты)
 
-### Высокий приоритет
-- (все файлы высокого приоритета транслированы)
-
-### Средний приоритет  
-- `semanal_main.py` → `semanal_main.v`
-- `checker.py` → `checker.v` (9579 строк — разбить на модули)
-- `build.py` → `build.v`
-
-### Низкий приоритет
-- `plugins/` — плагины можно добавить позже
-- `server/` — dmypy daemon
 
 ---
 

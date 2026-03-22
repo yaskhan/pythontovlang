@@ -66,6 +66,8 @@ pub fn (mut t TypeBase) can_be_false() bool {
 // ---------------------------------------------------------------------------
 
 pub interface TypeVisitor {
+mut:
+
 	visit_unbound_type(t &UnboundType) !string
 	visit_any(t &AnyType) !string
 	visit_none_type(t &NoneType) !string
@@ -212,8 +214,9 @@ pub fn (t MypyTypeNode) type_str() string {
 	}
 }
 
-pub fn (t MypyTypeNode) accept(v TypeVisitor) !string {
+pub fn (t MypyTypeNode) accept(mut v TypeVisitor) !string {
 	return match t {
+
 		AnyType            { v.visit_any(&t) }
 		NoneType           { v.visit_none_type(&t) }
 		UninhabitedType    { v.visit_uninhabited_type(&t) }
@@ -270,8 +273,9 @@ pub fn (t MypyTypeNode) accept_res(mut v TypeResultVisitor) !MypyTypeNode {
 }
 
 
-pub fn (t MypyTypeNode) accept_synthetic(v SyntheticTypeVisitor) !string {
+pub fn (t MypyTypeNode) accept_synthetic(mut v SyntheticTypeVisitor) !string {
 	return match t {
+
 		AnyType            { v.visit_any(&t) }
 		NoneType           { v.visit_none_type(&t) }
 		UninhabitedType    { v.visit_uninhabited_type(&t) }
@@ -334,7 +338,7 @@ pub mut:
 }
 
 pub fn (t &AnyType) type_str() string { return 'Any' }
-pub fn (t &AnyType) accept(v TypeVisitor) !string { return v.visit_any(t)! }
+pub fn (t &AnyType) accept(mut v TypeVisitor) !string { return v.visit_any(t)! }
 
 // NoneType
 pub struct NoneType {
@@ -343,7 +347,7 @@ pub mut:
 }
 
 pub fn (t &NoneType) type_str() string { return 'None' }
-pub fn (t &NoneType) accept(v TypeVisitor) !string { return v.visit_none_type(t)! }
+pub fn (t &NoneType) accept(mut v TypeVisitor) !string { return v.visit_none_type(t)! }
 
 // UninhabitedType (NoReturn / Never)
 pub struct UninhabitedType {
@@ -354,7 +358,7 @@ pub mut:
 }
 
 pub fn (t &UninhabitedType) type_str() string { return 'Never' }
-pub fn (t &UninhabitedType) accept(v TypeVisitor) !string { return v.visit_uninhabited_type(t)! }
+pub fn (t &UninhabitedType) accept(mut v TypeVisitor) !string { return v.visit_uninhabited_type(t)! }
 
 // ErasedType — placeholder for erased generics
 pub struct ErasedType {
@@ -363,7 +367,7 @@ pub mut:
 }
 
 pub fn (t &ErasedType) type_str() string { return '<erased>' }
-pub fn (t &ErasedType) accept(v TypeVisitor) !string { return v.visit_erased_type(t)! }
+pub fn (t &ErasedType) accept(mut v TypeVisitor) !string { return v.visit_erased_type(t)! }
 
 // DeletedType — type of a deleted variable
 // DeletedType вЂ” type of a deleted variable
@@ -374,7 +378,7 @@ pub mut:
 }
 
 pub fn (t &DeletedType) type_str() string { return '<deleted>' }
-pub fn (t &DeletedType) accept(v TypeVisitor) !string { return v.visit_deleted_type(t)! }
+pub fn (t &DeletedType) accept(mut v TypeVisitor) !string { return v.visit_deleted_type(t)! }
 
 // UnboundType — a type name not yet resolved during semantic analysis
 pub struct UnboundType {
@@ -388,7 +392,7 @@ pub mut:
 	original_str_fallback ?MypyTypeNode
 }
 
-pub fn (t &UnboundType) accept(v TypeVisitor) !string { return v.visit_unbound_type(t)! }
+pub fn (t &UnboundType) accept(mut v TypeVisitor) !string { return v.visit_unbound_type(t)! }
 
 // Instance — a concrete class instantiation (e.g. List[int])
 pub struct Instance {
@@ -402,7 +406,7 @@ pub mut:
 	invalid         bool
 }
 
-pub fn (t &Instance) accept(v TypeVisitor) !string { return v.visit_instance(t)! }
+pub fn (t &Instance) accept(mut v TypeVisitor) !string { return v.visit_instance(t)! }
 
 // ExtraAttrs holds per-instance extra structural information
 pub struct ExtraAttrs {
@@ -425,7 +429,7 @@ pub mut:
 	variance    int   // INVARIANT=0, COVARIANT=1, CONTRAVARIANT=2, BIVARIANT=3
 }
 
-pub fn (t &TypeVarType) accept(v TypeVisitor) !string { return v.visit_type_var(t)! }
+pub fn (t &TypeVarType) accept(mut v TypeVisitor) !string { return v.visit_type_var(t)! }
 
 // ParamSpecType
 pub enum ParamSpecFlavor {
@@ -447,7 +451,7 @@ pub mut:
 	prefix      ParametersType
 }
 
-pub fn (t &ParamSpecType) accept(v TypeVisitor) !string { return v.visit_param_spec(t)! }
+pub fn (t &ParamSpecType) accept(mut v TypeVisitor) !string { return v.visit_param_spec(t)! }
 
 // TypeVarTupleType
 pub struct TypeVarTupleType {
@@ -462,7 +466,7 @@ pub mut:
 	min_len         int
 }
 
-pub fn (t &TypeVarTupleType) accept(v TypeVisitor) !string { return v.visit_type_var_tuple(t)! }
+pub fn (t &TypeVarTupleType) accept(mut v TypeVisitor) !string { return v.visit_type_var_tuple(t)! }
 
 // ParametersType — P.args/P.kwargs represented as parameters list
 pub struct ParametersType {
@@ -473,7 +477,7 @@ pub mut:
 	arg_names  []?string
 }
 
-pub fn (t &ParametersType) accept(v TypeVisitor) !string { return v.visit_parameters(t)! }
+pub fn (t &ParametersType) accept(mut v TypeVisitor) !string { return v.visit_parameters(t)! }
 
 // UnpackType — Unpack[T] for variadic generics
 pub struct UnpackType {
@@ -484,7 +488,7 @@ pub mut:
 	from_star_syntax bool
 }
 
-pub fn (t &UnpackType) accept(v TypeVisitor) !string { return v.visit_unpack_type(t)! }
+pub fn (t &UnpackType) accept(mut v TypeVisitor) !string { return v.visit_unpack_type(t)! }
 
 // FormalArgument — a single formal parameter in a callable
 pub struct FormalArgument {
@@ -521,7 +525,7 @@ pub mut:
 	param_spec_id     ?TypeVarId
 }
 
-pub fn (t &CallableType) accept(v TypeVisitor) !string { return v.visit_callable_type(t)! }
+pub fn (t &CallableType) accept(mut v TypeVisitor) !string { return v.visit_callable_type(t)! }
 
 // Overloaded — a set of overloaded callable types
 pub struct Overloaded {
@@ -531,7 +535,7 @@ pub mut:
 	fallback ?Instance
 }
 
-pub fn (t &Overloaded) accept(v TypeVisitor) !string { return v.visit_overloaded(t)! }
+pub fn (t &Overloaded) accept(mut v TypeVisitor) !string { return v.visit_overloaded(t)! }
 
 // TupleType
 pub struct TupleType {
@@ -542,7 +546,7 @@ pub mut:
 	implicit         bool
 }
 
-pub fn (t &TupleType) accept(v TypeVisitor) !string { return v.visit_tuple_type(t)! }
+pub fn (t &TupleType) accept(mut v TypeVisitor) !string { return v.visit_tuple_type(t)! }
 
 // TypedDictType
 pub struct TypedDictType {
@@ -554,7 +558,7 @@ pub mut:
 	fallback      Instance
 }
 
-pub fn (t &TypedDictType) accept(v TypeVisitor) !string { return v.visit_typeddict_type(t)! }
+pub fn (t &TypedDictType) accept(mut v TypeVisitor) !string { return v.visit_typeddict_type(t)! }
 
 // LiteralValue — the Python LiteralValue: int | str | bool | float
 pub type LiteralValue = bool | f64 | i64 | string
@@ -576,7 +580,7 @@ pub fn (t &LiteralType) value_repr() string {
 	}
 }
 
-pub fn (t &LiteralType) accept(v TypeVisitor) !string { return v.visit_literal_type(t)! }
+pub fn (t &LiteralType) accept(mut v TypeVisitor) !string { return v.visit_literal_type(t)! }
 
 // UnionType — X | Y | ...
 pub struct UnionType {
@@ -586,7 +590,7 @@ pub mut:
 	uses_pep604_syntax bool
 }
 
-pub fn (t &UnionType) accept(v TypeVisitor) !string { return v.visit_union_type(t)! }
+pub fn (t &UnionType) accept(mut v TypeVisitor) !string { return v.visit_union_type(t)! }
 
 // PartialTypeT — partial type for variables whose type is not yet fully inferred
 // (named PartialTypeT to avoid collision with the visitor method name)
@@ -598,7 +602,7 @@ pub mut:
 	value_type ?Instance
 }
 
-pub fn (t &PartialTypeT) accept(v TypeVisitor) !string { return v.visit_partial_type(t)! }
+pub fn (t &PartialTypeT) accept(mut v TypeVisitor) !string { return v.visit_partial_type(t)! }
 
 // EllipsisType — used for Callable[..., X]
 pub struct EllipsisType {
@@ -607,7 +611,7 @@ pub mut:
 }
 
 pub fn (t &EllipsisType) type_str() string { return '...' }
-pub fn (t &EllipsisType) accept(v SyntheticTypeVisitor) !string { return v.visit_ellipsis_type(t)! }
+pub fn (t &EllipsisType) accept(mut v SyntheticTypeVisitor) !string { return v.visit_ellipsis_type(t)! }
 
 // TypeType — Type[X]
 pub struct TypeType {
@@ -617,7 +621,7 @@ pub mut:
 	is_type_form bool
 }
 
-pub fn (t &TypeType) accept(v TypeVisitor) !string { return v.visit_type_type(t)! }
+pub fn (t &TypeType) accept(mut v TypeVisitor) !string { return v.visit_type_type(t)! }
 
 // TypeAliasType — a type alias reference with args
 pub struct TypeAliasType {
@@ -629,7 +633,7 @@ pub mut:
 	alias      ?&TypeAlias
 }
 
-pub fn (t &TypeAliasType) accept(v TypeVisitor) !string { return v.visit_type_alias_type(t)! }
+pub fn (t &TypeAliasType) accept(mut v TypeVisitor) !string { return v.visit_type_alias_type(t)! }
 
 // PlaceholderType вЂ” for names that couldn't be resolved yet
 pub struct PlaceholderType {
@@ -639,7 +643,7 @@ pub mut:
 	args     []MypyTypeNode
 }
 
-pub fn (t &PlaceholderType) accept(v SyntheticTypeVisitor) !string { return v.visit_placeholder_type(t)! }
+pub fn (t &PlaceholderType) accept(mut v SyntheticTypeVisitor) !string { return v.visit_placeholder_type(t)! }
 
 // RawExpressionType — a raw expression used in type context (pre-analysis)
 pub struct RawExpressionType {
@@ -650,7 +654,7 @@ pub mut:
 	note           ?string
 }
 
-pub fn (t &RawExpressionType) accept(v SyntheticTypeVisitor) !string { return v.visit_raw_expression_type(t)! }
+pub fn (t &RawExpressionType) accept(mut v SyntheticTypeVisitor) !string { return v.visit_raw_expression_type(t)! }
 
 // TypeList — a list of types used in some synthetic contexts
 pub struct TypeList {
@@ -659,7 +663,7 @@ pub mut:
 	items []MypyTypeNode
 }
 
-pub fn (t &TypeList) accept(v SyntheticTypeVisitor) !string { return v.visit_type_list(t)! }
+pub fn (t &TypeList) accept(mut v SyntheticTypeVisitor) !string { return v.visit_type_list(t)! }
 
 // CallableArgument — an argument within a Callable type annotation
 pub struct CallableArgument {
@@ -670,7 +674,7 @@ pub mut:
 	constructor ?string
 }
 
-pub fn (t &CallableArgument) accept(v SyntheticTypeVisitor) !string { return v.visit_callable_argument(t)! }
+pub fn (t &CallableArgument) accept(mut v SyntheticTypeVisitor) !string { return v.visit_callable_argument(t)! }
 
 // ---------------------------------------------------------------------------
 // TypeTranslator — identity transformation base

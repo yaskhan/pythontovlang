@@ -99,13 +99,22 @@ pub const complete_features = [type_var_tuple, unpack, new_generic_syntax]
 // Options - Configuration collected from flags
 // ============================================================================
 
+pub struct GlobOption {
+pub mut:
+	key     string
+	pattern string
+}
+
+@[heap]
+
 pub struct Options {
 pub mut:
 	// Build options
 	build_type                        BuildType
-	python_version                    (int, int)
+	python_version                    []int
 	python_executable                 ?string
 	platform                          string
+
 	custom_typing_module              ?string
 	custom_typeshed_dir               ?string
 	abs_custom_typeshed_dir           ?string
@@ -250,9 +259,10 @@ pub mut:
 	mypyc_skip_c_generation      bool
 
 	// Internal cache for clone_for_module()
-	_per_module_cache ?map[string]Options
-	_glob_options     [](string, string)
+	per_module_cache ?map[string]&Options
+	glob_options     []GlobOption
 }
+
 
 pub fn Options.new() Options {
 	mut o := Options{}
@@ -415,8 +425,9 @@ pub fn (mut o Options) initialize() {
 }
 
 pub fn (o &Options) use_star_unpack() bool {
-	return o.python_version >= [3, 11] || !o.reveal_verbose_types
+	return (o.python_version[0] > 3 || (o.python_version[0] == 3 && o.python_version[1] >= 11)) || !o.reveal_verbose_types
 }
+
 
 pub fn (o &Options) snapshot() map[string]string {
 	// Produce a comparable snapshot of this Option
@@ -426,6 +437,7 @@ pub fn (o &Options) snapshot() map[string]string {
 	d['python_version'] = '${o.python_version[0]}.${o.python_version[1]}'
 	d['platform'] = o.platform
 	d['ignore_missing_imports'] = o.ignore_missing_imports.str()
+
 	d['follow_imports'] = o.follow_imports
 	d['follow_imports_for_stubs'] = o.follow_imports_for_stubs.str()
 	d['namespace_packages'] = o.namespace_packages.str()
@@ -832,9 +844,10 @@ pub fn (mut o Options) build_per_module_cache() {
 	mut concrete := []string{}
 
 	for key in o.per_module_options.keys() {
-		if '*' in key[..key.len - 1] {
+		if key[..key.len - 1].contains('*') {
 			unstructured_glob_keys << key
 		} else {
+
 			structured_keys << key
 			if key.ends_with('.*') {
 				wildcards << key
@@ -847,8 +860,13 @@ pub fn (mut o Options) build_per_module_cache() {
 	wildcards.sort()
 
 	for glob in unstructured_glob_keys {
-		o._glob_options << [glob, o.compile_glob(glob)]
+		o.glob_options << GlobOption{
+			key:     glob
+			pattern: o.compile_glob(glob)
+		}
 	}
+
+
 
 	o.unused_configs = map[string]bool{}
 	for key in unstructured_glob_keys {
@@ -874,43 +892,38 @@ pub fn (mut o Options) build_per_module_cache() {
 		o.unused_configs[key] = true
 	}
 
-	o._per_module_cache = cache
+	o.per_module_cache = cache.clone()
 }
 
-pub fn (o &Options) clone_for_module(mod_name string) Options {
-	if o._per_module_cache == none {
-		mut opts := o
-		opts.build_per_module_cache()
+
+
+pub fn (o &Options) clone_for_module(mod_name string) &Options {
+	if o.per_module_cache == none {
+		return o
 	}
-	cache := o._per_module_cache or {
-		map[string]Options{}
+	cache := o.per_module_cache or {
+		map[string]&Options{}
 	}
 
 	if mod_name in cache {
-		mut opts := o
-		opts.unused_configs.delete(mod_name)
 		return cache[mod_name]
 	}
 
-	mut options := o
+	mut options := o.apply_changes(map[string]string{})
 	path := mod_name.split('.')
 	for i := path.len; i > 0; i-- {
 		key := path[..i].join('.') + '.*'
 		if key in cache {
-			mut opts := o
-			opts.unused_configs.delete(key)
-			options = cache[key]
+			options = cache[key].apply_changes(map[string]string{})
 			break
 		}
 	}
 
 	if !mod_name.ends_with('.*') {
-		for glob_key, pattern in o._glob_options {
-			if o.match_glob(mod_name, pattern) {
-				mut opts := o
-				opts.unused_configs.delete(glob_key)
-				if glob_key in o.per_module_options {
-					options = options.apply_changes(o.per_module_options[glob_key])
+		for glob in o.glob_options {
+			if o.match_glob(mod_name, glob.pattern) {
+				if glob.key in o.per_module_options {
+					options = options.apply_changes(o.per_module_options[glob.key])
 				}
 			}
 		}
@@ -918,6 +931,7 @@ pub fn (o &Options) clone_for_module(mod_name string) Options {
 
 	return options
 }
+
 
 fn (o &Options) compile_glob(s string) string {
 	parts := s.split('.')
