@@ -8,8 +8,15 @@ pub const enum_bases = ['enum.Enum', 'enum.IntEnum', 'enum.Flag', 'enum.IntFlag'
 
 // Свойства, которые всегда есть у Enum и не считаются его элементами.
 pub const enum_special_props = [
-	'name', 'value', '_name_', '_value_',
-	'__module__', '__annotations__', '__doc__', '__slots__', '__dict__'
+	'name',
+	'value',
+	'_name_',
+	'_value_',
+	'__module__',
+	'__annotations__',
+	'__doc__',
+	'__slots__',
+	'__dict__',
 ]
 
 pub struct EnumCallAnalyzer {
@@ -19,9 +26,11 @@ pub mut:
 }
 
 pub fn (mut a EnumCallAnalyzer) process_enum_call(s &AssignmentStmt, is_func_scope bool) bool {
-	if s.lvalues.len != 1 { return false }
+	if s.lvalues.len != 1 {
+		return false
+	}
 	lvalue := s.lvalues[0]
-	
+
 	mut name := ''
 	if lvalue is NameExpr {
 		name = lvalue.name
@@ -32,24 +41,28 @@ pub fn (mut a EnumCallAnalyzer) process_enum_call(s &AssignmentStmt, is_func_sco
 	}
 
 	info := a.check_enum_call(s.rvalue, name, is_func_scope) or { return false }
-	
+
 	if lvalue is MemberExpr {
 		a.fail('Enum type as attribute is not supported', lvalue)
 		return false
 	}
-	
+
 	// Добавляем в таблицу символов
 	a.api.add_symbol(name, SymbolNodeRef(info), s, true, false, true)
 	return true
 }
 
 pub fn (mut a EnumCallAnalyzer) check_enum_call(node Expression, var_name string, is_func_scope bool) ?&TypeInfo {
-	if node !is CallExpr { return none }
+	if node !is CallExpr {
+		return none
+	}
 	call := node as CallExpr
-	
+
 	callee := call.callee
-	if callee !is RefExpr { return none }
-	
+	if callee !is RefExpr {
+		return none
+	}
+
 	mut fullname := ''
 	if callee is NameExpr {
 		fullname = callee.fullname
@@ -57,10 +70,12 @@ pub fn (mut a EnumCallAnalyzer) check_enum_call(node Expression, var_name string
 		fullname = callee.fullname or { '' }
 	}
 
-	if fullname !in enum_bases { return none }
+	if fullname !in enum_bases {
+		return none
+	}
 
 	new_class_name, items, values, ok := a.parse_enum_call_args(call, fullname.split('.').last())
-	
+
 	mut info := unsafe { &TypeInfo(nil) }
 	if !ok {
 		mut name := var_name
@@ -73,23 +88,23 @@ pub fn (mut a EnumCallAnalyzer) check_enum_call(node Expression, var_name string
 			msg := 'String argument 1 "${new_class_name}" to ${fullname}(...) does not match variable name "${var_name}"'
 			a.fail(msg, call)
 		}
-		
+
 		arg0 := call.args[0]
 		mut name := var_name
 		if arg0 is StrExpr {
 			name = arg0.value
 		}
-		
+
 		if name != var_name || is_func_scope {
 			name += '@' + call.base.ctx.line.str()
 		}
 		info = a.build_enum_call_typeinfo(name, items, fullname, call.base.ctx.line)
 	}
-	
+
 	if info.name != var_name || is_func_scope {
 		a.api.add_symbol_skip_local(info.name, SymbolNodeRef(info))
 	}
-	
+
 	return info
 }
 
@@ -100,14 +115,14 @@ pub fn (mut a EnumCallAnalyzer) build_enum_call_typeinfo(name string, items []st
 	}
 	info := a.api.basic_new_typeinfo(name, base, line)
 	mut mut_info := unsafe { &TypeInfo(info) }
-	
+
 	mut_info.is_enum = true
-	
+
 	for item in items {
 		mut v := &Var{
-			name: item
-			info: info
-			is_property: true
+			name:               item
+			info:               info
+			is_property:        true
 			has_explicit_value: true
 		}
 		v.fullname = '${info.fullname}.${item}'
@@ -121,20 +136,21 @@ pub fn (mut a EnumCallAnalyzer) build_enum_call_typeinfo(name string, items []st
 
 pub fn (mut a EnumCallAnalyzer) parse_enum_call_args(call &CallExpr, class_name string) (string, []string, []?Expression, bool) {
 	args := call.args
-	
+
 	if args.len < 2 {
 		return a.fail_enum_call_arg('Too few arguments for ${class_name}()', call)
 	}
-	
+
 	arg0 := args[0]
 	if arg0 !is StrExpr {
-		return a.fail_enum_call_arg('${class_name}() expects a string literal as the first argument', call)
+		return a.fail_enum_call_arg('${class_name}() expects a string literal as the first argument',
+			call)
 	}
 	new_class_name := (arg0 as StrExpr).value
-	
+
 	mut items := []string{}
 	mut values := []?Expression{}
-	
+
 	names_arg := args[1]
 	if names_arg is StrExpr {
 		fields := names_arg.value
@@ -159,18 +175,18 @@ pub fn (mut a EnumCallAnalyzer) parse_enum_call_args(call &CallExpr, class_name 
 			}
 		}
 	}
-	
+
 	if items.len == 0 {
 		return a.fail_enum_call_arg('${class_name}() needs at least one item', call)
 	}
-	
+
 	if values.len == 0 {
 		// Fill with none
-		for _ in 0..items.len {
+		for _ in 0 .. items.len {
 			values << none
 		}
 	}
-	
+
 	return new_class_name, items, values, true
 }
 

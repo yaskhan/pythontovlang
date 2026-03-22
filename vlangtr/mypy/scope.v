@@ -28,7 +28,6 @@ pub:
 // Scope tracks which target we are processing at any given time.
 @[heap]
 pub struct Scope {
-
 pub mut:
 	module    ?string
 	classes   []TypeInfo

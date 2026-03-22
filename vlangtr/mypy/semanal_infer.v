@@ -8,9 +8,11 @@ pub fn infer_decorator_signature_if_simple(mut dec Decorator, analyzer SemanticA
 		if dec.func.type_ == none {
 			fallback := analyzer.named_type('builtins.function', []MypyTypeNode{})
 			dec.var_.type_ = CallableType{
-				arg_types: [MypyTypeNode(AnyType{
-					type_of_any: .special_form
-				})]
+				arg_types: [
+					MypyTypeNode(AnyType{
+						type_of_any: .special_form
+					}),
+				]
 				arg_kinds: [.arg_pos]
 				arg_names: [?string(none)]
 				ret_type:  MypyTypeNode(AnyType{

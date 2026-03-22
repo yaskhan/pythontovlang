@@ -24,12 +24,17 @@ pub mut:
 pub struct AsPattern {
 pub mut:
 	pbase   PatternBase
-	pattern ?PatternNode   // None → capture or wildcard
+	pattern ?PatternNode // None → capture or wildcard
 	name    ?NameExpr
 }
 
-pub fn (n &AsPattern) get_context() Context { return n.pbase.base.ctx }
-pub fn (n &AsPattern) accept(v PatternVisitor) !string { return v.visit_as_pattern(n)! }
+pub fn (n &AsPattern) get_context() Context {
+	return n.pbase.base.ctx
+}
+
+pub fn (n &AsPattern) accept(v PatternVisitor) !string {
+	return v.visit_as_pattern(n)!
+}
 
 // ---------------------------------------------------------------------------
 // OrPattern — `<p1> | <p2> | ...`
@@ -41,8 +46,13 @@ pub mut:
 	patterns []PatternNode
 }
 
-pub fn (n &OrPattern) get_context() Context { return n.pbase.base.ctx }
-pub fn (n &OrPattern) accept(v PatternVisitor) !string { return v.visit_or_pattern(n)! }
+pub fn (n &OrPattern) get_context() Context {
+	return n.pbase.base.ctx
+}
+
+pub fn (n &OrPattern) accept(v PatternVisitor) !string {
+	return v.visit_or_pattern(n)!
+}
 
 // ---------------------------------------------------------------------------
 // ValuePattern — `x.y` or `x.y.z`
@@ -54,8 +64,13 @@ pub mut:
 	expr  Expression
 }
 
-pub fn (n &ValuePattern) get_context() Context { return n.pbase.base.ctx }
-pub fn (n &ValuePattern) accept(v PatternVisitor) !string { return v.visit_value_pattern(n)! }
+pub fn (n &ValuePattern) get_context() Context {
+	return n.pbase.base.ctx
+}
+
+pub fn (n &ValuePattern) accept(v PatternVisitor) !string {
+	return v.visit_value_pattern(n)!
+}
 
 // ---------------------------------------------------------------------------
 // SingletonPattern — True, False, or None
@@ -75,8 +90,13 @@ pub mut:
 	value ?SingletonValue
 }
 
-pub fn (n &SingletonPattern) get_context() Context { return n.pbase.base.ctx }
-pub fn (n &SingletonPattern) accept(v PatternVisitor) !string { return v.visit_singleton_pattern(n)! }
+pub fn (n &SingletonPattern) get_context() Context {
+	return n.pbase.base.ctx
+}
+
+pub fn (n &SingletonPattern) accept(v PatternVisitor) !string {
+	return v.visit_singleton_pattern(n)!
+}
 
 // ---------------------------------------------------------------------------
 // SequencePattern — `[<p1>, <p2>, ...]`
@@ -88,8 +108,13 @@ pub mut:
 	patterns []PatternNode
 }
 
-pub fn (n &SequencePattern) get_context() Context { return n.pbase.base.ctx }
-pub fn (n &SequencePattern) accept(v PatternVisitor) !string { return v.visit_sequence_pattern(n)! }
+pub fn (n &SequencePattern) get_context() Context {
+	return n.pbase.base.ctx
+}
+
+pub fn (n &SequencePattern) accept(v PatternVisitor) !string {
+	return v.visit_sequence_pattern(n)!
+}
 
 // ---------------------------------------------------------------------------
 // StarredPattern — `*<name>` inside a sequence pattern
@@ -102,8 +127,13 @@ pub mut:
 	capture ?NameExpr
 }
 
-pub fn (n &StarredPattern) get_context() Context { return n.pbase.base.ctx }
-pub fn (n &StarredPattern) accept(v PatternVisitor) !string { return v.visit_starred_pattern(n)! }
+pub fn (n &StarredPattern) get_context() Context {
+	return n.pbase.base.ctx
+}
+
+pub fn (n &StarredPattern) accept(v PatternVisitor) !string {
+	return v.visit_starred_pattern(n)!
+}
 
 // ---------------------------------------------------------------------------
 // MappingPattern — `{<key>: <pattern>, ..., **<rest>}`
@@ -118,8 +148,13 @@ pub mut:
 	rest   ?NameExpr
 }
 
-pub fn (n &MappingPattern) get_context() Context { return n.pbase.base.ctx }
-pub fn (n &MappingPattern) accept(v PatternVisitor) !string { return v.visit_mapping_pattern(n)! }
+pub fn (n &MappingPattern) get_context() Context {
+	return n.pbase.base.ctx
+}
+
+pub fn (n &MappingPattern) accept(v PatternVisitor) !string {
+	return v.visit_mapping_pattern(n)!
+}
 
 // ---------------------------------------------------------------------------
 // ClassPattern — `Cls(<positional>, keyword=<pattern>)`
@@ -128,7 +163,7 @@ pub fn (n &MappingPattern) accept(v PatternVisitor) !string { return v.visit_map
 
 pub struct ClassPattern {
 pub mut:
-	pbase          PatternBase
+	pbase PatternBase
 	// class_ref is always a MemberExpr or NameExpr (both are in Expression)
 	class_ref      Expression
 	positionals    []PatternNode
@@ -136,8 +171,13 @@ pub mut:
 	keyword_values []PatternNode
 }
 
-pub fn (n &ClassPattern) get_context() Context { return n.pbase.base.ctx }
-pub fn (n &ClassPattern) accept(v PatternVisitor) !string { return v.visit_class_pattern(n)! }
+pub fn (n &ClassPattern) get_context() Context {
+	return n.pbase.base.ctx
+}
+
+pub fn (n &ClassPattern) accept(v PatternVisitor) !string {
+	return v.visit_class_pattern(n)!
+}
 
 // ---------------------------------------------------------------------------
 // PatternNode sum-type — mirrors Python's Pattern base class
@@ -157,13 +197,13 @@ pub type PatternNode = AsPattern
 // Helper: dispatch accept on a PatternNode value.
 pub fn pattern_accept(p PatternNode, v PatternVisitor) !string {
 	return match p {
-		AsPattern        { p.accept(v)! }
-		OrPattern        { p.accept(v)! }
-		ValuePattern     { p.accept(v)! }
+		AsPattern { p.accept(v)! }
+		OrPattern { p.accept(v)! }
+		ValuePattern { p.accept(v)! }
 		SingletonPattern { p.accept(v)! }
-		SequencePattern  { p.accept(v)! }
-		StarredPattern   { p.accept(v)! }
-		MappingPattern   { p.accept(v)! }
-		ClassPattern     { p.accept(v)! }
+		SequencePattern { p.accept(v)! }
+		StarredPattern { p.accept(v)! }
+		MappingPattern { p.accept(v)! }
+		ClassPattern { p.accept(v)! }
 	}
 }

@@ -311,11 +311,11 @@ fn lookup_fully_qualified(fullname string, modules map[string]MypyFile) ?SymbolT
 	if parts.len < 2 {
 		return none
 	}
-	
+
 	// Find module
 	module_name := parts[0]
 	mod := modules[module_name] or { return none }
-	
+
 	// Lookup in module namespace
 	current := mod.names
 	for i in 1 .. parts.len {
@@ -335,6 +335,6 @@ fn lookup_fully_qualified(fullname string, modules map[string]MypyFile) ?SymbolT
 			return none
 		}
 	}
-	
+
 	return none
 }

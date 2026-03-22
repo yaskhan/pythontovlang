@@ -94,10 +94,10 @@ pub fn (mut e NodeEvaluator) visit_assert_type_expr(mut o AssertTypeExpr) !strin
 
 // visit_reveal_expr evaluates RevealExpr
 pub fn (mut e NodeEvaluator) visit_reveal_expr(mut o RevealExpr) !string {
-    if mut expr := o.expr {
-	    return 'reveal_type(${expr.accept(mut e)!})'
-    }
-    return 'reveal_type()'
+	if mut expr := o.expr {
+		return 'reveal_type(${expr.accept(mut e)!})'
+	}
+	return 'reveal_type()'
 }
 
 // visit_super_expr evaluates SuperExpr
@@ -242,50 +242,162 @@ pub fn (mut e NodeEvaluator) visit_temp_node(mut o TempNode) !string {
 
 // --- Placeholder nodes ---
 pub fn (mut e NodeEvaluator) visit_placeholder_node(mut o PlaceholderNode) !string {
-    return 'placeholder'
+	return 'placeholder'
 }
 
 // --- Statement Visitor Stubs ---
-pub fn (mut e NodeEvaluator) visit_mypy_file(mut o MypyFile) !string { return '' }
-pub fn (mut e NodeEvaluator) visit_var(mut o Var) !string { return '' }
-pub fn (mut e NodeEvaluator) visit_type_alias(mut o TypeAlias) !string { return '' }
-pub fn (mut e NodeEvaluator) visit_import(mut o Import) !string { return '' }
-pub fn (mut e NodeEvaluator) visit_import_from(mut o ImportFrom) !string { return '' }
-pub fn (mut e NodeEvaluator) visit_import_all(mut o ImportAll) !string { return '' }
-pub fn (mut e NodeEvaluator) visit_func_def(mut o FuncDef) !string { return '' }
-pub fn (mut e NodeEvaluator) visit_overloaded_func_def(mut o OverloadedFuncDef) !string { return '' }
-pub fn (mut e NodeEvaluator) visit_class_def(mut o ClassDef) !string { return '' }
-pub fn (mut e NodeEvaluator) visit_global_decl(mut o GlobalDecl) !string { return '' }
-pub fn (mut e NodeEvaluator) visit_nonlocal_decl(mut o NonlocalDecl) !string { return '' }
-pub fn (mut e NodeEvaluator) visit_decorator(mut o Decorator) !string { return '' }
-pub fn (mut e NodeEvaluator) visit_block(mut o Block) !string { return '' }
-pub fn (mut e NodeEvaluator) visit_expression_stmt(mut o ExpressionStmt) !string { return '' }
-pub fn (mut e NodeEvaluator) visit_assignment_stmt(mut o AssignmentStmt) !string { return '' }
-pub fn (mut e NodeEvaluator) visit_operator_assignment_stmt(mut o OperatorAssignmentStmt) !string { return '' }
-pub fn (mut e NodeEvaluator) visit_while_stmt(mut o WhileStmt) !string { return '' }
-pub fn (mut e NodeEvaluator) visit_for_stmt(mut o ForStmt) !string { return '' }
-pub fn (mut e NodeEvaluator) visit_return_stmt(mut o ReturnStmt) !string { return '' }
-pub fn (mut e NodeEvaluator) visit_assert_stmt(mut o AssertStmt) !string { return '' }
-pub fn (mut e NodeEvaluator) visit_if_stmt(mut o IfStmt) !string { return '' }
-pub fn (mut e NodeEvaluator) visit_break_stmt(mut o BreakStmt) !string { return '' }
-pub fn (mut e NodeEvaluator) visit_continue_stmt(mut o ContinueStmt) !string { return '' }
-pub fn (mut e NodeEvaluator) visit_pass_stmt(mut o PassStmt) !string { return '' }
-pub fn (mut e NodeEvaluator) visit_raise_stmt(mut o RaiseStmt) !string { return '' }
-pub fn (mut e NodeEvaluator) visit_try_stmt(mut o TryStmt) !string { return '' }
-pub fn (mut e NodeEvaluator) visit_with_stmt(mut o WithStmt) !string { return '' }
-pub fn (mut e NodeEvaluator) visit_del_stmt(mut o DelStmt) !string { return '' }
-pub fn (mut e NodeEvaluator) visit_type_alias_stmt(mut o TypeAliasStmt) !string { return '' }
-pub fn (mut e NodeEvaluator) visit_match_stmt(mut o MatchStmt) !string { return '' }
+pub fn (mut e NodeEvaluator) visit_mypy_file(mut o MypyFile) !string {
+	return ''
+}
+
+pub fn (mut e NodeEvaluator) visit_var(mut o Var) !string {
+	return ''
+}
+
+pub fn (mut e NodeEvaluator) visit_type_alias(mut o TypeAlias) !string {
+	return ''
+}
+
+pub fn (mut e NodeEvaluator) visit_import(mut o Import) !string {
+	return ''
+}
+
+pub fn (mut e NodeEvaluator) visit_import_from(mut o ImportFrom) !string {
+	return ''
+}
+
+pub fn (mut e NodeEvaluator) visit_import_all(mut o ImportAll) !string {
+	return ''
+}
+
+pub fn (mut e NodeEvaluator) visit_func_def(mut o FuncDef) !string {
+	return ''
+}
+
+pub fn (mut e NodeEvaluator) visit_overloaded_func_def(mut o OverloadedFuncDef) !string {
+	return ''
+}
+
+pub fn (mut e NodeEvaluator) visit_class_def(mut o ClassDef) !string {
+	return ''
+}
+
+pub fn (mut e NodeEvaluator) visit_global_decl(mut o GlobalDecl) !string {
+	return ''
+}
+
+pub fn (mut e NodeEvaluator) visit_nonlocal_decl(mut o NonlocalDecl) !string {
+	return ''
+}
+
+pub fn (mut e NodeEvaluator) visit_decorator(mut o Decorator) !string {
+	return ''
+}
+
+pub fn (mut e NodeEvaluator) visit_block(mut o Block) !string {
+	return ''
+}
+
+pub fn (mut e NodeEvaluator) visit_expression_stmt(mut o ExpressionStmt) !string {
+	return ''
+}
+
+pub fn (mut e NodeEvaluator) visit_assignment_stmt(mut o AssignmentStmt) !string {
+	return ''
+}
+
+pub fn (mut e NodeEvaluator) visit_operator_assignment_stmt(mut o OperatorAssignmentStmt) !string {
+	return ''
+}
+
+pub fn (mut e NodeEvaluator) visit_while_stmt(mut o WhileStmt) !string {
+	return ''
+}
+
+pub fn (mut e NodeEvaluator) visit_for_stmt(mut o ForStmt) !string {
+	return ''
+}
+
+pub fn (mut e NodeEvaluator) visit_return_stmt(mut o ReturnStmt) !string {
+	return ''
+}
+
+pub fn (mut e NodeEvaluator) visit_assert_stmt(mut o AssertStmt) !string {
+	return ''
+}
+
+pub fn (mut e NodeEvaluator) visit_if_stmt(mut o IfStmt) !string {
+	return ''
+}
+
+pub fn (mut e NodeEvaluator) visit_break_stmt(mut o BreakStmt) !string {
+	return ''
+}
+
+pub fn (mut e NodeEvaluator) visit_continue_stmt(mut o ContinueStmt) !string {
+	return ''
+}
+
+pub fn (mut e NodeEvaluator) visit_pass_stmt(mut o PassStmt) !string {
+	return ''
+}
+
+pub fn (mut e NodeEvaluator) visit_raise_stmt(mut o RaiseStmt) !string {
+	return ''
+}
+
+pub fn (mut e NodeEvaluator) visit_try_stmt(mut o TryStmt) !string {
+	return ''
+}
+
+pub fn (mut e NodeEvaluator) visit_with_stmt(mut o WithStmt) !string {
+	return ''
+}
+
+pub fn (mut e NodeEvaluator) visit_del_stmt(mut o DelStmt) !string {
+	return ''
+}
+
+pub fn (mut e NodeEvaluator) visit_type_alias_stmt(mut o TypeAliasStmt) !string {
+	return ''
+}
+
+pub fn (mut e NodeEvaluator) visit_match_stmt(mut o MatchStmt) !string {
+	return ''
+}
 
 // Pattern Visitor Stubs
-pub fn (mut e NodeEvaluator) visit_as_pattern(mut o AsPattern) !string { return '' }
-pub fn (mut e NodeEvaluator) visit_or_pattern(mut o OrPattern) !string { return '' }
-pub fn (mut e NodeEvaluator) visit_value_pattern(mut o ValuePattern) !string { return '' }
-pub fn (mut e NodeEvaluator) visit_singleton_pattern(mut o SingletonPattern) !string { return '' }
-pub fn (mut e NodeEvaluator) visit_sequence_pattern(mut o SequencePattern) !string { return '' }
-pub fn (mut e NodeEvaluator) visit_starred_pattern(mut o StarredPattern) !string { return '' }
-pub fn (mut e NodeEvaluator) visit_mapping_pattern(mut o MappingPattern) !string { return '' }
-pub fn (mut e NodeEvaluator) visit_class_pattern(mut o ClassPattern) !string { return '' }
+pub fn (mut e NodeEvaluator) visit_as_pattern(mut o AsPattern) !string {
+	return ''
+}
+
+pub fn (mut e NodeEvaluator) visit_or_pattern(mut o OrPattern) !string {
+	return ''
+}
+
+pub fn (mut e NodeEvaluator) visit_value_pattern(mut o ValuePattern) !string {
+	return ''
+}
+
+pub fn (mut e NodeEvaluator) visit_singleton_pattern(mut o SingletonPattern) !string {
+	return ''
+}
+
+pub fn (mut e NodeEvaluator) visit_sequence_pattern(mut o SequencePattern) !string {
+	return ''
+}
+
+pub fn (mut e NodeEvaluator) visit_starred_pattern(mut o StarredPattern) !string {
+	return ''
+}
+
+pub fn (mut e NodeEvaluator) visit_mapping_pattern(mut o MappingPattern) !string {
+	return ''
+}
+
+pub fn (mut e NodeEvaluator) visit_class_pattern(mut o ClassPattern) !string {
+	return ''
+}
 
 // evaluate_expression evaluates expression at runtime (simplified to string for debugging)
 pub fn evaluate_expression(mut expr Expression) !string {

@@ -22,10 +22,8 @@ pub mut:
 	extra_tvars []TypeVarLikeType
 }
 
-
 // new_constraint creates a new Constraint
 pub fn new_constraint(type_var TypeVarLikeType, op ConstraintOp, target MypyTypeNode) Constraint {
-
 	return Constraint{
 		type_var:        type_var.get_id()
 		op:              op

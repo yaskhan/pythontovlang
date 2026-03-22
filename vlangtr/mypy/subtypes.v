@@ -55,8 +55,7 @@ fn is_subtype_internal(left MypyTypeNode, right MypyTypeNode, ctx SubtypeContext
 
 	// AnyType подтип любого типа (для non-proper)
 	if !ctx.erase_instances && !ctx.keep_erased_types {
-		if right_proper is AnyType || right_proper is UnboundType
-			|| right_proper is ErasedType {
+		if right_proper is AnyType || right_proper is UnboundType || right_proper is ErasedType {
 			if left_proper !is UnpackType {
 				return true
 			}
@@ -155,7 +154,7 @@ fn is_instance_subtype(left Instance, right Instance, ctx SubtypeContext) bool {
 	}
 
 	// Номинальная проверка
-	rname := (right.typ or { return "" }).fullname
+	rname := (right.typ or { return '' }).fullname
 	if (left.typ or { return false }).has_base(rname) || rname == 'builtins.object' {
 		mapped := map_instance_to_supertype(left, right.typ)
 
@@ -269,16 +268,14 @@ fn is_typeddict_subtype(left TypedDictType, right TypedDictType, ctx SubtypeCont
 pub fn is_protocol_implementation(left Instance, right Instance, ctx SubtypeContext) bool {
 	right_info := right.typ or { return false }
 	left_info := left.typ or { return false }
-	
+
 	for name, sym in right_info.names.symbols {
 		if name.starts_with('__') && name.ends_with('__') && name !in ['__call__', '__iter__'] {
 			continue
 		}
-		
-		left_sym := left_info.names.symbols[name] or {
-			return false
-		}
-		
+
+		left_sym := left_info.names.symbols[name] or { return false }
+
 		// Проверка совместимости типов членов протокола
 		if sym.node != none && left_sym.node != none {
 			right_type := sym.node.typ or { continue }
@@ -288,7 +285,7 @@ pub fn is_protocol_implementation(left Instance, right Instance, ctx SubtypeCont
 			}
 		}
 	}
-	
+
 	return true
 }
 
@@ -296,7 +293,7 @@ pub fn is_protocol_implementation(left Instance, right Instance, ctx SubtypeCont
 pub fn is_proper_subtype(left MypyTypeNode, right MypyTypeNode, ctx SubtypeContext) bool {
 	left_proper := get_proper_type(left)
 	right_proper := get_proper_type(right)
-	
+
 	// AnyType не является proper subtype (кроме случая когда оба AnyType)
 	if left_proper is AnyType {
 		return right_proper is AnyType
@@ -304,12 +301,12 @@ pub fn is_proper_subtype(left MypyTypeNode, right MypyTypeNode, ctx SubtypeConte
 	if right_proper is AnyType {
 		return false
 	}
-	
+
 	// UninhabitedType (Never) является proper subtype всего
 	if left_proper is UninhabitedType {
 		return true
 	}
-	
+
 	// Проверяем через is_subtype
 	return is_subtype(left, right, ctx)
 }
@@ -334,13 +331,12 @@ fn is_named_instance(typ MypyTypeNode, fullname string) bool {
 
 // get_proper_type возвращает proper type
 
-
 // map_instance_to_supertype маппит Instance к супертипу
 fn map_instance_to_supertype(inst Instance, supertype TypeInfo) Instance {
 	if inst.typ == supertype {
 		return inst
 	}
-	
+
 	// Находим путь от inst.typ до supertype в MRO
 	mut path := []TypeInfo{}
 	mut current := inst.typ
@@ -351,11 +347,11 @@ fn map_instance_to_supertype(inst Instance, supertype TypeInfo) Instance {
 		}
 		current = current.base or { none }
 	}
-	
+
 	if path.len == 0 || path.last() != supertype {
 		return inst
 	}
-	
+
 	// Применяем type arguments вдоль пути
 	mut result_args := inst.args.clone()
 	for i in 0 .. path.len - 1 {
@@ -368,13 +364,15 @@ fn map_instance_to_supertype(inst Instance, supertype TypeInfo) Instance {
 				if j < result_args.len {
 					new_args << result_args[j]
 				} else {
-					new_args << AnyType{type_of_any: .special_form}
+					new_args << AnyType{
+						type_of_any: .special_form
+					}
 				}
 			}
 			result_args = new_args
 		}
 	}
-	
+
 	return Instance{
 		typ:  supertype
 		args: result_args
@@ -390,7 +388,9 @@ fn erase_type(t MypyTypeNode) MypyTypeNode {
 		// Стираем аргументы типов
 		mut new_args := []MypyTypeNode{}
 		for _ in t.args {
-			new_args << AnyType{type_of_any: .special_form}
+			new_args << AnyType{
+				type_of_any: .special_form
+			}
 		}
 		return Instance{
 			typ:  t.typ
@@ -429,4 +429,3 @@ fn erase_type(t MypyTypeNode) MypyTypeNode {
 	}
 	return t
 }
-

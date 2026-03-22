@@ -106,14 +106,13 @@ pub mut:
 }
 
 @[heap]
-
 pub struct Options {
 pub mut:
 	// Build options
-	build_type                        BuildType
-	python_version                    []int
-	python_executable                 ?string
-	platform                          string
+	build_type        BuildType
+	python_version    []int
+	python_executable ?string
+	platform          string
 
 	custom_typing_module              ?string
 	custom_typeshed_dir               ?string
@@ -265,13 +264,12 @@ pub mut:
 
 pub struct BuildSource {
 pub mut:
-    path     string
-    module   string
-    base_dir string
+	path     string
+	module   string
+	base_dir string
 }
 
 pub type BuildResult = []BuildSource | string
-
 
 pub fn Options.new() Options {
 	mut o := Options{}
@@ -434,9 +432,9 @@ pub fn (mut o Options) initialize() {
 }
 
 pub fn (o &Options) use_star_unpack() bool {
-	return (o.python_version[0] > 3 || (o.python_version[0] == 3 && o.python_version[1] >= 11)) || !o.reveal_verbose_types
+	return (o.python_version[0] > 3 || (o.python_version[0] == 3 && o.python_version[1] >= 11))
+		|| !o.reveal_verbose_types
 }
-
 
 pub fn (o &Options) snapshot() map[string]string {
 	// Produce a comparable snapshot of this Option
@@ -755,92 +753,254 @@ fn (mut o Options) copy_from(src &Options) {
 
 fn (mut o Options) set_field(key string, value string) {
 	match key {
-		'build_type' { o.build_type = match value {
+		'build_type' {
+			o.build_type = match value {
 				'0' { .standard }
 				'1' { .module }
 				'2' { .program_text }
 				else { .standard }
-			} }
-		'platform' { o.platform = value }
-		'ignore_missing_imports' { o.ignore_missing_imports = value == 'true' }
-		'follow_imports' { o.follow_imports = value }
-		'follow_imports_for_stubs' { o.follow_imports_for_stubs = value == 'true' }
-		'namespace_packages' { o.namespace_packages = value == 'true' }
-		'explicit_package_bases' { o.explicit_package_bases = value == 'true' }
-		'disallow_any_generics' { o.disallow_any_generics = value == 'true' }
-		'disallow_any_unimported' { o.disallow_any_unimported = value == 'true' }
-		'disallow_any_expr' { o.disallow_any_expr = value == 'true' }
-		'disallow_any_decorated' { o.disallow_any_decorated = value == 'true' }
-		'disallow_any_explicit' { o.disallow_any_explicit = value == 'true' }
-		'disallow_untyped_calls' { o.disallow_untyped_calls = value == 'true' }
-		'disallow_untyped_defs' { o.disallow_untyped_defs = value == 'true' }
-		'disallow_incomplete_defs' { o.disallow_incomplete_defs = value == 'true' }
-		'check_untyped_defs' { o.check_untyped_defs = value == 'true' }
-		'disallow_untyped_decorators' { o.disallow_untyped_decorators = value == 'true' }
-		'disallow_subclassing_any' { o.disallow_subclassing_any = value == 'true' }
-		'warn_redundant_casts' { o.warn_redundant_casts = value == 'true' }
-		'warn_no_return' { o.warn_no_return = value == 'true' }
-		'warn_return_any' { o.warn_return_any = value == 'true' }
-		'warn_unused_ignores' { o.warn_unused_ignores = value == 'true' }
-		'warn_unused_configs' { o.warn_unused_configs = value == 'true' }
-		'ignore_errors' { o.ignore_errors = value == 'true' }
-		'strict_optional' { o.strict_optional = value == 'true' }
-		'show_error_context' { o.show_error_context = value == 'true' }
-		'implicit_optional' { o.implicit_optional = value == 'true' }
-		'implicit_reexport' { o.implicit_reexport = value == 'true' }
-		'allow_untyped_globals' { o.allow_untyped_globals = value == 'true' }
-		'allow_redefinition_old' { o.allow_redefinition_old = value == 'true' }
-		'allow_redefinition_new' { o.allow_redefinition_new = value == 'true' }
-		'strict_equality' { o.strict_equality = value == 'true' }
-		'strict_equality_for_none' { o.strict_equality_for_none = value == 'true' }
-		'strict_bytes' { o.strict_bytes = value == 'true' }
-		'strict_concatenate' { o.strict_concatenate = value == 'true' }
-		'extra_checks' { o.extra_checks = value == 'true' }
-		'warn_unreachable' { o.warn_unreachable = value == 'true' }
-		'scripts_are_modules' { o.scripts_are_modules = value == 'true' }
-		'incremental' { o.incremental = value == 'true' }
-		'cache_dir' { o.cache_dir = value }
-		'sqlite_cache' { o.sqlite_cache = value == 'true' }
-		'fixed_format_cache' { o.fixed_format_cache = value == 'true' }
-		'debug_cache' { o.debug_cache = value == 'true' }
-		'skip_version_check' { o.skip_version_check = value == 'true' }
-		'fine_grained_incremental' { o.fine_grained_incremental = value == 'true' }
-		'cache_fine_grained' { o.cache_fine_grained = value == 'true' }
-		'use_fine_grained_cache' { o.use_fine_grained_cache = value == 'true' }
-		'mypyc' { o.mypyc = value == 'true' }
-		'preserve_asts' { o.preserve_asts = value == 'true' }
-		'include_docstrings' { o.include_docstrings = value == 'true' }
-		'verbosity' { o.verbosity = value.int() }
-		'pdb' { o.pdb = value == 'true' }
-		'show_traceback' { o.show_traceback = value == 'true' }
-		'raise_exceptions' { o.raise_exceptions = value == 'true' }
-		'semantic_analysis_only' { o.semantic_analysis_only = value == 'true' }
-		'use_builtins_fixtures' { o.use_builtins_fixtures = value == 'true' }
-		'test_env' { o.test_env = value == 'true' }
-		'num_workers' { o.num_workers = value.int() }
-		'show_column_numbers' { o.show_column_numbers = value == 'true' }
-		'show_error_end' { o.show_error_end = value == 'true' }
-		'hide_error_codes' { o.hide_error_codes = value == 'true' }
-		'show_error_code_links' { o.show_error_code_links = value == 'true' }
-		'reveal_verbose_types' { o.reveal_verbose_types = value == 'true' }
-		'pretty' { o.pretty = value == 'true' }
-		'local_partial_types' { o.local_partial_types = value == 'true' }
-		'native_parser' { o.native_parser = value == 'true' }
-		'bazel' { o.bazel = value == 'true' }
-		'export_types' { o.export_types = value == 'true' }
-		'fast_exit' { o.fast_exit = value == 'true' }
-		'fast_module_lookup' { o.fast_module_lookup = value == 'true' }
-		'allow_empty_bodies' { o.allow_empty_bodies = value == 'true' }
-		'show_absolute_path' { o.show_absolute_path = value == 'true' }
-		'install_types' { o.install_types = value == 'true' }
-		'non_interactive' { o.non_interactive = value == 'true' }
-		'many_errors_threshold' { o.many_errors_threshold = value.int() }
-		'old_type_inference' { o.old_type_inference = value == 'true' }
-		'disable_expression_cache' { o.disable_expression_cache = value == 'true' }
-		'export_ref_info' { o.export_ref_info = value == 'true' }
-		'pos_only_special_methods' { o.pos_only_special_methods = value == 'true' }
-		'disable_bytearray_promotion' { o.disable_bytearray_promotion = value == 'true' }
-		'disable_memoryview_promotion' { o.disable_memoryview_promotion = value == 'true' }
+			}
+		}
+		'platform' {
+			o.platform = value
+		}
+		'ignore_missing_imports' {
+			o.ignore_missing_imports = value == 'true'
+		}
+		'follow_imports' {
+			o.follow_imports = value
+		}
+		'follow_imports_for_stubs' {
+			o.follow_imports_for_stubs = value == 'true'
+		}
+		'namespace_packages' {
+			o.namespace_packages = value == 'true'
+		}
+		'explicit_package_bases' {
+			o.explicit_package_bases = value == 'true'
+		}
+		'disallow_any_generics' {
+			o.disallow_any_generics = value == 'true'
+		}
+		'disallow_any_unimported' {
+			o.disallow_any_unimported = value == 'true'
+		}
+		'disallow_any_expr' {
+			o.disallow_any_expr = value == 'true'
+		}
+		'disallow_any_decorated' {
+			o.disallow_any_decorated = value == 'true'
+		}
+		'disallow_any_explicit' {
+			o.disallow_any_explicit = value == 'true'
+		}
+		'disallow_untyped_calls' {
+			o.disallow_untyped_calls = value == 'true'
+		}
+		'disallow_untyped_defs' {
+			o.disallow_untyped_defs = value == 'true'
+		}
+		'disallow_incomplete_defs' {
+			o.disallow_incomplete_defs = value == 'true'
+		}
+		'check_untyped_defs' {
+			o.check_untyped_defs = value == 'true'
+		}
+		'disallow_untyped_decorators' {
+			o.disallow_untyped_decorators = value == 'true'
+		}
+		'disallow_subclassing_any' {
+			o.disallow_subclassing_any = value == 'true'
+		}
+		'warn_redundant_casts' {
+			o.warn_redundant_casts = value == 'true'
+		}
+		'warn_no_return' {
+			o.warn_no_return = value == 'true'
+		}
+		'warn_return_any' {
+			o.warn_return_any = value == 'true'
+		}
+		'warn_unused_ignores' {
+			o.warn_unused_ignores = value == 'true'
+		}
+		'warn_unused_configs' {
+			o.warn_unused_configs = value == 'true'
+		}
+		'ignore_errors' {
+			o.ignore_errors = value == 'true'
+		}
+		'strict_optional' {
+			o.strict_optional = value == 'true'
+		}
+		'show_error_context' {
+			o.show_error_context = value == 'true'
+		}
+		'implicit_optional' {
+			o.implicit_optional = value == 'true'
+		}
+		'implicit_reexport' {
+			o.implicit_reexport = value == 'true'
+		}
+		'allow_untyped_globals' {
+			o.allow_untyped_globals = value == 'true'
+		}
+		'allow_redefinition_old' {
+			o.allow_redefinition_old = value == 'true'
+		}
+		'allow_redefinition_new' {
+			o.allow_redefinition_new = value == 'true'
+		}
+		'strict_equality' {
+			o.strict_equality = value == 'true'
+		}
+		'strict_equality_for_none' {
+			o.strict_equality_for_none = value == 'true'
+		}
+		'strict_bytes' {
+			o.strict_bytes = value == 'true'
+		}
+		'strict_concatenate' {
+			o.strict_concatenate = value == 'true'
+		}
+		'extra_checks' {
+			o.extra_checks = value == 'true'
+		}
+		'warn_unreachable' {
+			o.warn_unreachable = value == 'true'
+		}
+		'scripts_are_modules' {
+			o.scripts_are_modules = value == 'true'
+		}
+		'incremental' {
+			o.incremental = value == 'true'
+		}
+		'cache_dir' {
+			o.cache_dir = value
+		}
+		'sqlite_cache' {
+			o.sqlite_cache = value == 'true'
+		}
+		'fixed_format_cache' {
+			o.fixed_format_cache = value == 'true'
+		}
+		'debug_cache' {
+			o.debug_cache = value == 'true'
+		}
+		'skip_version_check' {
+			o.skip_version_check = value == 'true'
+		}
+		'fine_grained_incremental' {
+			o.fine_grained_incremental = value == 'true'
+		}
+		'cache_fine_grained' {
+			o.cache_fine_grained = value == 'true'
+		}
+		'use_fine_grained_cache' {
+			o.use_fine_grained_cache = value == 'true'
+		}
+		'mypyc' {
+			o.mypyc = value == 'true'
+		}
+		'preserve_asts' {
+			o.preserve_asts = value == 'true'
+		}
+		'include_docstrings' {
+			o.include_docstrings = value == 'true'
+		}
+		'verbosity' {
+			o.verbosity = value.int()
+		}
+		'pdb' {
+			o.pdb = value == 'true'
+		}
+		'show_traceback' {
+			o.show_traceback = value == 'true'
+		}
+		'raise_exceptions' {
+			o.raise_exceptions = value == 'true'
+		}
+		'semantic_analysis_only' {
+			o.semantic_analysis_only = value == 'true'
+		}
+		'use_builtins_fixtures' {
+			o.use_builtins_fixtures = value == 'true'
+		}
+		'test_env' {
+			o.test_env = value == 'true'
+		}
+		'num_workers' {
+			o.num_workers = value.int()
+		}
+		'show_column_numbers' {
+			o.show_column_numbers = value == 'true'
+		}
+		'show_error_end' {
+			o.show_error_end = value == 'true'
+		}
+		'hide_error_codes' {
+			o.hide_error_codes = value == 'true'
+		}
+		'show_error_code_links' {
+			o.show_error_code_links = value == 'true'
+		}
+		'reveal_verbose_types' {
+			o.reveal_verbose_types = value == 'true'
+		}
+		'pretty' {
+			o.pretty = value == 'true'
+		}
+		'local_partial_types' {
+			o.local_partial_types = value == 'true'
+		}
+		'native_parser' {
+			o.native_parser = value == 'true'
+		}
+		'bazel' {
+			o.bazel = value == 'true'
+		}
+		'export_types' {
+			o.export_types = value == 'true'
+		}
+		'fast_exit' {
+			o.fast_exit = value == 'true'
+		}
+		'fast_module_lookup' {
+			o.fast_module_lookup = value == 'true'
+		}
+		'allow_empty_bodies' {
+			o.allow_empty_bodies = value == 'true'
+		}
+		'show_absolute_path' {
+			o.show_absolute_path = value == 'true'
+		}
+		'install_types' {
+			o.install_types = value == 'true'
+		}
+		'non_interactive' {
+			o.non_interactive = value == 'true'
+		}
+		'many_errors_threshold' {
+			o.many_errors_threshold = value.int()
+		}
+		'old_type_inference' {
+			o.old_type_inference = value == 'true'
+		}
+		'disable_expression_cache' {
+			o.disable_expression_cache = value == 'true'
+		}
+		'export_ref_info' {
+			o.export_ref_info = value == 'true'
+		}
+		'pos_only_special_methods' {
+			o.pos_only_special_methods = value == 'true'
+		}
+		'disable_bytearray_promotion' {
+			o.disable_bytearray_promotion = value == 'true'
+		}
+		'disable_memoryview_promotion' {
+			o.disable_memoryview_promotion = value == 'true'
+		}
 		else {}
 	}
 }
@@ -856,7 +1016,6 @@ pub fn (mut o Options) build_per_module_cache() {
 		if key[..key.len - 1].contains('*') {
 			unstructured_glob_keys << key
 		} else {
-
 			structured_keys << key
 			if key.ends_with('.*') {
 				wildcards << key
@@ -874,8 +1033,6 @@ pub fn (mut o Options) build_per_module_cache() {
 			pattern: o.compile_glob(glob)
 		}
 	}
-
-
 
 	o.unused_configs = map[string]bool{}
 	for key in unstructured_glob_keys {
@@ -903,8 +1060,6 @@ pub fn (mut o Options) build_per_module_cache() {
 
 	o.per_module_cache = cache.clone()
 }
-
-
 
 pub fn (o &Options) clone_for_module(mod_name string) &Options {
 	if o.per_module_cache == none {
@@ -940,7 +1095,6 @@ pub fn (o &Options) clone_for_module(mod_name string) &Options {
 
 	return options
 }
-
 
 fn (o &Options) compile_glob(s string) string {
 	parts := s.split('.')

@@ -28,34 +28,86 @@ pub fn (mut tt TypeTranslator) set_cached(key string, value MypyTypeNode) {
 
 pub fn (mut tt TypeTranslator) translate_type(t MypyTypeNode) MypyTypeNode {
 	return match t {
-		UnboundType { MypyTypeNode(t) }
-		AnyType { MypyTypeNode(t) }
-		NoneType { MypyTypeNode(t) }
-		UninhabitedType { MypyTypeNode(t) }
-		ErasedType { MypyTypeNode(t) }
-		DeletedType { MypyTypeNode(t) }
-		TypeVarType { MypyTypeNode(t) }
-		ParamSpecType { MypyTypeNode(t) }
-		ParametersType { MypyTypeNode(tt.visit_parameters(t)) }
-		TypeVarTupleType { MypyTypeNode(t) }
-		Instance { MypyTypeNode(tt.visit_instance(t)) }
-		CallableType { MypyTypeNode(tt.visit_callable_type(t)) }
-		Overloaded { MypyTypeNode(tt.visit_overloaded(t)) }
-		TupleType { MypyTypeNode(tt.visit_tuple_type(t)) }
-		TypedDictType { MypyTypeNode(tt.visit_typeddict_type(t)) }
-		LiteralType { MypyTypeNode(tt.visit_literal_type(t)) }
-		UnionType { MypyTypeNode(tt.visit_union_type(t)) }
-		PartialTypeT { MypyTypeNode(t) }
-		TypeType { MypyTypeNode(tt.visit_type_type(t)) }
-		TypeAliasType { MypyTypeNode(tt.visit_type_alias_type(t)) }
-		UnpackType { MypyTypeNode(tt.visit_unpack_type(t)) }
-		TypeList { MypyTypeNode(TypeList{
+		UnboundType {
+			MypyTypeNode(t)
+		}
+		AnyType {
+			MypyTypeNode(t)
+		}
+		NoneType {
+			MypyTypeNode(t)
+		}
+		UninhabitedType {
+			MypyTypeNode(t)
+		}
+		ErasedType {
+			MypyTypeNode(t)
+		}
+		DeletedType {
+			MypyTypeNode(t)
+		}
+		TypeVarType {
+			MypyTypeNode(t)
+		}
+		ParamSpecType {
+			MypyTypeNode(t)
+		}
+		ParametersType {
+			MypyTypeNode(tt.visit_parameters(t))
+		}
+		TypeVarTupleType {
+			MypyTypeNode(t)
+		}
+		Instance {
+			MypyTypeNode(tt.visit_instance(t))
+		}
+		CallableType {
+			MypyTypeNode(tt.visit_callable_type(t))
+		}
+		Overloaded {
+			MypyTypeNode(tt.visit_overloaded(t))
+		}
+		TupleType {
+			MypyTypeNode(tt.visit_tuple_type(t))
+		}
+		TypedDictType {
+			MypyTypeNode(tt.visit_typeddict_type(t))
+		}
+		LiteralType {
+			MypyTypeNode(tt.visit_literal_type(t))
+		}
+		UnionType {
+			MypyTypeNode(tt.visit_union_type(t))
+		}
+		PartialTypeT {
+			MypyTypeNode(t)
+		}
+		TypeType {
+			MypyTypeNode(tt.visit_type_type(t))
+		}
+		TypeAliasType {
+			MypyTypeNode(tt.visit_type_alias_type(t))
+		}
+		UnpackType {
+			MypyTypeNode(tt.visit_unpack_type(t))
+		}
+		TypeList {
+			MypyTypeNode(TypeList{
 				items: tt.translate_type_list(t.items)
-			}) }
-		CallableArgument { MypyTypeNode(t) }
-		EllipsisType { MypyTypeNode(t) }
-		RawExpressionType { MypyTypeNode(t) }
-		PlaceholderType { MypyTypeNode(t) }
+			})
+		}
+		CallableArgument {
+			MypyTypeNode(t)
+		}
+		EllipsisType {
+			MypyTypeNode(t)
+		}
+		RawExpressionType {
+			MypyTypeNode(t)
+		}
+		PlaceholderType {
+			MypyTypeNode(t)
+		}
 	}
 }
 

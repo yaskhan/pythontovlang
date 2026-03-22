@@ -286,8 +286,12 @@ pub fn reset_global_state() {
 
 // Helper to check if two instances are same (based on type info and args)
 fn is_same_instance(a Instance, b Instance) bool {
-	if a.type_info?.fullname != b.type_info?.fullname { return false }
-	if a.args.len != b.args.len { return false }
+	if a.type_info?.fullname != b.type_info?.fullname {
+		return false
+	}
+	if a.args.len != b.args.len {
+		return false
+	}
 	// Further checks could be added here
 	return true
 }

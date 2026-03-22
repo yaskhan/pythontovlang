@@ -130,7 +130,10 @@ pub fn join_types(s MypyTypeNode, t MypyTypeNode, instance_joiner InstanceJoiner
 		return join_types(t_proper, s_proper, instance_joiner)
 	}
 
-	mut v := TypeJoinVisitor{ s: s_proper, instance_joiner: instance_joiner }
+	mut v := TypeJoinVisitor{
+		s:               s_proper
+		instance_joiner: instance_joiner
+	}
 	return t_proper.accept_translator(mut v)
 }
 
@@ -282,8 +285,7 @@ pub fn (v TypeJoinVisitor) visit_literal_type(t &LiteralTypeNode) ProperType {
 // visit_type_type handles TypeType
 pub fn (v TypeJoinVisitor) visit_type_type(t &TypeType) ProperType {
 	if v.s is TypeType {
-		return TypeType.make_normalized(join_types(t.item, (v.s as TypeType).item,
-			v.instance_joiner))
+		return TypeType.make_normalized(join_types(t.item, (v.s as TypeType).item, v.instance_joiner))
 	}
 	return object_from_type(v.s)
 }
@@ -345,18 +347,19 @@ pub fn unpack_callback_protocol(t Instance) ?ProperType {
 	if !t.typ.is_protocol {
 		return none
 	}
-	
+
 	mut has_call := false
 	mut other_members := false
-	
+
 	for name in t.typ.names.symbols.keys() {
 		if name == '__call__' {
 			has_call = true
-		} else if !name.starts_with('_') || name in ['__iter__', '__next__', '__getitem__', '__setitem__'] {
+		} else if !name.starts_with('_')
+			|| name in ['__iter__', '__next__', '__getitem__', '__setitem__'] {
 			other_members = true
 		}
 	}
-	
+
 	if has_call && !other_members {
 		// Return the __call__ type
 		sym := t.typ.names.symbols['__call__'] or { return none }
@@ -364,12 +367,11 @@ pub fn unpack_callback_protocol(t Instance) ?ProperType {
 			return sym.node.typ
 		}
 	}
-	
+
 	return none
 }
 
 // Helper stub functions
-
 
 fn is_subtype(left MypyTypeNode, right MypyTypeNode) bool {
 	// Delegate to subtypes module
@@ -395,11 +397,11 @@ fn make_simplified_union(items []MypyTypeNode) MypyTypeNode {
 	if items.len == 1 {
 		return items[0]
 	}
-	
+
 	// Remove duplicates
 	mut seen := map[string]bool{}
 	mut unique := []MypyTypeNode{}
-	
+
 	for item in items {
 		key := item.str()
 		if key !in seen {
@@ -407,7 +409,7 @@ fn make_simplified_union(items []MypyTypeNode) MypyTypeNode {
 			unique << item
 		}
 	}
-	
+
 	// Flatten nested unions
 	mut flattened := []MypyTypeNode{}
 	for item in unique {
@@ -423,13 +425,12 @@ fn make_simplified_union(items []MypyTypeNode) MypyTypeNode {
 			flattened << item
 		}
 	}
-	
+
 	if flattened.len == 1 {
 		return flattened[0]
 	}
-	
+
 	return UnionType{
 		items: flattened
 	}
 }
-

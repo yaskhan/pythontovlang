@@ -32,19 +32,19 @@ pub enum ErrorIcon {
 @[heap]
 pub struct ErrorInfo {
 pub mut:
-	import_ctx     []ImportContext
-	file           string
-	module         ?string
-	function       ?string
-	line           int
-	column         int
-	end_line       int
-	end_column     int
-	severity       string
-	message        string
-	code           ?string
-	blocker        bool
-	only_once      bool
+	import_ctx      []ImportContext
+	file            string
+	module          ?string
+	function        ?string
+	line            int
+	column          int
+	end_line        int
+	end_column      int
+	severity        string
+	message         string
+	code            ?string
+	blocker         bool
+	only_once       bool
 	allow_not_found bool
 }
 
@@ -127,17 +127,21 @@ pub fn (mut e Errors) report(line int, column int, message string, code ?string,
 	}
 
 	info := &ErrorInfo{
-		import_ctx:     e.import_ctx.clone()
-		file:           e.file
-		module:         e.target_module
-		function:       if e.function_or_member.len > 0 { e.function_or_member.last() } else { none }
-		line:           line
-		column:         column
-		severity:       severity
-		message:        message
-		code:           code
-		blocker:        blocker
-		only_once:      only_once
+		import_ctx:      e.import_ctx.clone()
+		file:            e.file
+		module:          e.target_module
+		function:        if e.function_or_member.len > 0 {
+			e.function_or_member.last()
+		} else {
+			none
+		}
+		line:            line
+		column:          column
+		severity:        severity
+		message:         message
+		code:            code
+		blocker:         blocker
+		only_once:       only_once
 		allow_not_found: false
 	}
 

@@ -16,7 +16,9 @@ pub:
 	msg string
 }
 
-pub fn (e InvalidSourceList) msg() string { return e.msg }
+pub fn (e InvalidSourceList) msg() string {
+	return e.msg
+}
 
 // create_source_list creates a list of BuildSource from a list of paths
 pub fn create_source_list(paths []string,
@@ -105,19 +107,23 @@ pub fn new_source_finder(options Options) SourceFinder {
 }
 
 // get_explicit_package_bases placeholder
-fn get_explicit_package_bases(options Options) ?[]string { return none }
+fn get_explicit_package_bases(options Options) ?[]string {
+	return none
+}
 
 // is_explicit_package_base checks if path is an explicit package base
 pub fn (f SourceFinder) is_explicit_package_base(path string) bool {
-    if bases := f.explicit_package_bases {
-        for base in bases {
-            if base == path { return true }
-        }
-    }
+	if bases := f.explicit_package_bases {
+		for base in bases {
+			if base == path {
+				return true
+			}
+		}
+	}
 	return false
 }
 
 // find_sources_in_dir placeholder
 pub fn (mut f SourceFinder) find_sources_in_dir(path string) []BuildSource {
-    return []BuildSource{}
+	return []BuildSource{}
 }

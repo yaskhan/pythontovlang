@@ -55,10 +55,18 @@ pub fn literal(e Expression) int {
 			}
 			return right_lit
 		}
-		MemberExpr { return literal(e.expr) }
-		UnaryExpr { return literal(e.expr) }
-		StarExpr { return literal(e.expr) }
-		AssignmentExpr { return literal(e.target) }
+		MemberExpr {
+			return literal(e.expr)
+		}
+		UnaryExpr {
+			return literal(e.expr)
+		}
+		StarExpr {
+			return literal(e.expr)
+		}
+		AssignmentExpr {
+			return literal(e.target)
+		}
 		IndexExpr {
 			if literal(e.index) == literal_yes {
 				return literal(e.base_)

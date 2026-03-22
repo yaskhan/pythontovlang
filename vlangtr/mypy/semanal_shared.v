@@ -83,7 +83,6 @@ pub fn set_callable_name(sig MypyTypeNode, fdef &FuncDef) MypyTypeNode {
 	return sig
 }
 
-
 pub fn calculate_tuple_fallback(mut typ TupleType) {
 	mut fallback := typ.partial_fallback
 	if info := fallback.typ {
@@ -166,7 +165,6 @@ pub fn find_dataclass_transform_spec(node ?Node) ?&DataclassTransformSpec {
 	return none
 }
 
-
 fn find_dataclass_transform_spec_from_info(info &TypeInfo) ?&DataclassTransformSpec {
 	for base in info.mro[1..] {
 		if spec := base.dataclass_transform_spec {
@@ -184,7 +182,8 @@ fn find_dataclass_transform_spec_from_info(info &TypeInfo) ?&DataclassTransformS
 pub fn require_bool_literal_argument(api SemanticAnalyzerInterface, expr Expression, name string, default ?bool) ?bool {
 	val := api.parse_bool(expr)
 	if val == none {
-		api.fail('"${name}" argument must be a True or False literal', expr, false, false, literal_req)
+		api.fail('"${name}" argument must be a True or False literal', expr, false, false,
+			literal_req)
 		return default
 	}
 	return val

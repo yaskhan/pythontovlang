@@ -82,21 +82,21 @@ mut:
 
 pub struct AnyType {
 pub:
-    type_of_any TypeOfAny
-	line int = -1
+	type_of_any TypeOfAny
+	line        int = -1
 }
 
 pub enum TypeOfAny {
-    unannotated
-    explicit
-    from_untyped_call
-    from_error
-    special_form
+	unannotated
+	explicit
+	from_untyped_call
+	from_error
+	special_form
 }
 
 pub struct UnboundType {
 pub:
-    name string
+	name string
 	line int = -1
 }
 
@@ -111,183 +111,205 @@ pub:
 }
 
 pub struct ErasedType {}
+
 pub struct DeletedType {}
 
 pub struct TypeVarType {
 pub:
-    name string
-    id int
-    values []MypyTypeNode
-    upper_bound MypyTypeNode
-    line int = -1
+	name        string
+	id          int
+	values      []MypyTypeNode
+	upper_bound MypyTypeNode
+	line        int = -1
 }
 
 pub struct ParamSpecType {
 pub:
-    name string
-    id int
-    line int = -1
-    upper_bound MypyTypeNode
-    default MypyTypeNode
+	name        string
+	id          int
+	line        int = -1
+	upper_bound MypyTypeNode
+	default     MypyTypeNode
 }
 
 pub struct ParametersType {
 pub:
-    arg_types []MypyTypeNode
-    arg_kinds []ArgKind
-    arg_names []?string
+	arg_types []MypyTypeNode
+	arg_kinds []ArgKind
+	arg_names []?string
 }
 
 pub struct TypeVarTupleType {
 pub:
-    name string
-    id int
-    line int = -1
-    tuple_fallback MypyTypeNode
-    upper_bound MypyTypeNode
-    default MypyTypeNode
+	name           string
+	id             int
+	line           int = -1
+	tuple_fallback MypyTypeNode
+	upper_bound    MypyTypeNode
+	default        MypyTypeNode
 }
 
 pub struct Instance {
 pub mut:
-    type_ &TypeInfo = none
-    args []MypyTypeNode
-    last_known_value ?&LiteralType
-    line int = -1
-    type_ref ?string
+	type_            &TypeInfo = none
+	args             []MypyTypeNode
+	last_known_value ?&LiteralType
+	line             int = -1
+	type_ref         ?string
 }
+
 pub fn (t &Instance) copy_modified(args []MypyTypeNode, last_known_value ?&LiteralType) Instance {
-    return Instance{
-        type_: t.type_
-        args: args
-        last_known_value: if last_known_value != none { last_known_value } else { t.last_known_value }
-        line: t.line
-    }
+	return Instance{
+		type_:            t.type_
+		args:             args
+		last_known_value: if last_known_value != none {
+			last_known_value
+		} else {
+			t.last_known_value
+		}
+		line:             t.line
+	}
 }
 
 pub struct CallableType {
 pub:
-    arg_types []MypyTypeNode
-    arg_kinds []ArgKind
-    arg_names []?string
-    ret_type MypyTypeNode
-    variables []MypyTypeNode
-    line int = -1
-    fallback ?MypyTypeNode
+	arg_types []MypyTypeNode
+	arg_kinds []ArgKind
+	arg_names []?string
+	ret_type  MypyTypeNode
+	variables []MypyTypeNode
+	line      int = -1
+	fallback  ?MypyTypeNode
 }
-pub fn (t &CallableType) is_generic() bool { return t.variables.len > 0 }
+
+pub fn (t &CallableType) is_generic() bool {
+	return t.variables.len > 0
+}
+
 pub fn (t &CallableType) copy_modified(arg_types []MypyTypeNode, ret_type MypyTypeNode, variables []MypyTypeNode) CallableType {
-    return CallableType{
-        arg_types: if arg_types.len > 0 { arg_types } else { t.arg_types }
-        arg_kinds: t.arg_kinds
-        arg_names: t.arg_names
-        ret_type: if ret_type != none { ret_type } else { t.ret_type }
-        variables: if variables.len > 0 { variables } else { t.variables }
-        line: t.line
-    }
+	return CallableType{
+		arg_types: if arg_types.len > 0 { arg_types } else { t.arg_types }
+		arg_kinds: t.arg_kinds
+		arg_names: t.arg_names
+		ret_type:  if ret_type != none { ret_type } else { t.ret_type }
+		variables: if variables.len > 0 { variables } else { t.variables }
+		line:      t.line
+	}
 }
 
 pub struct Overloaded {
 pub:
-    items []&CallableType
-    line int = -1
+	items []&CallableType
+	line  int = -1
 }
 
 pub struct TupleType {
 pub:
-    items []MypyTypeNode
-    partial_fallback ?&Instance
-    line int = -1
+	items            []MypyTypeNode
+	partial_fallback ?&Instance
+	line             int = -1
 }
+
 pub fn (t &TupleType) copy_modified(items []MypyTypeNode, partial_fallback ?&Instance) TupleType {
-    return TupleType{
-        items: if items.len > 0 { items } else { t.items }
-        partial_fallback: if partial_fallback != none { partial_fallback } else { t.partial_fallback }
-        line: t.line
-    }
+	return TupleType{
+		items:            if items.len > 0 { items } else { t.items }
+		partial_fallback: if partial_fallback != none {
+			partial_fallback
+		} else {
+			t.partial_fallback
+		}
+		line:             t.line
+	}
 }
 
 pub struct TypedDictType {
 pub:
-    items map[string]MypyTypeNode
-    line int = -1
-    fallback ?MypyTypeNode
+	items    map[string]MypyTypeNode
+	line     int = -1
+	fallback ?MypyTypeNode
 }
 
 pub struct LiteralType {
 pub:
-    fallback MypyTypeNode
-	line int = -1
+	fallback MypyTypeNode
+	line     int = -1
 }
 
 pub struct UnionType {
 pub:
-    items []MypyTypeNode
-    line int = -1
-    column int = -1
+	items  []MypyTypeNode
+	line   int = -1
+	column int = -1
 }
 
 pub struct PartialTypeT {}
+
 pub struct TypeType {
 pub:
-    item MypyTypeNode
-    line int = -1
-    column int = -1
+	item   MypyTypeNode
+	line   int = -1
+	column int = -1
 }
 
 pub struct TypeAliasType {
 pub mut:
-    alias ?&TypeAlias = none
-    args []MypyTypeNode
-    line int = -1
-    type_ref ?string
+	alias    ?&TypeAlias = none
+	args     []MypyTypeNode
+	line     int = -1
+	type_ref ?string
 }
 
 pub struct UnpackType {
 pub:
-    type MypyTypeNode
+	type MypyTypeNode
 }
 
 pub struct CallableArgument {}
+
 pub struct EllipsisType {}
+
 pub struct TypeList {
 pub:
-    items []MypyTypeNode
+	items []MypyTypeNode
 }
+
 pub struct RawExpressionType {}
+
 pub struct PlaceholderType {
 pub:
-    fullname string
+	fullname string
 }
 
 // extract_type_var_id returns TypeVarId if the type is a TypeVar-like type
 pub fn extract_type_var_id(t MypyTypeNode) ?TypeVarId {
-    match t {
-        TypeVarType { return t.id }
-        ParamSpecType { return t.id }
-        TypeVarTupleType { return t.id }
-        else { return none }
-    }
+	match t {
+		TypeVarType { return t.id }
+		ParamSpecType { return t.id }
+		TypeVarTupleType { return t.id }
+		else { return none }
+	}
 }
 
 pub fn new_unification_variable(t MypyTypeNode) MypyTypeNode {
-    match t {
-        TypeVarType {
-            return MypyTypeNode(TypeVarType{
-                name: t.name
-                id: t.id
-                values: t.values
-                upper_bound: t.upper_bound
-                line: t.line
-            })
-        }
-        else {
-            return MypyTypeNode(AnyType{type_of_any: .from_error})
-        }
-    }
+	match t {
+		TypeVarType {
+			return MypyTypeNode(TypeVarType{
+				name:        t.name
+				id:          t.id
+				values:      t.values
+				upper_bound: t.upper_bound
+				line:        t.line
+			})
+		}
+		else {
+			return MypyTypeNode(AnyType{
+				type_of_any: .from_error
+			})
+		}
+	}
 }
 
 // get_proper_type — раскрывает TypeAliasType.
 pub fn get_proper_type(t MypyTypeNode) MypyTypeNode {
-    return t
+	return t
 }

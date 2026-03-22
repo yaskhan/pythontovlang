@@ -618,12 +618,12 @@ pub fn (sa SemanticAnalyzer) lookup(name string, ctx NodeBase) ?SymbolTableNode 
 			}
 		}
 	}
-	
+
 	// Search in global scope
 	if name in sa.globals {
 		return sa.globals[name]
 	}
-	
+
 	// Search in builtins
 	if 'builtins' in sa.modules {
 		builtins := sa.modules['builtins']
@@ -631,7 +631,7 @@ pub fn (sa SemanticAnalyzer) lookup(name string, ctx NodeBase) ?SymbolTableNode 
 			return builtins.names[name]
 		}
 	}
-	
+
 	return none
 }
 
@@ -640,16 +640,16 @@ pub fn (sa SemanticAnalyzer) lookup_qualified(name string, ctx NodeBase, suppres
 	if '.' !in name {
 		return sa.lookup(name, ctx)
 	}
-	
+
 	parts := name.split('.')
 	if parts.len < 2 {
 		return none
 	}
-	
+
 	// Lookup first part
 	first := parts[0]
 	sym := sa.lookup(first, ctx) or { return none }
-	
+
 	// Navigate through remaining parts
 	mut current := sym
 	for i in 1 .. parts.len {
@@ -660,7 +660,8 @@ pub fn (sa SemanticAnalyzer) lookup_qualified(name string, ctx NodeBase, suppres
 				current = info.names[part]
 			} else {
 				if !suppress_errors {
-					sa.fail('Name "${part}" not found in "${parts[..i].join('.')}"', ctx, false, false)
+					sa.fail('Name "${part}" not found in "${parts[..i].join('.')}"', ctx,
+						false, false)
 				}
 				return none
 			}
@@ -670,7 +671,8 @@ pub fn (sa SemanticAnalyzer) lookup_qualified(name string, ctx NodeBase, suppres
 				current = file.names[part]
 			} else {
 				if !suppress_errors {
-					sa.fail('Name "${part}" not found in module "${parts[..i].join('.')}"', ctx, false, false)
+					sa.fail('Name "${part}" not found in module "${parts[..i].join('.')}"',
+						ctx, false, false)
 				}
 				return none
 			}
@@ -678,7 +680,7 @@ pub fn (sa SemanticAnalyzer) lookup_qualified(name string, ctx NodeBase, suppres
 			return none
 		}
 	}
-	
+
 	return current
 }
 
@@ -750,24 +752,24 @@ fn (sa SemanticAnalyzer) analyze_identity_global_assignment(s AssignmentStmt) bo
 	if s.lvalues.len != 1 {
 		return false
 	}
-	
+
 	lval := s.lvalues[0]
 	if lval !is NameExpr {
 		return false
 	}
-	
+
 	if s.rvalue !is NameExpr {
 		return false
 	}
-	
+
 	lval_name := (lval as NameExpr).name
 	rval_name := (s.rvalue as NameExpr).name
-	
+
 	// Check if it's the same name and already exists in global scope
 	if lval_name == rval_name && lval_name in sa.globals {
 		return true
 	}
-	
+
 	return false
 }
 
@@ -853,14 +855,14 @@ pub fn (mut sa SemanticAnalyzer) add_symbol(name string, node SymbolNode, contex
 			// Add to current scope
 			mut new_locals := locals.clone()
 			new_locals[name] = SymbolTableNode{
-				kind: 0  // LDEF for local
+				kind: 0 // LDEF for local
 				node: node
 			}
 			sa.locals[sa.locals.len - 1] = new_locals
 			return true
 		}
 	}
-	
+
 	// Add to global scope
 	if name in sa.globals {
 		existing := sa.globals[name]
@@ -869,9 +871,9 @@ pub fn (mut sa SemanticAnalyzer) add_symbol(name string, node SymbolNode, contex
 			return false
 		}
 	}
-	
+
 	sa.globals[name] = SymbolTableNode{
-		kind: 0  // GDEF for global
+		kind: 0 // GDEF for global
 		node: node
 	}
 	return true
@@ -883,7 +885,7 @@ fn (mut sa SemanticAnalyzer) add_imported_symbol(name string, node SymbolTableNo
 	mut sym := node
 	sym.module_public = module_public
 	sym.module_hidden = module_hidden
-	
+
 	// Add to current scope
 	if sa.locals.len > 0 {
 		if locals := sa.locals.last() {
@@ -893,7 +895,7 @@ fn (mut sa SemanticAnalyzer) add_imported_symbol(name string, node SymbolTableNo
 			return
 		}
 	}
-	
+
 	// Add to global scope
 	sa.globals[name] = sym
 }
@@ -904,21 +906,21 @@ fn (mut sa SemanticAnalyzer) add_unknown_imported_symbol(name string, context No
 	any_type := AnyType{
 		type_of_any: TypeOfAny.from_error
 	}
-	
+
 	// Create a Var node with Any type
 	mut var := Var{
-		name: name
+		name:            name
 		type_annotation: any_type
 	}
 	var._fullname = target_name
-	
+
 	sym := SymbolTableNode{
-		kind: 0
-		node: var
+		kind:          0
+		node:          var
 		module_public: module_public
 		module_hidden: module_hidden
 	}
-	
+
 	// Add to current scope
 	if sa.locals.len > 0 {
 		if locals := sa.locals.last() {
@@ -928,7 +930,7 @@ fn (mut sa SemanticAnalyzer) add_unknown_imported_symbol(name string, context No
 			return
 		}
 	}
-	
+
 	// Add to global scope
 	sa.globals[name] = sym
 }
@@ -969,28 +971,28 @@ fn (mut sa SemanticAnalyzer) push_type_args(type_args []TypeParam, context NodeB
 	if type_args.len == 0 {
 		return []string{}
 	}
-	
+
 	mut names := []string{}
 	for ta in type_args {
 		names << ta.name
-		
+
 		// Add type variable to scope
 		mut tvar := TypeVarType{
-			name: ta.name
+			name:     ta.name
 			fullname: sa.qualified_name(ta.name)
 		}
-		
+
 		if ta.upper_bound != none {
 			tvar.upper_bound = ta.upper_bound
 		}
-		
+
 		if ta.values.len > 0 {
 			tvar.values = ta.values
 		}
-		
+
 		sa.tvar_scope.bind(ta.name, tvar)
 	}
-	
+
 	return names
 }
 
@@ -1023,22 +1025,22 @@ fn (mut sa SemanticAnalyzer) analyze_function_body(defn FuncItem) {
 	sa.loop_depth << 0
 	sa.locals << map[string]SymbolTableNode{}
 	sa.missing_names << map[string]bool{}
-	
+
 	// Add function arguments to scope
 	if defn is FuncDef {
 		for arg in defn.arguments {
 			mut var := Var{
-				name: arg.variable.name
+				name:            arg.variable.name
 				type_annotation: arg.variable.typ
 			}
 			var._fullname = sa.qualified_name(arg.variable.name)
 			sa.add_symbol(arg.variable.name, var, defn)
 		}
 	}
-	
+
 	// Analyze function body
 	defn.body.accept(sa)
-	
+
 	// Leave function scope
 	sa.scope_stack.pop()
 	sa.block_depth.pop()
@@ -1056,12 +1058,12 @@ fn (mut sa SemanticAnalyzer) prepare_class_def(defn ClassDef) {
 		info._fullname = fullname
 		defn.info = info
 	}
-	
+
 	// Process base classes
 	for base_expr in defn.base_type_exprs {
 		base_expr.accept(sa)
 	}
-	
+
 	// Process decorators
 	for dec in defn.decorators {
 		dec.accept(sa)

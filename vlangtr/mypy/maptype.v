@@ -57,11 +57,13 @@ pub fn map_instance_to_supertypes(instance Instance, supertype TypeInfo) []Insta
 		for _ in supertype.type_vars {
 			args << MypyTypeNode(any_type)
 		}
-		return [Instance{
-			type_name:  supertype.fullname
-			args:       args
-			typ:        supertype
-		}]
+		return [
+			Instance{
+				type_name: supertype.fullname
+				args:      args
+				typ:       supertype
+			},
+		]
 	}
 }
 
@@ -110,10 +112,12 @@ pub fn map_instance_to_direct_supertypes(instance Instance, supertype TypeInfo) 
 		for _ in supertype.type_vars {
 			args << MypyTypeNode(any_type)
 		}
-		return [Instance{
-			type_name: supertype.fullname
-			args:      args
-			typ:       &supertype
-		}]
+		return [
+			Instance{
+				type_name: supertype.fullname
+				args:      args
+				typ:       &supertype
+			},
+		]
 	}
 }

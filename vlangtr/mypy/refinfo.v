@@ -47,7 +47,7 @@ pub fn (mut v RefInfoVisitor) record_ref_expr(expr &RefExpr) {
 	} else if expr is MemberExpr {
 		m_expr := expr as MemberExpr
 		typ := v.type_map[voidptr(m_expr.expr)] or { MypyTypeNode(AnyType{}) }
-		// node from SymbolNodeRef is ?SymbolNodeRef 
+		// node from SymbolNodeRef is ?SymbolNodeRef
 		sym := if m_expr.expr is RefExpr { (m_expr.expr as RefExpr).node } else { none }
 		if typ !is AnyType {
 			tfn := type_fullname(typ, sym)
@@ -82,7 +82,9 @@ pub fn type_fullname(typ MypyTypeNode, node ?SymbolNodeRef) string {
 		CallableType {
 			if typ.is_type_obj() {
 				if n := node {
-					if n is TypeInfo { return n.fullname }
+					if n is TypeInfo {
+						return n.fullname
+					}
 				}
 				return type_fullname(MypyTypeNode(typ.fallback), node)
 			}

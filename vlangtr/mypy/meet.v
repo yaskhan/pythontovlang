@@ -57,7 +57,9 @@ pub fn meet_types(s MypyTypeNode, t MypyTypeNode) ProperType {
 		return meet_types(t_proper, s_proper)
 	}
 
-	mut v := TypeMeetVisitor{ s: s_proper }
+	mut v := TypeMeetVisitor{
+		s: s_proper
+	}
 	return t_proper.accept_translator(mut v)
 }
 
@@ -201,8 +203,7 @@ pub fn (v TypeMeetVisitor) visit_union_type(t &UnionType) ProperType {
 
 // visit_none_type handles NoneType
 pub fn (v TypeMeetVisitor) visit_none_type(t &NoneType) ProperType {
-	if v.s is NoneType
-		|| (v.s is Instance && (v.s as Instance).typ.fullname == 'builtins.object') {
+	if v.s is NoneType || (v.s is Instance && (v.s as Instance).typ.fullname == 'builtins.object') {
 		return t
 	}
 	return UninhabitedType{}
@@ -382,7 +383,6 @@ pub fn object_from_type(typ ProperType) ProperType {
 
 // Helper stub functions
 
-
 fn is_subtype(left MypyTypeNode, right MypyTypeNode) bool {
 	// Delegate to subtypes module
 	ctx := new_subtype_context(false, false, false, false, false, false, false, none)
@@ -409,18 +409,18 @@ fn is_callable_compatible(t CallableType, s CallableType) bool {
 	if !is_subtype(t.ret_type, s.ret_type) {
 		return false
 	}
-	
+
 	// Check argument type contravariance
 	if t.arg_types.len != s.arg_types.len {
 		return false
 	}
-	
+
 	for i in 0 .. t.arg_types.len {
 		if !is_subtype(s.arg_types[i], t.arg_types[i]) {
 			return false
 		}
 	}
-	
+
 	return true
 }
 
@@ -431,11 +431,11 @@ fn make_simplified_union(items []MypyTypeNode) MypyTypeNode {
 	if items.len == 1 {
 		return items[0]
 	}
-	
+
 	// Remove duplicates
 	mut seen := map[string]bool{}
 	mut unique := []MypyTypeNode{}
-	
+
 	for item in items {
 		key := item.str()
 		if key !in seen {
@@ -443,7 +443,7 @@ fn make_simplified_union(items []MypyTypeNode) MypyTypeNode {
 			unique << item
 		}
 	}
-	
+
 	// Flatten nested unions
 	mut flattened := []MypyTypeNode{}
 	for item in unique {
@@ -459,11 +459,11 @@ fn make_simplified_union(items []MypyTypeNode) MypyTypeNode {
 			flattened << item
 		}
 	}
-	
+
 	if flattened.len == 1 {
 		return flattened[0]
 	}
-	
+
 	return UnionType{
 		items: flattened
 	}
@@ -473,4 +473,3 @@ fn join_types(s MypyTypeNode, t MypyTypeNode) MypyTypeNode {
 	// Delegate to join module
 	return join_types(s, t, new_instance_joiner())
 }
-
