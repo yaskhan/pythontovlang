@@ -1,16 +1,16 @@
 // find_sources.v — Routines for finding sources that mypy will check
 // Translated from mypy/find_sources.py to V 0.5.x
 //
-// Я Antigravity работаю над этим файлом. Начало: 2026-03-22 15:00
+// Work in progress by Antigravity. Started: 2026-03-22 15:00
 
 module mypy
 
 import os
 
-// PY_EXTENSIONS — расширения Python файлов
+// PY_EXTENSIONS — Python file extensions
 pub const py_extensions = ['.pyi', '.py']
 
-// InvalidSourceList — исключение для проблем со списком источников
+// InvalidSourceList — exception for source list problems
 pub struct InvalidSourceList {
 pub:
 	msg string
@@ -18,7 +18,7 @@ pub:
 
 pub fn (e InvalidSourceList) msg() string { return e.msg }
 
-// create_source_list создаёт список BuildSource из списка путей
+// create_source_list creates a list of BuildSource from a list of paths
 pub fn create_source_list(paths []string,
 	options Options,
 	fscache ?&FileSystemCache,
@@ -56,13 +56,13 @@ pub fn create_source_list(paths []string,
 	return sources
 }
 
-// keyfunc определяет порядок сортировки для списка директорий
+// keyfunc determines sort order for directory list
 pub fn keyfunc(name string) string {
-	// Упрощённая версия — сортировка по имени
+	// Simplified version — sorting by name
 	return name
 }
 
-// normalise_package_base нормализует базовый путь пакета
+// normalise_package_base normalizes package base path
 pub fn normalise_package_base(root string) string {
 	mut r := root
 	if r == '' {
@@ -76,10 +76,10 @@ pub fn normalise_package_base(root string) string {
 }
 
 // ---------------------------------------------------------------------------
-// Остальная часть файла ...
+// Rest of the file ...
 // ---------------------------------------------------------------------------
 
-// SourceFinder — поиск источников
+// SourceFinder — source finder
 pub struct SourceFinder {
 pub mut:
 	// fscache               &FileSystemCache
@@ -91,7 +91,7 @@ pub mut:
 	verbosity              int
 }
 
-// new_source_finder создаёт новый SourceFinder
+// new_source_finder creates a new SourceFinder
 pub fn new_source_finder(options Options) SourceFinder {
 	mut explicit_bases := get_explicit_package_bases(options)
 	return SourceFinder{
@@ -107,7 +107,7 @@ pub fn new_source_finder(options Options) SourceFinder {
 // get_explicit_package_bases placeholder
 fn get_explicit_package_bases(options Options) ?[]string { return none }
 
-// is_explicit_package_base проверяет, является ли путь явной базой пакета
+// is_explicit_package_base checks if path is an explicit package base
 pub fn (f SourceFinder) is_explicit_package_base(path string) bool {
     if bases := f.explicit_package_bases {
         for base in bases {

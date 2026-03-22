@@ -1,12 +1,12 @@
-// Я Cline работаю над этим файлом. Начало: 2026-03-22 15:48
+// Work in progress by Cline. Started: 2026-03-22 15:48
 // Version: 5377
 // expandtype.v — Substitute type variables in types
-// Переведён из mypy/expandtype.py
+// Translated from mypy/expandtype.py
 
 module mypy
 
-// expand_type подставляет ссылки на типовые переменные в типе
-// согласно окружению типов
+// expand_type substitutes type variable references in type
+// according to type environment
 pub fn expand_type(typ MypyTypeNode, env map[TypeVarId]MypyTypeNode) MypyTypeNode {
 	mut v := ExpandTypeVisitor{ variables: env }
     proper := get_proper_type(typ)

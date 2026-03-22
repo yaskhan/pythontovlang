@@ -1,7 +1,7 @@
-// Я Antigravity работаю над этим файлом. Начало: 2026-03-22 10:10
+// Work in progress by Antigravity. Started: 2026-03-22 10:10
 module mypy
 
-// Проверка типов для конструкций Pattern Matching (match/case).
+// Type checking for Pattern Matching constructs (match/case).
 
 pub struct PatternTypeResult {
 pub mut:
@@ -35,7 +35,7 @@ pub fn (mut pc PatternChecker) accept(p PatternNode, type_context MypyTypeNode) 
 }
 
 pub fn (mut pc PatternChecker) visit_as_pattern(p &AsPattern) PatternTypeResult {
-	// as-паттерн может быть привязкой переменной или wildcard (если pattern=none, name=none)
+	// as-pattern can be variable binding or wildcard (if pattern=none, name=none)
 	mut res := PatternTypeResult{
 		type_: pc.type_context.last()
 	}
@@ -53,7 +53,7 @@ pub fn (mut pc PatternChecker) visit_as_pattern(p &AsPattern) PatternTypeResult 
 
 pub fn (mut pc PatternChecker) visit_or_pattern(p &OrPattern) PatternTypeResult {
 	mut res := PatternTypeResult{ type_: pc.type_context.last() }
-	// В Mypy объединяются все под-отпечатки типов
+	// In Mypy all sub-type impressions are merged
 	for pat in p.patterns {
 		_ = pc.accept(pat, pc.type_context.last())
 	}
@@ -61,7 +61,7 @@ pub fn (mut pc PatternChecker) visit_or_pattern(p &OrPattern) PatternTypeResult 
 }
 
 pub fn (mut pc PatternChecker) visit_value_pattern(p &ValuePattern) PatternTypeResult {
-	// Значение должно совпадать с ожидаемым типом. Мы просто проверяем правую часть.
+	// Value must match expected type. We just check the right side.
 	pc.chk.expr_checker_.accept(p.expr, pc.type_context.last(), false, false, false)
 	return PatternTypeResult{ type_: pc.type_context.last() }
 }
@@ -72,7 +72,7 @@ pub fn (mut pc PatternChecker) visit_singleton_pattern(p &SingletonPattern) Patt
 }
 
 pub fn (mut pc PatternChecker) visit_sequence_pattern(p &SequencePattern) PatternTypeResult {
-	// Проверка элементов последовательности
+	// Check sequence elements
 	mut res := PatternTypeResult{ type_: pc.type_context.last() }
 	item_ctx := MypyTypeNode(AnyType{type_of_any: .special_form}) // fallback item context
 	for pat in p.patterns {

@@ -1,8 +1,5 @@
-// Я Cline работаю над этим файлом. Начало: 2026-03-22 15:32
 // main.v — Mypy type checker command line tool
-// Переведён из mypy/main.py
-//
-// ---------------------------------------------------------------------------
+// Translated from mypy/main.py
 
 module mypy
 
@@ -15,7 +12,7 @@ pub:
 	options Options
 }
 
-// main — главная точка входа в проверку типов
+// main — main entry point for type checking
 pub fn main(args []string, mut stdout os.File, mut stderr os.File) {
 	t1 := time.now()
 
@@ -69,7 +66,7 @@ pub fn main(args []string, mut stdout os.File, mut stderr os.File) {
 	}
 }
 
-// run_build запускает сборку
+// run_build runs the build
 pub fn run_build(sources []BuildSource, options Options, fscache FileSystemCache, t0 f64, mut stdout os.File, mut stderr os.File) (?&BuildResult, []string, bool) {
 	mut messages := []string{}
 	mut messages_by_file := map[string][]string{}
@@ -86,7 +83,7 @@ pub fn run_build(sources []BuildSource, options Options, fscache FileSystemCache
 	return res, messages, blockers
 }
 
-// flush_errors обрабатывает ошибки
+// flush_errors handles errors
 fn flush_errors(filename ?string, new_messages []string, is_serious bool, mut stdout os.File, mut stderr os.File, options Options, mut messages []string, mut messages_by_file map[string][]string) {
 	messages << new_messages
 	if new_messages.len > 0 {
@@ -103,7 +100,7 @@ fn flush_errors(filename ?string, new_messages []string, is_serious bool, mut st
 	f.flush()
 }
 
-// show_messages выводит сообщения
+// show_messages outputs messages
 fn show_messages(messages []string, mut f os.File, options Options) {
 	for msg in messages {
 		f.write_string(msg + "\n") or { panic(err) }
@@ -111,7 +108,7 @@ fn show_messages(messages []string, mut f os.File, options Options) {
 	f.flush()
 }
 
-// fail завершает работу с ошибкой
+// fail terminates with an error
 fn fail(msg string, mut stderr os.File, options Options) {
 	stderr.write_string("${msg}\n") or { panic(err) }
 	mut msgs_map := map[string][]string{}
@@ -120,7 +117,7 @@ fn fail(msg string, mut stderr os.File, options Options) {
 	exit(2)
 }
 
-// maybe_write_junit_xml записывает JUnit XML если настроено
+// maybe_write_junit_xml writes JUnit XML if configured
 fn maybe_write_junit_xml(td f64, serious bool, all_messages []string, messages_by_file map[string][]string, options Options) {
 	if options.junit_xml.len > 0 {
 		py_version := "${options.python_version[0]}_${options.python_version[1]}"
@@ -135,7 +132,7 @@ fn maybe_write_junit_xml(td f64, serious bool, all_messages []string, messages_b
 	}
 }
 
-// process_options обрабатывает аргументы командной строки
+// process_options processes command line arguments
 fn process_options(args []string, mut stdout os.File, mut stderr os.File, mut fscache FileSystemCache) ProcessOptionsResult {
 	options := Options{}
 	mut sources := []BuildSource{}

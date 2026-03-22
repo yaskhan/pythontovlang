@@ -1,14 +1,14 @@
-// Я Cline работаю над этим файлом. Начало: 2026-03-22 15:48
+// Work in progress by Cline. Started: 2026-03-22 15:48
 // Version: 5234
 // fastparse.v — Fast Python 3.10+ parser for V 0.5.x
-// Переведён из mypy/fastparse.py
+// Translated from mypy/fastparse.py
 
 module mypy
 
-// JSONAny — упрощённый тип для узлов из JSON/внешнего парсера
+// JSONAny — simplified type for nodes from JSON/external parser
 pub type JSONAny = string | int | bool | map[string]JSONAny | []JSONAny
 
-// AST — упрощённый интерфейс для узлов внешнего парсера
+// AST — simplified interface for external parser nodes
 pub type AST = map[string]JSONAny
 
 pub interface IAST {
@@ -18,7 +18,7 @@ pub interface IAST {
 	get_end_col_offset() int
 }
 
-// get_int извлекает целое число из AST-узла
+// get_int extracts integer from AST node
 fn get_int(a AST, key string) int {
 	val := a[key] or { return 0 }
     match val {
@@ -27,7 +27,7 @@ fn get_int(a AST, key string) int {
     }
 }
 
-// get_string извлекает строку или none
+// get_string extracts string or none
 fn get_string(a AST, key string) ?string {
 	val := a[key] or { return none }
     match val {
@@ -36,7 +36,7 @@ fn get_string(a AST, key string) ?string {
     }
 }
 
-// get_list извлекает список узлов
+// get_list extracts list of nodes
 fn get_list(a AST, key string) []AST {
 	val := a[key] or { return []AST{} }
     match val {
@@ -54,13 +54,13 @@ fn get_list(a AST, key string) []AST {
     }
 }
 
-// ASTConverter конвертирует внешнее AST во внутренние структуры mypy
+// ASTConverter converts external AST to internal mypy structures
 pub struct ASTConverter {
 pub mut:
 	errors &Errors
 }
 
-// visit выполняет диспетчеризацию по типу узла
+// visit performs dispatch by node type
 pub fn (mut conv ASTConverter) visit(n AST) ?MypyNode {
 	kind := get_string(n, "type") or { return none }
 	match kind {
@@ -73,7 +73,7 @@ pub fn (mut conv ASTConverter) visit(n AST) ?MypyNode {
 	}
 }
 
-// visit_module конвертирует Module
+// visit_module converts Module
 fn (mut conv ASTConverter) visit_module(n AST) Block {
 	body := get_list(n, "body")
 	mut res := Block{
@@ -82,7 +82,7 @@ fn (mut conv ASTConverter) visit_module(n AST) Block {
 	return conv.set_line(res, n) as Block
 }
 
-// visit_name конвертирует Name
+// visit_name converts Name
 fn (mut conv ASTConverter) visit_name(n AST) NameExpr {
 	mut e := NameExpr{
 		name: get_string(n, "id") or { "" }
@@ -90,7 +90,7 @@ fn (mut conv ASTConverter) visit_name(n AST) NameExpr {
 	return conv.set_line(e, n) as NameExpr
 }
 
-// visit_expr_stmt конвертирует Expr (выражение как стейтмент)
+// visit_expr_stmt converts Expr (expression as statement)
 fn (mut conv ASTConverter) visit_expr_stmt(n AST) ExpressionStmt {
 	val := n["value"] or { return ExpressionStmt{} }
     match val {
@@ -105,7 +105,7 @@ fn (mut conv ASTConverter) visit_expr_stmt(n AST) ExpressionStmt {
     return ExpressionStmt{}
 }
 
-// visit_assign конвертирует Assign
+// visit_assign converts Assign
 fn (mut conv ASTConverter) visit_assign(n AST) AssignmentStmt {
 	targets := get_list(n, "targets")
 	val := n["value"] or { return AssignmentStmt{} }
@@ -128,7 +128,7 @@ fn (mut conv ASTConverter) visit_assign(n AST) AssignmentStmt {
     return AssignmentStmt{}
 }
 
-// visit_return конвертирует Return
+// visit_return converts Return
 fn (mut conv ASTConverter) visit_return(n AST) ReturnStmt {
 	val := n["value"] or { return ReturnStmt{} }
     mut ret_expr := ?Expression(none)
@@ -144,7 +144,7 @@ fn (mut conv ASTConverter) visit_return(n AST) ReturnStmt {
 	return conv.set_line(ReturnStmt{ expr: ret_expr }, n) as ReturnStmt
 }
 
-// set_line устанавливает координаты из AST
+// set_line sets coordinates from AST
 fn (mut conv ASTConverter) set_line(node MypyNode, n AST) MypyNode {
     mut res := node
 	line := get_int(n, "lineno")
@@ -175,7 +175,7 @@ fn (mut conv ASTConverter) set_line(node MypyNode, n AST) MypyNode {
     return res
 }
 
-// translate_expr_list конвертирует список выражений
+// translate_expr_list converts list of expressions
 pub fn (mut conv ASTConverter) translate_expr_list(l []AST) []Expression {
 	mut res := []Expression{}
 	for e in l {
@@ -188,7 +188,7 @@ pub fn (mut conv ASTConverter) translate_expr_list(l []AST) []Expression {
 	return res
 }
 
-// translate_stmt_list конвертирует список операторов
+// translate_stmt_list converts list of statements
 pub fn (mut conv ASTConverter) translate_stmt_list(l []AST) []Statement {
 	mut res := []Statement{}
 	for stmt in l {

@@ -1,14 +1,14 @@
 // metastore.v — Interfaces for accessing metadata
 // Translated from mypy/metastore.py to V 0.5.x
 //
-// Я Antigravity работаю над этим файлом. Начало: 2026-03-22 15:30
+// Work in progress by Antigravity. Started: 2026-03-22 15:30
 
 module mypy
 
 import os
 import time
 
-// MetadataStore — интерфейс для хранения метаданных
+// MetadataStore — interface for metadata storage
 pub interface MetadataStore {
 	getmtime(name string) !f64
 	read(name string) ![]u8
@@ -19,21 +19,21 @@ pub interface MetadataStore {
 	close()
 }
 
-// random_string генерирует случайную строку
+// random_string generates random string
 pub fn random_string() string {
-	// Упрощённая версия — используем время
+	// Simplified version — use time
 	return '${time.now().unixNano()}'
 }
 
-// FilesystemMetadataStore — реализация на основе файловой системы
+// FilesystemMetadataStore — filesystem-based implementation
 pub struct FilesystemMetadataStore {
 pub mut:
 	cache_dir_prefix ?string
 }
 
-// new_filesystem_metadata_store создаёт новый FilesystemMetadataStore
+// new_filesystem_metadata_store creates a new FilesystemMetadataStore
 pub fn new_filesystem_metadata_store(cache_dir_prefix string) FilesystemMetadataStore {
-	// Проверяем, не является ли путь os.devnull
+	// Check if path is os.devnull
 	if cache_dir_prefix.starts_with(os.devnull) {
 		return FilesystemMetadataStore{
 			cache_dir_prefix: none
@@ -101,12 +101,12 @@ pub fn (mut fs FilesystemMetadataStore) remove(name string) ! {
 	os.rm(path) or { return error('FileNotFound') }
 }
 
-// commit выполняет коммит (для файловой системы ничего не делает)
+// commit performs commit (does nothing for filesystem)
 pub fn (mut fs FilesystemMetadataStore) commit() {
-	// Ничего не делаем
+	// Do nothing
 }
 
-// list_all возвращает все записи метаданных
+// list_all returns all metadata records
 pub fn (mut fs FilesystemMetadataStore) list_all() []string {
 	mut result := []string{}
 
@@ -129,20 +129,20 @@ pub fn (mut fs FilesystemMetadataStore) list_all() []string {
 	return result
 }
 
-// close освобождает ресурсы
+// close releases resources
 pub fn (mut fs FilesystemMetadataStore) close() {
-	// Ничего не делаем
+	// Do nothing
 }
 
-// SqliteMetadataStore — реализация на основе SQLite (заглушка)
-// В полной версии требовалось бы подключение к sqlite
+// SqliteMetadataStore — SQLite-based implementation (stub)
+// Full version would require sqlite connection
 pub struct SqliteMetadataStore {
 pub mut:
 	cache_dir_prefix ?string
-	db               voidptr // Заглушка для sqlite connection
+	db               voidptr // Stub for sqlite connection
 }
 
-// new_sqlite_metadata_store создаёт новый SqliteMetadataStore
+// new_sqlite_metadata_store creates a new SqliteMetadataStore
 pub fn new_sqlite_metadata_store(cache_dir_prefix string, sync_off bool) SqliteMetadataStore {
 	if cache_dir_prefix.starts_with(os.devnull) {
 		return SqliteMetadataStore{
@@ -155,7 +155,7 @@ pub fn new_sqlite_metadata_store(cache_dir_prefix string, sync_off bool) SqliteM
 		// ignore
 	}
 
-	// В полной версии здесь было бы подключение к SQLite
+	// In full version would be sqlite connection here
 	// db := connect_db(os.join_path(cache_dir_prefix, 'cache.db'), sync_off)
 
 	return SqliteMetadataStore{
@@ -164,59 +164,59 @@ pub fn new_sqlite_metadata_store(cache_dir_prefix string, sync_off bool) SqliteM
 	}
 }
 
-// getmtime читает mtime записи метаданных
+// getmtime reads mtime of metadata record
 pub fn (mut sq SqliteMetadataStore) getmtime(name string) !f64 {
 	if sq.db == voidptr(none) {
 		return error('FileNotFound')
 	}
-	// В полной версии: SELECT mtime FROM files2 WHERE path = ?
+	// In full version: SELECT mtime FROM files2 WHERE path = ?
 	return 0.0
 }
 
-// read читает содержимое записи метаданных
+// read reads contents of metadata record
 pub fn (mut sq SqliteMetadataStore) read(name string) ![]u8 {
 	if sq.db == voidptr(none) {
 		return error('FileNotFound')
 	}
-	// В полной версии: SELECT data FROM files2 WHERE path = ?
+	// In full version: SELECT data FROM files2 WHERE path = ?
 	return []u8{}
 }
 
-// write записывает запись метаданных
+// write writes metadata record
 pub fn (mut sq SqliteMetadataStore) write(name string, data []u8, mtime ?f64) bool {
 	if sq.db == voidptr(none) {
 		return false
 	}
 
 	mt := mtime or { time.now().unix() }
-	// В полной версии: INSERT OR REPLACE INTO files2(path, mtime, data) VALUES(?, ?, ?)
+	// In full version: INSERT OR REPLACE INTO files2(path, mtime, data) VALUES(?, ?, ?)
 	_ = mt
 	return true
 }
 
-// remove удаляет запись метаданных
+// remove removes metadata record
 pub fn (mut sq SqliteMetadataStore) remove(name string) ! {
 	if sq.db == voidptr(none) {
 		return error('FileNotFound')
 	}
-	// В полной версии: DELETE FROM files2 WHERE path = ?
+	// In full version: DELETE FROM files2 WHERE path = ?
 }
 
-// commit выполняет коммит
+// commit performs commit
 pub fn (mut sq SqliteMetadataStore) commit() {
-	// В полной версии: db.commit()
+	// In full version: db.commit()
 }
 
-// list_all возвращает все записи метаданных
+// list_all returns all metadata records
 pub fn (mut sq SqliteMetadataStore) list_all() []string {
-	// В полной версии: SELECT path FROM files2
+	// In full version: SELECT path FROM files2
 	return []string{}
 }
 
-// close освобождает ресурсы
+// close releases resources
 pub fn (mut sq SqliteMetadataStore) close() {
 	if sq.db != voidptr(none) {
-		// В полной версии: db.close()
+		// In full version: db.close()
 		sq.db = voidptr(none)
 	}
 }

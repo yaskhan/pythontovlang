@@ -1,6 +1,6 @@
-// Я Cline работаю над этим файлом. Начало: 2026-03-22 15:10
+// Work in progress by Cline. Started: 2026-03-22 15:10
 // exportjson.v — Convert binary mypy cache files (.ff) to JSON
-// Переведён из mypy/exportjson.py
+// Translated from mypy/exportjson.py
 
 module mypy
 

@@ -1,7 +1,7 @@
 // freetree.v — Generic node traverser visitor for freeing ASTs
 // Translated from mypy/freetree.py to V 0.5.x
 //
-// Я Cline работаю над этим файлом. Начало: 2026-03-22 08:45
+// Work in progress by Cline. Started: 2026-03-22 08:45
 //
 // Translation notes:
 //   - TreeFreer: traverser that clears block bodies

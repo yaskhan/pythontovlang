@@ -1,15 +1,15 @@
 // exprtotype.v — Translate an Expression to a Type value
 // Translated from mypy/exprtotype.py to V 0.5.x
 //
-// Я Antigravity работаю над этим файлом. Начало: 2026-03-22 18:00
+// Work in progress by Antigravity. Started: 2026-03-22 18:00
 
 module mypy
 
-// TypeTranslationError — исключение для ошибок трансляции типа
+// TypeTranslationError — exception for type translation errors
 pub type TypeTranslationError = string
 
-// expr_to_unanalyzed_type транслирует выражение в тип
-// Результат не проходит семантический анализ
+// expr_to_unanalyzed_type translates expression to type
+// Result does not pass semantic analysis
 pub fn expr_to_unanalyzed_type(expr Expression,
 	options Options,
 	allow_new_syntax bool,
@@ -64,7 +64,7 @@ pub fn expr_to_unanalyzed_type(expr Expression,
 					[expr.index]
 				}
 
-				// Проверка на Annotated[...]
+				// Check for Annotated[...]
 				if expr.base is RefExpr {
 					// TODO: lookup fullname
 				}
@@ -259,12 +259,12 @@ pub fn expr_to_unanalyzed_type(expr Expression,
 	}
 }
 
-// _extract_argument_name извлекает имя аргумента из выражения
+// _extract_argument_name extracts argument name from expression
 pub fn _extract_argument_name(expr Expression) !string {
 	return match expr {
 		NameExpr {
 			if expr.name == 'None' {
-				'' // Пустая строка означает None
+				'' // Empty string means None
 			} else {
 				return TypeTranslationError('NameExpr is not None')
 			}

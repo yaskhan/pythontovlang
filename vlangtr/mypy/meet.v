@@ -1,6 +1,6 @@
-// Я Cline работаю над этим файлом. Начало: 2026-03-22 16:10
+// Work in progress by Cline. Started: 2026-03-22 16:10
 // meet.v — Calculation of the greatest lower bound types (meets)
-// Переведён из mypy/meet.py
+// Translated from mypy/meet.py
 
 module mypy
 
@@ -20,7 +20,7 @@ pub fn meet_types(s MypyTypeNode, t MypyTypeNode) ProperType {
 	s_proper := get_proper_type(s)
 	t_proper := get_proper_type(t)
 
-	// Проверяем extra_attrs для Instance
+	// Check extra_attrs for Instance
 	if s_proper is Instance && t_proper is Instance {
 		if s_proper.typ == t_proper.typ {
 			if is_same_type(s_proper, t_proper) {
@@ -61,7 +61,7 @@ pub fn meet_types(s MypyTypeNode, t MypyTypeNode) ProperType {
 	return t_proper.accept_translator(mut v)
 }
 
-// narrow_declared_type сужает объявленный тип до другого типа
+// narrow_declared_type narrows the declared type to another type
 pub fn narrow_declared_type(declared MypyTypeNode, narrowed MypyTypeNode) MypyTypeNode {
 	declared_proper := get_proper_type(declared)
 	narrowed_proper := get_proper_type(narrowed)
@@ -109,7 +109,7 @@ pub fn narrow_declared_type(declared MypyTypeNode, narrowed MypyTypeNode) MypyTy
 	return meet_types(declared, narrowed)
 }
 
-// is_overlapping_types проверяет, могут ли два типа пересекаться
+// is_overlapping_types checks if two types can overlap
 pub fn is_overlapping_types(left MypyTypeNode, right MypyTypeNode) bool {
 	left_proper := get_proper_type(left)
 	right_proper := get_proper_type(right)
@@ -122,7 +122,7 @@ pub fn is_overlapping_types(left MypyTypeNode, right MypyTypeNode) bool {
 		return true
 	}
 
-	// Обработка Instance
+	// Handle Instance
 	if left_proper is Instance && right_proper is Instance {
 		if left_proper.typ.has_base(right_proper.typ.fullname) {
 			return true
@@ -133,7 +133,7 @@ pub fn is_overlapping_types(left MypyTypeNode, right MypyTypeNode) bool {
 		return false
 	}
 
-	// Обработка Union
+	// Handle Union
 	if left_proper is UnionType {
 		for item in left_proper.items {
 			if is_overlapping_types(item, right_proper) {
@@ -151,7 +151,7 @@ pub fn is_overlapping_types(left MypyTypeNode, right MypyTypeNode) bool {
 		return false
 	}
 
-	// Обработка Callable
+	// Handle Callable
 	if left_proper is CallableType && right_proper is CallableType {
 		return is_callable_compatible(left_proper, right_proper)
 	}
@@ -159,13 +159,13 @@ pub fn is_overlapping_types(left MypyTypeNode, right MypyTypeNode) bool {
 	return false
 }
 
-// TypeMeetVisitor — посетитель для вычисления meet
+// TypeMeetVisitor — visitor for computing meet
 pub struct TypeMeetVisitor {
 pub:
 	s ProperType
 }
 
-// visit_unbound_type обрабатывает UnboundType
+// visit_unbound_type handles UnboundType
 pub fn (v TypeMeetVisitor) visit_unbound_type(t &UnboundType) ProperType {
 	if v.s is NoneType {
 		return UninhabitedType{}
@@ -177,12 +177,12 @@ pub fn (v TypeMeetVisitor) visit_unbound_type(t &UnboundType) ProperType {
 	}
 }
 
-// visit_any обрабатывает AnyType
+// visit_any handles AnyType
 pub fn (v TypeMeetVisitor) visit_any(t &AnyType) ProperType {
 	return v.s
 }
 
-// visit_union_type обрабатывает UnionType
+// visit_union_type handles UnionType
 pub fn (v TypeMeetVisitor) visit_union_type(t &UnionType) ProperType {
 	mut meets := []MypyTypeNode{}
 	if v.s is UnionType {
@@ -199,7 +199,7 @@ pub fn (v TypeMeetVisitor) visit_union_type(t &UnionType) ProperType {
 	return make_simplified_union(meets)
 }
 
-// visit_none_type обрабатывает NoneType
+// visit_none_type handles NoneType
 pub fn (v TypeMeetVisitor) visit_none_type(t &NoneType) ProperType {
 	if v.s is NoneType
 		|| (v.s is Instance && (v.s as Instance).typ.fullname == 'builtins.object') {
@@ -208,12 +208,12 @@ pub fn (v TypeMeetVisitor) visit_none_type(t &NoneType) ProperType {
 	return UninhabitedType{}
 }
 
-// visit_uninhabited_type обрабатывает UninhabitedType
+// visit_uninhabited_type handles UninhabitedType
 pub fn (v TypeMeetVisitor) visit_uninhabited_type(t &UninhabitedType) ProperType {
 	return t
 }
 
-// visit_deleted_type обрабатывает DeletedType
+// visit_deleted_type handles DeletedType
 pub fn (v TypeMeetVisitor) visit_deleted_type(t &DeletedType) ProperType {
 	if v.s is NoneType || v.s is UninhabitedType {
 		return v.s
@@ -221,12 +221,12 @@ pub fn (v TypeMeetVisitor) visit_deleted_type(t &DeletedType) ProperType {
 	return t
 }
 
-// visit_erased_type обрабатывает ErasedType
+// visit_erased_type handles ErasedType
 pub fn (v TypeMeetVisitor) visit_erased_type(t &ErasedType) ProperType {
 	return v.s
 }
 
-// visit_type_var обрабатывает TypeVar
+// visit_type_var handles TypeVar
 pub fn (v TypeMeetVisitor) visit_type_var(t &TypeVarType) ProperType {
 	if v.s is TypeVarType {
 		s_tvar := v.s as TypeVarType
@@ -242,7 +242,7 @@ pub fn (v TypeMeetVisitor) visit_type_var(t &TypeVarType) ProperType {
 	return object_from_type(v.s)
 }
 
-// visit_instance обрабатывает Instance
+// visit_instance handles Instance
 pub fn (v TypeMeetVisitor) visit_instance(t &Instance) ProperType {
 	if v.s is Instance {
 		s_inst := v.s as Instance
@@ -273,7 +273,7 @@ pub fn (v TypeMeetVisitor) visit_instance(t &Instance) ProperType {
 	return object_from_type(v.s)
 }
 
-// visit_callable_type обрабатывает CallableType
+// visit_callable_type handles CallableType
 pub fn (v TypeMeetVisitor) visit_callable_type(t &CallableType) ProperType {
 	if v.s is CallableType {
 		s_callable := v.s as CallableType
@@ -284,7 +284,7 @@ pub fn (v TypeMeetVisitor) visit_callable_type(t &CallableType) ProperType {
 	return object_from_type(v.s)
 }
 
-// visit_tuple_type обрабатывает TupleType
+// visit_tuple_type handles TupleType
 pub fn (v TypeMeetVisitor) visit_tuple_type(t &TupleType) ProperType {
 	if v.s is TupleType {
 		s_tuple := v.s as TupleType
@@ -302,10 +302,10 @@ pub fn (v TypeMeetVisitor) visit_tuple_type(t &TupleType) ProperType {
 	return object_from_type(v.s)
 }
 
-// visit_typeddict_type обрабатывает TypedDictType
+// visit_typeddict_type handles TypedDictType
 pub fn (v TypeMeetVisitor) visit_typeddict_type(t &TypedDictType) ProperType {
 	if v.s is TypedDictType {
-		// TODO: полная реализация meet для TypedDict
+		// TODO: full implementation of meet for TypedDict
 		if is_subtype(t, v.s) {
 			return t
 		}
@@ -313,7 +313,7 @@ pub fn (v TypeMeetVisitor) visit_typeddict_type(t &TypedDictType) ProperType {
 	return object_from_type(v.s)
 }
 
-// visit_literal_type обрабатывает LiteralType
+// visit_literal_type handles LiteralType
 pub fn (v TypeMeetVisitor) visit_literal_type(t &LiteralTypeNode) ProperType {
 	if v.s is LiteralTypeNode && v.s as LiteralTypeNode == t {
 		return t
@@ -321,7 +321,7 @@ pub fn (v TypeMeetVisitor) visit_literal_type(t &LiteralTypeNode) ProperType {
 	return object_from_type(v.s)
 }
 
-// visit_type_type обрабатывает TypeType
+// visit_type_type handles TypeType
 pub fn (v TypeMeetVisitor) visit_type_type(t &TypeType) ProperType {
 	if v.s is TypeType {
 		typ := meet_types(t.item, (v.s as TypeType).item)
@@ -380,7 +380,7 @@ pub fn object_from_type(typ ProperType) ProperType {
 	}
 }
 
-// Вспомогательные функции-заглушки
+// Helper stub functions
 
 
 fn is_subtype(left MypyTypeNode, right MypyTypeNode) bool {

@@ -1,25 +1,25 @@
-// Я Cline работаю над этим файлом. Начало: 2026-03-22 16:00
+// Work in progress by Cline. Started: 2026-03-22 16:00
 // join.v — Calculation of the least upper bound types (joins)
-// Переведён из mypy/join.py
+// Translated from mypy/join.py
 
 module mypy
 
-// InstanceJoiner — вычисляет join двух Instance типов
+// InstanceJoiner — computes join of two Instance types
 pub struct InstanceJoiner {
 pub mut:
 	seen_instances [][]Instance
 }
 
-// new_instance_joiner создаёт новый InstanceJoiner
+// new_instance_joiner creates a new InstanceJoiner
 pub fn new_instance_joiner() InstanceJoiner {
 	return InstanceJoiner{
 		seen_instances: [][]Instance{}
 	}
 }
 
-// join_instances вычисляет join двух Instance типов
+// join_instances computes join of two Instance types
 pub fn (mut ij InstanceJoiner) join_instances(t Instance, s Instance) ProperType {
-	// Проверяем на циклические зависимости
+	// Check for cyclic dependencies
 	for pair in ij.seen_instances {
 		if (pair[0].str() == t.str() && pair[1].str() == s.str())
 			|| (pair[0].str() == s.str() && pair[1].str() == t.str()) {
@@ -29,7 +29,7 @@ pub fn (mut ij InstanceJoiner) join_instances(t Instance, s Instance) ProperType
 
 	ij.seen_instances << [t, s]
 
-	// Если базовые типы одинаковые
+	// If base types are the same
 	if t.typ == s.typ {
 		mut args := []MypyTypeNode{}
 
@@ -68,22 +68,22 @@ pub fn (mut ij InstanceJoiner) join_instances(t Instance, s Instance) ProperType
 		return result
 	}
 
-	// Если t является подтипом s
+	// If t is subtype of s
 	if is_subtype(t, s) {
 		result := ij.join_instances_via_supertype(t, s)
 		ij.seen_instances.pop()
 		return result
 	}
 
-	// Иначе ищем общий супертип
+	// Otherwise find common supertype
 	result := ij.join_instances_via_supertype(s, t)
 	ij.seen_instances.pop()
 	return result
 }
 
-// join_instances_via_supertype вычисляет join через супертип
+// join_instances_via_supertype computes join via supertype
 pub fn (ij InstanceJoiner) join_instances_via_supertype(t Instance, s Instance) ProperType {
-	// Предпочитаем join через duck typing (например, join(int, float) == float)
+	// Prefer join via duck typing (e.g., join(int, float) == float)
 	for p in t.typ._promote {
 		if p is Instance {
 			if is_subtype(p, s) {
@@ -99,7 +99,7 @@ pub fn (ij InstanceJoiner) join_instances_via_supertype(t Instance, s Instance) 
 		}
 	}
 
-	// Вычисляем "лучший" супертип t при join с s
+	// Compute "best" supertype of t when joining with s
 	mut best := ?ProperType(none)
 	for base in t.typ.bases {
 		mapped := map_instance_to_supertype(t, base.typ)
@@ -112,7 +112,7 @@ pub fn (ij InstanceJoiner) join_instances_via_supertype(t Instance, s Instance) 
 	return best or { object_from_instance(t) }
 }
 
-// join_types вычисляет least upper bound двух типов
+// join_types computes least upper bound of two types
 pub fn join_types(s MypyTypeNode, t MypyTypeNode, instance_joiner InstanceJoiner) MypyTypeNode {
 	s_proper := get_proper_type(s)
 	t_proper := get_proper_type(t)
@@ -134,7 +134,7 @@ pub fn join_types(s MypyTypeNode, t MypyTypeNode, instance_joiner InstanceJoiner
 	return t_proper.accept_translator(mut v)
 }
 
-// join_type_list вычисляет join списка типов
+// join_type_list computes join of list of types
 pub fn join_type_list(types []MypyTypeNode) MypyTypeNode {
 	if types.len == 0 {
 		return UninhabitedType{}
@@ -146,7 +146,7 @@ pub fn join_type_list(types []MypyTypeNode) MypyTypeNode {
 	return joined
 }
 
-// trivial_join возвращает один из типов если он является супертипом другого
+// trivial_join returns one of the types if it is supertype of the other
 pub fn trivial_join(s MypyTypeNode, t MypyTypeNode) MypyTypeNode {
 	if is_subtype(s, t) {
 		return t
@@ -157,21 +157,21 @@ pub fn trivial_join(s MypyTypeNode, t MypyTypeNode) MypyTypeNode {
 	}
 }
 
-// TypeJoinVisitor — посетитель для вычисления join
+// TypeJoinVisitor — visitor for computing join
 pub struct TypeJoinVisitor {
 pub:
 	s               ProperType
 	instance_joiner InstanceJoiner
 }
 
-// visit_unbound_type обрабатывает UnboundType
+// visit_unbound_type handles UnboundType
 pub fn (v TypeJoinVisitor) visit_unbound_type(t &UnboundType) ProperType {
 	return AnyType{
 		type_of_any: TypeOfAny.special_form
 	}
 }
 
-// visit_union_type обрабатывает UnionType
+// visit_union_type handles UnionType
 pub fn (v TypeJoinVisitor) visit_union_type(t &UnionType) ProperType {
 	if is_proper_subtype(v.s, t) {
 		return t
@@ -179,12 +179,12 @@ pub fn (v TypeJoinVisitor) visit_union_type(t &UnionType) ProperType {
 	return make_simplified_union([v.s, t])
 }
 
-// visit_any обрабатывает AnyType
+// visit_any handles AnyType
 pub fn (v TypeJoinVisitor) visit_any(t &AnyType) ProperType {
 	return t
 }
 
-// visit_none_type обрабатывает NoneType
+// visit_none_type handles NoneType
 pub fn (v TypeJoinVisitor) visit_none_type(t &NoneType) ProperType {
 	if v.s is NoneType || v.s is UninhabitedType {
 		return t
@@ -192,22 +192,22 @@ pub fn (v TypeJoinVisitor) visit_none_type(t &NoneType) ProperType {
 	return make_simplified_union([v.s, t])
 }
 
-// visit_uninhabited_type обрабатывает UninhabitedType
+// visit_uninhabited_type handles UninhabitedType
 pub fn (v TypeJoinVisitor) visit_uninhabited_type(t &UninhabitedType) ProperType {
 	return v.s
 }
 
-// visit_deleted_type обрабатывает DeletedType
+// visit_deleted_type handles DeletedType
 pub fn (v TypeJoinVisitor) visit_deleted_type(t &DeletedType) ProperType {
 	return v.s
 }
 
-// visit_erased_type обрабатывает ErasedType
+// visit_erased_type handles ErasedType
 pub fn (v TypeJoinVisitor) visit_erased_type(t &ErasedType) ProperType {
 	return v.s
 }
 
-// visit_type_var обрабатывает TypeVar
+// visit_type_var handles TypeVar
 pub fn (v TypeJoinVisitor) visit_type_var(t &TypeVarType) ProperType {
 	if v.s is TypeVarType {
 		s_tvar := v.s as TypeVarType
@@ -224,7 +224,7 @@ pub fn (v TypeJoinVisitor) visit_type_var(t &TypeVarType) ProperType {
 	return object_from_type(v.s)
 }
 
-// visit_instance обрабатывает Instance
+// visit_instance handles Instance
 pub fn (v TypeJoinVisitor) visit_instance(t &Instance) ProperType {
 	if v.s is Instance {
 		mut ij := v.instance_joiner
@@ -233,7 +233,7 @@ pub fn (v TypeJoinVisitor) visit_instance(t &Instance) ProperType {
 	return object_from_instance(t)
 }
 
-// visit_callable_type обрабатывает CallableType
+// visit_callable_type handles CallableType
 pub fn (v TypeJoinVisitor) visit_callable_type(t &CallableType) ProperType {
 	if v.s is CallableType {
 		if is_similar_callables(t, v.s as CallableType) {
@@ -244,7 +244,7 @@ pub fn (v TypeJoinVisitor) visit_callable_type(t &CallableType) ProperType {
 	return join_types(t.fallback, v.s, v.instance_joiner)
 }
 
-// visit_tuple_type обрабатывает TupleType
+// visit_tuple_type handles TupleType
 pub fn (v TypeJoinVisitor) visit_tuple_type(t &TupleType) ProperType {
 	if v.s is TupleType {
 		s_tuple := v.s as TupleType
@@ -262,12 +262,12 @@ pub fn (v TypeJoinVisitor) visit_tuple_type(t &TupleType) ProperType {
 	return object_from_instance(t.partial_fallback)
 }
 
-// visit_typeddict_type обрабатывает TypedDictType
+// visit_typeddict_type handles TypedDictType
 pub fn (v TypeJoinVisitor) visit_typeddict_type(t &TypedDictType) ProperType {
 	return object_from_instance(t.fallback)
 }
 
-// visit_literal_type обрабатывает LiteralType
+// visit_literal_type handles LiteralType
 pub fn (v TypeJoinVisitor) visit_literal_type(t &LiteralTypeNode) ProperType {
 	if v.s is LiteralTypeNode {
 		s_lit := v.s as LiteralTypeNode
@@ -279,7 +279,7 @@ pub fn (v TypeJoinVisitor) visit_literal_type(t &LiteralTypeNode) ProperType {
 	return join_types(v.s, t.fallback, v.instance_joiner)
 }
 
-// visit_type_type обрабатывает TypeType
+// visit_type_type handles TypeType
 pub fn (v TypeJoinVisitor) visit_type_type(t &TypeType) ProperType {
 	if v.s is TypeType {
 		return TypeType.make_normalized(join_types(t.item, (v.s as TypeType).item,
@@ -341,15 +341,15 @@ pub fn object_or_any_from_type(typ ProperType) ProperType {
 }
 
 pub fn unpack_callback_protocol(t Instance) ?ProperType {
-	// TODO: реализация проверки protocol_members == ["__call__"]
+	// TODO: implementation of protocol_members == ["__call__"] check
 	return none
 }
 
-// Вспомогательные функции-заглушки
+// Helper stub functions
 
 
 fn is_subtype(left MypyTypeNode, right MypyTypeNode) bool {
-	// TODO: реализация из subtypes.v
+	// TODO: implementation from subtypes.v
 	return true
 }
 
@@ -359,12 +359,12 @@ fn is_proper_subtype(left MypyTypeNode, right MypyTypeNode) bool {
 }
 
 fn map_instance_to_supertype(inst Instance, supertype TypeInfo) Instance {
-	// TODO: реализация из maptype.v
+	// TODO: implementation from maptype.v
 	return inst
 }
 
 fn make_simplified_union(items []MypyTypeNode) MypyTypeNode {
-	// TODO: реализация из typeops.v
+	// TODO: implementation from typeops.v
 	if items.len == 1 {
 		return items[0]
 	}

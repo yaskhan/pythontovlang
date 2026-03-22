@@ -5,7 +5,7 @@ import regex
 import time
 import term
 
-// Я Antigravity работаю над этим файлом. Начало: 2026-03-22 03:05
+// Work in progress by Antigravity. Started: 2026-03-22 03:05
 
 // Utility functions for mypy transpiler
 

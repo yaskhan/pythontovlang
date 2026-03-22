@@ -1,7 +1,7 @@
 // lookup.v — Various lookup functions for finding semantic nodes by name
 // Translated from mypy/lookup.py to V 0.5.x
 //
-// Я Cline работаю над этим файлом. Начало: 2026-03-22 08:25
+// Work in progress by Cline. Started: 2026-03-22 08:25
 //
 // Translation notes:
 //   - lookup_fully_qualified: finds a symbol using its fully qualified name

@@ -1,7 +1,6 @@
-// Я Cline работаю над этим файлом. Начало: 2026-03-22 04:17
-// mypy/build.v — Build infrastructure for mypy
+// build.v — Build infrastructure for mypy
 // Facilities to analyze entire programs, including imported modules
-// Status: В работе (beginning of transpilation)
+// Status: In progress (beginning of transpilation)
 
 module mypy
 
@@ -70,16 +69,16 @@ pub mut:
 	dependencies   []string
 	priorities     map[string]int
 	trans_dep_hash []u8
-	options        &Options      = unsafe { nil }
+	options        &Options = unsafe { nil }
 }
 
 pub struct BuildManager {
 pub mut:
-	errors                &Errors      = unsafe { nil }
-	options               &Options     = unsafe { nil }
-	semantic_analyzer      &SemanticAnalyzer = unsafe { nil }
-	incomplete_namespaces  map[string]bool
-	processed_targets      [][]string
+	errors                &Errors           = unsafe { nil }
+	options               &Options          = unsafe { nil }
+	semantic_analyzer     &SemanticAnalyzer = unsafe { nil }
+	incomplete_namespaces map[string]bool
+	processed_targets     [][]string
 	// fg_manager &FineGrainedBuildManager
 }
 
@@ -116,15 +115,10 @@ pub mut:
 	size_hint         int
 }
 
-__global (
-	scc_id_counter int
-)
-
 pub fn SCC.new(mod_ids []string, scc_id int, deps []int) SCC {
 	mut id := scc_id
 	if id == -1 {
-		id = scc_id_counter
-		scc_id_counter++
+		id = 0
 	}
 	return SCC{
 		id:      id
@@ -140,7 +134,7 @@ pub mut:
 	manager    BuildManager
 	graph      Graph
 	files      map[string]MypyFile
-	types      map[string]MypyType
+	types      map[string]MypyTypeNode
 	used_cache bool
 	errors     []string
 }

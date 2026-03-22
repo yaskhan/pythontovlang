@@ -1,6 +1,6 @@
-// Я Antigravity работаю над этим файлом. Начало: 2026-03-22 21:15
+// Work in progress by Antigravity. Started: 2026-03-22 21:15
 // nativeparse.v — Python parser that directly constructs a native AST from binary data.
-// Переведён из mypy/nativeparse.py
+// Translated from mypy/nativeparse.py
 
 module mypy
 

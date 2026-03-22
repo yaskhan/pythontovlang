@@ -1,38 +1,38 @@
-// Я Cline работаю над этом файлом. Начало: 2026-03-22 20:47
 // checker.v — Mypy type checker
-// Переведён из mypy/checker.py
-// Примечание: это очень большой файл (~4000 строк), транслированы основные структуры и ключевые функции
+// Translated from mypy/checker.py
+// Note: this is a very large file (~4000 lines), main structures and key functions are translated
 
 module mypy
 
-// Константы
+// Constants
 pub const default_last_pass = 2
 pub const max_precise_tuple_size = 8
 
-// DeferredNodeType — тип отложенного узла
+// DeferredNodeType — type for deferred node
 pub type DeferredNodeType = FuncDef | OverloadedFuncDef | Decorator
+pub type OverloadPart = OverloadedFuncDef
 
-// FineGrainedDeferredNodeType — тип для fine-grained режима
+// FineGrainedDeferredNodeType — type for fine-grained mode
 pub type FineGrainedDeferredNodeType = FuncDef | MypyFile | OverloadedFuncDef
 
-// DeferredNode — узел, отложенный для обработки в следующем проходе
+// DeferredNode — node deferred for processing in the next pass
 pub struct DeferredNode {
 pub:
 	node            DeferredNodeType
 	active_typeinfo ?TypeInfo
 }
 
-// FineGrainedDeferredNode — узел для fine-grained режима
+// FineGrainedDeferredNode — node for fine-grained mode
 pub struct FineGrainedDeferredNode {
 pub:
 	node            FineGrainedDeferredNodeType
 	active_typeinfo ?TypeInfo
 }
 
-// TypeMap — маппинг выражений на типы
+// TypeMap — mapping of expressions to types
 pub type TypeMap = map[Expression]MypyTypeNode
 
-// PartialTypeScope — область частичных типов
+// PartialTypeScope — scope for partial types
 pub struct PartialTypeScope {
 pub:
 	map         map[Var]NodeBase
@@ -40,19 +40,19 @@ pub:
 	is_local    bool
 }
 
-// TypeChecker — проверяльщик типов mypy
+// TypeChecker — mypy type checker
 pub struct TypeChecker {
 pub mut:
 	is_stub                  bool
 	errors                   Errors
 	msg                      MessageBuilder
-	_type_maps               []map[Expression]MypyTypeNode
+	type_maps                []map[Expression]MypyTypeNode
 	binder                   ConditionalTypeBinder
 	expr_checker             ExpressionChecker
 	pattern_checker          PatternChecker
 	tscope                   Scope
 	scope                    CheckerScope
-	_type                    ?TypeInfo
+	active_type              ?TypeInfo
 	return_types             []MypyTypeNode
 	dynamic_funcs            []bool
 	partial_types            []PartialTypeScope
@@ -73,28 +73,30 @@ pub mut:
 	plugin                   Plugin
 	tree                     MypyFile
 	path                     string
-	_unique_id               int
-	_is_final_def            bool
+	unique_id                int
+	is_final_def             bool
 	overload_impl_stack      []OverloadPart
 	checking_missing_await   bool
 	allow_abstract_call      bool
 	recurse_into_functions   bool
 }
 
-// new_type_checker создаёт новый TypeChecker
+// new_type_checker creates a new TypeChecker
 pub fn new_type_checker(errors Errors, modules map[string]MypyFile, options Options, tree MypyFile, path string, plugin Plugin) TypeChecker {
+	msg := MessageBuilder{
+		errors:  unsafe { nil }
+		options: unsafe { nil }
+		modules: map[string]&MypyFile{}
+	}
 	return TypeChecker{
 		is_stub:                  tree.is_stub
 		errors:                   errors
-		msg:                      MessageBuilder{
-			errors:  errors
-			modules: modules
-		}
-		_type_maps:               [map[Expression]MypyTypeNode{}]
-		binder:                   new_conditional_type_binder(options)
+		msg:                      msg
+		type_maps:                [map[Expression]MypyTypeNode{}]
+		binder:                   ConditionalTypeBinder{}
 		tscope:                   Scope{}
 		scope:                    new_checker_scope(tree)
-		_type:                    none
+		active_type:              none
 		return_types:             []MypyTypeNode{}
 		dynamic_funcs:            []bool{}
 		partial_types:            []PartialTypeScope{}
@@ -106,7 +108,7 @@ pub fn new_type_checker(errors Errors, modules map[string]MypyFile, options Opti
 		pass_num:                 0
 		last_pass:                default_last_pass
 		current_node_deferred:    false
-		is_typeshed_stub:         tree.is_typeshed_file(options)
+		is_typeshed_stub:         is_typeshed_file(none, path)
 		options:                  options
 		inferred_attribute_types: none
 		no_partial_types:         false
@@ -115,40 +117,55 @@ pub fn new_type_checker(errors Errors, modules map[string]MypyFile, options Opti
 		plugin:                   plugin
 		tree:                     tree
 		path:                     path
-		_unique_id:               0
-		_is_final_def:            false
+		unique_id:                0
+		is_final_def:             false
 		overload_impl_stack:      []OverloadPart{}
 		checking_missing_await:   false
 		allow_abstract_call:      false
 		recurse_into_functions:   true
-		expr_checker:             ExpressionChecker{}
-		pattern_checker:          PatternChecker{}
+		expr_checker:             ExpressionChecker{
+			chk:                       unsafe { nil }
+			msg:                       msg
+			strfrm_checker:            StringFormatterChecker{
+				chk: unsafe { nil }
+				msg: unsafe { nil }
+			}
+			plugin:                    plugin
+			type_context:              []?MypyTypeNode{}
+			type_overrides:            map[Expression]MypyTypeNode{}
+			per_line_checking_time_ns: map[int]int{}
+			expr_cache:                map[string]MypyTypeNode{}
+		}
+		pattern_checker:          PatternChecker{
+			chk:          unsafe { nil }
+			type_context: []MypyTypeNode{}
+		}
 	}
 }
 
-// reset очищает состояние для повторного использования
+// reset clears state for reuse
 pub fn (mut tc TypeChecker) reset() {
 	tc.partial_reported.clear()
 	tc.module_refs.clear()
-	tc.binder = new_conditional_type_binder(tc.options)
-	tc._type_maps = [map[Expression]MypyTypeNode{}]
+	tc.binder = ConditionalTypeBinder{}
+	tc.type_maps = [map[Expression]MypyTypeNode{}]
 	tc.deferred_nodes = []
 	tc.partial_types = []
 	tc.inferred_attribute_types = none
 	tc.scope = new_checker_scope(tc.tree)
 }
 
-// check_first_pass проверяет файл в первом проходе
+// check_first_pass checks the file in the first pass
 pub fn (mut tc TypeChecker) check_first_pass() {
 	tc.recurse_into_functions = true
-	tc.errors.set_file(tc.path, tc.tree.fullname, scope: tc.tscope, options: tc.options)
+	tc.errors.set_file(tc.path, tc.tree.fullname)
 
 	for d in tc.tree.defs {
 		tc.accept(d)
 	}
 }
 
-// check_second_pass проверяет отложенные узлы
+// check_second_pass checks deferred nodes
 pub fn (mut tc TypeChecker) check_second_pass() bool {
 	tc.recurse_into_functions = true
 	if tc.deferred_nodes.len == 0 {
@@ -160,20 +177,18 @@ pub fn (mut tc TypeChecker) check_second_pass() bool {
 
 	for item in todo {
 		node := item.node
-		if node is MypyFile {
-			tc.check_top_level(node)
-		} else if node is FuncDef {
-			tc.accept(node)
-		} else if node is OverloadedFuncDef {
+		if node is FuncDef {
 			tc.accept(node)
 		} else if node is Decorator {
 			tc.accept(node)
+		} else if node is OverloadedFuncDef {
+			tc.visit_overloaded_func_def(mut node) or {}
 		}
 	}
 	return true
 }
 
-// check_top_level проверяет только верхний уровень модуля
+// check_top_level checks only the top level of a module
 pub fn (mut tc TypeChecker) check_top_level(node MypyFile) {
 	tc.recurse_into_functions = false
 	for d in node.defs {
@@ -181,185 +196,206 @@ pub fn (mut tc TypeChecker) check_top_level(node MypyFile) {
 	}
 }
 
-// accept принимает узел для проверки
+// accept accepts a node for checking
 pub fn (mut tc TypeChecker) accept(stmt Statement) {
-	// TODO: вызов stmt.accept(tc)
+	// TODO: call stmt.accept(tc)
 }
 
-// visit_func_def проверяет определение функции
-pub fn (mut tc TypeChecker) visit_func_def(defn FuncDef) {
-	if !tc.recurse_into_functions && !defn.def_or_infer_vars {
-		return
+// visit_func_def checks function definition
+pub fn (mut tc TypeChecker) visit_func_def(mut defn FuncDef) !string {
+	if !tc.recurse_into_functions {
+		return ''
 	}
-	tc.check_func_item(defn, name: defn.name)
+	tc.check_func_item(defn, defn.name)
+	return ''
 }
 
-// check_func_item проверяет элемент функции
+// check_func_item checks a function item
 pub fn (mut tc TypeChecker) check_func_item(defn FuncItem, name string) {
-	tc.dynamic_funcs << defn.is_dynamic()
+	_ = name
+	tc.dynamic_funcs << false
 
 	if defn is FuncDef {
-		tc.check_func_def(defn, name)
+		mut fn_def := defn
+		tc.check_func_def(mut fn_def, name)
 	}
 
 	tc.dynamic_funcs.pop()
 }
 
-// check_func_def проверяет определение функции
-fn (mut tc TypeChecker) check_func_def(defn FuncDef, name string) {
-	if defn.type == none {
+// check_func_def checks function definition
+fn (mut tc TypeChecker) check_func_def(mut defn FuncDef, name string) {
+	_ = name
+	if defn.type_ == none {
 		return
 	}
-	typ := defn.type as CallableTypeNode
+	typ := defn.type_ or { return }
+	if typ !is CallableType {
+		return
+	}
 
-	// Сохраняем тип возврата
+	// Save return type
 	tc.return_types << typ.ret_type
 
-	// Проверяем тело функции
-	defn.body.accept(tc)
+	// Check function body
+	defn.body.accept(mut tc) or {}
 
 	tc.return_types.pop()
 }
 
-// visit_class_def проверяет определение класса
-pub fn (mut tc TypeChecker) visit_class_def(defn ClassDef) {
-	typ := defn.info
+// visit_class_def checks class definition
+pub fn (mut tc TypeChecker) visit_class_def(mut defn ClassDef) !string {
+	typ := defn.info or { return '' }
 
-	// Проверяем, что базовые классы не final
+	// Check that base classes are not final
 	for base in typ.mro[1..] {
 		if base.is_final {
-			tc.fail('Cannot inherit from final class "${base.name}"', defn)
+			tc.fail('Cannot inherit from final class "${base.name}"', defn.base.ctx)
 		}
 	}
 
-	tc._type = typ
-	defn.defs.accept(tc)
-	tc._type = none
+	tc.active_type = typ
+	defn.defs.accept(mut tc) or {}
+	tc.active_type = none
+	return ''
 }
 
-// visit_assignment_stmt проверяет присваивание
-pub fn (mut tc TypeChecker) visit_assignment_stmt(s AssignmentStmt) {
+// visit_assignment_stmt checks assignment
+pub fn (mut tc TypeChecker) visit_assignment_stmt(mut s AssignmentStmt) !string {
 	tc.check_assignment(s.lvalues.last(), s.rvalue)
+	return ''
 }
 
-// check_assignment проверяет присваивание
+// check_assignment checks assignment
 fn (mut tc TypeChecker) check_assignment(lvalue Lvalue, rvalue Expression) {
 	if lvalue is TupleExpr || lvalue is ListExpr {
-		// Проверяем множественное присваивание
-		// TODO: реализация
+		// Check multiple assignment
+		// TODO: implementation
 	} else {
 		tc.check_simple_assignment(lvalue, rvalue)
 	}
 }
 
-// check_simple_assignment проверяет простое присваивание
+// check_simple_assignment checks simple assignment
 fn (mut tc TypeChecker) check_simple_assignment(lvalue Lvalue, rvalue Expression) {
-	// TODO: полная реализация проверки присваивания
+	// TODO: full implementation of assignment checking
 }
 
-// visit_return_stmt проверяет return
-pub fn (mut tc TypeChecker) visit_return_stmt(s ReturnStmt) {
+// visit_return_stmt checks return
+pub fn (mut tc TypeChecker) visit_return_stmt(mut s ReturnStmt) !string {
 	if s.expr != none {
 		ret_type := tc.return_types.last()
-		// TODO: проверка типа возврата
+		// TODO: check return type
 	}
 	tc.binder.unreachable()
+	return ''
 }
 
-// visit_if_stmt проверяет if
-pub fn (mut tc TypeChecker) visit_if_stmt(s IfStmt) {
-	for i in 0 .. s.expr.len {
-		s.expr[i].accept(tc)
-		s.body[i].accept(tc)
+// visit_if_stmt checks if
+pub fn (mut tc TypeChecker) visit_if_stmt(mut s IfStmt) !string {
+	for mut expr in s.expr {
+		expr.accept(mut tc) or {}
 	}
-	if s.else_body != none {
-		s.else_body.accept(tc)
+	for mut body in s.body {
+		body.accept(mut tc) or {}
 	}
+	if mut eb := s.else_body {
+		eb.accept(mut tc) or {}
+	}
+	return ''
 }
 
-// visit_while_stmt проверяет while
-pub fn (mut tc TypeChecker) visit_while_stmt(s WhileStmt) {
-	s.expr.accept(tc)
-	s.body.accept(tc)
-	if s.else_body != none {
-		s.else_body.accept(tc)
+// visit_while_stmt checks while
+pub fn (mut tc TypeChecker) visit_while_stmt(mut s WhileStmt) !string {
+	s.expr.accept(mut tc) or {}
+	s.body.accept(mut tc) or {}
+	if mut eb := s.else_body {
+		eb.accept(mut tc) or {}
 	}
+	return ''
 }
 
-// visit_for_stmt проверяет for
-pub fn (mut tc TypeChecker) visit_for_stmt(s ForStmt) {
-	s.expr.accept(tc)
-	tc.check_assignment(s.index, s.expr)
-	s.body.accept(tc)
-	if s.else_body != none {
-		s.else_body.accept(tc)
+// visit_for_stmt checks for
+pub fn (mut tc TypeChecker) visit_for_stmt(mut s ForStmt) !string {
+	s.iter.accept(mut tc) or {}
+	s.body.accept(mut tc) or {}
+	if mut eb := s.else_body {
+		eb.accept(mut tc) or {}
 	}
+	return ''
 }
 
-// visit_try_stmt проверяет try
-pub fn (mut tc TypeChecker) visit_try_stmt(s TryStmt) {
-	s.body.accept(tc)
+// visit_try_stmt checks try
+pub fn (mut tc TypeChecker) visit_try_stmt(mut s TryStmt) !string {
+	s.body.accept(mut tc) or {}
 	for i in 0 .. s.types.len {
-		if s.types[i] != none {
-			s.types[i].accept(tc)
+		if mut t := s.types[i] {
+			t.accept(mut tc) or {}
 		}
-		s.handlers[i].accept(tc)
+		s.handlers[i].accept(mut tc) or {}
 	}
-	if s.else_body != none {
-		s.else_body.accept(tc)
+	if mut eb := s.else_body {
+		eb.accept(mut tc) or {}
 	}
-	if s.finally_body != none {
-		s.finally_body.accept(tc)
+	if mut fb := s.finally_body {
+		fb.accept(mut tc) or {}
 	}
+	return ''
 }
 
-// visit_block проверяет блок
-pub fn (mut tc TypeChecker) visit_block(b Block) {
+// visit_block checks block
+pub fn (mut tc TypeChecker) visit_block(mut b Block) !string {
 	if b.is_unreachable {
 		tc.binder.unreachable()
-		return
+		return ''
 	}
-	for s in b.body {
+	for mut s in b.body {
 		if tc.binder.is_unreachable() {
 			tc.msg.unreachable_statement(s)
 			break
 		}
-		tc.accept(s)
+		s.accept(mut tc) or {}
 	}
+	return ''
 }
 
-// visit_decorator проверяет декоратор
-pub fn (mut tc TypeChecker) visit_decorator(e Decorator) {
-	tc.visit_func_def(e.func)
+// visit_decorator checks decorator
+pub fn (mut tc TypeChecker) visit_decorator(mut e Decorator) !string {
+	tc.visit_func_def(mut e.func) or {}
+	return ''
 }
 
-// visit_expression_stmt проверяет expression statement
-pub fn (mut tc TypeChecker) visit_expression_stmt(s ExpressionStmt) {
+// visit_expression_stmt checks expression statement
+pub fn (mut tc TypeChecker) visit_expression_stmt(mut s ExpressionStmt) !string {
 	tc.expr_checker.accept(s.expr)
+	return ''
 }
 
-// visit_break_stmt проверяет break
-pub fn (mut tc TypeChecker) visit_break_stmt(s BreakStmt) {
+// visit_break_stmt checks break
+pub fn (mut tc TypeChecker) visit_break_stmt(mut s BreakStmt) !string {
 	tc.binder.handle_break()
+	return ''
 }
 
-// visit_continue_stmt проверяет continue
-pub fn (mut tc TypeChecker) visit_continue_stmt(s ContinueStmt) {
+// visit_continue_stmt checks continue
+pub fn (mut tc TypeChecker) visit_continue_stmt(mut s ContinueStmt) !string {
 	tc.binder.handle_continue()
+	return ''
 }
 
-// visit_pass_stmt проверяет pass
-pub fn (tc TypeChecker) visit_pass_stmt(s PassStmt) {
-	// Ничего не делаем
+// visit_pass_stmt checks pass
+pub fn (mut tc TypeChecker) visit_pass_stmt(mut s PassStmt) !string {
+	// Do nothing
+	return ''
 }
 
-// find_isinstance_check находит проверки isinstance
+// find_isinstance_check finds isinstance checks
 pub fn (tc TypeChecker) find_isinstance_check(node Expression) (TypeMap, TypeMap) {
-	// TODO: полная реализация
+	// TODO: full implementation
 	return TypeMap{}, TypeMap{}
 }
 
-// push_type_map добавляет карту типов
+// push_type_map adds type map
 pub fn (mut tc TypeChecker) push_type_map(type_map TypeMap) {
 	if tc.is_unreachable_map(type_map) {
 		tc.binder.unreachable()
@@ -370,7 +406,7 @@ pub fn (mut tc TypeChecker) push_type_map(type_map TypeMap) {
 	}
 }
 
-// is_unreachable_map проверяет, содержит ли карта UninhabitedType
+// is_unreachable_map checks if map contains UninhabitedType
 fn (tc TypeChecker) is_unreachable_map(type_map TypeMap) bool {
 	for v in type_map.values {
 		if v is UninhabitedTypeNode {
@@ -380,7 +416,7 @@ fn (tc TypeChecker) is_unreachable_map(type_map TypeMap) bool {
 	return false
 }
 
-// check_subtype проверяет подтип
+// check_subtype checks subtype
 pub fn (tc TypeChecker) check_subtype(subtype MypyTypeNode, supertype MypyTypeNode, context NodeBase, msg string) bool {
 	if is_subtype(subtype, supertype) {
 		return true
@@ -389,24 +425,24 @@ pub fn (tc TypeChecker) check_subtype(subtype MypyTypeNode, supertype MypyTypeNo
 	return false
 }
 
-// fail сообщает об ошибке
+// fail reports an error
 pub fn (mut tc TypeChecker) fail(msg string, context NodeBase) {
 	tc.msg.fail(msg, context)
 }
 
-// note сообщает информационное сообщение
+// note reports an informational message
 pub fn (mut tc TypeChecker) note(msg string, context NodeBase) {
 	tc.msg.note(msg, context)
 }
 
-// store_type сохраняет тип узла
+// store_type saves node type
 pub fn (mut tc TypeChecker) store_type(node Expression, typ MypyTypeNode) {
-	tc._type_maps.last()[node] = typ
+	tc.type_maps.last()[node] = typ
 }
 
-// has_type проверяет, есть ли тип для узла
+// has_type checks if node has a type
 pub fn (tc TypeChecker) has_type(node Expression) bool {
-	for m in tc._type_maps {
+	for m in tc.type_maps {
 		if node in m {
 			return true
 		}
@@ -414,9 +450,10 @@ pub fn (tc TypeChecker) has_type(node Expression) bool {
 	return false
 }
 
-// lookup_type ищет тип узла
+// lookup_type looks up node type
 pub fn (tc TypeChecker) lookup_type(node Expression) MypyTypeNode {
-	for m in tc._type_maps.rev() {
+	for i := tc.type_maps.len - 1; i >= 0; i-- {
+		m := tc.type_maps[i]
 		if node in m {
 			return m[node]
 		}
@@ -424,9 +461,10 @@ pub fn (tc TypeChecker) lookup_type(node Expression) MypyTypeNode {
 	panic('Type not found for node')
 }
 
-// lookup_type_or_none ищет тип узла или возвращает none
+// lookup_type_or_none looks up node type or returns none
 pub fn (tc TypeChecker) lookup_type_or_none(node Expression) ?MypyTypeNode {
-	for m in tc._type_maps.rev() {
+	for i := tc.type_maps.len - 1; i >= 0; i-- {
+		m := tc.type_maps[i]
 		if node in m {
 			return m[node]
 		}
@@ -434,7 +472,7 @@ pub fn (tc TypeChecker) lookup_type_or_none(node Expression) ?MypyTypeNode {
 	return none
 }
 
-// named_type возвращает Instance с заданным именем
+// named_type returns Instance with given name
 pub fn (tc TypeChecker) named_type(name string) InstanceNode {
 	sym := tc.lookup_qualified(name)
 	node := sym.node
@@ -445,7 +483,7 @@ pub fn (tc TypeChecker) named_type(name string) InstanceNode {
 	}
 }
 
-// named_generic_type возвращает Instance с аргументами
+// named_generic_type returns Instance with arguments
 pub fn (tc TypeChecker) named_generic_type(name string, args []MypyTypeNode) InstanceNode {
 	info := tc.lookup_typeinfo(name)
 	return InstanceNode{
@@ -454,14 +492,14 @@ pub fn (tc TypeChecker) named_generic_type(name string, args []MypyTypeNode) Ins
 	}
 }
 
-// lookup_typeinfo ищет TypeInfo
+// lookup_typeinfo looks up TypeInfo
 fn (tc TypeChecker) lookup_typeinfo(fullname string) TypeInfoNode {
 	sym := tc.lookup_qualified(fullname)
 	assert sym.node is TypeInfoNode
 	return sym.node as TypeInfoNode
 }
 
-// lookup ищет символ
+// lookup looks up symbol
 pub fn (tc TypeChecker) lookup(name string) SymbolTableNode {
 	if name in tc.globals {
 		return tc.globals[name]
@@ -475,7 +513,7 @@ pub fn (tc TypeChecker) lookup(name string) SymbolTableNode {
 	panic('Failed lookup: ${name}')
 }
 
-// lookup_qualified ищет квалифицированное имя
+// lookup_qualified looks up qualified name
 pub fn (tc TypeChecker) lookup_qualified(name string) SymbolTableNode {
 	if '.' !in name {
 		return tc.lookup(name)
@@ -494,24 +532,311 @@ pub fn (tc TypeChecker) lookup_qualified(name string) SymbolTableNode {
 	panic('Failed qualified lookup: ${name}')
 }
 
-// type_type возвращает тип 'type'
+// type_type returns type 'type'
 pub fn (tc TypeChecker) type_type() InstanceNode {
 	return tc.named_type('builtins.type')
 }
 
-// function_type возвращает тип функции
+// function_type returns function type
 pub fn (tc TypeChecker) function_type(func FuncBase) FunctionLikeNode {
 	return function_type(func, tc.named_type('builtins.function'))
 }
 
-// Вспомогательные функции-заглушки
+// Helper stub functions
 fn is_subtype(left MypyTypeNode, right MypyTypeNode) bool {
 	return true
 }
 
 fn function_type(func FuncBase, fallback InstanceNode) FunctionLikeNode {
-	// TODO: реализация
+	// TODO: implementation
 	return CallableTypeNode{
 		fallback: fallback
 	}
+}
+
+// ---------------------------------------------------------------------------
+// Missing ExpressionVisitor methods for NodeVisitor interface
+// ---------------------------------------------------------------------------
+pub fn (mut tc TypeChecker) visit_int_expr(mut o IntExpr) !string {
+	return ''
+}
+
+pub fn (mut tc TypeChecker) visit_str_expr(mut o StrExpr) !string {
+	return ''
+}
+
+pub fn (mut tc TypeChecker) visit_bytes_expr(mut o BytesExpr) !string {
+	return ''
+}
+
+pub fn (mut tc TypeChecker) visit_unicode_expr(mut o UnicodeExpr) !string {
+	return ''
+}
+
+pub fn (mut tc TypeChecker) visit_float_expr(mut o FloatExpr) !string {
+	return ''
+}
+
+pub fn (mut tc TypeChecker) visit_complex_expr(mut o ComplexExpr) !string {
+	return ''
+}
+
+pub fn (mut tc TypeChecker) visit_ellipsis(mut o EllipsisExpr) !string {
+	return ''
+}
+
+pub fn (mut tc TypeChecker) visit_star_expr(mut o StarExpr) !string {
+	return ''
+}
+
+pub fn (mut tc TypeChecker) visit_name_expr(mut o NameExpr) !string {
+	return ''
+}
+
+pub fn (mut tc TypeChecker) visit_member_expr(mut o MemberExpr) !string {
+	return ''
+}
+
+pub fn (mut tc TypeChecker) visit_yield_from_expr(mut o YieldFromExpr) !string {
+	return ''
+}
+
+pub fn (mut tc TypeChecker) visit_yield_expr(mut o YieldExpr) !string {
+	return ''
+}
+
+pub fn (mut tc TypeChecker) visit_call_expr(mut o CallExpr) !string {
+	return ''
+}
+
+pub fn (mut tc TypeChecker) visit_op_expr(mut o OpExpr) !string {
+	return ''
+}
+
+pub fn (mut tc TypeChecker) visit_comparison_expr(mut o ComparisonExpr) !string {
+	return ''
+}
+
+pub fn (mut tc TypeChecker) visit_cast_expr(mut o CastExpr) !string {
+	return ''
+}
+
+pub fn (mut tc TypeChecker) visit_assert_type_expr(mut o AssertTypeExpr) !string {
+	return ''
+}
+
+pub fn (mut tc TypeChecker) visit_reveal_expr(mut o RevealExpr) !string {
+	return ''
+}
+
+pub fn (mut tc TypeChecker) visit_super_expr(mut o SuperExpr) !string {
+	return ''
+}
+
+pub fn (mut tc TypeChecker) visit_unary_expr(mut o UnaryExpr) !string {
+	return ''
+}
+
+pub fn (mut tc TypeChecker) visit_assignment_expr(mut o AssignmentExpr) !string {
+	return ''
+}
+
+pub fn (mut tc TypeChecker) visit_list_expr(mut o ListExpr) !string {
+	return ''
+}
+
+pub fn (mut tc TypeChecker) visit_dict_expr(mut o DictExpr) !string {
+	return ''
+}
+
+pub fn (mut tc TypeChecker) visit_template_str_expr(mut o TemplateStrExpr) !string {
+	return ''
+}
+
+pub fn (mut tc TypeChecker) visit_tuple_expr(mut o TupleExpr) !string {
+	return ''
+}
+
+pub fn (mut tc TypeChecker) visit_set_expr(mut o SetExpr) !string {
+	return ''
+}
+
+pub fn (mut tc TypeChecker) visit_index_expr(mut o IndexExpr) !string {
+	return ''
+}
+
+pub fn (mut tc TypeChecker) visit_type_application(mut o TypeApplication) !string {
+	return ''
+}
+
+pub fn (mut tc TypeChecker) visit_lambda_expr(mut o LambdaExpr) !string {
+	return ''
+}
+
+pub fn (mut tc TypeChecker) visit_list_comprehension(mut o ListComprehension) !string {
+	return ''
+}
+
+pub fn (mut tc TypeChecker) visit_set_comprehension(mut o SetComprehension) !string {
+	return ''
+}
+
+pub fn (mut tc TypeChecker) visit_dictionary_comprehension(mut o DictionaryComprehension) !string {
+	return ''
+}
+
+pub fn (mut tc TypeChecker) visit_generator_expr(mut o GeneratorExpr) !string {
+	return ''
+}
+
+pub fn (mut tc TypeChecker) visit_slice_expr(mut o SliceExpr) !string {
+	return ''
+}
+
+pub fn (mut tc TypeChecker) visit_conditional_expr(mut o ConditionalExpr) !string {
+	return ''
+}
+
+pub fn (mut tc TypeChecker) visit_type_var_expr(mut o TypeVarExpr) !string {
+	return ''
+}
+
+pub fn (mut tc TypeChecker) visit_paramspec_expr(mut o ParamSpecExpr) !string {
+	return ''
+}
+
+pub fn (mut tc TypeChecker) visit_type_var_tuple_expr(mut o TypeVarTupleExpr) !string {
+	return ''
+}
+
+pub fn (mut tc TypeChecker) visit_type_alias_expr(mut o TypeAliasExpr) !string {
+	return ''
+}
+
+pub fn (mut tc TypeChecker) visit_namedtuple_expr(mut o NamedTupleExpr) !string {
+	return ''
+}
+
+pub fn (mut tc TypeChecker) visit_enum_call_expr(mut o EnumCallExpr) !string {
+	return ''
+}
+
+pub fn (mut tc TypeChecker) visit_typeddict_expr(mut o TypedDictExpr) !string {
+	return ''
+}
+
+pub fn (mut tc TypeChecker) visit_newtype_expr(mut o NewTypeExpr) !string {
+	return ''
+}
+
+pub fn (mut tc TypeChecker) visit_promote_expr(mut o PromoteExpr) !string {
+	return ''
+}
+
+pub fn (mut tc TypeChecker) visit_await_expr(mut o AwaitExpr) !string {
+	return ''
+}
+
+pub fn (mut tc TypeChecker) visit_temp_node(mut o TempNode) !string {
+	return ''
+}
+
+pub fn (mut tc TypeChecker) visit_with_stmt(mut o WithStmt) !string {
+	return ''
+}
+
+pub fn (mut tc TypeChecker) visit_del_stmt(mut o DelStmt) !string {
+	return ''
+}
+
+pub fn (mut tc TypeChecker) visit_overloaded_func_def(mut o OverloadedFuncDef) !string {
+	return ''
+}
+
+pub fn (mut tc TypeChecker) visit_global_decl(mut o GlobalDecl) !string {
+	return ''
+}
+
+pub fn (mut tc TypeChecker) visit_nonlocal_decl(mut o NonlocalDecl) !string {
+	return ''
+}
+
+pub fn (mut tc TypeChecker) visit_import(mut o Import) !string {
+	return ''
+}
+
+pub fn (mut tc TypeChecker) visit_import_from(mut o ImportFrom) !string {
+	return ''
+}
+
+pub fn (mut tc TypeChecker) visit_import_all(mut o ImportAll) !string {
+	return ''
+}
+
+pub fn (mut tc TypeChecker) visit_operator_assignment_stmt(mut o OperatorAssignmentStmt) !string {
+	return ''
+}
+
+pub fn (mut tc TypeChecker) visit_assert_stmt(mut o AssertStmt) !string {
+	return ''
+}
+
+pub fn (mut tc TypeChecker) visit_raise_stmt(mut o RaiseStmt) !string {
+	return ''
+}
+
+pub fn (mut tc TypeChecker) visit_type_alias_stmt(mut o TypeAliasStmt) !string {
+	return ''
+}
+
+pub fn (mut tc TypeChecker) visit_match_stmt(mut o MatchStmt) !string {
+	return ''
+}
+
+pub fn (mut tc TypeChecker) visit_mypy_file(mut o MypyFile) !string {
+	return ''
+}
+
+pub fn (mut tc TypeChecker) visit_var(mut o Var) !string {
+	return ''
+}
+
+pub fn (mut tc TypeChecker) visit_type_alias(mut o TypeAlias) !string {
+	return ''
+}
+
+pub fn (mut tc TypeChecker) visit_placeholder_node(mut o PlaceholderNode) !string {
+	return ''
+}
+
+pub fn (mut tc TypeChecker) visit_as_pattern(mut o AsPattern) !string {
+	return ''
+}
+
+pub fn (mut tc TypeChecker) visit_or_pattern(mut o OrPattern) !string {
+	return ''
+}
+
+pub fn (mut tc TypeChecker) visit_value_pattern(mut o ValuePattern) !string {
+	return ''
+}
+
+pub fn (mut tc TypeChecker) visit_singleton_pattern(mut o SingletonPattern) !string {
+	return ''
+}
+
+pub fn (mut tc TypeChecker) visit_sequence_pattern(mut o SequencePattern) !string {
+	return ''
+}
+
+pub fn (mut tc TypeChecker) visit_starred_pattern(mut o StarredPattern) !string {
+	return ''
+}
+
+pub fn (mut tc TypeChecker) visit_mapping_pattern(mut o MappingPattern) !string {
+	return ''
+}
+
+pub fn (mut tc TypeChecker) visit_class_pattern(mut o ClassPattern) !string {
+	return ''
 }

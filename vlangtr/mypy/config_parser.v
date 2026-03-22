@@ -1,6 +1,6 @@
-// Я Antigravity работаю над этим файлом. Начало: 2026-03-22 03:05
+// Work in progress by Antigravity. Started: 2026-03-22 03:05
 // config_parser.v — Configuration file parsing for mypy
-// Переведён из mypy/config_parser.py
+// Translated from mypy/config_parser.py
 //
 // ---------------------------------------------------------------------------
 
@@ -8,14 +8,14 @@ module mypy
 
 import os
 
-// VersionTypeError — ошибка типа версии Python с fallback значением
+// VersionTypeError — version error type with fallback value
 pub struct VersionTypeError {
 pub:
 	fallback (int, int)
 	msg      string
 }
 
-// parse_version парсит строку версии Python вида "x.y"
+// parse_version parses a Python version string of the form "x.y"
 pub fn parse_version(v string) !PythonVersion {
 	parts := v.split('.')
 	if parts.len != 2 {
@@ -36,7 +36,7 @@ pub fn parse_version(v string) !PythonVersion {
 	return PythonVersion{major, minor}
 }
 
-// try_split разделяет строку или список на список строк
+// try_split splits a string or list into a list of strings
 pub fn try_split(v string, split_regex string) []string {
 	mut items := v.split(split_regex)
 	if items.len > 0 && items[items.len - 1] == '' {
@@ -45,13 +45,13 @@ pub fn try_split(v string, split_regex string) []string {
 	return items.map(it.trim_space())
 }
 
-// expand_path раскрывает ~ и переменные окружения в пути
+// expand_path expands ~ and environment variables in a path
 pub fn expand_path(path string) string {
     // V 0.5.x expansion
 	return path.replace('~', os.home_dir())
 }
 
-// split_commas разделяет строку по запятым
+// split_commas splits a string by commas
 pub fn split_commas(value string) []string {
 	mut items := value.split(',')
 	if items.len > 0 && items[items.len - 1] == '' {
@@ -60,7 +60,7 @@ pub fn split_commas(value string) []string {
 	return items.map(it.trim_space())
 }
 
-// str_or_array_as_list конвертирует строку или массив в список строк
+// str_or_array_as_list converts a string or array to a list of strings
 pub fn str_or_array_as_list(v string) []string {
 	trimmed := v.trim_space()
 	if trimmed.len == 0 {
@@ -69,23 +69,23 @@ pub fn str_or_array_as_list(v string) []string {
 	return [trimmed]
 }
 
-// split_and_match_files_list обрабатывает список путей с поддержкой glob
+// split_and_match_files_list processes a list of paths with glob support
 pub fn split_and_match_files_list(paths []string) []string {
 	mut expanded := []string{}
 	for path in paths {
 		p := expand_path(path.trim_space())
-		// TODO: glob поддержка
+		// TODO: glob support
 		expanded << p
 	}
 	return expanded
 }
 
-// split_and_match_files обрабатывает строку путей
+// split_and_match_files processes a path string
 pub fn split_and_match_files(paths string) []string {
 	return split_and_match_files_list(split_commas(paths))
 }
 
-// check_follow_imports проверяет значение follow_imports
+// check_follow_imports checks the follow_imports value
 pub fn check_follow_imports(choice string) string {
 	choices := ['normal', 'silent', 'skip', 'error']
 	if choice !in choices {
@@ -94,7 +94,7 @@ pub fn check_follow_imports(choice string) string {
 	return choice
 }
 
-// check_junit_format проверяет значение junit_format
+// check_junit_format checks the junit_format value
 pub fn check_junit_format(choice string) string {
 	choices := ['global', 'per_file']
 	if choice !in choices {
@@ -103,7 +103,7 @@ pub fn check_junit_format(choice string) string {
 	return choice
 }
 
-// validate_package_allow_list валидирует список разрешённых пакетов
+// validate_package_allow_list validates the allowed packages list
 pub fn validate_package_allow_list(allow_list []string) []string {
 	for p in allow_list {
 		if p.contains('*') {
@@ -116,7 +116,7 @@ pub fn validate_package_allow_list(allow_list []string) []string {
 	return allow_list
 }
 
-// ConfigValueTypes — типы значений конфигурации
+// ConfigValueTypes — configuration value types
 pub type ConfigValueTypes = PythonVersion
 	| bool
 	| f64
@@ -125,10 +125,10 @@ pub type ConfigValueTypes = PythonVersion
 	| string
 	| []string
 
-// ConfigParserFunc — функция парсинга значения
+// ConfigParserFunc — value parsing function
 pub type ConfigParserFunc = fn (string) ConfigValueTypes
 
-// ini_config_types — маппинг имён опций на функции парсинга для INI
+// ini_config_types — mapping of option names to parsing functions for INI
 pub const ini_config_types = {
 	'python_version':            fn (s string) ConfigValueTypes {
 		return parse_version(s) or { PythonVersion{3, 0} }
@@ -204,7 +204,7 @@ pub const ini_config_types = {
 	}
 }
 
-// toml_config_types возвращает маппинг для TOML конфигурации
+// toml_config_types returns the mapping for TOML configuration
 pub fn toml_config_types() map[string]ConfigParserFunc {
 	mut m := map[string]ConfigParserFunc{}
 	for k, v in ini_config_types {
@@ -228,12 +228,12 @@ pub fn toml_config_types() map[string]ConfigParserFunc {
 	return m
 }
 
-// is_toml проверяет, является ли файл TOML
+// is_toml checks if a file is TOML
 pub fn is_toml(filename string) bool {
 	return filename.to_lower().ends_with('.toml')
 }
 
-// split_directive разделяет строку по запятым, игнорируя кавычки
+// split_directive splits a string by commas, ignoring quotes
 pub fn split_directive(s string) ([]string, []string) {
 	mut parts := []string{}
 	mut cur := []string{}
@@ -264,7 +264,7 @@ pub fn split_directive(s string) ([]string, []string) {
 	return parts, errors
 }
 
-// mypy_comments_to_config_map преобразует комментарии mypy в маппинг опций
+// mypy_comments_to_config_map converts mypy comments to an options map
 pub fn mypy_comments_to_config_map(line string) (map[string]string, []string) {
 	mut options := map[string]string{}
 	entries, errors := split_directive(line)
@@ -284,7 +284,7 @@ pub fn mypy_comments_to_config_map(line string) (map[string]string, []string) {
 	return options, errors
 }
 
-// convert_to_boolean конвертирует значение в boolean
+// convert_to_boolean converts a value to boolean
 pub fn convert_to_boolean(value string) bool {
 	if value.to_lower() in ['true', '1', 'yes', 'on'] {
 		return true
@@ -295,7 +295,7 @@ pub fn convert_to_boolean(value string) bool {
 	panic('Not a boolean: ${value}')
 }
 
-// get_config_module_names возвращает имена модулей для конфигурации
+// get_config_module_names returns module names for configuration
 pub fn get_config_module_names(filename string, modules []string) string {
 	if filename.len == 0 || modules.len == 0 {
 		return ''
@@ -308,12 +308,12 @@ pub fn get_config_module_names(filename string, modules []string) string {
 	return "module = ['${sorted_modules.join("', '")}']"
 }
 
-// ConfigTOMLValueError — ошибка значения TOML конфигурации
+// ConfigTOMLValueError — TOML configuration value error
 pub struct ConfigTOMLValueError {
 	msg string
 }
 
-// error возвращает ошибку
+// error returns an error
 pub fn (e ConfigTOMLValueError) error() string {
 	return e.msg
 }

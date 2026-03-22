@@ -1,15 +1,15 @@
-// Я Cline работаю над этим файлом. Начало: 2026-03-22 14:29
+// Work in progress by Cline. Started: 2026-03-22 14:29
 // constant_fold.v — Constant folding of expressions
-// Переведён из mypy/constant_fold.py
+// Translated from mypy/constant_fold.py
 //
 // ---------------------------------------------------------------------------
 
 module mypy
 
-// ConstantValue — тип результата свёртки констант
+// ConstantValue — type of constant folding result
 pub type ConstantValue = bool | f64 | i64 | string
 
-// constant_fold_expr возвращает константное значение выражения для поддерживаемых операций
+// constant_fold_expr returns the constant value of an expression for supported operations
 pub fn constant_fold_expr(expr Expression, cur_mod_id string) ?ConstantValue {
 	if expr is IntExpr {
 		return expr.value
@@ -27,7 +27,7 @@ pub fn constant_fold_expr(expr Expression, cur_mod_id string) ?ConstantValue {
 		if expr.name == 'False' {
 			return false
 		}
-		// Привязка к финальным константам текущего модуля
+		// Binding to final constants of the current module
 		if expr.node is Var {
 			node := expr.node
 			if node.is_final {
@@ -55,14 +55,14 @@ pub fn constant_fold_expr(expr Expression, cur_mod_id string) ?ConstantValue {
 	return none
 }
 
-// constant_fold_binary_op выполняет свёртку бинарной операции
+// constant_fold_binary_op performs binary operation folding
 pub fn constant_fold_binary_op(op string, left ConstantValue, right ConstantValue) ?ConstantValue {
-	// Целочисленная арифметика
+	// Integer arithmetic
 	if left is i64 && right is i64 {
 		return constant_fold_binary_int_op(op, left, right)
 	}
 
-	// Арифметика с float и смешанная int/float
+	// Float arithmetic and mixed int/float
 	if left is f64 && right is f64 {
 		return constant_fold_binary_float_op(op, left, right)
 	}
@@ -73,7 +73,7 @@ pub fn constant_fold_binary_op(op string, left ConstantValue, right ConstantValu
 		return constant_fold_binary_float_op(op, f64(left), right)
 	}
 
-	// Конкатенация и умножение строк
+	// String concatenation and multiplication
 	if op == '+' && left is string && right is string {
 		return left + right
 	}
@@ -87,7 +87,7 @@ pub fn constant_fold_binary_op(op string, left ConstantValue, right ConstantValu
 	return none
 }
 
-// constant_fold_binary_int_op выполняет свёртку бинарной операции для целых чисел
+// constant_fold_binary_int_op performs binary operation folding for integers
 pub fn constant_fold_binary_int_op(op string, left i64, right i64) ?ConstantValue {
 	match op {
 		'+' {
@@ -135,7 +135,7 @@ pub fn constant_fold_binary_int_op(op string, left i64, right i64) ?ConstantValu
 		}
 		'**' {
 			if right >= 0 {
-				// i64 возведение в степень
+				// i64 exponentiation
 				mut result := i64(1)
 				mut base := left
 				mut exp := right
@@ -154,7 +154,7 @@ pub fn constant_fold_binary_int_op(op string, left i64, right i64) ?ConstantValu
 	return none
 }
 
-// constant_fold_binary_float_op выполняет свёртку бинарной операции для float
+// constant_fold_binary_float_op performs binary operation folding for float
 pub fn constant_fold_binary_float_op(op string, left f64, right f64) ?ConstantValue {
 	match op {
 		'+' {
@@ -191,7 +191,7 @@ pub fn constant_fold_binary_float_op(op string, left f64, right f64) ?ConstantVa
 	return none
 }
 
-// constant_fold_unary_op выполняет свёртку унарной операции
+// constant_fold_unary_op performs unary operation folding
 pub fn constant_fold_unary_op(op string, value ConstantValue) ?ConstantValue {
 	if op == '-' && value is i64 {
 		return -value

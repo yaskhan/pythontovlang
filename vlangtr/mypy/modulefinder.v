@@ -1,6 +1,6 @@
-// Я Cline работаю над этим файлом. Начало: 2026-03-22 15:23
+// Work in progress by Cline. Started: 2026-03-22 15:23
 // modulefinder.v — Low-level infrastructure to find modules
-// Переведён из mypy/modulefinder.py
+// Translated from mypy/modulefinder.py
 //
 // ---------------------------------------------------------------------------
 
@@ -8,10 +8,10 @@ module mypy
 
 import os
 
-// Расширения Python файлов
+// Python file extensions
 pub const python_extensions = ['.pyi', '.py']
 
-// SearchPaths — пути для поиска модулей
+// SearchPaths — paths for module search
 pub struct SearchPaths {
 pub:
 	python_path   []string
@@ -20,7 +20,7 @@ pub:
 	typeshed_path []string
 }
 
-// new_search_paths создаёт новый SearchPaths
+// new_search_paths creates a new SearchPaths
 pub fn new_search_paths(python_path []string, mypy_path []string, package_path []string, typeshed_path []string) SearchPaths {
 	return SearchPaths{
 		python_path:   python_path.map(os.abs_path(it))
@@ -30,7 +30,7 @@ pub fn new_search_paths(python_path []string, mypy_path []string, package_path [
 	}
 }
 
-// ModuleNotFoundReason — причина, по которой модуль не найден
+// ModuleNotFoundReason — reason why module was not found
 pub enum ModuleNotFoundReason {
 	not_found
 	found_without_type_hints
@@ -38,7 +38,7 @@ pub enum ModuleNotFoundReason {
 	approved_stubs_not_installed
 }
 
-// error_message_templates возвращает шаблоны сообщений об ошибках
+// error_message_templates returns error message templates
 pub fn (r ModuleNotFoundReason) error_message_templates(daemon bool) (string, []string) {
 	doc_link := 'See https://mypy.readthedocs.io/en/stable/running_mypy.html#missing-imports'
 	match r {
@@ -68,10 +68,10 @@ pub fn (r ModuleNotFoundReason) error_message_templates(daemon bool) (string, []
 	}
 }
 
-// ModuleSearchResult — результат поиска модуля
+// ModuleSearchResult — module search result
 pub type ModuleSearchResult = ModuleNotFoundReason | string
 
-// MypyBuildSource — исходный файл для сборки
+// MypyBuildSource — source file for build
 pub struct MypyBuildSource {
 pub:
 	path     ?string
@@ -81,7 +81,7 @@ pub:
 	followed bool
 }
 
-// new_build_source создаёт новый MypyBuildSource
+// new_build_source creates a new MypyBuildSource
 pub fn new_build_source(path ?string, mod_name ?string, text ?string, base_dir ?string, followed bool) MypyBuildSource {
 	return MypyBuildSource{
 		path:     path
@@ -92,12 +92,12 @@ pub fn new_build_source(path ?string, mod_name ?string, text ?string, base_dir ?
 	}
 }
 
-// str возвращает строковое представление MypyBuildSource
+// str returns string representation of MypyBuildSource
 pub fn (bs MypyBuildSource) str() string {
 	return 'MypyBuildSource(path=${bs.path}, module=${bs.module}, has_text=${bs.text != none}, base_dir=${bs.base_dir}, followed=${bs.followed})'
 }
 
-// BuildSourceSet — набор исходных файлов для быстрой проверки принадлежности
+// BuildSourceSet — set of source files for quick membership check
 pub struct BuildSourceSet {
 pub mut:
 	source_text_present bool
@@ -105,7 +105,7 @@ pub mut:
 	source_paths        map[string]bool
 }
 
-// new_build_source_set создаёт новый BuildSourceSet
+// new_build_source_set creates a new BuildSourceSet
 pub fn new_build_source_set(sources []MypyBuildSource) BuildSourceSet {
 	mut bss := BuildSourceSet{
 		source_text_present: false
@@ -124,7 +124,7 @@ pub fn new_build_source_set(sources []MypyBuildSource) BuildSourceSet {
 	return bss
 }
 
-// MypyFindModuleCache — кэш для поиска модулей
+// MypyFindModuleCache — cache for module search
 pub struct MypyFindModuleCache {
 pub mut:
 	search_paths       SearchPaths
@@ -136,7 +136,7 @@ pub mut:
 	stdlib_py_versions map[string]((int, int), ?(int, int))
 }
 
-// new_find_module_cache создаёт новый MypyFindModuleCache
+// new_find_module_cache creates a new MypyFindModuleCache
 pub fn new_find_module_cache(search_paths SearchPaths, options ?Options) MypyFindModuleCache {
 	return MypyFindModuleCache{
 		search_paths:       search_paths

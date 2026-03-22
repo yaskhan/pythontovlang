@@ -1,6 +1,6 @@
-// Я Cline работаю над этим файлом. Начало: 2026-03-22 14:21
+// Work in progress by Cline. Started: 2026-03-22 14:21
 // constraints.v — Type inference constraints
-// Переведён из mypy/constraints.py
+// Translated from mypy/constraints.py
 //
 // ---------------------------------------------------------------------------
 
@@ -11,19 +11,19 @@ pub enum ConstraintOp {
 	supertype_of
 }
 
-// Constraint представляет ограничение типа: T <: type или T :> type
+// Constraint represents a type constraint: T <: type or T :> type
 pub struct Constraint {
 pub mut:
 	type_var        TypeVarId
-	op              ConstraintOp // subtype_of или supertype_of
+	op              ConstraintOp // subtype_of or supertype_of
 	target          MypyTypeNode
 	origin_type_var TypeVarLikeType
-	// Дополнительные типовые переменные, которые должны решаться вместе с type_var
+	// Additional type variables that must be solved together with type_var
 	extra_tvars []TypeVarLikeType
 }
 
 
-// new_constraint создаёт новый Constraint
+// new_constraint creates a new Constraint
 pub fn new_constraint(type_var TypeVarLikeType, op ConstraintOp, target MypyTypeNode) Constraint {
 
 	return Constraint{
@@ -35,38 +35,38 @@ pub fn new_constraint(type_var TypeVarLikeType, op ConstraintOp, target MypyType
 	}
 }
 
-// str возвращает строковое представление Constraint
+// str returns the string representation of Constraint
 pub fn (c Constraint) str() string {
 	op_str := if c.op == ConstraintOp.supertype_of { ':>' } else { '<:' }
 	return '${c.type_var} ${op_str} ${c.target}'
 }
 
-// eq проверяет равенство двух Constraint
+// eq checks equality of two Constraints
 pub fn (c Constraint) eq(other Constraint) bool {
 	return c.type_var == other.type_var && c.op == other.op
 }
 
-// infer_constraints выводит ограничения на типовые переменные
+// infer_constraints infers constraints on type variables
 pub fn infer_constraints(template MypyTypeNode, actual MypyTypeNode, direction ConstraintOp) []Constraint {
 	mut constraints := []Constraint{}
 
-	// Если шаблон — кортеж Callable, выводим ограничения для аргументов и результата
+	// If template is a Callable tuple, infer constraints for arguments and result
 	if template is CallableType && actual is CallableType {
-		// Упрощенная логика: выводим ограничения для всех аргументов
+		// Simplified logic: infer constraints for all arguments
 		for i in 0 .. template.arg_types.len {
 			if i < actual.arg_types.len {
-				// Аргументы контрвариантны
+				// Arguments are contravariant
 				c := infer_constraints(template.arg_types[i], actual.arg_types[i], direction)
 				constraints << c
 			}
 		}
-		// Результат ковариантен
+		// Result is covariant
 		c := infer_constraints(template.ret_type, actual.ret_type, direction)
 		constraints << c
 		return constraints
 	}
 
-	// Если шаблон — типовая переменная, возвращаем Constraint напрямую
+	// If template is a type variable, return Constraint directly
 	if template is TypeVarType {
 		return [new_constraint(template, direction, actual)]
 	}
@@ -74,7 +74,7 @@ pub fn infer_constraints(template MypyTypeNode, actual MypyTypeNode, direction C
 	return constraints
 }
 
-// infer_constraints_if_possible выводит ограничения или возвращает None если связь неразрешима
+// infer_constraints_if_possible infers constraints or returns None if the constraint is unsolvable
 pub fn infer_constraints_if_possible(template MypyTypeNode, actual MypyTypeNode, direction ConstraintOp) ?[]Constraint {
 	if direction == .subtype_of {
 		// if !is_subtype_v(erase_typevars(template), actual) {
@@ -89,7 +89,7 @@ pub fn infer_constraints_if_possible(template MypyTypeNode, actual MypyTypeNode,
 	return infer_constraints(template, actual, direction)
 }
 
-// Вспомогательные функции-заглушки
+// Helper stub functions
 fn erase_typevars(t MypyTypeNode) MypyTypeNode {
 	return t
 }

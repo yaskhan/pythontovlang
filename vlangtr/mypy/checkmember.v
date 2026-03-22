@@ -1,8 +1,8 @@
-// Проверка доступа к атрибутам (MemberExpr).
+// Member access checking (MemberExpr).
 module mypy
 
 pub fn analyze_member_access(name string, typ MypyTypeNode, context Context, is_lvalue bool, is_super bool, is_operator bool, original_type MypyTypeNode, mut chk TypeChecker, in_literal_context bool) MypyTypeNode {
-	// Основная логика: mypy/checkmember.py -> analyze_member_access
+	// Main logic: mypy/checkmember.py -> analyze_member_access
 	
 	if typ is Instance {
 		return analyze_instance_member_access(name, typ, context, is_lvalue, original_type, mut chk)
@@ -19,11 +19,11 @@ pub fn analyze_member_access(name string, typ MypyTypeNode, context Context, is_
 }
 
 pub fn analyze_instance_member_access(name string, inst &Instance, context Context, is_lvalue bool, original_type MypyTypeNode, mut chk TypeChecker) MypyTypeNode {
-    // TODO: реализация
+    // TODO: implementation
     return MypyTypeNode(AnyType{type_of_any: TypeOfAny.from_error})
 }
 
 pub fn analyze_union_member_access(name string, union &UnionType, context Context, is_lvalue bool, original_type MypyTypeNode, mut chk TypeChecker) MypyTypeNode {
-    // TODO: реализация
+    // TODO: implementation
     return MypyTypeNode(AnyType{type_of_any: TypeOfAny.from_error})
 }

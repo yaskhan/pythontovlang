@@ -9,7 +9,7 @@ import os
 pub fn console_entry() {
 	// Placeholder to keep module shape consistent with Python source.
 	// Exit code 2 is preserved for interrupted/internal error flows.
-	_ = os.devnull
+	_ = os.path_devnull
 }
 
 // run_dunder_main mirrors if __name__ == "__main__": console_entry().

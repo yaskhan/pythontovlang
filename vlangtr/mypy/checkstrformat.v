@@ -1,15 +1,15 @@
-// Я Cline работаю над этим файлом. Начало: 2026-03-22 15:04
+// Work in progress by Cline. Started: 2026-03-22 15:04
 // checkstrformat.v — Format expression type checker
-// Переведён из mypy/checkstrformat.py
+// Translated from mypy/checkstrformat.py
 //
 // ---------------------------------------------------------------------------
 
 module mypy
 
-// FormatStringExpr — тип для строковых выражений форматирования
+// FormatStringExpr — type for format string expressions
 pub type FormatStringExpr = BytesExpr | StrExpr
 
-// ConversionSpecifier — спецификатор конверсии форматирования
+// ConversionSpecifier — format conversion specifier
 pub struct ConversionSpecifier {
 pub mut:
 	whole_seq                string
@@ -25,7 +25,7 @@ pub mut:
 	field                    ?string
 }
 
-// new_conversion_specifier создаёт новый ConversionSpecifier
+// new_conversion_specifier creates a new ConversionSpecifier
 pub fn new_conversion_specifier(match_obj RegexMatch, start_pos int, non_standard_format_spec bool) ConversionSpecifier {
 	m_dict := match_obj.groups()
 	return ConversionSpecifier{
@@ -43,17 +43,17 @@ pub fn new_conversion_specifier(match_obj RegexMatch, start_pos int, non_standar
 	}
 }
 
-// has_key проверяет, есть ли ключ в спецификаторе
+// has_key checks if specifier has key
 pub fn (cs ConversionSpecifier) has_key() bool {
 	return cs.key != none
 }
 
-// has_star проверяет, содержит ли спецификатор *
+// has_star checks if specifier contains *
 pub fn (cs ConversionSpecifier) has_star() bool {
 	return cs.width == '*' || cs.precision == '*'
 }
 
-// Константы для типов форматирования
+// Constants for format types
 fn get_numeric_types_old() map[string]bool {
 	return {
 		'd': true, 'i': true, 'o': true, 'u': true, 'x': true, 'X': true,
@@ -68,10 +68,10 @@ fn get_numeric_types_new() map[string]bool {
 	}
 }
 
-// dummy_field_name — имя фиктивного поля для парсинга
+// dummy_field_name — dummy field name for parsing
 pub const dummy_field_name = '__dummy_name__'
 
-// parse_conversion_specifiers парсит c-printf-style строку форматирования
+// parse_conversion_specifiers parses c-printf-style format string
 pub fn parse_conversion_specifiers(format_str string) []ConversionSpecifier {
 	mut specifiers := []ConversionSpecifier{}
 	mut pos := 0
@@ -93,14 +93,14 @@ pub fn parse_conversion_specifiers(format_str string) []ConversionSpecifier {
 	return specifiers
 }
 
-// StringFormatterChecker — проверка типов строкового форматирования
+// StringFormatterChecker — string formatting type checker
 pub struct StringFormatterChecker {
 pub mut:
 	chk &TypeCheckerSharedApi
 	msg &MessageBuilder
 }
 
-// new_string_formatter_checker создаёт новый StringFormatterChecker
+// new_string_formatter_checker creates a new StringFormatterChecker
 pub fn new_string_formatter_checker(chk &TypeCheckerSharedApi, msg &MessageBuilder) StringFormatterChecker {
 	return StringFormatterChecker{
 		chk: chk
@@ -108,7 +108,7 @@ pub fn new_string_formatter_checker(chk &TypeCheckerSharedApi, msg &MessageBuild
 	}
 }
 
-// check_str_format_call проверяет вызов str.format()
+// check_str_format_call checks str.format() call
 pub fn (mut sfc StringFormatterChecker) check_str_format_call(call CallExpr, format_value string) {
 	conv_specs := parse_format_value(format_value, call.base, sfc.msg) or { return }
 	if !sfc.auto_generate_keys(conv_specs, call.base) {
@@ -117,7 +117,7 @@ pub fn (mut sfc StringFormatterChecker) check_str_format_call(call CallExpr, for
 	sfc.check_specs_in_format_call(call, conv_specs, format_value)
 }
 
-// auto_generate_keys преобразует '{} {name} {}' в '{0} {name} {1}'
+// auto_generate_keys converts '{} {name} {}' to '{0} {name} {1}'
 pub fn (sfc StringFormatterChecker) auto_generate_keys(all_specs []ConversionSpecifier, ctx NodeBase) bool {
 	mut some_defined := false
 	mut all_defined := true
@@ -151,7 +151,7 @@ pub fn (sfc StringFormatterChecker) auto_generate_keys(all_specs []ConversionSpe
 	return true
 }
 
-// check_str_interpolation проверяет типы в строковой интерполяции str % replacements
+// check_str_interpolation checks types in str % replacements interpolation
 pub fn (mut sfc StringFormatterChecker) check_str_interpolation(expr FormatStringExpr, replacements Expression) MypyTypeNode {
 	mut expr_val := ''
 	match expr {
@@ -168,7 +168,7 @@ pub fn (mut sfc StringFormatterChecker) check_str_interpolation(expr FormatStrin
 	specifiers := parse_conversion_specifiers(expr_val)
 	has_mapping_keys := sfc.analyze_conversion_specifiers(specifiers, expr as NodeBase)
 	if has_mapping_keys == none {
-		// Ошибка уже сообщена
+		// Error already reported
 	} else if has_mapping_keys or { false } {
 		sfc.check_mapping_str_interpolation(specifiers, replacements, expr)
 	} else {
@@ -181,7 +181,7 @@ pub fn (mut sfc StringFormatterChecker) check_str_interpolation(expr FormatStrin
 	return sfc.named_type('builtins.str')
 }
 
-// analyze_conversion_specifiers анализирует спецификаторы конверсии
+// analyze_conversion_specifiers analyzes conversion specifiers
 pub fn (sfc StringFormatterChecker) analyze_conversion_specifiers(specifiers []ConversionSpecifier, context NodeBase) ?bool {
 	mut has_star := false
 	mut has_key := false
@@ -205,7 +205,7 @@ pub fn (sfc StringFormatterChecker) analyze_conversion_specifiers(specifiers []C
 	return has_key
 }
 
-// conversion_type возвращает тип, который принимает спецификатор конверсии
+// conversion_type returns type that conversion specifier accepts
 pub fn (sfc StringFormatterChecker) conversion_type(p string, context NodeBase, expr FormatStringExpr) ?MypyTypeNode {
 	if p == 'b' {
 		if expr !is BytesExpr {
@@ -239,17 +239,17 @@ pub fn (sfc StringFormatterChecker) conversion_type(p string, context NodeBase, 
 	}
 }
 
-// named_type возвращает Instance тип по имени
+// named_type returns Instance type by name
 fn (sfc StringFormatterChecker) named_type(name string) MypyTypeNode {
 	return sfc.chk.named_type(name)
 }
 
-// accept проверяет тип узла
+// accept checks type of node
 fn (sfc StringFormatterChecker) accept(expr Expression) MypyTypeNode {
 	return sfc.chk.expr_checker.accept(expr)
 }
 
-// Вспомогательные типы
+// Helper types
 pub struct RegexMatch {
 pub:
 	groups map[string]string
@@ -263,24 +263,24 @@ pub fn (rm RegexMatch) groups() map[string]string {
 	return rm.groups
 }
 
-// Вспомогательные функции-заглушки
+// Helper stub functions
 fn parse_format_value(format_value string, ctx NodeBase, msg &MessageBuilder) ?[]ConversionSpecifier {
 	return []ConversionSpecifier{}
 }
 
 fn (sfc StringFormatterChecker) check_specs_in_format_call(call CallExpr, specs []ConversionSpecifier, format_value string) {
-	// TODO: реализация
+	// TODO: implementation
 }
 
 fn (sfc StringFormatterChecker) check_simple_str_interpolation(specifiers []ConversionSpecifier, replacements Expression, expr FormatStringExpr) {
-	// TODO: реализация
+	// TODO: implementation
 }
 
 fn (sfc StringFormatterChecker) check_mapping_str_interpolation(specifiers []ConversionSpecifier, replacements Expression, expr FormatStringExpr) {
-	// TODO: реализация
+	// TODO: implementation
 }
 
-// has_type_component проверяет, содержит ли тип указанный компонент
+// has_type_component checks if type contains specified component
 pub fn has_type_component(typ MypyTypeNode, fullname string) bool {
 	tp := get_proper_type(typ)
 	if tp is Instance {

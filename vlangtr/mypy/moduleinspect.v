@@ -1,24 +1,24 @@
 // moduleinspect.v — Basic introspection of modules
 // Translated from mypy/moduleinspect.py to V 0.5.x
 //
-// Я Antigravity работаю над этим файлом. Начало: 2026-03-22 14:30
+// Work in progress by Antigravity. Started: 2026-03-22 14:30
 
 module mypy
 
 import os
 
-// ModuleProperties — свойства модуля/пакета
+// ModuleProperties — module/package properties
 pub struct ModuleProperties {
 pub mut:
-	name        string    // __name__ атрибут
-	file        ?string   // __file__ атрибут
-	path        ?[]string // __path__ атрибут
-	all         ?[]string // __all__ атрибут
+	name        string    // __name__ attribute
+	file        ?string   // __file__ attribute
+	path        ?[]string // __path__ attribute
+	all         ?[]string // __all__ attribute
 	is_c_module bool
 	subpackages []string
 }
 
-// new_module_properties создаёт новый ModuleProperties
+// new_module_properties creates a new ModuleProperties
 pub fn new_module_properties(name string,
 	file ?string,
 	path ?[]string,
@@ -35,17 +35,17 @@ pub fn new_module_properties(name string,
 	}
 }
 
-// is_c_module проверяет, является ли модуль C extension
+// is_c_module checks if module is a C extension
 pub fn is_c_module(module_file ?string) bool {
 	if module_file == none {
-		// Может быть namespace package
+		// May be namespace package
 		return true
 	}
 	ext := os.ext(module_file or { '' })
 	return ext in ['.so', '.pyd', '.dll']
 }
 
-// is_pyc_only проверяет, является ли файл только .pyc
+// is_pyc_only checks if file is .pyc only
 pub fn is_pyc_only(file ?string) bool {
 	if file == none {
 		return false
@@ -54,16 +54,16 @@ pub fn is_pyc_only(file ?string) bool {
 	return f.ends_with('.pyc') && !os.file_exists(f[..f.len - 1])
 }
 
-// InspectError — ошибка интроспекции
+// InspectError — introspection error
 pub type InspectError = string
 
-// get_package_properties получает свойства пакета через runtime introspection
-// Упрощённая версия — без реального импорта модулей
+// get_package_properties gets package properties via runtime introspection
+// Simplified version — without actual module imports
 pub fn get_package_properties(package_id string) !ModuleProperties {
-	// В V нет прямого аналога importlib.import_module
-	// Эта функция должна быть реализована через plugin или external вызовы
+	// V has no direct analog of importlib.import_module
+	// This function should be implemented via plugin or external calls
 
-	// Для заглушки возвращаем базовые свойства
+	// For stub return basic properties
 	return ModuleProperties{
 		name:        package_id
 		file:        none
@@ -74,14 +74,14 @@ pub fn get_package_properties(package_id string) !ModuleProperties {
 	}
 }
 
-// ModuleInspect — runtime интроспекция модулей
-// В упрощённой версии без использования отдельных процессов
+// ModuleInspect — runtime module introspection
+// Simplified version without using separate processes
 pub struct ModuleInspect {
 pub mut:
-	counter int // Количество успешных запросов
+	counter int // Number of successful requests
 }
 
-// new_module_inspect создаёт новый ModuleInspect
+// new_module_inspect creates a new ModuleInspect
 pub fn new_module_inspect() !ModuleInspect {
 	mut m := ModuleInspect{
 		counter: 0
@@ -89,15 +89,15 @@ pub fn new_module_inspect() !ModuleInspect {
 	return m
 }
 
-// close освобождает ресурсы
+// close releases resources
 pub fn (mut m ModuleInspect) close() {
-	// В упрощённой версии ничего не делаем
+	// In simplified version do nothing
 	m.counter = 0
 }
 
-// get_package_properties возвращает свойства модуля/пакета
+// get_package_properties returns module/package properties
 pub fn (mut m ModuleInspect) get_package_properties(package_id string) !ModuleProperties {
-	// Упрощённая версия — без процесса и очереди
+	// Simplified version — without process and queue
 	prop := get_package_properties(package_id) or {
 		return InspectError('Cannot import ${package_id}')
 	}
@@ -105,12 +105,12 @@ pub fn (mut m ModuleInspect) get_package_properties(package_id string) !ModulePr
 	return prop
 }
 
-// enter для context manager
+// enter for context manager
 pub fn (mut m ModuleInspect) enter() &ModuleInspect {
 	return &m
 }
 
-// exit для context manager
+// exit for context manager
 pub fn (mut m ModuleInspect) exit() {
 	m.close()
 }
