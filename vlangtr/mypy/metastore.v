@@ -1,131 +1,222 @@
-// Я Antigravity работаю над этим файлом. Начало: 2026-03-22 14:40
+// metastore.v — Interfaces for accessing metadata
+// Translated from mypy/metastore.py to V 0.5.x
+//
+// Я Antigravity работаю над этим файлом. Начало: 2026-03-22 15:30
+
 module mypy
 
 import os
 import time
 
-// Интерфейсы для доступа к метаданным (кешу).
-// Mypy кэширует семантические деревья и типы для быстрого перезапуска.
-
+// MetadataStore — интерфейс для хранения метаданных
 pub interface MetadataStore {
-	getmtime(name string) !i64
+	getmtime(name string) !f64
 	read(name string) ![]u8
-	write(name string, data []u8, mtime ?i64) bool
+	write(name string, data []u8, mtime ?f64) bool
 	remove(name string) !
 	commit()
 	list_all() []string
 	close()
 }
 
+// random_string генерирует случайную строку
+pub fn random_string() string {
+	// Упрощённая версия — используем время
+	return '${time.now().unixNano()}'
+}
+
+// FilesystemMetadataStore — реализация на основе файловой системы
 pub struct FilesystemMetadataStore {
 pub mut:
 	cache_dir_prefix ?string
 }
 
+// new_filesystem_metadata_store создаёт новый FilesystemMetadataStore
 pub fn new_filesystem_metadata_store(cache_dir_prefix string) FilesystemMetadataStore {
-	// Игнорируем os.devnull (в V это '/dev/null' на Unix)
-	mut prefix := ?string(cache_dir_prefix)
-	if cache_dir_prefix.starts_with('/dev/null') || cache_dir_prefix.starts_with('NUL') {
-		prefix = none
+	// Проверяем, не является ли путь os.devnull
+	if cache_dir_prefix.starts_with(os.devnull) {
+		return FilesystemMetadataStore{
+			cache_dir_prefix: none
+		}
 	}
 	return FilesystemMetadataStore{
-		cache_dir_prefix: prefix
+		cache_dir_prefix: cache_dir_prefix
 	}
 }
 
-pub fn (mut s FilesystemMetadataStore) getmtime(name string) !i64 {
-	prefix := s.cache_dir_prefix or { return error('FileNotFoundError') }
-	path := os.join_path(prefix, name)
-	if !os.exists(path) {
-		return error('FileNotFoundError')
+// getmtime читает mtime записи метаданных
+pub fn (mut fs FilesystemMetadataStore) getmtime(name string) !f64 {
+	if fs.cache_dir_prefix == none {
+		return error('FileNotFound')
 	}
-	return os.file_last_mod_unix(path)
+
+	prefix := fs.cache_dir_prefix or { '' }
+	path := os.join_path(prefix, name)
+	info := os.stat(path) or { return error('FileNotFound') }
+	return info.mod_time().unix()
 }
 
-pub fn (mut s FilesystemMetadataStore) read(name string) ![]u8 {
-	if os.is_abs_path(name) {
-		panic("Don't use absolute paths!")
+// read читает содержимое записи метаданных
+pub fn (mut fs FilesystemMetadataStore) read(name string) ![]u8 {
+	if fs.cache_dir_prefix == none {
+		return error('FileNotFound')
 	}
-	prefix := s.cache_dir_prefix or { return error('FileNotFoundError') }
+
+	prefix := fs.cache_dir_prefix or { '' }
 	path := os.join_path(prefix, name)
-	
-	if !os.exists(path) {
-		return error('FileNotFoundError')
-	}
-	
-	return os.read_bytes(path) or { return error('FileNotFoundError') }
+	return os.read_file(path)
 }
 
-pub fn (mut s FilesystemMetadataStore) write(name string, data []u8, mtime ?i64) bool {
-	if os.is_abs_path(name) {
-		panic("Don't use absolute paths!")
-	}
-	prefix := s.cache_dir_prefix or { return false }
-	path := os.join_path(prefix, name)
-	
-	// Временный файл для атомарной записи
-	tmp_filename := path + '.' + time.now().unix().str()
-	
-	dir := os.dir(path)
-	if !os.exists(dir) {
-		os.mkdir_all(dir) or { return false }
-	}
-	
-	os.write_file_array(tmp_filename, data) or { return false }
-	
-	// Атомарное перемещение
-	os.mv(tmp_filename, path) or { 
-		os.rm(tmp_filename) or {}
+// write записывает запись метаданных
+pub fn (mut fs FilesystemMetadataStore) write(name string, data []u8, mtime ?f64) bool {
+	if fs.cache_dir_prefix == none {
 		return false
 	}
-	
-	if val := mtime {
-		// К сожалению, в стандартной библиотеке V (os) нет прямого аналога os.utime.
-		// Заглушка.
+
+	prefix := fs.cache_dir_prefix or { '' }
+	path := os.join_path(prefix, name)
+	tmp_filename := path + '.' + random_string()
+
+	os.mkdir_all(os.dir(path), os.default_dir_mod) or { return false }
+
+	os.write_file(tmp_filename, data) or { return false }
+	os.rename(tmp_filename, path) or { return false }
+
+	if mtime != none {
+		mt := mtime or { 0.0 }
+		// os.utime(path, mt, mt) or { /* ignore */ }
 	}
-	
+
 	return true
 }
 
-pub fn (mut s FilesystemMetadataStore) remove(name string) ! {
-	prefix := s.cache_dir_prefix or { return error('FileNotFoundError') }
-	path := os.join_path(prefix, name)
-	os.rm(path) or { return error('FileNotFoundError') }
-}
-
-pub fn (mut s FilesystemMetadataStore) commit() {
-	// Ничего не делает для Filesystem store
-}
-
-pub fn (mut s FilesystemMetadataStore) list_all() []string {
-	prefix := s.cache_dir_prefix or { return [] }
-	mut results := []string{}
-	
-	// Ограниченный обход файлов (заглушка для os.walk)
-	files := os.ls(prefix) or { return [] }
-	for file in files {
-		// TODO: рекурсивный обход os.walk
-		results << file
+// remove удаляет запись метаданных
+pub fn (mut fs FilesystemMetadataStore) remove(name string) ! {
+	if fs.cache_dir_prefix == none {
+		return error('FileNotFound')
 	}
-	
-	return results
+
+	prefix := fs.cache_dir_prefix or { '' }
+	path := os.join_path(prefix, name)
+	os.rm(path) or { return error('FileNotFound') }
 }
 
-pub fn (mut s FilesystemMetadataStore) close() {
+// commit выполняет коммит (для файловой системы ничего не делает)
+pub fn (mut fs FilesystemMetadataStore) commit() {
+	// Ничего не делаем
 }
 
-// Заглушка для SqliteMetadataStore (если потребуется)
+// list_all возвращает все записи метаданных
+pub fn (mut fs FilesystemMetadataStore) list_all() []string {
+	mut result := []string{}
+
+	if fs.cache_dir_prefix == none {
+		return result
+	}
+
+	prefix := fs.cache_dir_prefix or { '' }
+	walk_fn := fn (path string, info &os.FileInfo) bool {
+		if !info.is_dir() {
+			rel_path := os.rel(path, prefix) or { path }
+			result << os.normpath(rel_path)
+		}
+		return true
+	}
+	os.walk(prefix, walk_fn) or {
+		// ignore
+	}
+
+	return result
+}
+
+// close освобождает ресурсы
+pub fn (mut fs FilesystemMetadataStore) close() {
+	// Ничего не делаем
+}
+
+// SqliteMetadataStore — реализация на основе SQLite (заглушка)
+// В полной версии требовалось бы подключение к sqlite
 pub struct SqliteMetadataStore {
 pub mut:
 	cache_dir_prefix ?string
-	sync_off bool
+	db               voidptr // Заглушка для sqlite connection
 }
 
+// new_sqlite_metadata_store создаёт новый SqliteMetadataStore
 pub fn new_sqlite_metadata_store(cache_dir_prefix string, sync_off bool) SqliteMetadataStore {
+	if cache_dir_prefix.starts_with(os.devnull) {
+		return SqliteMetadataStore{
+			cache_dir_prefix: none
+			db:               voidptr(none)
+		}
+	}
+
+	os.mkdir_all(cache_dir_prefix, os.default_dir_mod) or {
+		// ignore
+	}
+
+	// В полной версии здесь было бы подключение к SQLite
+	// db := connect_db(os.join_path(cache_dir_prefix, 'cache.db'), sync_off)
+
 	return SqliteMetadataStore{
-		cache_dir_prefix: cache_dir_prefix,
-		sync_off: sync_off
+		cache_dir_prefix: cache_dir_prefix
+		db:               voidptr(none)
 	}
 }
 
-// TODO: SqliteMetadataStore implementation
+// getmtime читает mtime записи метаданных
+pub fn (mut sq SqliteMetadataStore) getmtime(name string) !f64 {
+	if sq.db == voidptr(none) {
+		return error('FileNotFound')
+	}
+	// В полной версии: SELECT mtime FROM files2 WHERE path = ?
+	return 0.0
+}
+
+// read читает содержимое записи метаданных
+pub fn (mut sq SqliteMetadataStore) read(name string) ![]u8 {
+	if sq.db == voidptr(none) {
+		return error('FileNotFound')
+	}
+	// В полной версии: SELECT data FROM files2 WHERE path = ?
+	return []u8{}
+}
+
+// write записывает запись метаданных
+pub fn (mut sq SqliteMetadataStore) write(name string, data []u8, mtime ?f64) bool {
+	if sq.db == voidptr(none) {
+		return false
+	}
+
+	mt := mtime or { time.now().unix() }
+	// В полной версии: INSERT OR REPLACE INTO files2(path, mtime, data) VALUES(?, ?, ?)
+	_ = mt
+	return true
+}
+
+// remove удаляет запись метаданных
+pub fn (mut sq SqliteMetadataStore) remove(name string) ! {
+	if sq.db == voidptr(none) {
+		return error('FileNotFound')
+	}
+	// В полной версии: DELETE FROM files2 WHERE path = ?
+}
+
+// commit выполняет коммит
+pub fn (mut sq SqliteMetadataStore) commit() {
+	// В полной версии: db.commit()
+}
+
+// list_all возвращает все записи метаданных
+pub fn (mut sq SqliteMetadataStore) list_all() []string {
+	// В полной версии: SELECT path FROM files2
+	return []string{}
+}
+
+// close освобождает ресурсы
+pub fn (mut sq SqliteMetadataStore) close() {
+	if sq.db != voidptr(none) {
+		// В полной версии: db.close()
+		sq.db = voidptr(none)
+	}
+}

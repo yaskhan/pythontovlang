@@ -55,6 +55,8 @@
 | `error_formatter.py` | `mypy/error_formatter.v` | ✅ Полностью (ErrorFormatter + JSONFormatter + `output_choices`) |
 | `api.py` | `mypy/api.v` | 📝 Каркас API (`_run`, `run`) до переноса `main.py` |
 | `fswatcher.py` | `mypy/fswatcher.v` | ✅ Полностью (FileSystemWatcher, FileData, изменения файлов по stat/hash) |
+| `semanal_infer.py` | `mypy/semanal_infer.v` | 📝 Перенесены ключевые эвристики для декораторов (`infer_decorator_signature_if_simple`) |
+| `parse.py` | `mypy/parse.v` | 📝 Каркас парсинга и `load_from_raw` (native/fast parser hooks) |
 | `infer.py` | `mypy/infer.v` | 📝 Заглушки: `infer_type_arguments`, `infer_function_type_arguments`, `Constraint` |
 | `solve.py` | `mypy/solve.v` | 📝 Решатель ограничений (solve_one, join of lowers, meet of uppers) |
 | `copytype.py` | `mypy/copytype.v` | ✅ Полностью (copy_type, TypeShallowCopier через match) |
@@ -82,11 +84,21 @@
 | `constant_fold.py` | `mypy/constant_fold.v` | ✅ Полностью (constant_fold_expr, binary/unary ops, int/float/string) |
 | `strconv.py` | `mypy/strconv.v` | 📝 StrConv visitor: dump, visit_* для узлов AST, func_helper, pretty_name, IdMapper |
 | `partially_defined.py` | `mypy/partially_defined.v` | 📝 BranchState, BranchStatement, DefinedVariableTracker, Scope, Loop |
+| `renaming.py` | `mypy/renaming.v` | 📝 VariableRenameVisitor, BlockGuard/TryGuard/LoopGuard/ScopeGuard |
+| `config_parser.py` | `mypy/config_parser.v` | 📝 parse_version, try_split, expand_path, ini/toml_config_types, split_directive |
+| `types_utils.py` | `mypy/types_utils.v` | 📝 flatten_types, strip_type, is_union_with_any, remove_optional, store_argument_type |
+| `semanal_pass1.py` | `mypy/semanal_pass1.v` | 📝 SemanticAnalyzerPreAnalysis: visit_file, visit_if_stmt, visit_block, reachability |
+| `semanal_infer.py` | `mypy/semanal_infer.v` | 📝 infer_decorator_signature_if_simple, is_identity_signature, calculate_return_type |
+| `checkstrformat.py` | `mypy/checkstrformat.v` | 📝 StringFormatterChecker, ConversionSpecifier, parse_conversion_specifiers, conversion_type |
+| `cache.py` | `mypy/cache.v` | 📝 CacheMeta, ErrorInfo, FF serialization tags, read/write literals, lists, JSON |
 | `indirection.py` | `mypy/indirection.v` | ✅ Полностью (TypeIndirectionVisitor для анализа зависимостей модулей) |
 | `stats.py` | `mypy/stats.v` | ✅ Полностью (StatisticsVisitor для сбора статистики о типах) |
 | `ipc.py` | `mypy/ipc.v` | ✅ Полностью (IPCBase, IPCClient, IPCServer, IPCMessage, WriteBuffer, ReadBuffer) |
 | `reachability.py` | `mypy/reachability.v` | ✅ Полностью (infer_reachability_of_if_statement, infer_condition_value, mark_block_unreachable) |
 | `evalexpr.py` | `mypy/evalexpr.v` | ✅ Полностью (NodeEvaluator, evaluate_expression для вычисления выражений) |
+| `moduleinspect.py` | `mypy/moduleinspect.v` | ✅ Полностью (ModuleProperties, ModuleInspect, get_package_properties, is_c_module) |
+| `find_sources.py` | `mypy/find_sources.v` | ✅ Полностью (SourceFinder, create_source_list, crawl_up, find_sources_in_dir) |
+| `metastore.py` | `mypy/metastore.v` | ✅ Полностью (MetadataStore интерфейс, FilesystemMetadataStore, SqliteMetadataStore) |
 
 ---
 

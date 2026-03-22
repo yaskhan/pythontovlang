@@ -239,7 +239,7 @@ pub type Statement = AssignmentStmt
 	| NonlocalDecl
 	| WithStmt
 
-// pub fn (s Statement) get_context() Context {
+pub fn (s Statement) get_context() Context {
 	return match s {
 		AssignmentStmt { s.base.ctx }
 		Block { s.base.ctx }
@@ -270,7 +270,7 @@ pub type Statement = AssignmentStmt
 	}
 }
 
-// pub fn (s Statement) accept(mut v NodeVisitor) !string {
+pub fn (s Statement) accept(mut v NodeVisitor) !string {
 	return match s {
 		AssignmentStmt { v.visit_assignment_stmt(&s)! }
 		Block { v.visit_block(&s)! }
@@ -342,7 +342,7 @@ pub type Expression = AssignmentExpr
 	| TypeAliasExpr
 	| YieldFromExpr
 
-// pub fn (e Expression) get_context() Context {
+pub fn (e Expression) get_context() Context {
 	return match e {
 		AssignmentExpr { e.base.ctx }
 		AwaitExpr { e.base.ctx }
@@ -392,7 +392,7 @@ pub type Expression = AssignmentExpr
 	}
 }
 
-// pub fn (e Expression) accept(mut v NodeVisitor) !string {
+pub fn (e Expression) accept(mut v NodeVisitor) !string {
 	return match e {
 		AssignmentExpr { v.visit_assignment_expr(&e)! }
 		AwaitExpr { v.visit_await_expr(&e)! }

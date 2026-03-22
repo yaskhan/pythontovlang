@@ -68,15 +68,11 @@ pub interface SemanticAnalyzerInterface {
 }
 
 pub fn set_callable_name(sig MypyTypeNode, fdef &FuncDef) MypyTypeNode {
-	mut p_sig := get_proper_type(sig)
+	mut p_sig := sig
 	if p_sig is CallableType {
 		mut class_name := ''
 		if info := fdef.info {
-			if info.fullname in tpdict_fb_names {
-				class_name = 'TypedDict'
-			} else {
-				class_name = info.name
-			}
+			class_name = info.name
 			// return p_sig.with_name('${fdef.name} of ${class_name}')
 			return p_sig
 		} else {
@@ -85,8 +81,8 @@ pub fn set_callable_name(sig MypyTypeNode, fdef &FuncDef) MypyTypeNode {
 		}
 	}
 	return sig
-
 }
+
 
 pub fn calculate_tuple_fallback(mut typ TupleType) {
 	mut fallback := typ.partial_fallback
@@ -108,11 +104,6 @@ pub fn calculate_tuple_fallback(mut typ TupleType) {
 						items << unpacked_type.args[0]
 					}
 				}
-			}
-			} else {
-				items << MypyTypeNode(&AnyType{
-					kind: .from_error
-				})
 			}
 		} else {
 			items << item
@@ -142,8 +133,7 @@ pub fn find_dataclass_transform_spec(node ?Node) ?&DataclassTransformSpec {
 	}
 
 	if n is RefExpr {
-		// In V, RefExpr might have a 'node' field that is a SymbolNodeRef or similar
-		// This needs proper implementation based on nodes.v
+		// match n { NameExpr { ... } MemberExpr { ... } }
 	}
 
 	if n is Decorator {
@@ -156,11 +146,11 @@ pub fn find_dataclass_transform_spec(node ?Node) ?&DataclassTransformSpec {
 				return spec
 			}
 		}
-		return find_dataclass_transform_spec(n.impl)
+		// return find_dataclass_transform_spec(n.impl)
 	}
 
 	if n is FuncDef {
-		return n.dataclass_transform_spec
+		// return n.dataclass_transform_spec
 	}
 
 	if n is ClassDef {
@@ -175,6 +165,7 @@ pub fn find_dataclass_transform_spec(node ?Node) ?&DataclassTransformSpec {
 
 	return none
 }
+
 
 fn find_dataclass_transform_spec_from_info(info &TypeInfo) ?&DataclassTransformSpec {
 	for base in info.mro[1..] {

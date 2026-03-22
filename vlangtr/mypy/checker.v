@@ -12,8 +12,10 @@ pub:
 pub type DeferredNodeType = FuncDef | OverloadedFuncDef | Decorator
 
 pub struct TypeChecker {
+	NodeTraverser
 pub mut:
 	is_stub                  bool
+
 	errors                   &Errors
 	msg                      &MessageBuilder
 	type_maps                []map[Expression]MypyTypeNode
@@ -77,27 +79,9 @@ pub fn (mut chk TypeChecker) check_subtype(subtype MypyTypeNode, supertype MypyT
 }
 
 pub fn (mut chk TypeChecker) accept(node Node) {
-	if node is Block { chk.visit_block(node) }
-	else if node is IfStmt { chk.visit_if_stmt(node) }
-	else if node is WhileStmt { chk.visit_while_stmt(node) }
-	else if node is ForStmt { chk.visit_for_stmt(node) }
-	else if node is TryStmt { chk.visit_try_stmt(node) }
-	else if node is WithStmt { chk.visit_with_stmt(node) }
-	else if node is ReturnStmt { chk.visit_return_stmt(node) }
-	else if node is BreakStmt { chk.visit_break_stmt(node) }
-	else if node is ContinueStmt { chk.visit_continue_stmt(node) }
-	else if node is PassStmt { chk.visit_pass_stmt(node) }
-	else if node is ExpressionStmt { chk.visit_expression_stmt(node) }
-	else if node is AssignmentStmt { chk.visit_assignment_stmt(node) }
-	else if node is FuncDef { chk.visit_func_def(node) }
-	else if node is ClassDef { chk.visit_class_def(node) }
-	else if node is GlobalDecl { chk.visit_global_decl(node) }
-	else if node is NonlocalDecl { chk.visit_nonlocal_decl(node) }
-	else if node is DelStmt { chk.visit_del_stmt(node) }
-	else if node is Import { chk.visit_import(node) }
-	else if node is ImportFrom { chk.visit_import_from(node) }
-	else if node is ImportAll { chk.visit_import_all(node) }
-	else if node is MatchStmt { chk.visit_match_stmt(node) }
+	node.accept(mut chk) or {
+		chk.errors.add_error_info(&ErrorInfo{message: err.msg()}, none)
+	}
 }
 
 pub fn (mut chk TypeChecker) visit_block(b &Block) {
