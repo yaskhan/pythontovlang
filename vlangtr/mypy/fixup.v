@@ -8,7 +8,7 @@ module mypy
 // fixup_module исправляет различные вещи после десериализации
 pub fn fixup_module(tree MypyFile, modules map[string]MypyFile, allow_missing bool) {
 	node_fixer := NodeFixer{
-		modules:      modules
+		modules:       modules
 		allow_missing: allow_missing
 	}
 	node_fixer.visit_symbol_table(mut tree.names, tree.fullname)
@@ -45,7 +45,9 @@ pub fn (mut nf NodeFixer) visit_type_info(info &TypeInfo) {
 	}
 
 	if info.names != none {
-		nf.visit_symbol_table(mut info.names or { map[string]SymbolTableNode{} }, info.fullname)
+		nf.visit_symbol_table(mut info.names or {
+			map[string]SymbolTableNode{}
+		}, info.fullname)
 	}
 
 	if info.bases.len > 0 {
@@ -179,10 +181,10 @@ pub fn new_type_fixer(modules map[string]MypyFile, allow_missing bool) TypeFixer
 }
 
 // visit_instance посещает Instance
-pub fn (mut tf TypeFixer) visit_instance(mut inst &Instance) {
+pub fn (mut tf TypeFixer) visit_instance(mut inst Instance) {
 	type_ref := inst.type_ref
 	if type_ref == none {
-		return  // Уже были здесь
+		return
 	}
 
 	inst.type_ref = none
@@ -194,10 +196,10 @@ pub fn (mut tf TypeFixer) visit_instance(mut inst &Instance) {
 }
 
 // visit_type_alias_type посещает TypeAliasType
-pub fn (mut tf TypeFixer) visit_type_alias_type(mut t &TypeAliasType) {
+pub fn (mut tf TypeFixer) visit_type_alias_type(mut t TypeAliasType) {
 	type_ref := t.type_ref
 	if type_ref == none {
-		return  // Уже были здесь
+		return
 	}
 
 	t.type_ref = none
@@ -209,7 +211,7 @@ pub fn (mut tf TypeFixer) visit_type_alias_type(mut t &TypeAliasType) {
 }
 
 // visit_callable_type посещает CallableType
-pub fn (mut tf TypeFixer) visit_callable_type(mut ct &CallableType) {
+pub fn (mut tf TypeFixer) visit_callable_type(mut ct CallableType) {
 	if ct.fallback != none {
 		// ct.fallback.accept(tf)
 	}
@@ -231,7 +233,7 @@ pub fn (mut tf TypeFixer) visit_overloaded(t &Overloaded) {
 }
 
 // visit_tuple_type посещает TupleType
-pub fn (mut tf TypeFixer) visit_tuple_type(mut tt &TupleType) {
+pub fn (mut tf TypeFixer) visit_tuple_type(mut tt TupleType) {
 	for mut it in tt.items {
 		it.accept(mut tf)
 	}
@@ -241,7 +243,7 @@ pub fn (mut tf TypeFixer) visit_tuple_type(mut tt &TupleType) {
 }
 
 // visit_typeddict_type посещает TypedDictType
-pub fn (mut tf TypeFixer) visit_typeddict_type(mut tdt &TypedDictType) {
+pub fn (mut tf TypeFixer) visit_typeddict_type(mut tdt TypedDictType) {
 	for _, mut it in tdt.items {
 		it.accept(mut tf)
 	}
@@ -251,12 +253,12 @@ pub fn (mut tf TypeFixer) visit_typeddict_type(mut tdt &TypedDictType) {
 }
 
 // visit_literal_type посещает LiteralType
-pub fn (mut tf TypeFixer) visit_literal_type(mut lt &LiteralType) {
+pub fn (mut tf TypeFixer) visit_literal_type(mut lt LiteralType) {
 	// lt.fallback.accept(tf)
 }
 
 // visit_type_var посещает TypeVarType
-pub fn (mut tf TypeFixer) visit_type_var(mut tvt &TypeVarType) {
+pub fn (mut tf TypeFixer) visit_type_var(mut tvt TypeVarType) {
 	for mut vt in tvt.values {
 		vt.accept(mut tf)
 	}
@@ -265,32 +267,32 @@ pub fn (mut tf TypeFixer) visit_type_var(mut tvt &TypeVarType) {
 }
 
 // visit_param_spec посещает ParamSpecType
-pub fn (mut tf TypeFixer) visit_param_spec(mut p &ParamSpecType) {
+pub fn (mut tf TypeFixer) visit_param_spec(mut p ParamSpecType) {
 	p.upper_bound.accept(mut tf)
 	p.default.accept(mut tf)
 }
 
 // visit_type_var_tuple посещает TypeVarTupleType
-pub fn (mut tf TypeFixer) visit_type_var_tuple(mut t &TypeVarTupleType) {
+pub fn (mut tf TypeFixer) visit_type_var_tuple(mut t TypeVarTupleType) {
 	t.tuple_fallback.accept(mut tf)
 	t.upper_bound.accept(mut tf)
 	t.default.accept(mut tf)
 }
 
 // visit_unpack_type посещает UnpackType
-pub fn (mut tf TypeFixer) visit_unpack_type(mut u &UnpackType) {
+pub fn (mut tf TypeFixer) visit_unpack_type(mut u UnpackType) {
 	u.type.accept(mut tf)
 }
 
 // visit_union_type посещает UnionType
-pub fn (mut tf TypeFixer) visit_union_type(mut ut &UnionType) {
+pub fn (mut tf TypeFixer) visit_union_type(mut ut UnionType) {
 	for mut it in ut.items {
 		it.accept(mut tf)
 	}
 }
 
 // visit_type_type посещает TypeType
-pub fn (mut tf TypeFixer) visit_type_type(mut t &TypeType) {
+pub fn (mut tf TypeFixer) visit_type_type(mut t TypeType) {
 	t.item.accept(mut tf)
 }
 
@@ -349,12 +351,12 @@ pub fn missing_info(modules map[string]MypyFile) &TypeInfo {
 	// obj_type := lookup_fully_qualified_typeinfo(modules, 'builtins.object', false)
 	// info.bases = [Instance{type: obj_type, args: []}]
 	// info.mro = [info, obj_type]
-	return none  // Заглушка
+	return none // Заглушка
 }
 
 // missing_alias создаёт заглушку TypeAlias для отсутствующих модулей
 pub fn missing_alias() &TypeAlias {
 	suggestion := missing_suggestion.replace('{}', 'alias')
 	// return TypeAlias{target: AnyType{type_of_any: TypeOfAny.special_form}, fullname: suggestion, module_name: '<missing>'}
-	return none  // Заглушка
+	return none // Заглушка
 }

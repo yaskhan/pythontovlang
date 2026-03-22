@@ -92,6 +92,13 @@
 | `checkstrformat.py` | `mypy/checkstrformat.v` | 📝 StringFormatterChecker, ConversionSpecifier, parse_conversion_specifiers, conversion_type |
 | `cache.py` | `mypy/cache.v` | 📝 CacheMeta, ErrorInfo, FF serialization tags, read/write literals, lists, JSON |
 | `exportjson.py` | `mypy/exportjson.v` | 📝 convert_binary_cache_to_json, convert_mypy_file_to_json, convert_type (partial) |
+| `typeanal.py` | `mypy/typeanal.v` | 📝 TypeAnalyser, analyze_type_alias, visit_unbound_type, try_analyze_special_unbound_type |
+| `subtypes.py` | `mypy/subtypes.v` | 📝 SubtypeContext, is_subtype, is_instance_subtype, is_callable_subtype, check_type_parameter |
+| `modulefinder.py` | `mypy/modulefinder.v` | 📝 SearchPaths, FindModuleCache, BuildSource, ModuleNotFoundReason, compute_search_paths |
+| `main.py` | `mypy/main.v` | 📝 main, run_build, process_options, install_types, flush_errors |
+| `fastparse.py` | `mypy/fastparse.v` | 📝 ASTConverter, TypeConverter, parse, op_map, comp_op_map |
+| `expandtype.py` | `mypy/expandtype.v` | 📝 expand_type, expand_type_by_instance, ExpandTypeVisitor, freshen_function_type_vars |
+| `join.py` | `mypy/join.v` | 📝 InstanceJoiner, join_types, TypeJoinVisitor, join_type_list, trivial_join |
 | `indirection.py` | `mypy/indirection.v` | ✅ Полностью (TypeIndirectionVisitor для анализа зависимостей модулей) |
 | `stats.py` | `mypy/stats.v` | ✅ Полностью (StatisticsVisitor для сбора статистики о типах) |
 | `ipc.py` | `mypy/ipc.v` | ✅ Полностью (IPCBase, IPCClient, IPCServer, IPCMessage, WriteBuffer, ReadBuffer) |
@@ -100,6 +107,7 @@
 | `moduleinspect.py` | `mypy/moduleinspect.v` | ✅ Полностью (ModuleProperties, ModuleInspect, get_package_properties, is_c_module) |
 | `find_sources.py` | `mypy/find_sources.v` | ✅ Полностью (SourceFinder, create_source_list, crawl_up, find_sources_in_dir) |
 | `metastore.py` | `mypy/metastore.v` | ✅ Полностью (MetadataStore интерфейс, FilesystemMetadataStore, SqliteMetadataStore) |
+| `fixup.py` | `mypy/fixup.v` | ✅ Полностью (NodeFixer, TypeFixer, fixup_module, lookup_fully_qualified_typeinfo) |
 
 ---
 
