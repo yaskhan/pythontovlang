@@ -33,12 +33,14 @@ pub fn analyze_member_access(name string, typ MypyTypeNode, context Context, is_
 }
 
 pub fn analyze_instance_member_access(name string, inst Instance, context Context, original_type MypyTypeNode, mut chk TypeChecker) MypyTypeNode {
-	if isnil(inst.type_) {
+	info := inst.type_ or { inst.typ or { return MypyTypeNode(AnyType{
+		type_of_any: .from_error
+	}) } }
+	if isnil(info) {
 		return MypyTypeNode(AnyType{
 			type_of_any: .from_error
 		})
 	}
-	info := inst.type_
 	if sym := lookup_typeinfo_member(name, info) {
 		if node := sym.node {
 			return match node {

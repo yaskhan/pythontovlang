@@ -6,6 +6,14 @@ module mypy
 // TypeVarLikeType is a sum type for type variable-like types.
 pub type TypeVarLikeType = TypeVarType | ParamSpecType | TypeVarTupleType
 
+pub fn (t TypeVarLikeType) get_id() TypeVarId {
+	return match t {
+		TypeVarType { t.id }
+		ParamSpecType { t.id }
+		TypeVarTupleType { t.id }
+	}
+}
+
 // FailFunc is a callback for reporting errors.
 pub type FailFunc = fn (string, Context)
 

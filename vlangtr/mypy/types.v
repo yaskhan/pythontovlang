@@ -278,6 +278,7 @@ pub:
 pub struct Instance {
 pub mut:
 	typ              ?&TypeInfo = none
+	type_            ?&TypeInfo = none
 	args             []MypyTypeNode
 	last_known_value ?&LiteralType = none
 	line             int = -1
@@ -289,8 +290,10 @@ pub mut:
 }
 
 pub fn (t &Instance) copy_modified(args []MypyTypeNode, last_known_value ?&LiteralType) Instance {
+	info := t.typ or { t.type_ }
 	return Instance{
-		typ:              t.typ
+		typ:              info
+		type_:            info
 		args:             args
 		last_known_value: if last_known_value != none {
 			last_known_value
@@ -451,6 +454,10 @@ pub fn extract_type_var_id(t MypyTypeNode) ?TypeVarId {
 	}
 }
 
+pub fn (t MypyTypeNode) type_str() string {
+	return t.str()
+}
+
 pub fn new_unification_variable(t MypyTypeNode) MypyTypeNode {
 	return match t {
 		TypeVarType {
@@ -464,12 +471,14 @@ pub fn new_unification_variable(t MypyTypeNode) MypyTypeNode {
 		}
 		Instance {
 			inst := t as Instance
+			info := inst.typ or { inst.type_ }
 			MypyTypeNode(Instance{
-				typ:      inst.typ
-				args:     inst.args.clone()
-				line:     inst.line
-				column:   inst.column
-				type_ref: inst.type_ref
+				typ:       info
+				type_:     info
+				args:      inst.args.clone()
+				line:      inst.line
+				column:    inst.column
+				type_ref:  inst.type_ref
 				type_name: inst.type_name
 			})
 		}

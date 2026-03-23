@@ -475,19 +475,21 @@ pub fn (tc TypeChecker) lookup_type_or_none(node Expression) ?MypyTypeNode {
 
 // named_type returns Instance with given name
 pub fn (tc TypeChecker) named_type(name string) Instance {
-	_ = name
 	return Instance{
-		type_: unsafe { nil }
-		args:  []MypyTypeNode{}
+		typ:       none
+		type_:     none
+		args:      []MypyTypeNode{}
+		type_name: name
 	}
 }
 
 // named_generic_type returns Instance with arguments
 pub fn (tc TypeChecker) named_generic_type(name string, args []MypyTypeNode) Instance {
-	_ = name
 	return Instance{
-		type_: unsafe { nil }
-		args:  args
+		typ:       none
+		type_:     none
+		args:      args
+		type_name: name
 	}
 }
 
@@ -530,6 +532,12 @@ fn is_subtype(left MypyTypeNode, right MypyTypeNode) bool {
 
 fn function_type(func FuncDef, fallback Instance) MypyTypeNode {
 	_ = func
+	fallback_ptr := &Instance{
+		typ:       fallback.typ
+		type_:     fallback.type_
+		args:      fallback.args.clone()
+		type_name: fallback.type_name
+	}
 	return CallableType{
 		arg_types: []MypyTypeNode{}
 		arg_kinds: []ArgKind{}
@@ -537,7 +545,7 @@ fn function_type(func FuncDef, fallback Instance) MypyTypeNode {
 		ret_type:  MypyTypeNode(AnyType{
 			type_of_any: .from_error
 		})
-		fallback:  fallback
+		fallback:  fallback_ptr
 	}
 }
 

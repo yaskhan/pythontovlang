@@ -7,7 +7,7 @@ pub fn erase_type(typ MypyTypeNode) MypyTypeNode {
 	proper := get_proper_type(typ)
 	return match proper {
 		AnyType, NoneType, UninhabitedType, ErasedType, DeletedType, PlaceholderType, EllipsisType,
-		RawExpressionType, CallableArgument, ParametersType, TypeList {
+		RawExpressionType, CallableArgument, ParametersType, TypeList, TypedDictType {
 			proper
 		}
 		UnboundType, TypeVarType, ParamSpecType, TypeVarTupleType, TypeAliasType, UnpackType {
@@ -27,12 +27,15 @@ pub fn erase_type(typ MypyTypeNode) MypyTypeNode {
 					type_of_any: .special_form
 				})
 			}
+			info := if ti := proper.type_ { ?&TypeInfo(ti) } else if ti := proper.typ { ?&TypeInfo(ti) } else { none }
 			MypyTypeNode(Instance{
-				type_:            proper.type_
+				typ:              info
+				type_:            info
 				args:             args
 				last_known_value: none
 				line:             proper.line
 				type_ref:         proper.type_ref
+				type_name:        proper.type_name
 			})
 		}
 		CallableType {

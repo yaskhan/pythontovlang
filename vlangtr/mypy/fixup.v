@@ -44,20 +44,23 @@ pub fn (mut nf NodeFixer) visit_type_info(mut info TypeInfo) {
 	nf.visit_symbol_table(mut info.names, info.fullname)
 
 	for mut base in info.bases {
-		base.accept_translator(mut nf.type_fixer) or {}
+		fixed := MypyTypeNode(base).accept_translator(mut nf.type_fixer) or { MypyTypeNode(base) }
+		if fixed is Instance {
+			base = fixed
+		}
 	}
 }
 
 // visit_symbol_table visits symbol table
 pub fn (mut nf NodeFixer) visit_symbol_table(mut symtab SymbolTable, table_fullname string) {
-	for key, mut value in symtab.symbols {
+	for _, mut value in symtab.symbols {
 		if cross_ref := value.cross_ref {
 			value.cross_ref = none
 
 			if cross_ref in nf.modules {
 				value.node = SymbolNodeRef(nf.modules[cross_ref])
 			} else {
-				stnode := lookup_fully_qualified(cross_ref, nf.modules, !nf.allow_missing)
+				stnode := lookup_fully_qualified(cross_ref, nf.modules)
 				if st := stnode {
 					if n := st.node {
 						value.node = n
@@ -117,7 +120,7 @@ pub fn (mut tf TypeFixer) visit_deleted_type(t &DeletedType) !MypyTypeNode {
 pub fn (mut tf TypeFixer) visit_instance(t &Instance) !MypyTypeNode {
 	mut res := *t
 	for mut a in res.args {
-		a.accept_translator(mut tf) or {}
+		a = a.accept_translator(mut tf) or { MypyTypeNode(a) }
 	}
 	return MypyTypeNode(res)
 }
@@ -200,11 +203,13 @@ pub fn (mut tf TypeFixer) visit_type_list(t &TypeList) !MypyTypeNode {
 
 // lookup_fully_qualified_typeinfo finds TypeInfo by fully qualified name
 pub fn lookup_fully_qualified_typeinfo(modules map[string]MypyFile, name string, allow_missing bool) ?&TypeInfo {
-	stnode := lookup_fully_qualified(name, modules, !allow_missing)
+	_ = allow_missing
+	stnode := lookup_fully_qualified(name, modules)
 	if st := stnode {
-		node := st.node
-		if node is TypeInfo {
-			return node
+		if node := st.node {
+			if node is TypeInfo {
+				return &node
+			}
 		}
 	}
 	return none
@@ -212,11 +217,13 @@ pub fn lookup_fully_qualified_typeinfo(modules map[string]MypyFile, name string,
 
 // lookup_fully_qualified_alias finds TypeAlias by fully qualified name
 pub fn lookup_fully_qualified_alias(modules map[string]MypyFile, name string, allow_missing bool) ?&TypeAlias {
-	stnode := lookup_fully_qualified(name, modules, !allow_missing)
+	_ = allow_missing
+	stnode := lookup_fully_qualified(name, modules)
 	if st := stnode {
-		node := st.node
-		if node is TypeAlias {
-			return node
+		if node := st.node {
+			if node is TypeAlias {
+				return &node
+			}
 		}
 	}
 	return none

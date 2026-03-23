@@ -1845,6 +1845,7 @@ pub mut:
 // full detail lives in the type-checker layer)
 // ---------------------------------------------------------------------------
 
+@[heap]
 pub struct TypeInfo {
 pub mut:
 	base        NodeBase
@@ -1894,7 +1895,10 @@ pub fn (mut n TypeAlias) accept(mut v NodeVisitor) !string {
 	return v.visit_type_alias(mut n)!
 }
 
-pub fn (mut i TypeInfo) has_base(fullname string) bool {
+pub fn (i TypeInfo) has_base(fullname string) bool {
+	if i.fullname == fullname {
+		return true
+	}
 	for it in i.mro {
 		if it.fullname == fullname {
 			return true

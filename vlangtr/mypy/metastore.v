@@ -22,7 +22,7 @@ pub interface MetadataStore {
 // random_string generates random string
 pub fn random_string() string {
 	// Simplified version — use time
-	return '${time.now().unixNano()}'
+	return '${time.now().unix_nano()}'
 }
 
 // FilesystemMetadataStore — filesystem-based implementation
@@ -53,7 +53,7 @@ pub fn (mut fs FilesystemMetadataStore) getmtime(name string) !f64 {
 	prefix := fs.cache_dir_prefix or { '' }
 	path := os.join_path(prefix, name)
 	info := os.stat(path) or { return error('FileNotFound') }
-	return info.mod_time().unix()
+	return f64(info.mtime)
 }
 
 // read reads the contents of a metadata entry
@@ -64,7 +64,7 @@ pub fn (mut fs FilesystemMetadataStore) read(name string) ![]u8 {
 
 	prefix := fs.cache_dir_prefix or { '' }
 	path := os.join_path(prefix, name)
-	return os.read_file(path)
+	return os.read_bytes(path)
 }
 
 // write writes a metadata entry
@@ -77,13 +77,13 @@ pub fn (mut fs FilesystemMetadataStore) write(name string, data []u8, mtime ?f64
 	path := os.join_path(prefix, name)
 	tmp_filename := path + '.' + random_string()
 
-	os.mkdir_all(os.dir(path), 0o755) or { return false }
+	os.mkdir_all(os.dir(path)) or { return false }
 
-	os.write_file(tmp_filename, data) or { return false }
+	os.write_file_array(tmp_filename, data) or { return false }
 	os.rename(tmp_filename, path) or { return false }
 
 	if mtime != none {
-		mt := mtime or { 0.0 }
+		_ = mtime or { 0.0 }
 		// os.utime(path, mt, mt) or { /* ignore */ }
 	}
 
@@ -115,15 +115,11 @@ pub fn (mut fs FilesystemMetadataStore) list_all() []string {
 	}
 
 	prefix := fs.cache_dir_prefix or { '' }
-	walk_fn := fn (path string, info &os.FileInfo) bool {
-		if !info.is_dir() {
-			rel_path := os.relative_path(path, prefix)
-			result << os.normpath(rel_path)
+	for path in os.walk(prefix) {
+		if os.is_file(path) {
+			rel_path := path.trim_string_left(prefix).trim_left('\\/').replace('\\', '/')
+			result << os.norm_path(rel_path)
 		}
-		return true
-	}
-	os.walk(prefix, walk_fn) or {
-		// ignore
 	}
 
 	return result
@@ -151,7 +147,7 @@ pub fn new_sqlite_metadata_store(cache_dir_prefix string, sync_off bool) SqliteM
 		}
 	}
 
-	os.mkdir_all(cache_dir_prefix, 0o755) or {
+	os.mkdir_all(cache_dir_prefix) or {
 		// ignore
 	}
 
@@ -188,9 +184,11 @@ pub fn (mut sq SqliteMetadataStore) write(name string, data []u8, mtime ?f64) bo
 		return false
 	}
 
-	mt := mtime or { time.now().unix() }
+	mt := mtime or { f64(time.now().unix()) }
 	// In full version: INSERT OR REPLACE INTO files2(path, mtime, data) VALUES(?, ?, ?)
 	_ = mt
+	_ = name
+	_ = data
 	return true
 }
 

@@ -94,7 +94,5 @@ fn erase_typevars(t MypyTypeNode) MypyTypeNode {
 }
 
 fn is_subtype_v(left MypyTypeNode, right MypyTypeNode) bool {
-	// Delegate to subtypes module
-	ctx := new_subtype_context(false, false, false, false, false, false, false, none)
-	return is_subtype(left, right, ctx)
+	return is_subtype(left, right)
 }

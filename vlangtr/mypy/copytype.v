@@ -26,10 +26,13 @@ pub fn type_shallow_copy(t MypyTypeNode) !MypyTypeNode {
 			})
 		}
 		Instance {
+			info := if ti := t.type_ { ?&TypeInfo(ti) } else if ti := t.typ { ?&TypeInfo(ti) } else { none }
 			MypyTypeNode(Instance{
-				type_:  t.type_
-				args:   t.args.clone()
-				line:   t.line
+				typ:       info
+				type_:     info
+				args:      t.args.clone()
+				line:      t.line
+				type_name: t.type_name
 			})
 		}
 		CallableType {

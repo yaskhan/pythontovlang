@@ -387,11 +387,12 @@ fn (mut sfc StringFormatterChecker) check_mapping_str_interpolation(specifiers [
 pub fn has_type_component(typ MypyTypeNode, fullname string) bool {
 	proper_type := get_proper_type(typ)
 	if proper_type is Instance {
-		mut inst := proper_type
-		if isnil(inst.type_) {
+		inst := proper_type
+		info := inst.type_ or { inst.typ or { return false } }
+		if isnil(info) {
 			return false
 		}
-		return inst.type_.has_base(fullname)
+		return info.has_base(fullname)
 	}
 	if proper_type is TypeVarType {
 		type_var := proper_type

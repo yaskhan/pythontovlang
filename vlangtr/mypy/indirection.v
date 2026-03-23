@@ -26,7 +26,7 @@ pub fn (mut v TypeIndirectionVisitor) visit(typ MypyTypeNode) {
 		type_key = 'Instance:${typ.type_name}'
 	}
 	if typ is TypeAliasType {
-		type_key = 'TypeAliasType:${typ.alias_name}'
+		type_key = 'TypeAliasType:${typ.type_ref or { "" }}'
 	}
 
 	if v.seen_types[type_key] {
@@ -42,15 +42,15 @@ pub fn (mut v TypeIndirectionVisitor) visit_instance(t &Instance) !string {
 
 	if info := t.typ {
 		// Module of the class itself
-		if '.' in info.fullname {
-			parts := info.fullname.rsplit('.', 1)
+		if info.fullname.contains('.') {
+			parts := info.fullname.rsplit('.')
 			v.modules[parts[0]] = true
 		}
 
 		// Modules of all base classes in MRO
 		for s in info.mro {
-			if '.' in s {
-				parts := s.rsplit('.', 1)
+			if s.fullname.contains('.') {
+				parts := s.fullname.rsplit('.')
 				v.modules[parts[0]] = true
 			}
 		}
@@ -61,25 +61,23 @@ pub fn (mut v TypeIndirectionVisitor) visit_instance(t &Instance) !string {
 pub fn (mut v TypeIndirectionVisitor) visit_type_var(t &TypeVarType) !string {
 	v.traverse_type_list(t.values)!
 	v.visit(t.upper_bound)
-	v.visit(t.default_)
 	return ''
 }
 
 pub fn (mut v TypeIndirectionVisitor) visit_param_spec(t &ParamSpecType) !string {
 	v.visit(t.upper_bound)
-	v.visit(t.default_)
-	MypyTypeNode(t.prefix).accept(mut v) or { '' }
+	v.visit(t.default)
 	return ''
 }
 
 pub fn (mut v TypeIndirectionVisitor) visit_type_var_tuple(t &TypeVarTupleType) !string {
 	v.visit(t.upper_bound)
-	v.visit(t.default_)
+	v.visit(t.default)
 	return ''
 }
 
 pub fn (mut v TypeIndirectionVisitor) visit_unpack_type(t &UnpackType) !string {
-	t.type_.accept(mut v) or { '' }
+	t.type.accept(mut v)!
 	return ''
 }
 
@@ -93,10 +91,7 @@ pub fn (mut v TypeIndirectionVisitor) visit_type_alias_type(t &TypeAliasType) !s
 
 pub fn (mut v TypeIndirectionVisitor) visit_overloaded(t &Overloaded) !string {
 	for item in t.items {
-		item.accept(mut v) or { '' }
-	}
-	if fb := t.fallback {
-		fb.accept(mut v) or { '' }
+		MypyTypeNode(*item).accept(mut v)!
 	}
 	return ''
 }

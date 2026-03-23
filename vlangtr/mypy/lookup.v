@@ -14,7 +14,7 @@ module mypy
 // ---------------------------------------------------------------------------
 
 // lookup_fully_qualified finds a symbol using its fully qualified name.
-pub fn lookup_fully_qualified(name string, modules map[string]MypyFile, raise_on_missing bool) ?SymbolTableNode {
+pub fn lookup_fully_qualified(name string, modules map[string]MypyFile) ?SymbolTableNode {
 	// 1. Exclude the names of ad hoc instance intersections from step 2.
 	i := name.index('<subclass ') or { -1 }
 	mut head := if i == -1 { name } else { name[..i] }
@@ -23,9 +23,6 @@ pub fn lookup_fully_qualified(name string, modules map[string]MypyFile, raise_on
 	// 2. Find a module tree in modules dictionary.
 	for {
 		if !head.contains('.') {
-			if raise_on_missing {
-				panic('Cannot find module for ${name}')
-			}
 			return none
 		}
 		// Split on the last dot
@@ -40,9 +37,6 @@ pub fn lookup_fully_qualified(name string, modules map[string]MypyFile, raise_on
 			// 3. Find the symbol in the module tree.
 			if rest.len == 0 {
 				// Looks like a module, don't use this to avoid confusions.
-				if raise_on_missing {
-					panic('Cannot find ${name}, got a module symbol')
-				}
 				return none
 			}
 			if i != -1 {
@@ -53,9 +47,6 @@ pub fn lookup_fully_qualified(name string, modules map[string]MypyFile, raise_on
 			for rest.len > 0 {
 				key := rest.pop()
 				if key !in current_symbols {
-					if raise_on_missing {
-						panic('Cannot find component ${key} for ${name}')
-					}
 					return none
 				}
 				stnode := current_symbols[key] or { return none }
@@ -66,9 +57,6 @@ pub fn lookup_fully_qualified(name string, modules map[string]MypyFile, raise_on
 					if n is TypeInfo {
 						current_symbols = (n as TypeInfo).names.symbols
 					} else {
-						if raise_on_missing {
-							panic('Cannot find ${name}')
-						}
 						return none
 					}
 				} else {

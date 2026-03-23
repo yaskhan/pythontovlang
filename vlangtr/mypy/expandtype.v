@@ -203,7 +203,9 @@ pub fn expand_type_by_instance(typ MypyTypeNode, instance Instance) MypyTypeNode
 		return typ
 	}
 	mut variables := map[TypeVarId]MypyTypeNode{}
-	binders := (instance.type_.defn or { return typ }).type_vars
+	info := instance.type_ or { instance.typ or { return typ } }
+	defn := info.defn or { return typ }
+	binders := defn.type_vars
 	for i, binder in binders {
 		if i < instance.args.len {
 			proper_binder := get_proper_type(binder)

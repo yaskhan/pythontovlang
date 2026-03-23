@@ -90,7 +90,7 @@ pub fn expr_to_unanalyzed_type(expr Expression,
 			}
 		}
 		CallExpr {
-			if parent !is ListExpr {
+			if parent == none || parent !is ListExpr {
 				return error('CallExpr not in ListExpr (callable args expected)')
 			}
 			// Handle arg_name=type in Callable

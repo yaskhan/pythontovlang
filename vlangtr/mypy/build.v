@@ -152,6 +152,7 @@ pub:
 pub enum ModuleNotFoundReason {
 	not_found
 	found_without_type_hints
+	wrong_working_directory
 	approved_stubs_not_installed
 }
 

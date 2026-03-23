@@ -78,7 +78,7 @@ fn (mut w FileSystemWatcher) update(path string, st FileStatData) {
 fn (mut w FileSystemWatcher) find_changed_in(paths []string) map[string]bool {
 	mut changed := map[string]bool{}
 	for path in paths {
-		old := w.file_data[path] or { none }
+		old := if path in w.file_data { w.file_data[path] or { none } } else { none }
 		st := w.fs.stat_or_none(path)
 		if cur := st {
 			if old == none {

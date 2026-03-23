@@ -105,6 +105,11 @@ pub fn (mut ec ExpressionChecker) accept(node Expression) MypyTypeNode {
 		TypeAliasExpr { ec.visit_type_alias_expr(node) }
 		UnaryExpr { ec.visit_unary_expr(node) }
 		YieldFromExpr { ec.visit_yield_from_expr(node) }
+		FormatStringExpr {
+			AnyType{
+				type_of_any: .special_form
+			}
+		}
 	}
 	return typ
 }
@@ -185,6 +190,11 @@ pub fn (ec ExpressionChecker) analyze_static_reference(node SymbolNodeRef) MypyT
 			}
 		}
 		ClassDef, MypyFile {
+			AnyType{
+				type_of_any: .special_form
+			}
+		}
+		PlaceholderNode {
 			AnyType{
 				type_of_any: .special_form
 			}
@@ -666,13 +676,19 @@ fn callable_type_from_lambda(e LambdaExpr, fallback Instance, ret_type MypyTypeN
 		})
 		arg_names << arg.variable.name
 	}
+	fallback_ptr := &Instance{
+		typ:       fallback.typ
+		type_:     fallback.type_
+		args:      fallback.args.clone()
+		type_name: fallback.type_name
+	}
 	return CallableType{
 		arg_types: arg_types
 		arg_kinds: e.arg_kinds
 		arg_names: arg_names
 		ret_type:  ret_type
 		variables: []MypyTypeNode{}
-		fallback:  fallback
+		fallback:  fallback_ptr
 	}
 }
 

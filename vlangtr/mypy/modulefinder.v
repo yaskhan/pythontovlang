@@ -31,13 +31,6 @@ pub fn new_search_paths(python_path []string, mypy_path []string, package_path [
 }
 
 // ModuleNotFoundReason — reason why module was not found
-pub enum ModuleNotFoundReason {
-	not_found
-	found_without_type_hints
-	wrong_working_directory
-	approved_stubs_not_installed
-}
-
 // error_message_templates returns error message templates
 pub fn (r ModuleNotFoundReason) error_message_templates(daemon bool) (string, []string) {
 	doc_link := 'See https://mypy.readthedocs.io/en/stable/running_mypy.html#missing-imports'
@@ -69,8 +62,6 @@ pub fn (r ModuleNotFoundReason) error_message_templates(daemon bool) (string, []
 }
 
 // ModuleSearchResult — module search result
-pub type ModuleSearchResult = ModuleNotFoundReason | string
-
 // MypyBuildSource — source file for build
 pub struct MypyBuildSource {
 pub:
@@ -184,7 +175,7 @@ fn (mut fmc MypyFindModuleCache) find_module_internal(id string) ModuleSearchRes
 		}
 
 		// Normal search
-		path := os.join_path(pkg_dir, dir_chain, components.last() + '.pyi')
+		mut path := os.join_path(pkg_dir, dir_chain, components.last() + '.pyi')
 		if os.is_file(path) {
 			return path
 		}
@@ -195,8 +186,11 @@ fn (mut fmc MypyFindModuleCache) find_module_internal(id string) ModuleSearchRes
 	}
 
 	// Search in mypy_path and python_path
-	for dir in fmc.search_paths.mypy_path + fmc.search_paths.python_path {
-		path := os.join_path(dir, dir_chain, components.last() + '.pyi')
+	mut search_dirs := []string{}
+	search_dirs << fmc.search_paths.mypy_path
+	search_dirs << fmc.search_paths.python_path
+	for dir in search_dirs {
+		mut path := os.join_path(dir, dir_chain, components.last() + '.pyi')
 		if os.is_file(path) {
 			return path
 		}
@@ -218,7 +212,7 @@ fn (mut fmc MypyFindModuleCache) find_module_internal(id string) ModuleSearchRes
 }
 
 // find_lib_path_dirs finds directories in lib_path containing the module
-pub fn (fmc MypyFindModuleCache) find_lib_path_dirs(id string, lib_path []string) []string {
+pub fn (mut fmc MypyFindModuleCache) find_lib_path_dirs(id string, lib_path []string) []string {
 	components := id.split('.')
 	dir_chain := components[..components.len - 1].join(os.path_separator)
 
@@ -257,7 +251,7 @@ pub fn (mut fmc MypyFindModuleCache) get_toplevel_possibilities(lib_path []strin
 		}
 	}
 
-	fmc.initial_components[lib_path_key] = components
+	fmc.initial_components[lib_path_key] = components.clone()
 	return components[id] or { []string{} }
 }
 
