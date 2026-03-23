@@ -152,7 +152,8 @@ pub fn (mut n ImportAll) accept(mut v NodeVisitor) !string {
 }
 
 // ---------------------------------------------------------------------------
-pub type MypyNode = AssignmentStmt
+pub type MypyNode = AssertStmt
+	| AssignmentStmt
 	| Block
 	| BreakStmt
 	| ClassDef
@@ -185,8 +186,9 @@ pub type MypyNode = AssignmentStmt
 	| CastExpr
 	| ComparisonExpr
 	| ComplexExpr
+	| ConditionalExpr
 	| DictExpr
-	| DictComprehension
+	| DictionaryComprehension
 	| EllipsisExpr
 	| EnumCallExpr
 	| FloatExpr
@@ -199,8 +201,10 @@ pub type MypyNode = AssignmentStmt
 	| ListExpr
 	| MemberExpr
 	| NameExpr
+	| NamedTupleExpr
+	| NewTypeExpr
 	| OpExpr
-	| OverloadPartExpr
+	| ParamSpecExpr
 	| PlaceholderNode
 	| PromoteExpr
 	| RevealExpr
@@ -210,19 +214,27 @@ pub type MypyNode = AssignmentStmt
 	| StarExpr
 	| StrExpr
 	| SuperExpr
+	| TempNode
+	| TemplateStrExpr
 	| TupleExpr
 	| TypeAliasExpr
 	| TypeApplication
+	| TypeVarExpr
+	| TypeVarTupleExpr
+	| TypedDictExpr
 	| UnaryExpr
+	| AssertTypeExpr
 	| YieldExpr
 	| YieldFromExpr
 	| Var
 	| TypeInfo
 	| Argument
+	| MypyFile
+	| TypeAlias
 
 pub fn (n MypyNode) is_statement() bool {
 	match n {
-		AssignmentStmt, Block, BreakStmt, ClassDef, ContinueStmt, Decorator, DelStmt,
+		AssertStmt, AssignmentStmt, Block, BreakStmt, ClassDef, ContinueStmt, Decorator, DelStmt,
 		ExpressionStmt, ForStmt, FuncDef, GlobalDecl, IfStmt, Import, ImportAll, ImportFrom,
 		MatchStmt, NonlocalDecl, OperatorAssignmentStmt, OverloadedFuncDef, PassStmt, RaiseStmt,
 		ReturnStmt, TryStmt, TypeAliasStmt, WhileStmt, WithStmt {
@@ -237,11 +249,13 @@ pub fn (n MypyNode) is_statement() bool {
 pub fn (n MypyNode) is_expression() bool {
 	match n {
 		AssignmentExpr, AwaitExpr, BytesExpr, CallExpr, CastExpr, ComparisonExpr, ComplexExpr,
-		DictExpr, DictComprehension, EllipsisExpr, EnumCallExpr, FloatExpr, FormatStringExpr,
-		GeneratorExpr, IndexExpr, IntExpr, LambdaExpr, ListComprehension, ListExpr, MemberExpr,
-		NameExpr, OpExpr, OverloadPartExpr, PromoteExpr, RevealExpr, SetComprehension, SetExpr,
-		SliceExpr, StarExpr, StrExpr, SuperExpr, TupleExpr, TypeAliasExpr, TypeApplication,
-		UnaryExpr, YieldExpr, YieldFromExpr {
+		ConditionalExpr, DictExpr, DictionaryComprehension, EllipsisExpr, EnumCallExpr, FloatExpr,
+		FormatStringExpr, GeneratorExpr, IndexExpr, IntExpr, LambdaExpr, ListComprehension,
+		ListExpr, MemberExpr, NameExpr, NamedTupleExpr, NewTypeExpr, OpExpr, ParamSpecExpr,
+		PromoteExpr, RevealExpr, SetComprehension, SetExpr, SliceExpr, StarExpr, StrExpr,
+		SuperExpr, TempNode, TemplateStrExpr, TupleExpr, TypeAliasExpr, TypeApplication,
+		TypeVarExpr, TypeVarTupleExpr, TypedDictExpr, UnaryExpr, AssertTypeExpr, YieldExpr,
+		YieldFromExpr {
 			return true
 		}
 		else {
@@ -252,73 +266,31 @@ pub fn (n MypyNode) is_expression() bool {
 
 pub fn (n MypyNode) as_statement() ?Statement {
 	match n {
-		AssignmentStmt { return Statement(n) }
-		Block { return Statement(n) }
-		BreakStmt { return Statement(n) }
-		ClassDef { return Statement(n) }
-		ContinueStmt { return Statement(n) }
-		Decorator { return Statement(n) }
-		DelStmt { return Statement(n) }
-		ExpressionStmt { return Statement(n) }
-		ForStmt { return Statement(n) }
-		FuncDef { return Statement(n) }
-		GlobalDecl { return Statement(n) }
-		IfStmt { return Statement(n) }
-		Import { return Statement(n) }
-		ImportAll { return Statement(n) }
-		ImportFrom { return Statement(n) }
-		MatchStmt { return Statement(n) }
-		NonlocalDecl { return Statement(n) }
-		WithStmt { return Statement(n) }
+		AssertStmt, AssignmentStmt, Block, BreakStmt, ClassDef, ContinueStmt, Decorator, DelStmt,
+		ExpressionStmt, ForStmt, FuncDef, GlobalDecl, IfStmt, Import, ImportAll, ImportFrom,
+		MatchStmt, NonlocalDecl, OperatorAssignmentStmt, OverloadedFuncDef, PassStmt, RaiseStmt,
+		ReturnStmt, TryStmt, TypeAliasStmt, WhileStmt, WithStmt {
+			return Statement(n)
+		}
 		else { return none }
 	}
 }
 
 pub fn (n MypyNode) as_expression() ?Expression {
 	match n {
-		AssignmentExpr { return Expression(n) }
-		AwaitExpr { return Expression(n) }
-		BytesExpr { return Expression(n) }
-		CallExpr { return Expression(n) }
-		CastExpr { return Expression(n) }
-		ComparisonExpr { return Expression(n) }
-		ComplexExpr { return Expression(n) }
-		DictExpr { return Expression(n) }
-		DictComprehension { return Expression(n) }
-		EllipsisExpr { return Expression(n) }
-		EnumCallExpr { return Expression(n) }
-		FloatExpr { return Expression(n) }
-		FormatStringExpr { return Expression(n) }
-		GeneratorExpr { return Expression(n) }
-		IndexExpr { return Expression(n) }
-		IntExpr { return Expression(n) }
-		LambdaExpr { return Expression(n) }
-		ListComprehension { return Expression(n) }
-		ListExpr { return Expression(n) }
-		MemberExpr { return Expression(n) }
-		NameExpr { return Expression(n) }
-		OpExpr { return Expression(n) }
-		OverloadPartExpr { return Expression(n) }
-		PromoteExpr { return Expression(n) }
-		RevealExpr { return Expression(n) }
-		SetComprehension { return Expression(n) }
-		SetExpr { return Expression(n) }
-		SliceExpr { return Expression(n) }
-		StarExpr { return Expression(n) }
-		StrExpr { return Expression(n) }
-		SuperExpr { return Expression(n) }
-		TupleExpr { return Expression(n) }
-		TypeAliasExpr { return Expression(n) }
-		TypeApplication { return Expression(n) }
-		UnaryExpr { return Expression(n) }
-		YieldExpr { return Expression(n) }
-		YieldFromExpr { return Expression(n) }
+		AssignmentExpr, AwaitExpr, BytesExpr, CallExpr, CastExpr, ComparisonExpr, ComplexExpr,
+		ConditionalExpr, DictExpr, DictionaryComprehension, EllipsisExpr, EnumCallExpr, FloatExpr,
+		FormatStringExpr, GeneratorExpr, IndexExpr, IntExpr, LambdaExpr, ListComprehension,
+		ListExpr, MemberExpr, NameExpr, NamedTupleExpr, NewTypeExpr, OpExpr, ParamSpecExpr,
+		PromoteExpr, RevealExpr, SetComprehension, SetExpr, SliceExpr, StarExpr, StrExpr,
+		SuperExpr, TempNode, TemplateStrExpr, TupleExpr, TypeAliasExpr, TypeApplication,
+		TypeVarExpr, TypeVarTupleExpr, TypedDictExpr, UnaryExpr, AssertTypeExpr, YieldExpr,
+		YieldFromExpr {
+			return Expression(n)
+		}
 		else { return none }
 	}
 }
-
-// Block & basic statements
-// ---------------------------------------------------------------------------
 
 pub struct Block {
 pub mut:
@@ -335,9 +307,11 @@ pub fn (mut n Block) accept(mut v NodeVisitor) !string {
 	return v.visit_block(mut n)!
 }
 
-// Statement is a sum-type that covers every statement node.
-// V sum-types must be declared with all concrete variants.
-pub type Statement = AssignmentStmt
+// Block & basic statements
+// ---------------------------------------------------------------------------
+
+pub type Statement = AssertStmt
+	| AssignmentStmt
 	| Block
 	| BreakStmt
 	| ClassDef
@@ -354,10 +328,19 @@ pub type Statement = AssignmentStmt
 	| ImportFrom
 	| MatchStmt
 	| NonlocalDecl
+	| OperatorAssignmentStmt
+	| OverloadedFuncDef
+	| PassStmt
+	| RaiseStmt
+	| ReturnStmt
+	| TryStmt
+	| TypeAliasStmt
+	| WhileStmt
 	| WithStmt
 
 pub fn (s Statement) get_context() Context {
 	return match s {
+		AssertStmt { s.base.ctx }
 		AssignmentStmt { s.base.ctx }
 		Block { s.base.ctx }
 		BreakStmt { s.base.ctx }
@@ -389,6 +372,7 @@ pub fn (s Statement) get_context() Context {
 
 pub fn (mut s Statement) accept(mut v NodeVisitor) !string {
 	return match mut s {
+		AssertStmt { v.visit_assert_stmt(mut s)! }
 		AssignmentStmt { v.visit_assignment_stmt(mut s)! }
 		Block { v.visit_block(mut s)! }
 		BreakStmt { v.visit_break_stmt(mut s)! }
@@ -432,6 +416,7 @@ pub type Expression = AssignmentExpr
 	| EllipsisExpr
 	| EnumCallExpr
 	| FloatExpr
+	| FormatStringExpr
 	| GeneratorExpr
 	| IndexExpr
 	| IntExpr
@@ -454,10 +439,15 @@ pub type Expression = AssignmentExpr
 	| SuperExpr
 	| TempNode
 	| TemplateStrExpr
-	| FormatStringExpr
 	| TupleExpr
 	| TypeAliasExpr
+	| TypeApplication
+	| TypeVarExpr
+	| TypeVarTupleExpr
+	| TypedDictExpr
 	| UnaryExpr
+	| AssertTypeExpr
+	| YieldExpr
 	| YieldFromExpr
 
 pub fn (e Expression) get_context() Context {
@@ -475,6 +465,7 @@ pub fn (e Expression) get_context() Context {
 		EllipsisExpr { e.base.ctx }
 		EnumCallExpr { e.base.ctx }
 		FloatExpr { e.base.ctx }
+		FormatStringExpr { e.base.ctx }
 		GeneratorExpr { e.base.ctx }
 		IndexExpr { e.base.ctx }
 		IntExpr { e.base.ctx }
@@ -525,6 +516,7 @@ pub fn (mut e Expression) accept(mut v NodeVisitor) !string {
 		EllipsisExpr { v.visit_ellipsis(mut e)! }
 		EnumCallExpr { v.visit_enum_call_expr(mut e)! }
 		FloatExpr { v.visit_float_expr(mut e)! }
+		FormatStringExpr { v.visit_format_string_expr(mut e)! }
 		GeneratorExpr { v.visit_generator_expr(mut e)! }
 		IndexExpr { v.visit_index_expr(mut e)! }
 		IntExpr { v.visit_int_expr(mut e)! }
@@ -559,10 +551,6 @@ pub fn (mut e Expression) accept(mut v NodeVisitor) !string {
 		YieldFromExpr { v.visit_yield_from_expr(mut e)! }
 	}
 }
-
-// ---------------------------------------------------------------------------
-// Simple statement nodes
-// ---------------------------------------------------------------------------
 
 pub struct ExpressionStmt {
 pub mut:
