@@ -3,7 +3,7 @@ from typing import Any
 from ..base import TranslatorBase
 
 class ExceptionsMixin(TranslatorBase):
-    """Обработка исключений: try, except, raise, finally"""
+    """Handling exceptions: try, except, raise, finally"""
     
     def visit_Raise(self, node: ast.Raise) -> None:
         # Special case for StopIteration in next() methods

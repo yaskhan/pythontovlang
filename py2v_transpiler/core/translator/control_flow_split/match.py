@@ -4,7 +4,7 @@ from typing import List, Tuple, Dict
 from ..base import TranslatorBase
 
 class MatchMixin(TranslatorBase):
-    """Обработка match/case (Python 3.10+)"""
+    """Handling match/case (Python 3.10+)"""
     
     def _unmangle_generic_name(self, name: str) -> str:
         """Restores generic syntax from mangled identifiers and maps Python types to V types."""

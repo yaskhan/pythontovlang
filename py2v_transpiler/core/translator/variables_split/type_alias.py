@@ -5,7 +5,7 @@ from py2v_transpiler.models.v_types import map_python_type_to_v
 
 
 class TypeAliasMixin(TranslatorBase):
-    """Обработка type alias: visit_TypeAlias (PEP 613)"""
+    """Handling type aliases: visit_TypeAlias (PEP 613)"""
     
     def visit_TypeAlias(self, node: Any) -> None:
         name = self._sanitize_name(node.name.id, is_type=True)

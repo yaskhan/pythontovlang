@@ -2,7 +2,7 @@ import ast
 from ..base import TranslatorBase
 
 class ConditionalsMixin(TranslatorBase):
-    """Обработка условных операторов: if, elif, else"""
+    """Handling conditional statements: if, elif, else"""
 
     def _is_name_main(self, node: ast.If) -> bool:
         """Checks for if __name__ == "__main__":"""

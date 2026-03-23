@@ -2,7 +2,7 @@ import ast
 from ..base import TranslatorBase
 
 class ControlMixin(TranslatorBase):
-    """Обработка операторов управления: break, continue"""
+    """Handling control flow statements: break, continue"""
     
     def visit_Break(self, node: ast.Break) -> None:
         if self.loop_stack:

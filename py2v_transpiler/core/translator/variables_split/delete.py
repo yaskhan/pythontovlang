@@ -3,7 +3,7 @@ from ..base import TranslatorBase
 
 
 class DeleteMixin(TranslatorBase):
-    """Обработка оператора del"""
+    """Handling the del statement"""
     
     def visit_Delete(self, node: ast.Delete) -> None:
         # Support for multiple delete targets (e.g. del a, b)

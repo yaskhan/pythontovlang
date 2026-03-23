@@ -7,7 +7,7 @@ OUTPUT_DIR = Path("py2v_transpiler/tests/output/mypy_stubs")
 TEST_FILE = OUTPUT_DIR / "mypy_stubs_test.v"
 
 def preprocess_pyi(pyi_path: Path, out_path: Path):
-    """Опционально: заменяем ... на pass в телах функций, но не в сигнатурах"""
+    """Optional: replace ... with pass in function bodies, but not in signatures."""
     content = pyi_path.read_text(encoding="utf-8")
     # As requested by the user, we do minimal to no preprocessing to surface the true transpiler issues.
     out_path.write_text(content, encoding="utf-8")
@@ -23,7 +23,7 @@ def main():
                 item.unlink()
 
     v_files = []
-    # Фаза 1: самые важные файлы
+    # Phase 1: most important files
     target_files = ["typing.pyi", "abc.pyi", "enum.pyi", "functools.pyi"]
 
     for pyi in INPUT_DIR.rglob("*.pyi"):
@@ -43,10 +43,10 @@ def main():
 
         py_temp_path = v_path.with_suffix(".py")
 
-        # 1. Предобработка
-        preprocess_pyi(pyi, py_temp_path)  # временный .py
+        # 1. Preprocessing
+        preprocess_pyi(pyi, py_temp_path)  # Temporary .py file
 
-        # 2. Запуск твоего транслятора.
+        # 2. Run your transpiler.
         print(f"Transpiling {pyi.name} (as {module_name})...")
         try:
             # Create a dedicated directory for each module to avoid duplicate definitions across mypy_stubs
@@ -65,7 +65,7 @@ def main():
             print(f"Error transpiling {pyi.name}")
             continue
 
-    # 3. Генерируем главный тест-файл
+    # 3. Generate the main test file
     imports = "\n".join(f"import mypy_stubs.{mod}" for mod in sorted(v_files))
 
     test_content = f"""module mypy_stubs_test

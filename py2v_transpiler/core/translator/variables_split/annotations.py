@@ -4,7 +4,7 @@ from ..base import TranslatorBase
 
 
 class AnnotationsMixin(TranslatorBase):
-    """Обработка аннотированных присваиваний: visit_AnnAssign"""
+    """Handling annotated assignments: visit_AnnAssign"""
 
     def _is_compile_time_evaluable(self, node: ast.AST) -> bool:
         """
@@ -163,7 +163,7 @@ class AnnotationsMixin(TranslatorBase):
                                 self.emitter.add_init_statement(f"{v_target} = {rhs}")
                                 return
 
-                # Обычное присваивание, если не перехвачено выше
+                # Regular assignment if it was not handled above
                 if self.in_main and isinstance(node.target, ast.Name) and \
                    (target in getattr(self, "global_vars", set()) or target.isupper() or is_literal_string_type):
                     v_target = self._to_snake_case(target)

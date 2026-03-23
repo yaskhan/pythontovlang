@@ -3,7 +3,7 @@ from ..base import TranslatorBase
 
 
 class AugAssignMixin(TranslatorBase):
-    """Обработка операторов присваивания с операцией: +=, -=, *=, /=, %=, **=, //="""
+    """Handling augmented assignment operators: +=, -=, *=, /=, %=, **=, //="""
     
     def visit_AugAssign(self, node: ast.AugAssign) -> None:
         if isinstance(node.op, (ast.Pow, ast.FloorDiv)):

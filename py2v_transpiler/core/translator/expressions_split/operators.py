@@ -77,7 +77,7 @@ class OperatorsMixin(TranslatorBase):
                 return f"py_repeat_list({self.visit(node.right)}, {self.visit(node.left)})"
 
 
-        # If mypy  # ← дальше идёт остальной код файла без изменений
+        # If mypy  # the rest of the file follows unchanged
         left = self._visit_with_parens(node, node.left, is_right_operand=False)
         right = self._visit_with_parens(node, node.right, is_right_operand=True)
 

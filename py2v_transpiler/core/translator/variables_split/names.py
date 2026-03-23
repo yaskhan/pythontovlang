@@ -4,7 +4,7 @@ from ..base import TranslatorBase
 
 
 class NamesMixin(TranslatorBase):
-    """Обработка имен: visit_Name"""
+    """Handling names: visit_Name"""
     
     def visit_Name(self, node: ast.Name) -> str:
         if node.id in self.name_remap:

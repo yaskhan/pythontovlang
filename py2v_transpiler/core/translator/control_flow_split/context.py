@@ -2,7 +2,7 @@ import ast
 from ..base import TranslatorBase
 
 class ContextMixin(TranslatorBase):
-    """Обработка контекстных менеджеров: with, async with"""
+    """Handling context managers: with, async with"""
     
     def visit_AsyncWith(self, node: ast.AsyncWith) -> None:
         # Similar logic to visit_With, but using enter/exit

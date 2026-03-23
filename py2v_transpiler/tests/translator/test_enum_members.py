@@ -4,7 +4,7 @@ from py2v_transpiler.core.analyzer import TypeInference
 
 
 def test_enum_unannotated_members():
-    """Тест для Enum с неаннотированными членами (классический синтаксис)"""
+    """Test for Enum with unannotated members (classic syntax)."""
     source = """
 from enum import Enum
 
@@ -28,7 +28,7 @@ class Color(Enum):
 
 
 def test_enum_annotated_members():
-    """Тест для Enum с аннотированными членами (PEP 736 стиль)"""
+    """Test for Enum with annotated members (PEP 736 style)."""
     source = """
 from enum import Enum
 
@@ -46,14 +46,14 @@ class Color(Enum):
     print()
 
     assert "enum Color {" in code
-    # Аннотированные члены должны быть обработаны
+    # Annotated members should be handled
     assert "red" in code
     assert "green" in code
     assert "blue" in code
 
 
 def test_enum_mixed_members():
-    """Тест для Enum со смешанными членами (аннотированные и нет)"""
+    """Test for Enum with mixed members (annotated and unannotated)."""
     source = """
 from enum import Enum
 
@@ -77,7 +77,7 @@ class Status(Enum):
 
 
 def test_intenum_annotated():
-    """Тест для IntEnum с аннотированными членами"""
+    """Test for IntEnum with annotated members."""
     source = """
 from enum import IntEnum
 
@@ -101,7 +101,7 @@ class Priority(IntEnum):
 
 
 def test_enum_with_auto():
-    """Тест для Enum с auto() значениями"""
+    """Test for Enum with auto() values."""
     source = """
 from enum import Enum, auto
 
@@ -119,14 +119,14 @@ class State(Enum):
     print()
 
     assert "enum State {" in code
-    # auto() должен быть развернут в числа
+    # auto() should be expanded into numeric values
     assert "idle" in code
     assert "running" in code
     assert "done" in code
 
 
 def test_enum_string_members():
-    """Тест для Enum со строковыми значениями"""
+    """Test for Enum with string values."""
     source = """
 from enum import Enum
 
