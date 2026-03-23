@@ -1,11 +1,11 @@
 // treetransform.v — Base visitor that implements an identity AST transform
 // Translated from mypy/treetransform.py to V 0.5.x
 //
-// Я Antigravity работаю над этим файлом. Начало: 2026-03-22 19:30
+// I, Antigravity, am working on this file. Started: 2026-03-22 19:30
 
 module mypy
 
-// TransformVisitor — трансформирует AST в идентичную копию
+// TransformVisitor — transforms AST into an identical copy
 pub struct TransformVisitor {
 pub mut:
 	test_only            bool
@@ -13,7 +13,7 @@ pub mut:
 	func_placeholder_map map[string]FuncDef
 }
 
-// new_transform_visitor создаёт новый TransformVisitor
+// new_transform_visitor creates a new TransformVisitor
 pub fn new_transform_visitor() TransformVisitor {
 	return TransformVisitor{
 		test_only:            false
@@ -22,17 +22,17 @@ pub fn new_transform_visitor() TransformVisitor {
 	}
 }
 
-// node трансформирует узел AST
+// node transforms an AST node
 pub fn (mut t TransformVisitor) node(n Node) Node {
 	return n.accept(mut t)
 }
 
-// expr трансформирует выражение
+// expr transforms an expression
 pub fn (mut t TransformVisitor) expr(e Expression) Expression {
 	return e.accept(mut t)
 }
 
-// optional_expr трансформирует опциональное выражение
+// optional_expr transforms an optional expression
 pub fn (mut t TransformVisitor) optional_expr(e ?Expression) ?Expression {
 	if e == none {
 		return none
@@ -40,7 +40,7 @@ pub fn (mut t TransformVisitor) optional_expr(e ?Expression) ?Expression {
 	return e.accept(mut t)
 }
 
-// expressions трансформирует список выражений
+// expressions transforms a list of expressions
 pub fn (mut t TransformVisitor) expressions(es []Expression) []Expression {
 	mut result := []Expression{}
 	for e in es {
@@ -49,7 +49,7 @@ pub fn (mut t TransformVisitor) expressions(es []Expression) []Expression {
 	return result
 }
 
-// statements трансформирует список операторов
+// statements transforms a list of statements
 pub fn (mut t TransformVisitor) statements(ss []Statement) []Statement {
 	mut result := []Statement{}
 	for s in ss {
@@ -58,12 +58,12 @@ pub fn (mut t TransformVisitor) statements(ss []Statement) []Statement {
 	return result
 }
 
-// block трансформирует блок
+// block transforms a block
 pub fn (mut t TransformVisitor) block(b Block) Block {
 	return t.visit_block(b)
 }
 
-// optional_block трансформирует опциональный блок
+// optional_block transforms an optional block
 pub fn (mut t TransformVisitor) optional_block(b ?Block) ?Block {
 	if b == none {
 		return none
@@ -71,7 +71,7 @@ pub fn (mut t TransformVisitor) optional_block(b ?Block) ?Block {
 	return t.visit_block(b or { Block{} })
 }
 
-// blocks трансформирует список блоков
+// blocks transforms a list of blocks
 pub fn (mut t TransformVisitor) blocks(bs []Block) []Block {
 	mut result := []Block{}
 	for b in bs {
@@ -80,12 +80,12 @@ pub fn (mut t TransformVisitor) blocks(bs []Block) []Block {
 	return result
 }
 
-// type трансформирует тип
+// typ transforms a type
 pub fn (mut t TransformVisitor) typ(tp MypyTypeNode) MypyTypeNode {
 	return tp
 }
 
-// optional_type трансформирует опциональный тип
+// optional_type transforms an optional type
 pub fn (mut t TransformVisitor) optional_type(tp ?MypyTypeNode) ?MypyTypeNode {
 	if tp == none {
 		return none
@@ -93,7 +93,7 @@ pub fn (mut t TransformVisitor) optional_type(tp ?MypyTypeNode) ?MypyTypeNode {
 	return t.typ(tp or { MypyTypeNode(none) })
 }
 
-// types трансформирует список типов
+// types transforms a list of types
 pub fn (mut t TransformVisitor) types(ts []MypyTypeNode) []MypyTypeNode {
 	mut result := []MypyTypeNode{}
 	for tp in ts {
@@ -102,12 +102,12 @@ pub fn (mut t TransformVisitor) types(ts []MypyTypeNode) []MypyTypeNode {
 	return result
 }
 
-// pattern трансформирует паттерн
+// pattern transforms a pattern
 pub fn (mut t TransformVisitor) pattern(p Pattern) Pattern {
 	return p.accept(mut t)
 }
 
-// visit_mypy_file посещает MypyFile
+// visit_mypy_file visits MypyFile
 pub fn (mut t TransformVisitor) visit_mypy_file(node MypyFile) MypyFile {
 	assert t.test_only, 'This visitor should not be used for whole files.'
 
@@ -127,7 +127,7 @@ pub fn (mut t TransformVisitor) visit_mypy_file(node MypyFile) MypyFile {
 	return new
 }
 
-// visit_import посещает Import
+// visit_import visits Import
 pub fn (mut t TransformVisitor) visit_import(node Import) Import {
 	return Import{
 		ids:    node.ids.clone()
@@ -136,7 +136,7 @@ pub fn (mut t TransformVisitor) visit_import(node Import) Import {
 	}
 }
 
-// visit_import_from посещает ImportFrom
+// visit_import_from visits ImportFrom
 pub fn (mut t TransformVisitor) visit_import_from(node ImportFrom) ImportFrom {
 	return ImportFrom{
 		id:       node.id
@@ -147,7 +147,7 @@ pub fn (mut t TransformVisitor) visit_import_from(node ImportFrom) ImportFrom {
 	}
 }
 
-// visit_import_all посещает ImportAll
+// visit_import_all visits ImportAll
 pub fn (mut t TransformVisitor) visit_import_all(node ImportAll) ImportAll {
 	return ImportAll{
 		id:       node.id
@@ -157,7 +157,7 @@ pub fn (mut t TransformVisitor) visit_import_all(node ImportAll) ImportAll {
 	}
 }
 
-// copy_argument копирует аргумент функции
+// copy_argument copies a function argument
 pub fn (mut t TransformVisitor) copy_argument(argument Argument) Argument {
 	mut arg := Argument{
 		variable:        t.visit_var(argument.variable)
@@ -169,7 +169,7 @@ pub fn (mut t TransformVisitor) copy_argument(argument Argument) Argument {
 	return arg
 }
 
-// visit_func_def посещает FuncDef
+// visit_func_def visits FuncDef
 pub fn (mut t TransformVisitor) visit_func_def(node FuncDef) FuncDef {
 	// Set up placeholder nodes for nested functions
 	init := FuncMapInitializer{
@@ -208,7 +208,7 @@ pub fn (mut t TransformVisitor) visit_func_def(node FuncDef) FuncDef {
 	return new
 }
 
-// visit_lambda_expr посещает LambdaExpr
+// visit_lambda_expr visits LambdaExpr
 pub fn (mut t TransformVisitor) visit_lambda_expr(node LambdaExpr) LambdaExpr {
 	mut args := []Argument{}
 	for arg in node.arguments {
@@ -227,7 +227,7 @@ pub fn (mut t TransformVisitor) visit_lambda_expr(node LambdaExpr) LambdaExpr {
 	return new
 }
 
-// copy_function_attributes копирует атрибуты функции
+// copy_function_attributes copies function attributes
 pub fn (mut t TransformVisitor) copy_function_attributes(mut new FuncItem, original FuncItem) {
 	new.info = original.info
 	new.min_args = original.min_args
@@ -240,7 +240,7 @@ pub fn (mut t TransformVisitor) copy_function_attributes(mut new FuncItem, origi
 	new.line = original.line
 }
 
-// visit_overloaded_func_def посещает OverloadedFuncDef
+// visit_overloaded_func_def visits OverloadedFuncDef
 pub fn (mut t TransformVisitor) visit_overloaded_func_def(node OverloadedFuncDef) OverloadedFuncDef {
 	mut items := []OverloadPart{}
 	for item in node.items {
@@ -265,7 +265,7 @@ pub fn (mut t TransformVisitor) visit_overloaded_func_def(node OverloadedFuncDef
 	return new
 }
 
-// visit_class_def посещает ClassDef
+// visit_class_def visits ClassDef
 pub fn (mut t TransformVisitor) visit_class_def(node ClassDef) ClassDef {
 	mut keywords := map[string]Expression{}
 	for key, value in node.keywords {
@@ -292,7 +292,7 @@ pub fn (mut t TransformVisitor) visit_class_def(node ClassDef) ClassDef {
 	return new
 }
 
-// visit_global_decl посещает GlobalDecl
+// visit_global_decl visits GlobalDecl
 pub fn (mut t TransformVisitor) visit_global_decl(node GlobalDecl) GlobalDecl {
 	return GlobalDecl{
 		names:  node.names.clone()
@@ -301,7 +301,7 @@ pub fn (mut t TransformVisitor) visit_global_decl(node GlobalDecl) GlobalDecl {
 	}
 }
 
-// visit_nonlocal_decl посещает NonlocalDecl
+// visit_nonlocal_decl visits NonlocalDecl
 pub fn (mut t TransformVisitor) visit_nonlocal_decl(node NonlocalDecl) NonlocalDecl {
 	return NonlocalDecl{
 		names:  node.names.clone()
@@ -310,7 +310,7 @@ pub fn (mut t TransformVisitor) visit_nonlocal_decl(node NonlocalDecl) NonlocalD
 	}
 }
 
-// visit_block посещает Block
+// visit_block visits Block
 pub fn (mut t TransformVisitor) visit_block(node Block) Block {
 	return Block{
 		body:           t.statements(node.body)
@@ -320,7 +320,7 @@ pub fn (mut t TransformVisitor) visit_block(node Block) Block {
 	}
 }
 
-// visit_decorator посещает Decorator
+// visit_decorator visits Decorator
 pub fn (mut t TransformVisitor) visit_decorator(node Decorator) Decorator {
 	func := t.visit_func_def(node.func)
 	func.line = node.func.line
@@ -343,7 +343,7 @@ pub fn (mut t TransformVisitor) visit_decorator(node Decorator) Decorator {
 	return new
 }
 
-// visit_var посещает Var
+// visit_var visits Var
 pub fn (mut t TransformVisitor) visit_var(node Var) Var {
 	key := '${node.name}:${node.line}'
 	if key in t.var_map {
@@ -374,7 +374,7 @@ pub fn (mut t TransformVisitor) visit_var(node Var) Var {
 	return new
 }
 
-// visit_expression_stmt посещает ExpressionStmt
+// visit_expression_stmt visits ExpressionStmt
 pub fn (mut t TransformVisitor) visit_expression_stmt(node ExpressionStmt) ExpressionStmt {
 	return ExpressionStmt{
 		expr:   t.expr(node.expr)
@@ -383,7 +383,7 @@ pub fn (mut t TransformVisitor) visit_expression_stmt(node ExpressionStmt) Expre
 	}
 }
 
-// visit_assignment_stmt посещает AssignmentStmt
+// visit_assignment_stmt visits AssignmentStmt
 pub fn (mut t TransformVisitor) visit_assignment_stmt(node AssignmentStmt) AssignmentStmt {
 	mut lvalues := []Expression{}
 	for lv in node.lvalues {
@@ -401,7 +401,7 @@ pub fn (mut t TransformVisitor) visit_assignment_stmt(node AssignmentStmt) Assig
 	return new
 }
 
-// visit_operator_assignment_stmt посещает OperatorAssignmentStmt
+// visit_operator_assignment_stmt visits OperatorAssignmentStmt
 pub fn (mut t TransformVisitor) visit_operator_assignment_stmt(node OperatorAssignmentStmt) OperatorAssignmentStmt {
 	return OperatorAssignmentStmt{
 		op:     node.op
@@ -412,7 +412,7 @@ pub fn (mut t TransformVisitor) visit_operator_assignment_stmt(node OperatorAssi
 	}
 }
 
-// visit_while_stmt посещает WhileStmt
+// visit_while_stmt visits WhileStmt
 pub fn (mut t TransformVisitor) visit_while_stmt(node WhileStmt) WhileStmt {
 	return WhileStmt{
 		expr:      t.expr(node.expr)
@@ -423,7 +423,7 @@ pub fn (mut t TransformVisitor) visit_while_stmt(node WhileStmt) WhileStmt {
 	}
 }
 
-// visit_for_stmt посещает ForStmt
+// visit_for_stmt visits ForStmt
 pub fn (mut t TransformVisitor) visit_for_stmt(node ForStmt) ForStmt {
 	mut new := ForStmt{
 		index:                 t.expr(node.index)
@@ -439,7 +439,7 @@ pub fn (mut t TransformVisitor) visit_for_stmt(node ForStmt) ForStmt {
 	return new
 }
 
-// visit_return_stmt посещает ReturnStmt
+// visit_return_stmt visits ReturnStmt
 pub fn (mut t TransformVisitor) visit_return_stmt(node ReturnStmt) ReturnStmt {
 	return ReturnStmt{
 		expr:   t.optional_expr(node.expr)
@@ -448,7 +448,7 @@ pub fn (mut t TransformVisitor) visit_return_stmt(node ReturnStmt) ReturnStmt {
 	}
 }
 
-// visit_assert_stmt посещает AssertStmt
+// visit_assert_stmt visits AssertStmt
 pub fn (mut t TransformVisitor) visit_assert_stmt(node AssertStmt) AssertStmt {
 	return AssertStmt{
 		expr:   t.expr(node.expr)
@@ -458,7 +458,7 @@ pub fn (mut t TransformVisitor) visit_assert_stmt(node AssertStmt) AssertStmt {
 	}
 }
 
-// visit_del_stmt посещает DelStmt
+// visit_del_stmt visits DelStmt
 pub fn (mut t TransformVisitor) visit_del_stmt(node DelStmt) DelStmt {
 	return DelStmt{
 		expr:   t.expr(node.expr)
@@ -467,7 +467,7 @@ pub fn (mut t TransformVisitor) visit_del_stmt(node DelStmt) DelStmt {
 	}
 }
 
-// visit_if_stmt посещает IfStmt
+// visit_if_stmt visits IfStmt
 pub fn (mut t TransformVisitor) visit_if_stmt(node IfStmt) IfStmt {
 	return IfStmt{
 		expr:      t.expressions(node.expr)
@@ -478,7 +478,7 @@ pub fn (mut t TransformVisitor) visit_if_stmt(node IfStmt) IfStmt {
 	}
 }
 
-// visit_break_stmt посещает BreakStmt
+// visit_break_stmt visits BreakStmt
 pub fn (mut t TransformVisitor) visit_break_stmt(node BreakStmt) BreakStmt {
 	return BreakStmt{
 		line:   node.line
@@ -486,7 +486,7 @@ pub fn (mut t TransformVisitor) visit_break_stmt(node BreakStmt) BreakStmt {
 	}
 }
 
-// visit_continue_stmt посещает ContinueStmt
+// visit_continue_stmt visits ContinueStmt
 pub fn (mut t TransformVisitor) visit_continue_stmt(node ContinueStmt) ContinueStmt {
 	return ContinueStmt{
 		line:   node.line
@@ -494,7 +494,7 @@ pub fn (mut t TransformVisitor) visit_continue_stmt(node ContinueStmt) ContinueS
 	}
 }
 
-// visit_pass_stmt посещает PassStmt
+// visit_pass_stmt visits PassStmt
 pub fn (mut t TransformVisitor) visit_pass_stmt(node PassStmt) PassStmt {
 	return PassStmt{
 		line:   node.line
@@ -502,7 +502,7 @@ pub fn (mut t TransformVisitor) visit_pass_stmt(node PassStmt) PassStmt {
 	}
 }
 
-// visit_raise_stmt посещает RaiseStmt
+// visit_raise_stmt visits RaiseStmt
 pub fn (mut t TransformVisitor) visit_raise_stmt(node RaiseStmt) RaiseStmt {
 	return RaiseStmt{
 		expr:      t.optional_expr(node.expr)
@@ -512,7 +512,7 @@ pub fn (mut t TransformVisitor) visit_raise_stmt(node RaiseStmt) RaiseStmt {
 	}
 }
 
-// visit_try_stmt посещает TryStmt
+// visit_try_stmt visits TryStmt
 pub fn (mut t TransformVisitor) visit_try_stmt(node TryStmt) TryStmt {
 	mut vars := []?Expression{}
 	for v in node.vars {
@@ -543,7 +543,7 @@ pub fn (mut t TransformVisitor) visit_try_stmt(node TryStmt) TryStmt {
 	return new
 }
 
-// visit_with_stmt посещает WithStmt
+// visit_with_stmt visits WithStmt
 pub fn (mut t TransformVisitor) visit_with_stmt(node WithStmt) WithStmt {
 	mut targets := []?Expression{}
 	for target in node.target {
@@ -569,7 +569,7 @@ pub fn (mut t TransformVisitor) visit_with_stmt(node WithStmt) WithStmt {
 	return new
 }
 
-// visit_int_expr посещает IntExpr
+// visit_int_expr visits IntExpr
 pub fn (mut t TransformVisitor) visit_int_expr(node IntExpr) IntExpr {
 	return IntExpr{
 		value:  node.value
@@ -578,7 +578,7 @@ pub fn (mut t TransformVisitor) visit_int_expr(node IntExpr) IntExpr {
 	}
 }
 
-// visit_str_expr посещает StrExpr
+// visit_str_expr visits StrExpr
 pub fn (mut t TransformVisitor) visit_str_expr(node StrExpr) StrExpr {
 	return StrExpr{
 		value:  node.value
@@ -587,7 +587,7 @@ pub fn (mut t TransformVisitor) visit_str_expr(node StrExpr) StrExpr {
 	}
 }
 
-// visit_bytes_expr посещает BytesExpr
+// visit_bytes_expr visits BytesExpr
 pub fn (mut t TransformVisitor) visit_bytes_expr(node BytesExpr) BytesExpr {
 	return BytesExpr{
 		value:  node.value
@@ -596,7 +596,7 @@ pub fn (mut t TransformVisitor) visit_bytes_expr(node BytesExpr) BytesExpr {
 	}
 }
 
-// visit_float_expr посещает FloatExpr
+// visit_float_expr visits FloatExpr
 pub fn (mut t TransformVisitor) visit_float_expr(node FloatExpr) FloatExpr {
 	return FloatExpr{
 		value:  node.value
@@ -605,7 +605,7 @@ pub fn (mut t TransformVisitor) visit_float_expr(node FloatExpr) FloatExpr {
 	}
 }
 
-// visit_complex_expr посещает ComplexExpr
+// visit_complex_expr visits ComplexExpr
 pub fn (mut t TransformVisitor) visit_complex_expr(node ComplexExpr) ComplexExpr {
 	return ComplexExpr{
 		value:  node.value
@@ -614,7 +614,7 @@ pub fn (mut t TransformVisitor) visit_complex_expr(node ComplexExpr) ComplexExpr
 	}
 }
 
-// visit_ellipsis посещает EllipsisExpr
+// visit_ellipsis visits EllipsisExpr
 pub fn (mut t TransformVisitor) visit_ellipsis(node EllipsisExpr) EllipsisExpr {
 	return EllipsisExpr{
 		line:   node.line
@@ -622,12 +622,12 @@ pub fn (mut t TransformVisitor) visit_ellipsis(node EllipsisExpr) EllipsisExpr {
 	}
 }
 
-// visit_name_expr посещает NameExpr
+// visit_name_expr visits NameExpr
 pub fn (mut t TransformVisitor) visit_name_expr(node NameExpr) NameExpr {
 	return t.duplicate_name(node)
 }
 
-// duplicate_name дублирует NameExpr
+// duplicate_name duplicates NameExpr
 pub fn (mut t TransformVisitor) duplicate_name(node NameExpr) NameExpr {
 	mut new := NameExpr{
 		name:   node.name
@@ -639,7 +639,7 @@ pub fn (mut t TransformVisitor) duplicate_name(node NameExpr) NameExpr {
 	return new
 }
 
-// visit_member_expr посещает MemberExpr
+// visit_member_expr visits MemberExpr
 pub fn (mut t TransformVisitor) visit_member_expr(node MemberExpr) MemberExpr {
 	mut member := MemberExpr{
 		expr:   t.expr(node.expr)
@@ -654,7 +654,7 @@ pub fn (mut t TransformVisitor) visit_member_expr(node MemberExpr) MemberExpr {
 	return member
 }
 
-// copy_ref копирует ссылки
+// copy_ref copies references
 pub fn (mut t TransformVisitor) copy_ref(mut new RefExpr, original RefExpr) {
 	new.kind = original.kind
 	new.fullname = original.fullname
@@ -676,7 +676,7 @@ pub fn (mut t TransformVisitor) copy_ref(mut new RefExpr, original RefExpr) {
 	new.is_inferred_def = original.is_inferred_def
 }
 
-// visit_call_expr посещает CallExpr
+// visit_call_expr visits CallExpr
 pub fn (mut t TransformVisitor) visit_call_expr(node CallExpr) CallExpr {
 	return CallExpr{
 		callee:    t.expr(node.callee)
@@ -689,7 +689,7 @@ pub fn (mut t TransformVisitor) visit_call_expr(node CallExpr) CallExpr {
 	}
 }
 
-// visit_op_expr посещает OpExpr
+// visit_op_expr visits OpExpr
 pub fn (mut t TransformVisitor) visit_op_expr(node OpExpr) OpExpr {
 	mut new := OpExpr{
 		op:     node.op
@@ -702,7 +702,7 @@ pub fn (mut t TransformVisitor) visit_op_expr(node OpExpr) OpExpr {
 	return new
 }
 
-// visit_comparison_expr посещает ComparisonExpr
+// visit_comparison_expr visits ComparisonExpr
 pub fn (mut t TransformVisitor) visit_comparison_expr(node ComparisonExpr) ComparisonExpr {
 	mut new := ComparisonExpr{
 		operators: node.operators.clone()
@@ -718,7 +718,7 @@ pub fn (mut t TransformVisitor) visit_comparison_expr(node ComparisonExpr) Compa
 	return new
 }
 
-// visit_cast_expr посещает CastExpr
+// visit_cast_expr visits CastExpr
 pub fn (mut t TransformVisitor) visit_cast_expr(node CastExpr) CastExpr {
 	return CastExpr{
 		expr:   t.expr(node.expr)
@@ -728,7 +728,7 @@ pub fn (mut t TransformVisitor) visit_cast_expr(node CastExpr) CastExpr {
 	}
 }
 
-// visit_assert_type_expr посещает AssertTypeExpr
+// visit_assert_type_expr visits AssertTypeExpr
 pub fn (mut t TransformVisitor) visit_assert_type_expr(node AssertTypeExpr) AssertTypeExpr {
 	return AssertTypeExpr{
 		expr:   t.expr(node.expr)
@@ -738,7 +738,7 @@ pub fn (mut t TransformVisitor) visit_assert_type_expr(node AssertTypeExpr) Asse
 	}
 }
 
-// visit_reveal_expr посещает RevealExpr
+// visit_reveal_expr visits RevealExpr
 pub fn (mut t TransformVisitor) visit_reveal_expr(node RevealExpr) RevealExpr {
 	if node.kind == 'REVEAL_TYPE' {
 		if node.expr != none {
@@ -753,7 +753,7 @@ pub fn (mut t TransformVisitor) visit_reveal_expr(node RevealExpr) RevealExpr {
 	return node
 }
 
-// visit_super_expr посещает SuperExpr
+// visit_super_expr visits SuperExpr
 pub fn (mut t TransformVisitor) visit_super_expr(node SuperExpr) SuperExpr {
 	call := t.expr(node.call)
 	mut new := SuperExpr{
@@ -766,7 +766,7 @@ pub fn (mut t TransformVisitor) visit_super_expr(node SuperExpr) SuperExpr {
 	return new
 }
 
-// visit_assignment_expr посещает AssignmentExpr
+// visit_assignment_expr visits AssignmentExpr
 pub fn (mut t TransformVisitor) visit_assignment_expr(node AssignmentExpr) AssignmentExpr {
 	return AssignmentExpr{
 		target: t.duplicate_name(node.target)
@@ -776,7 +776,7 @@ pub fn (mut t TransformVisitor) visit_assignment_expr(node AssignmentExpr) Assig
 	}
 }
 
-// visit_unary_expr посещает UnaryExpr
+// visit_unary_expr visits UnaryExpr
 pub fn (mut t TransformVisitor) visit_unary_expr(node UnaryExpr) UnaryExpr {
 	mut new := UnaryExpr{
 		op:     node.op
@@ -788,7 +788,7 @@ pub fn (mut t TransformVisitor) visit_unary_expr(node UnaryExpr) UnaryExpr {
 	return new
 }
 
-// visit_list_expr посещает ListExpr
+// visit_list_expr visits ListExpr
 pub fn (mut t TransformVisitor) visit_list_expr(node ListExpr) ListExpr {
 	return ListExpr{
 		items:  t.expressions(node.items)
@@ -797,7 +797,7 @@ pub fn (mut t TransformVisitor) visit_list_expr(node ListExpr) ListExpr {
 	}
 }
 
-// visit_dict_expr посещает DictExpr
+// visit_dict_expr visits DictExpr
 pub fn (mut t TransformVisitor) visit_dict_expr(node DictExpr) DictExpr {
 	mut items := []DictItem{}
 	for key, value in node.items {
@@ -813,7 +813,7 @@ pub fn (mut t TransformVisitor) visit_dict_expr(node DictExpr) DictExpr {
 	}
 }
 
-// visit_tuple_expr посещает TupleExpr
+// visit_tuple_expr visits TupleExpr
 pub fn (mut t TransformVisitor) visit_tuple_expr(node TupleExpr) TupleExpr {
 	return TupleExpr{
 		items:  t.expressions(node.items)
@@ -822,7 +822,7 @@ pub fn (mut t TransformVisitor) visit_tuple_expr(node TupleExpr) TupleExpr {
 	}
 }
 
-// visit_set_expr посещает SetExpr
+// visit_set_expr visits SetExpr
 pub fn (mut t TransformVisitor) visit_set_expr(node SetExpr) SetExpr {
 	return SetExpr{
 		items:  t.expressions(node.items)
@@ -831,7 +831,7 @@ pub fn (mut t TransformVisitor) visit_set_expr(node SetExpr) SetExpr {
 	}
 }
 
-// visit_index_expr посещает IndexExpr
+// visit_index_expr visits IndexExpr
 pub fn (mut t TransformVisitor) visit_index_expr(node IndexExpr) IndexExpr {
 	mut new := IndexExpr{
 		base:   t.expr(node.base)
@@ -853,7 +853,7 @@ pub fn (mut t TransformVisitor) visit_index_expr(node IndexExpr) IndexExpr {
 	return new
 }
 
-// visit_type_application посещает TypeApplication
+// visit_type_application visits TypeApplication
 pub fn (mut t TransformVisitor) visit_type_application(node TypeApplication) TypeApplication {
 	return TypeApplication{
 		expr:   t.expr(node.expr)
@@ -863,7 +863,7 @@ pub fn (mut t TransformVisitor) visit_type_application(node TypeApplication) Typ
 	}
 }
 
-// visit_slice_expr посещает SliceExpr
+// visit_slice_expr visits SliceExpr
 pub fn (mut t TransformVisitor) visit_slice_expr(node SliceExpr) SliceExpr {
 	return SliceExpr{
 		begin_index: t.optional_expr(node.begin_index)
@@ -874,7 +874,7 @@ pub fn (mut t TransformVisitor) visit_slice_expr(node SliceExpr) SliceExpr {
 	}
 }
 
-// visit_conditional_expr посещает ConditionalExpr
+// visit_conditional_expr visits ConditionalExpr
 pub fn (mut t TransformVisitor) visit_conditional_expr(node ConditionalExpr) ConditionalExpr {
 	return ConditionalExpr{
 		cond:      t.expr(node.cond)
@@ -885,7 +885,7 @@ pub fn (mut t TransformVisitor) visit_conditional_expr(node ConditionalExpr) Con
 	}
 }
 
-// FuncMapInitializer — инициализатор placeholder для функций
+// FuncMapInitializer — placeholder initializer for functions
 pub struct FuncMapInitializer {
 pub mut:
 	transformer TransformVisitor

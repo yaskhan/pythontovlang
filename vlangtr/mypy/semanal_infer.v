@@ -1,4 +1,4 @@
-// Я Codex работаю над этим файлом. Начало: 2026-03-22 15:18:07 +05:00
+// I, Codex, am working on this file. Started: 2026-03-22 15:18:07 +05:00
 module mypy
 
 // Simple type inference for decorated functions during semantic analysis.

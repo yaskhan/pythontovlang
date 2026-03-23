@@ -1,4 +1,4 @@
-// Я Codex работаю над этим файлом. Начало: 2026-03-22 22:35
+// I, Codex, am working on this file. Started: 2026-03-22 22:35
 // erasetype.v — Type erasure transformation
 
 module mypy

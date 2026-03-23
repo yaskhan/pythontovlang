@@ -1,25 +1,25 @@
 // stats.v — Utilities for calculating and reporting statistics about types
 // Translated from mypy/stats.py to V 0.5.x
 //
-// Я Antigravity работаю над этим файлом. Начало: 2026-03-22 12:30
+// I, Antigravity, am working on this file. Started: 2026-03-22 12:30
 
 module mypy
 
 import os
 
-// Точность типов
+// Type precision
 pub const type_empty = 0
-pub const type_unanalyzed = 1 // тип не типизированного кода
+pub const type_unanalyzed = 1 // type of untyped code
 pub const type_precise = 2
 pub const type_imprecise = 3
 pub const type_any = 4
 
 pub const precision_names = ['empty', 'unanalyzed', 'precise', 'imprecise', 'any']
 
-// ImportStmt — sum-type для импортов
+// ImportStmt — sum-type for imports
 pub type ImportStmt = ImportFrom | ImportAll
 
-// StatisticsVisitor — посетитель для сбора статистики о типах
+// StatisticsVisitor — visitor for gathering type statistics
 pub struct StatisticsVisitor {
 pub mut:
 	inferred           bool
@@ -47,18 +47,18 @@ pub mut:
 	type_of_any_counter map[int]int // Counter[int] → map[int]int
 	any_line_map        map[int][]AnyType
 
-	// Для каждой области видимости (верхний уровень/функция), была ли область
-	// типизирована (аннотированная функция).
+	// For each scope (top level/function), whether the scope
+	// was typed (annotated function).
 	checked_scopes []bool
 
 	output []string
 
-	// Внутренние поля
+	// Internal fields
 	cur_mod_node MypyFile
 	cur_mod_id   string
 }
 
-// new_statistics_visitor создаёт новый StatisticsVisitor
+// new_statistics_visitor creates a new StatisticsVisitor
 pub fn new_statistics_visitor(inferred bool,
 	filename string,
 	modules map[string]MypyFile,
@@ -82,27 +82,27 @@ pub fn new_statistics_visitor(inferred bool,
 	return v
 }
 
-// visit_mypy_file посещает корневой узел файла
+// visit_mypy_file visits the root node of the file
 pub fn (mut v StatisticsVisitor) visit_mypy_file(o MypyFile) {
 	v.cur_mod_node = o
 	v.cur_mod_id = o.fullname
-	// Продолжаем обход
+	// Continue traversal
 }
 
-// visit_import_from обрабатывает импорт from ... import ...
+// visit_import_from processes a from ... import ... import
 pub fn (mut v StatisticsVisitor) visit_import_from(imp ImportFrom) {
 	v.process_import(imp)
 }
 
-// visit_import_all обрабатывает импорт import *
+// visit_import_all processes an import * import
 pub fn (mut v StatisticsVisitor) visit_import_all(imp ImportAll) {
 	v.process_import(imp)
 }
 
-// process_import обрабатывает импорт и записывает точность
+// process_import processes an import and records precision
 pub fn (mut v StatisticsVisitor) process_import(imp ImportStmt) {
 	// import_id, ok := correct_relative_import(...)
-	// Упрощённая версия:
+	// Simplified version:
 	mut kind := type_precise
 	if imp.id !in v.modules {
 		kind = type_any
@@ -110,7 +110,7 @@ pub fn (mut v StatisticsVisitor) process_import(imp ImportStmt) {
 	v.record_line(imp.line, kind)
 }
 
-// visit_import обрабатывает обычный import
+// visit_import processes an ordinary import
 pub fn (mut v StatisticsVisitor) visit_import(imp Import) {
 	mut all_in_modules := true
 	for id, _ in imp.ids {
@@ -126,7 +126,7 @@ pub fn (mut v StatisticsVisitor) visit_import(imp Import) {
 	v.record_line(imp.line, kind)
 }
 
-// visit_func_def посещает определение функции
+// visit_func_def visits a function definition
 pub fn (mut v StatisticsVisitor) visit_func_def(o FuncDef) {
 	v.enter_scope(o)
 	v.line = o.line
@@ -153,25 +153,25 @@ pub fn (mut v StatisticsVisitor) visit_func_def(o FuncDef) {
 	v.exit_scope()
 }
 
-// enter_scope входит в область видимости функции
+// enter_scope enters a function scope
 pub fn (mut v StatisticsVisitor) enter_scope(o FuncDef) {
 	checked := o.type != none && v.checked_scopes.last() or { true }
 	v.checked_scopes << checked
 }
 
-// exit_scope выходит из области видимости
+// exit_scope exits a scope
 pub fn (mut v StatisticsVisitor) exit_scope() {
 	if v.checked_scopes.len > 0 {
 		v.checked_scopes.pop()
 	}
 }
 
-// is_checked_scope возвращает true, если текущая область видимости типизирована
+// is_checked_scope returns true if the current scope is typed
 pub fn (v StatisticsVisitor) is_checked_scope() bool {
 	return v.checked_scopes.last() or { true }
 }
 
-// visit_class_def посещает определение класса
+// visit_class_def visits a class definition
 pub fn (mut v StatisticsVisitor) visit_class_def(o ClassDef) {
 	v.record_line(o.line, type_precise) // TODO: Look at base classes
 	// While base_type_exprs are technically expressions, type analyzer does not visit them
@@ -181,7 +181,7 @@ pub fn (mut v StatisticsVisitor) visit_class_def(o ClassDef) {
 	// o.defs.accept(self)
 }
 
-// visit_type_application посещает применение типа
+// visit_type_application visits a type application
 pub fn (mut v StatisticsVisitor) visit_type_application(o TypeApplication) {
 	v.line = o.line
 	for t in o.types {
@@ -189,7 +189,7 @@ pub fn (mut v StatisticsVisitor) visit_type_application(o TypeApplication) {
 	}
 }
 
-// visit_assignment_stmt посещает оператор присваивания
+// visit_assignment_stmt visits an assignment statement
 pub fn (mut v StatisticsVisitor) visit_assignment_stmt(o AssignmentStmt) {
 	v.line = o.line
 	// if isinstance(o.rvalue, nodes.CallExpr) and isinstance(
@@ -216,7 +216,7 @@ pub fn (mut v StatisticsVisitor) visit_assignment_stmt(o AssignmentStmt) {
 	}
 }
 
-// visit_expression_stmt посещает оператор выражения
+// visit_expression_stmt visits an expression statement
 pub fn (mut v StatisticsVisitor) visit_expression_stmt(o ExpressionStmt) {
 	// if isinstance(o.expr, (StrExpr, BytesExpr)):
 	//     # Docstring
@@ -226,22 +226,22 @@ pub fn (mut v StatisticsVisitor) visit_expression_stmt(o ExpressionStmt) {
 	// }
 }
 
-// visit_pass_stmt посещает оператор pass
+// visit_pass_stmt visits a pass statement
 pub fn (mut v StatisticsVisitor) visit_pass_stmt(o PassStmt) {
 	v.record_precise_if_checked_scope(o)
 }
 
-// visit_break_stmt посещает оператор break
+// visit_break_stmt visits a break statement
 pub fn (mut v StatisticsVisitor) visit_break_stmt(o BreakStmt) {
 	v.record_precise_if_checked_scope(o)
 }
 
-// visit_continue_stmt посещает оператор continue
+// visit_continue_stmt visits a continue statement
 pub fn (mut v StatisticsVisitor) visit_continue_stmt(o ContinueStmt) {
 	v.record_precise_if_checked_scope(o)
 }
 
-// visit_name_expr посещает имя
+// visit_name_expr visits a name
 pub fn (mut v StatisticsVisitor) visit_name_expr(o NameExpr) {
 	if o.fullname in ['builtins.None', 'builtins.True', 'builtins.False', 'builtins.Ellipsis'] {
 		v.record_precise_if_checked_scope(o)
@@ -250,14 +250,14 @@ pub fn (mut v StatisticsVisitor) visit_name_expr(o NameExpr) {
 	}
 }
 
-// visit_yield_from_expr посещает yield from
+// visit_yield_from_expr visits yield from
 pub fn (mut v StatisticsVisitor) visit_yield_from_expr(o YieldFromExpr) {
 	if o.expr != none {
 		// o.expr.accept(self)
 	}
 }
 
-// visit_call_expr посещает вызов функции
+// visit_call_expr visits a function call
 pub fn (mut v StatisticsVisitor) visit_call_expr(o CallExpr) {
 	v.process_node(o)
 	if o.analyzed != none {
@@ -270,7 +270,7 @@ pub fn (mut v StatisticsVisitor) visit_call_expr(o CallExpr) {
 	}
 }
 
-// record_call_target_precision записывает точность аргументов вызова
+// record_call_target_precision records precision of call arguments
 pub fn (mut v StatisticsVisitor) record_call_target_precision(o CallExpr) {
 	// if not self.typemap or o.callee not in self.typemap:
 	//     # Type not available.
@@ -280,72 +280,72 @@ pub fn (mut v StatisticsVisitor) record_call_target_precision(o CallExpr) {
 	//     self.record_callable_target_precision(o, callee_type)
 }
 
-// record_callable_target_precision записывает точность формальных аргументов
+// record_callable_target_precision records precision of formal arguments
 pub fn (mut v StatisticsVisitor) record_callable_target_precision(o CallExpr, callee CallableType) {
-	// Упрощённая версия
+	// Simplified version
 }
 
-// visit_member_expr посещает доступ к атрибуту
+// visit_member_expr visits attribute access
 pub fn (mut v StatisticsVisitor) visit_member_expr(o MemberExpr) {
 	v.process_node(o)
 }
 
-// visit_op_expr посещает оператор
+// visit_op_expr visits an operator
 pub fn (mut v StatisticsVisitor) visit_op_expr(o OpExpr) {
 	v.process_node(o)
 }
 
-// visit_comparison_expr посещает оператор сравнения
+// visit_comparison_expr visits a comparison operator
 pub fn (mut v StatisticsVisitor) visit_comparison_expr(o ComparisonExpr) {
 	v.process_node(o)
 }
 
-// visit_index_expr посещает индексацию
+// visit_index_expr visits indexing
 pub fn (mut v StatisticsVisitor) visit_index_expr(o IndexExpr) {
 	v.process_node(o)
 }
 
-// visit_assignment_expr посещает оператор присваивания (:=)
+// visit_assignment_expr visits an assignment expression (:=)
 pub fn (mut v StatisticsVisitor) visit_assignment_expr(o AssignmentExpr) {
 	v.process_node(o)
 }
 
-// visit_unary_expr посещает унарный оператор
+// visit_unary_expr visits a unary operator
 pub fn (mut v StatisticsVisitor) visit_unary_expr(o UnaryExpr) {
 	v.process_node(o)
 }
 
-// visit_str_expr посещает строковый литерал
+// visit_str_expr visits a string literal
 pub fn (mut v StatisticsVisitor) visit_str_expr(o StrExpr) {
 	v.record_precise_if_checked_scope(o)
 }
 
-// visit_bytes_expr посещает байтовый литерал
+// visit_bytes_expr visits a bytes literal
 pub fn (mut v StatisticsVisitor) visit_bytes_expr(o BytesExpr) {
 	v.record_precise_if_checked_scope(o)
 }
 
-// visit_int_expr посещает целочисленный литерал
+// visit_int_expr visits an integer literal
 pub fn (mut v StatisticsVisitor) visit_int_expr(o IntExpr) {
 	v.record_precise_if_checked_scope(o)
 }
 
-// visit_float_expr посещает литерал float
+// visit_float_expr visits a float literal
 pub fn (mut v StatisticsVisitor) visit_float_expr(o FloatExpr) {
 	v.record_precise_if_checked_scope(o)
 }
 
-// visit_complex_expr посещает литерал complex
+// visit_complex_expr visits a complex literal
 pub fn (mut v StatisticsVisitor) visit_complex_expr(o ComplexExpr) {
 	v.record_precise_if_checked_scope(o)
 }
 
-// visit_ellipsis посещает Ellipsis
+// visit_ellipsis visits Ellipsis
 pub fn (mut v StatisticsVisitor) visit_ellipsis(o EllipsisExpr) {
 	v.record_precise_if_checked_scope(o)
 }
 
-// process_node обрабатывает узел
+// process_node processes a node
 pub fn (mut v StatisticsVisitor) process_node(node Expression) {
 	if v.all_nodes {
 		if v.typemap != none {
@@ -355,7 +355,7 @@ pub fn (mut v StatisticsVisitor) process_node(node Expression) {
 	}
 }
 
-// record_precise_if_checked_scope записывает точность если в типизированной области
+// record_precise_if_checked_scope records precision if in a typed scope
 pub fn (mut v StatisticsVisitor) record_precise_if_checked_scope(node Node) {
 	mut kind := type_precise
 	if v.is_checked_scope() {
@@ -366,7 +366,7 @@ pub fn (mut v StatisticsVisitor) record_precise_if_checked_scope(node Node) {
 	v.record_line(node.line, kind)
 }
 
-// type_node анализирует тип и записывает статистику
+// type_node analyzes a type and records statistics
 pub fn (mut v StatisticsVisitor) type_node(t MypyTypeNode) {
 	if t == MypyTypeNode(none) {
 		// If an expression does not have a type, it is often due to dead code.
@@ -431,7 +431,7 @@ pub fn (mut v StatisticsVisitor) type_node(t MypyTypeNode) {
 	}
 }
 
-// is_complex_type проверяет, является ли тип сложным
+// is_complex_type checks if a type is complex
 pub fn (v StatisticsVisitor) is_complex_type(t MypyTypeNode) bool {
 	return match t {
 		Instance { t.args.len > 0 }
@@ -442,18 +442,18 @@ pub fn (v StatisticsVisitor) is_complex_type(t MypyTypeNode) bool {
 	}
 }
 
-// log записывает сообщение в output
+// log records a message into output
 pub fn (mut v StatisticsVisitor) log(msg string) {
 	v.output << msg
 }
 
-// record_line записывает точность для строки
+// record_line records precision for a line
 pub fn (mut v StatisticsVisitor) record_line(line int, precision int) {
 	existing := v.line_map[line] or { type_empty }
 	v.line_map[line] = max(precision, existing)
 }
 
-// dump_type_stats выводит статистику по дереву
+// dump_type_stats outputs tree statistics
 pub fn dump_type_stats(tree MypyFile,
 	path string,
 	modules map[string]MypyFile,
@@ -483,13 +483,13 @@ pub fn dump_type_stats(tree MypyFile,
 	println('  any      ${visitor.num_any_types}')
 }
 
-// is_special_module проверяет, является ли модуль специальным
+// is_special_module checks if a module is special
 pub fn is_special_module(path string) bool {
 	basename := os.base(path)
 	return basename in ['abc.pyi', 'typing.pyi', 'builtins.pyi']
 }
 
-// is_imprecise проверяет, содержит ли тип Any (кроме special_form)
+// is_imprecise checks if a type contains Any (except special_form)
 pub fn is_imprecise(t MypyTypeNode) bool {
 	return match t {
 		AnyType { !is_special_form_any(t) }
@@ -497,7 +497,7 @@ pub fn is_imprecise(t MypyTypeNode) bool {
 	}
 }
 
-// is_imprecise2 проверяет имprecise без проверки CallableType
+// is_imprecise2 checks imprecise without checking CallableType
 pub fn is_imprecise2(t MypyTypeNode) bool {
 	return match t {
 		AnyType { !is_special_form_any(t) }
@@ -506,7 +506,7 @@ pub fn is_imprecise2(t MypyTypeNode) bool {
 	}
 }
 
-// is_generic проверяет, является ли тип generic Instance
+// is_generic checks if a type is a generic Instance
 pub fn is_generic(t MypyTypeNode) bool {
 	return match t {
 		Instance { t.args.len > 0 }
@@ -514,7 +514,7 @@ pub fn is_generic(t MypyTypeNode) bool {
 	}
 }
 
-// is_complex проверяет, является ли тип сложным
+// is_complex checks if a type is complex
 pub fn is_complex(t MypyTypeNode) bool {
 	return match t {
 		Instance { t.args.len > 0 }
@@ -525,7 +525,7 @@ pub fn is_complex(t MypyTypeNode) bool {
 	}
 }
 
-// is_special_form_any проверяет, является ли Any special_form
+// is_special_form_any checks if Any is a special_form
 pub fn is_special_form_any(t AnyType) bool {
 	return t.type_of_any == int(TypeOfAny.special_form)
 }

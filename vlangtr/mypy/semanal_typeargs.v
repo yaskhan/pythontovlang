@@ -1,7 +1,7 @@
-// Я Antigravity работаю над этим файлом. Начало: 2026-03-22 03:50
+// I, Antigravity, am working on this file. Started: 2026-03-22 03:50
 module mypy
 
-// Проверка свойств аргументов типов (например, того, что 'int' в C[int] является валидным).
+// Check type argument properties (e.g., that 'int' in C[int] is valid).
 
 pub struct TypeArgumentAnalyzer {
 	MixedTraverserVisitor
@@ -59,7 +59,7 @@ pub fn (mut v TypeArgumentAnalyzer) visit_block(o &Block) !string {
 
 pub fn (mut v TypeArgumentAnalyzer) visit_type_alias_type(t &TypeAliasType) !string {
 	v.TypeTraverserVisitor.visit_type_alias_type(t)!
-	// В V: t.alias — это ?&TypeAlias
+	// In V: t.alias is ?&TypeAlias
 	alias := t.alias or { return error('TypeArgumentAnalyzer: Unfixed type alias ${t.alias_name}') }
 
 	if t in v.seen_aliases { // Need a way to check identity or use fullname

@@ -44,7 +44,7 @@ pub fn new_filesystem_metadata_store(cache_dir_prefix string) FilesystemMetadata
 	}
 }
 
-// getmtime читает mtime записи метаданных
+// getmtime reads the mtime of a metadata entry
 pub fn (mut fs FilesystemMetadataStore) getmtime(name string) !f64 {
 	if fs.cache_dir_prefix == none {
 		return error('FileNotFound')
@@ -56,7 +56,7 @@ pub fn (mut fs FilesystemMetadataStore) getmtime(name string) !f64 {
 	return info.mod_time().unix()
 }
 
-// read читает содержимое записи метаданных
+// read reads the contents of a metadata entry
 pub fn (mut fs FilesystemMetadataStore) read(name string) ![]u8 {
 	if fs.cache_dir_prefix == none {
 		return error('FileNotFound')
@@ -67,7 +67,7 @@ pub fn (mut fs FilesystemMetadataStore) read(name string) ![]u8 {
 	return os.read_file(path)
 }
 
-// write записывает запись метаданных
+// write writes a metadata entry
 pub fn (mut fs FilesystemMetadataStore) write(name string, data []u8, mtime ?f64) bool {
 	if fs.cache_dir_prefix == none {
 		return false
@@ -90,7 +90,7 @@ pub fn (mut fs FilesystemMetadataStore) write(name string, data []u8, mtime ?f64
 	return true
 }
 
-// remove удаляет запись метаданных
+// remove removes a metadata entry
 pub fn (mut fs FilesystemMetadataStore) remove(name string) ! {
 	if fs.cache_dir_prefix == none {
 		return error('FileNotFound')

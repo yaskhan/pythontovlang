@@ -1,8 +1,8 @@
-// Я Antigravity работаю над этим файлом. Начало: 2026-03-22 05:00
+// I, Antigravity, am working on this file. Started: 2026-03-22 05:00
 module mypy
 
-// Основной цикл семантического анализа.
-// Трансляция: mypy/semanal_main.py → vlangtr/mypy/semanal_main.v
+// Main loop of semantic analysis.
+// Translation: mypy/semanal_main.py → vlangtr/mypy/semanal_main.v
 
 pub const max_iterations = 20
 pub const core_warmup = 2

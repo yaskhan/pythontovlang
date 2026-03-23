@@ -1,7 +1,7 @@
 // scope.v — Track current scope to easily calculate the corresponding fine-grained target
 // Translated from mypy/scope.py to V 0.5.x
 //
-// Я Cline работаю над этим файлом. Начало: 2026-03-22 08:20
+// I, Cline, am working on this file. Started: 2026-03-22 08:20
 //
 // Translation notes:
 //   - Scope: tracks which target we are processing at any given time

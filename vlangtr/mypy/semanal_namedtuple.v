@@ -1,7 +1,7 @@
-// Я Antigravity работаю над этим файлом. Начало: 2026-03-22 04:30
+// I, Antigravity, am working on this file. Started: 2026-03-22 04:30
 module mypy
 
-// Семантический анализ определений NamedTuple.
+// Semantic analysis of NamedTuple definitions.
 
 pub const namedtuple_prohibited_names = [
 	'__new__',

@@ -1,18 +1,18 @@
-// Я Cline работаю над этим файлом. Начало: 2026-03-22 20:31
+// I, Cline, am working on this file. Started: 2026-03-22 20:31
 // semanal.v — The semantic analyzer
-// Переведён из mypy/semanal.py
-// Примечание: это очень большой файл (~3000 строк), транслированы основные структуры и ключевые функции
+// Translated from mypy/semanal.py
+// Note: this is a very large file (~3000 lines), translated main structures and key functions
 
 module mypy
 
-// Константы для областей видимости
+// Scope constants
 pub const scope_global = 0
 pub const scope_class = 1
 pub const scope_func = 2
 pub const scope_comprehension = 3
 pub const scope_annotation = 4
 
-// FUTURE_IMPORTS — маппинг future imports на флаги
+// FUTURE_IMPORTS — mapping of future imports to flags
 pub const future_imports = {
 	'__future__.nested_scopes':    'nested_scopes'
 	'__future__.generators':       'generators'
@@ -26,10 +26,10 @@ pub const future_imports = {
 	'__future__.annotations':      'annotations'
 }
 
-// CORE_BUILTIN_CLASSES — базовые классы builtins
+// CORE_BUILTIN_CLASSES — basic builtins classes
 pub const core_builtin_classes = ['object', 'bool', 'function']
 
-// SemanticAnalyzer — семантический анализатор mypy
+// SemanticAnalyzer — mypy semantic analyzer
 pub struct SemanticAnalyzer {
 pub mut:
 	modules                              map[string]MypyFile
@@ -73,7 +73,7 @@ pub mut:
 	transitive_submodule_imports         map[string]map[string]bool
 }
 
-// new_semantic_analyzer создаёт новый SemanticAnalyzer
+// new_semantic_analyzer creates a new SemanticAnalyzer
 pub fn new_semantic_analyzer(modules map[string]MypyFile, errors Errors, plugin Plugin, options Options) SemanticAnalyzer {
 	return SemanticAnalyzer{
 		modules:                              modules
@@ -118,27 +118,27 @@ pub fn new_semantic_analyzer(modules map[string]MypyFile, errors Errors, plugin 
 	}
 }
 
-// type возвращает текущий TypeInfo
+// type returns the current TypeInfo
 pub fn (sa SemanticAnalyzer) type() ?TypeInfo {
 	return sa._type
 }
 
-// is_stub_file проверяет, является ли файл stub
+// is_stub_file checks if the file is a stub
 pub fn (sa SemanticAnalyzer) is_stub_file() bool {
 	return sa._is_stub_file
 }
 
-// is_typeshed_stub_file проверяет, является ли файл stub из typeshed
+// is_typeshed_stub_file checks if the file is a stub from typeshed
 pub fn (sa SemanticAnalyzer) is_typeshed_stub_file() bool {
 	return sa._is_typeshed_stub_file
 }
 
-// final_iteration проверяет, является ли это финальной итерацией
+// final_iteration checks if this is the final iteration
 pub fn (sa SemanticAnalyzer) final_iteration() bool {
 	return sa._final_iteration
 }
 
-// prepare_file подготавливает файл к анализу
+// prepare_file prepares a file for analysis
 pub fn (mut sa SemanticAnalyzer) prepare_file(file_node MypyFile) {
 	if 'builtins' in sa.modules {
 		file_node.names['__builtins__'] = SymbolTableNode{
@@ -151,11 +151,11 @@ pub fn (mut sa SemanticAnalyzer) prepare_file(file_node MypyFile) {
 	}
 }
 
-// prepare_builtins_namespace добавляет специальные определения в builtins
+// prepare_builtins_namespace adds special definitions to builtins
 fn (mut sa SemanticAnalyzer) prepare_builtins_namespace(file_node MypyFile) {
 	names := file_node.names
 
-	// Добавляем пустые определения для базовых классов
+	// Add empty definitions for base classes
 	for name in core_builtin_classes {
 		cdef := ClassDef{
 			name: name
@@ -171,7 +171,7 @@ fn (mut sa SemanticAnalyzer) prepare_builtins_namespace(file_node MypyFile) {
 		}
 	}
 
-	// Добавляем специальные переменные
+	// Add special variables
 	bool_info := names['bool'].node
 	assert bool_info is TypeInfoNode
 
@@ -212,7 +212,7 @@ fn (mut sa SemanticAnalyzer) prepare_builtins_namespace(file_node MypyFile) {
 	}
 }
 
-// visit_mypy_file обрабатывает MypyFile
+// visit_mypy_file handles MypyFile
 pub fn (mut sa SemanticAnalyzer) visit_mypy_file(file_node MypyFile) {
 	sa.cur_mod_node = file_node
 	sa.cur_mod_id = file_node.fullname
@@ -223,7 +223,7 @@ pub fn (mut sa SemanticAnalyzer) visit_mypy_file(file_node MypyFile) {
 	}
 }
 
-// visit_func_def обрабатывает определение функции
+// visit_func_def handles function definition
 pub fn (mut sa SemanticAnalyzer) visit_func_def(defn FuncDef) {
 	sa.statement = defn
 
@@ -251,7 +251,7 @@ pub fn (mut sa SemanticAnalyzer) visit_func_def(defn FuncDef) {
 	sa.function_stack.pop()
 }
 
-// analyze_func_def анализирует определение функции
+// analyze_func_def analyzes function definition
 fn (mut sa SemanticAnalyzer) analyze_func_def(defn FuncDef) {
 	if sa.push_type_args(defn.type_args, defn) == none {
 		sa.defer(defn)
@@ -272,12 +272,12 @@ fn (mut sa SemanticAnalyzer) analyze_func_def(defn FuncDef) {
 		defn.info = sa._type
 	}
 
-	// TODO: анализ сигнатуры функции
+	// TODO: function signature analysis
 	sa.analyze_function_body(defn)
 	sa.pop_type_args(defn.type_args)
 }
 
-// visit_class_def обрабатывает определение класса
+// visit_class_def handles class definition
 pub fn (mut sa SemanticAnalyzer) visit_class_def(defn ClassDef) {
 	sa.statement = defn
 	sa.incomplete_type_stack << (defn.info == none)
@@ -293,7 +293,7 @@ pub fn (mut sa SemanticAnalyzer) visit_class_def(defn ClassDef) {
 	sa.incomplete_type_stack.pop()
 }
 
-// analyze_class анализирует определение класса
+// analyze_class analyzes class definition
 fn (mut sa SemanticAnalyzer) analyze_class(defn ClassDef) {
 	fullname := sa.qualified_name(defn.name)
 
@@ -307,7 +307,7 @@ fn (mut sa SemanticAnalyzer) analyze_class(defn ClassDef) {
 		sa.add_symbol(defn.name, placeholder, defn)
 	}
 
-	// TODO: полная реализация анализа класса
+	// TODO: full class analysis implementation
 	sa.prepare_class_def(defn)
 	sa.setup_type_vars(defn, [])
 
@@ -316,7 +316,7 @@ fn (mut sa SemanticAnalyzer) analyze_class(defn ClassDef) {
 	sa.leave_class()
 }
 
-// visit_import обрабатывает import
+// visit_import handles import
 pub fn (mut sa SemanticAnalyzer) visit_import(i Import) {
 	sa.statement = i
 	for id, as_id in i.ids {
@@ -347,7 +347,7 @@ pub fn (mut sa SemanticAnalyzer) visit_import(i Import) {
 	}
 }
 
-// visit_import_from обрабатывает from ... import
+// visit_import_from handles from ... import
 pub fn (mut sa SemanticAnalyzer) visit_import_from(imp ImportFrom) {
 	sa.statement = imp
 	mod_id := sa.correct_relative_import(imp)
@@ -377,7 +377,7 @@ pub fn (mut sa SemanticAnalyzer) visit_import_from(imp ImportFrom) {
 	}
 }
 
-// visit_assignment_stmt обрабатывает присваивание
+// visit_assignment_stmt handles assignment
 pub fn (mut sa SemanticAnalyzer) visit_assignment_stmt(s AssignmentStmt) {
 	sa.statement = s
 
@@ -386,7 +386,7 @@ pub fn (mut sa SemanticAnalyzer) visit_assignment_stmt(s AssignmentStmt) {
 	}
 
 	tag := sa.track_incomplete_refs()
-	// TODO: анализ rvalue
+	// TODO: analyze rvalue
 	s.rvalue.accept(sa)
 
 	if sa.found_incomplete_ref(tag) {
@@ -396,13 +396,13 @@ pub fn (mut sa SemanticAnalyzer) visit_assignment_stmt(s AssignmentStmt) {
 		return
 	}
 
-	// TODO: проверка special forms (type alias, TypeVar, и т.д.)
+	// TODO: check special forms (type alias, TypeVar, etc.)
 	s.is_final_def = sa.unwrap_final(s)
 	sa.analyze_lvalues(s)
-	// TODO: дополнительные проверки
+	// TODO: additional checks
 }
 
-// visit_if_stmt обрабатывает if
+// visit_if_stmt handles if
 pub fn (mut sa SemanticAnalyzer) visit_if_stmt(s IfStmt) {
 	sa.statement = s
 	// TODO: infer_reachability_of_if_statement
@@ -413,7 +413,7 @@ pub fn (mut sa SemanticAnalyzer) visit_if_stmt(s IfStmt) {
 	sa.visit_block_maybe(s.else_body)
 }
 
-// visit_block обрабатывает блок
+// visit_block handles block
 pub fn (mut sa SemanticAnalyzer) visit_block(b Block) {
 	if b.is_unreachable {
 		return
@@ -425,14 +425,14 @@ pub fn (mut sa SemanticAnalyzer) visit_block(b Block) {
 	sa.block_depth[sa.block_depth.len - 1]--
 }
 
-// visit_block_maybe обрабатывает опциональный блок
+// visit_block_maybe handles optional block
 pub fn (mut sa SemanticAnalyzer) visit_block_maybe(b ?Block) {
 	if b != none {
 		sa.visit_block(b)
 	}
 }
 
-// visit_while_stmt обрабатывает while
+// visit_while_stmt handles while
 pub fn (mut sa SemanticAnalyzer) visit_while_stmt(s WhileStmt) {
 	sa.statement = s
 	s.expr.accept(sa)
@@ -442,10 +442,10 @@ pub fn (mut sa SemanticAnalyzer) visit_while_stmt(s WhileStmt) {
 	sa.visit_block_maybe(s.else_body)
 }
 
-// visit_for_stmt обрабатывает for
+// visit_for_stmt handles for
 pub fn (mut sa SemanticAnalyzer) visit_for_stmt(s ForStmt) {
 	if s.is_async {
-		// TODO: проверка async
+		// TODO: async check
 	}
 	sa.statement = s
 	s.expr.accept(sa)
@@ -456,7 +456,7 @@ pub fn (mut sa SemanticAnalyzer) visit_for_stmt(s ForStmt) {
 	sa.visit_block_maybe(s.else_body)
 }
 
-// visit_return_stmt обрабатывает return
+// visit_return_stmt handles return
 pub fn (mut sa SemanticAnalyzer) visit_return_stmt(s ReturnStmt) {
 	if !sa.is_func_scope() {
 		sa.fail('"return" outside function', s)
@@ -466,21 +466,21 @@ pub fn (mut sa SemanticAnalyzer) visit_return_stmt(s ReturnStmt) {
 	}
 }
 
-// visit_break_stmt обрабатывает break
+// visit_break_stmt handles break
 pub fn (mut sa SemanticAnalyzer) visit_break_stmt(s BreakStmt) {
 	if sa.loop_depth.last() == 0 {
 		sa.fail('"break" outside loop', s, serious: true, blocker: true)
 	}
 }
 
-// visit_continue_stmt обрабатывает continue
+// visit_continue_stmt handles continue
 pub fn (mut sa SemanticAnalyzer) visit_continue_stmt(s ContinueStmt) {
 	if sa.loop_depth.last() == 0 {
 		sa.fail('"continue" outside loop', s, serious: true, blocker: true)
 	}
 }
 
-// visit_try_stmt обрабатывает try
+// visit_try_stmt handles try
 pub fn (mut sa SemanticAnalyzer) visit_try_stmt(s TryStmt) {
 	sa.statement = s
 	s.body.accept(sa)
@@ -497,7 +497,7 @@ pub fn (mut sa SemanticAnalyzer) visit_try_stmt(s TryStmt) {
 	sa.visit_block_maybe(s.finally_body)
 }
 
-// visit_decorator обрабатывает декоратор
+// visit_decorator handles decorator
 pub fn (mut sa SemanticAnalyzer) visit_decorator(dec Decorator) {
 	sa.statement = dec
 	dec.decorators = dec.original_decorators.clone()
@@ -514,16 +514,16 @@ pub fn (mut sa SemanticAnalyzer) visit_decorator(dec Decorator) {
 		d.accept(sa)
 	}
 
-	// TODO: обработка специальных декораторов (abstractmethod, staticmethod и т.д.)
+	// TODO: handle special decorators (abstractmethod, staticmethod, etc.)
 }
 
-// visit_expression_stmt обрабатывает expression statement
+// visit_expression_stmt handles expression statement
 pub fn (mut sa SemanticAnalyzer) visit_expression_stmt(s ExpressionStmt) {
 	sa.statement = s
 	s.expr.accept(sa)
 }
 
-// visit_name_expr обрабатывает имя
+// visit_name_expr handles name
 pub fn (mut sa SemanticAnalyzer) visit_name_expr(expr NameExpr) {
 	n := sa.lookup(expr.name, expr)
 	if n != none {
@@ -531,37 +531,37 @@ pub fn (mut sa SemanticAnalyzer) visit_name_expr(expr NameExpr) {
 	}
 }
 
-// visit_member_expr обрабатывает member access
+// visit_member_expr handles member access
 pub fn (mut sa SemanticAnalyzer) visit_member_expr(expr MemberExpr) {
 	expr.expr.accept(sa)
-	// TODO: обработка member access
+	// TODO: handle member access
 }
 
-// visit_call_expr обрабатывает вызов
+// visit_call_expr handles call
 pub fn (mut sa SemanticAnalyzer) visit_call_expr(expr CallExpr) {
 	expr.callee.accept(sa)
-	// TODO: обработка специальных вызовов (cast, reveal_type и т.д.)
+	// TODO: handle special calls (cast, reveal_type, etc.)
 	for a in expr.args {
 		a.accept(sa)
 	}
 }
 
-// visit_int_expr обрабатывает int literal
+// visit_int_expr handles int literal
 pub fn (sa SemanticAnalyzer) visit_int_expr(expr IntExpr) {
-	// Ничего не делаем
+	// Do nothing
 }
 
-// visit_str_expr обрабатывает string literal
+// visit_str_expr handles string literal
 pub fn (sa SemanticAnalyzer) visit_str_expr(expr StrExpr) {
-	// Ничего не делаем
+	// Do nothing
 }
 
-// visit_pass_stmt обрабатывает pass
+// visit_pass_stmt handles pass
 pub fn (sa SemanticAnalyzer) visit_pass_stmt(s PassStmt) {
-	// Ничего не делаем
+	// Do nothing
 }
 
-// accept принимает узел
+// accept accepts a node
 pub fn (mut sa SemanticAnalyzer) accept(node Node) {
 	if node is FuncDef {
 		sa.visit_func_def(node)
@@ -608,7 +608,7 @@ pub fn (mut sa SemanticAnalyzer) accept(node Node) {
 	}
 }
 
-// lookup ищет имя
+// lookup looks up a name
 pub fn (sa SemanticAnalyzer) lookup(name string, ctx NodeBase) ?SymbolTableNode {
 	// Search in local scopes (innermost first)
 	for i := sa.locals.len - 1; i >= 0; i-- {
@@ -635,7 +635,7 @@ pub fn (sa SemanticAnalyzer) lookup(name string, ctx NodeBase) ?SymbolTableNode 
 	return none
 }
 
-// lookup_qualified ищет квалифицированное имя
+// lookup_qualified looks up a qualified name
 pub fn (sa SemanticAnalyzer) lookup_qualified(name string, ctx NodeBase, suppress_errors bool) ?SymbolTableNode {
 	if '.' !in name {
 		return sa.lookup(name, ctx)
@@ -684,17 +684,17 @@ pub fn (sa SemanticAnalyzer) lookup_qualified(name string, ctx NodeBase, suppres
 	return current
 }
 
-// bind_name_expr привязывает имя
+// bind_name_expr binds a name
 fn (mut sa SemanticAnalyzer) bind_name_expr(expr NameExpr, sym SymbolTableNode) {
 	expr.kind = sym.kind
 	expr.node = sym.node
 	expr.fullname = sym.fullname or { '' }
 }
 
-// analyze_lvalue анализирует lvalue
+// analyze_lvalue analyzes lvalue
 pub fn (mut sa SemanticAnalyzer) analyze_lvalue(lval Lvalue, nested bool, explicit_type bool) {
 	if lval is NameExpr {
-		// TODO: анализ lvalue
+		// TODO: analyze lvalue
 	} else if lval is MemberExpr {
 		lval.accept(sa)
 	} else if lval is TupleExpr {
@@ -704,7 +704,7 @@ pub fn (mut sa SemanticAnalyzer) analyze_lvalue(lval Lvalue, nested bool, explic
 	}
 }
 
-// names_modified_by_assignment возвращает имена, изменённые в присваивании
+// names_modified_by_assignment returns names modified in assignment
 fn (sa SemanticAnalyzer) names_modified_by_assignment(s AssignmentStmt) []NameExpr {
 	mut result := []NameExpr{}
 	for lval in s.lvalues {
@@ -713,7 +713,7 @@ fn (sa SemanticAnalyzer) names_modified_by_assignment(s AssignmentStmt) []NameEx
 	return result
 }
 
-// names_modified_in_lvalue возвращает NameExpr в lvalue
+// names_modified_in_lvalue returns NameExpr in lvalue
 fn (sa SemanticAnalyzer) names_modified_in_lvalue(lval Lvalue) []NameExpr {
 	if lval is NameExpr {
 		return [lval]
@@ -727,7 +727,7 @@ fn (sa SemanticAnalyzer) names_modified_in_lvalue(lval Lvalue) []NameExpr {
 	return []
 }
 
-// unwrap_final обрабатывает Final
+// unwrap_final handles Final
 fn (mut sa SemanticAnalyzer) unwrap_final(s AssignmentStmt) bool {
 	// Check if assignment is wrapped in Final[]
 	for lval in s.lvalues {
@@ -746,7 +746,7 @@ fn (mut sa SemanticAnalyzer) unwrap_final(s AssignmentStmt) bool {
 	return false
 }
 
-// analyze_identity_global_assignment проверяет X = X
+// analyze_identity_global_assignment checks X = X
 fn (sa SemanticAnalyzer) analyze_identity_global_assignment(s AssignmentStmt) bool {
 	// Check if this is a self-assignment like X = X
 	if s.lvalues.len != 1 {
@@ -773,7 +773,7 @@ fn (sa SemanticAnalyzer) analyze_identity_global_assignment(s AssignmentStmt) bo
 	return false
 }
 
-// qualified_name возвращает полное имя
+// qualified_name returns the qualified name
 fn (sa SemanticAnalyzer) qualified_name(name string) string {
 	if sa._type != none {
 		return (sa._type or { return '' })._fullname + '.' + name
@@ -783,33 +783,33 @@ fn (sa SemanticAnalyzer) qualified_name(name string) string {
 	return sa.cur_mod_id + '.' + name
 }
 
-// is_func_scope проверяет, находимся ли мы в функции
+// is_func_scope checks if we are in a function
 fn (sa SemanticAnalyzer) is_func_scope() bool {
 	scope_type := sa.scope_stack.last()
 	return scope_type in [scope_func, scope_comprehension]
 }
 
-// is_class_scope проверяет, находимся ли мы в классе
+// is_class_scope checks if we are in a class
 fn (sa SemanticAnalyzer) is_class_scope() bool {
 	return sa._type != none && !sa.is_func_scope()
 }
 
-// is_module_scope проверяет, находимся ли мы в модуле
+// is_module_scope checks if we are in a module
 fn (sa SemanticAnalyzer) is_module_scope() bool {
 	return !sa.is_class_scope() && !sa.is_func_scope()
 }
 
-// is_core_builtin_class проверяет, является ли класс базовым builtins
+// is_core_builtin_class checks if the class is a basic builtin
 fn (sa SemanticAnalyzer) is_core_builtin_class(defn ClassDef) bool {
 	return sa.cur_mod_id == 'builtins' && defn.name in core_builtin_classes
 }
 
-// recurse_into_functions проверяет, нужно ли рекурсивно обходить функции
+// recurse_into_functions checks if we should recursively traverse functions
 fn (sa SemanticAnalyzer) recurse_into_functions() bool {
-	return true // TODO: правильная реализация
+	return true // TODO: proper implementation
 }
 
-// enter_class входит в класс
+// enter_class enters a class
 fn (mut sa SemanticAnalyzer) enter_class(info TypeInfo) {
 	sa.type_stack << sa._type
 	sa.locals << none
@@ -820,7 +820,7 @@ fn (mut sa SemanticAnalyzer) enter_class(info TypeInfo) {
 	sa.missing_names << map[string]bool{}
 }
 
-// leave_class выходит из класса
+// leave_class exits a class
 fn (mut sa SemanticAnalyzer) leave_class() {
 	sa.block_depth.pop()
 	sa.loop_depth.pop()
@@ -830,7 +830,7 @@ fn (mut sa SemanticAnalyzer) leave_class() {
 	sa.missing_names.pop()
 }
 
-// add_function_to_symbol_table добавляет функцию в таблицу символов
+// add_function_to_symbol_table adds a function to the symbol table
 fn (mut sa SemanticAnalyzer) add_function_to_symbol_table(func_def FuncDef) {
 	if sa.is_class_scope() {
 		func_def.info = sa._type
@@ -839,7 +839,7 @@ fn (mut sa SemanticAnalyzer) add_function_to_symbol_table(func_def FuncDef) {
 	sa.add_symbol(func_def.name, func_def, func_def)
 }
 
-// add_symbol добавляет символ
+// add_symbol adds a symbol
 pub fn (mut sa SemanticAnalyzer) add_symbol(name string, node SymbolNode, context NodeBase) bool {
 	// Check if symbol already exists in current scope
 	if sa.locals.len > 0 {
@@ -879,7 +879,7 @@ pub fn (mut sa SemanticAnalyzer) add_symbol(name string, node SymbolNode, contex
 	return true
 }
 
-// add_imported_symbol добавляет импортированный символ
+// add_imported_symbol adds an imported symbol
 fn (mut sa SemanticAnalyzer) add_imported_symbol(name string, node SymbolTableNode, context ImportBase, module_public bool, module_hidden bool) {
 	// Set module visibility flags
 	mut sym := node
@@ -900,7 +900,7 @@ fn (mut sa SemanticAnalyzer) add_imported_symbol(name string, node SymbolTableNo
 	sa.globals[name] = sym
 }
 
-// add_unknown_imported_symbol добавляет неизвестный импортированный символ
+// add_unknown_imported_symbol adds an unknown imported symbol
 fn (mut sa SemanticAnalyzer) add_unknown_imported_symbol(name string, context NodeBase, target_name string, module_public bool, module_hidden bool) {
 	// Create a placeholder for unknown import
 	any_type := AnyType{
@@ -935,12 +935,12 @@ fn (mut sa SemanticAnalyzer) add_unknown_imported_symbol(name string, context No
 	sa.globals[name] = sym
 }
 
-// report_missing_module_attribute сообщает об отсутствующем атрибуте модуля
+// report_missing_module_attribute reports a missing module attribute
 fn (mut sa SemanticAnalyzer) report_missing_module_attribute(module_id string, source_id string, imported_id string, context NodeBase) {
 	sa.fail('Module "${module_id}" has no attribute "${source_id}"', context, false, false)
 }
 
-// correct_relative_import исправляет относительный импорт
+// correct_relative_import corrects a relative import
 fn (sa SemanticAnalyzer) correct_relative_import(node ImportFrom) string {
 	// Handle relative imports
 	mut mod_id := node.id
@@ -959,14 +959,14 @@ fn (sa SemanticAnalyzer) correct_relative_import(node ImportFrom) string {
 	return mod_id
 }
 
-// set_future_import_flags устанавливает флаги future import
+// set_future_import_flags sets future import flags
 fn (mut sa SemanticAnalyzer) set_future_import_flags(fullname string) {
 	if fullname in future_imports {
 		sa.cur_mod_node.future_import_flags << future_imports[fullname]
 	}
 }
 
-// push_type_args добавляет type args
+// push_type_args adds type args
 fn (mut sa SemanticAnalyzer) push_type_args(type_args []TypeParam, context NodeBase) ?[]string {
 	if type_args.len == 0 {
 		return []string{}
@@ -996,14 +996,14 @@ fn (mut sa SemanticAnalyzer) push_type_args(type_args []TypeParam, context NodeB
 	return names
 }
 
-// pop_type_args удаляет type args
+// pop_type_args removes type args
 fn (mut sa SemanticAnalyzer) pop_type_args(type_args []TypeParam) {
 	for ta in type_args {
 		sa.tvar_scope.unbind(ta.name)
 	}
 }
 
-// update_function_type_variables обновляет типовые переменные функции
+// update_function_type_variables updates function type variables
 fn (mut sa SemanticAnalyzer) update_function_type_variables(fun_type CallableTypeNode, defn FuncItem) bool {
 	// Process type variables from function signature
 	if fun_type.variables.len > 0 {
@@ -1017,7 +1017,7 @@ fn (mut sa SemanticAnalyzer) update_function_type_variables(fun_type CallableTyp
 	return false
 }
 
-// analyze_function_body анализирует тело функции
+// analyze_function_body analyzes a function body
 fn (mut sa SemanticAnalyzer) analyze_function_body(defn FuncItem) {
 	// Enter function scope
 	sa.scope_stack << scope_func
@@ -1049,7 +1049,7 @@ fn (mut sa SemanticAnalyzer) analyze_function_body(defn FuncItem) {
 	sa.missing_names.pop()
 }
 
-// prepare_class_def подготавливает определение класса
+// prepare_class_def prepares a class definition
 fn (mut sa SemanticAnalyzer) prepare_class_def(defn ClassDef) {
 	// Create TypeInfo if not exists
 	if defn.info == none {
@@ -1070,7 +1070,7 @@ fn (mut sa SemanticAnalyzer) prepare_class_def(defn ClassDef) {
 	}
 }
 
-// setup_type_vars настраивает типовые переменные
+// setup_type_vars sets up type variables
 fn (mut sa SemanticAnalyzer) setup_type_vars(defn ClassDef, tvar_defs []TypeVarLikeType) {
 	// Add type variables from class definition to scope
 	for tvar_def in tvar_defs {
@@ -1080,35 +1080,35 @@ fn (mut sa SemanticAnalyzer) setup_type_vars(defn ClassDef, tvar_defs []TypeVarL
 	}
 }
 
-// mark_incomplete отмечает неполное определение
+// mark_incomplete marks an incomplete definition
 fn (mut sa SemanticAnalyzer) mark_incomplete(name string, node NodeBase) {
 	sa.defer(node)
 	sa.missing_names.last()[name] = true
 }
 
-// defer откладывает анализ
+// defer defers analysis
 pub fn (mut sa SemanticAnalyzer) defer(debug_context NodeBase) {
 	sa.deferred = true
 }
 
-// track_incomplete_refs отслеживает неполные ссылки
+// track_incomplete_refs tracks incomplete references
 fn (mut sa SemanticAnalyzer) track_incomplete_refs() int {
 	// Return current count of missing names
 	return sa.missing_names.last().len
 }
 
-// found_incomplete_ref проверяет наличие неполных ссылок
+// found_incomplete_ref checks for the presence of incomplete references
 fn (sa SemanticAnalyzer) found_incomplete_ref(tag int) bool {
 	// Check if new incomplete refs were added
 	return sa.missing_names.last().len > tag
 }
 
-// fail сообщает об ошибке
+// fail reports an error
 pub fn (mut sa SemanticAnalyzer) fail(msg string, ctx NodeBase, serious bool, blocker bool) {
 	sa.errors.report(ctx.line, ctx.column, msg, serious, blocker)
 }
 
-// Вспомогательные типы
+// Helper types
 type FuncItem = FuncDef | LambdaExpr | Decorator
 type SymbolNode = FuncDef
 	| Var

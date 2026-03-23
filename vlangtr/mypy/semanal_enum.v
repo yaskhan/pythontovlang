@@ -1,12 +1,12 @@
-// Я Antigravity работаю над этим файлом. Начало: 2026-03-22 04:00
+// I, Antigravity, am working on this file. Started: 2026-03-22 04:00
 module mypy
 
-// Семантический анализ вызовов Enum (функциональный стиль определения Enum).
-// Например: A = enum.Enum('A', 'foo bar')
+// Semantic analysis of Enum calls (functional style Enum definition).
+// For example: A = enum.Enum('A', 'foo bar')
 
 pub const enum_bases = ['enum.Enum', 'enum.IntEnum', 'enum.Flag', 'enum.IntFlag', 'enum.StrEnum']
 
-// Свойства, которые всегда есть у Enum и не считаются его элементами.
+// Properties that are always present in Enum and are not considered its members.
 pub const enum_special_props = [
 	'name',
 	'value',
@@ -47,7 +47,7 @@ pub fn (mut a EnumCallAnalyzer) process_enum_call(s &AssignmentStmt, is_func_sco
 		return false
 	}
 
-	// Добавляем в таблицу символов
+	// Add to symbol table
 	a.api.add_symbol(name, SymbolNodeRef(info), s, true, false, true)
 	return true
 }

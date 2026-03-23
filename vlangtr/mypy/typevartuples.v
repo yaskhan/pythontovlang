@@ -1,7 +1,7 @@
 // typevartuples.v — Helpers for interacting with type var tuples
 // Translated from mypy/typevartuples.py to V 0.5.x
 //
-// Я Cline работаю над этим файлом. Начало: 2026-03-22 04:45
+// I, Cline, am working on this file. Started: 2026-03-22 04:45
 //
 // Translation notes:
 //   - split_with_instance: splits instance args by TypeVarTuple prefix/suffix

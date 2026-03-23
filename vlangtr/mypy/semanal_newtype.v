@@ -1,8 +1,8 @@
-// Я Antigravity работаю над этим файлом. Начало: 2026-03-22 04:45
+// I, Antigravity, am working on this file. Started: 2026-03-22 04:45
 module mypy
 
-// Семантический анализ определений NewType.
-// Например: UserId = NewType('UserId', int)
+// Semantic analysis of NewType definitions.
+// For example: UserId = NewType('UserId', int)
 
 pub struct NewTypeAnalyzer {
 pub mut:

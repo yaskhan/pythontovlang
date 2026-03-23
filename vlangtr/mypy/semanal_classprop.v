@@ -1,8 +1,8 @@
-// Я Antigravity работаю над этим файлом. Начало: 2026-03-22 05:00
+// I, Antigravity, am working on this file. Started: 2026-03-22 05:00
 module mypy
 
-// Вычисление свойств классов (абстрактность, протоколы, ClassVar).
-// Происходит после семантического анализа, но до проверки типов.
+// Calculation of class properties (abstractness, protocols, ClassVar).
+// Occurs after semantic analysis, but before type checking.
 
 pub const type_promotions = {
 	'builtins.int':        'float'
@@ -74,7 +74,7 @@ pub fn calculate_class_abstract_status(typ &TypeInfo, is_stub_file bool, mut err
 		}
 	}
 
-	// Сортировка и установка
+	// Sorting and setting
 	mut sorted_abstract := abstract.clone()
 	sorted_abstract.sort()
 	mutable_typ.abstract_attributes = sorted_abstract
@@ -137,7 +137,7 @@ pub fn calculate_class_vars(info &TypeInfo) {
 }
 
 pub fn add_type_promotion(info &TypeInfo, module_names map[string]&SymbolTableNode, options &Options) {
-	// Установка ad-hoc связей подтипов (например, int -> float)
+	// Setting up ad-hoc subtype relationships (e.g., int -> float)
 	mut mut_info := unsafe { &TypeInfo(info) }
 
 	if info.fullname in type_promotions {

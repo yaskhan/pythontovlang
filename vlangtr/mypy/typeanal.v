@@ -1,11 +1,11 @@
-// Я Cline работаю над этим файлом. Начало: 2026-03-22 15:12
+// I, Cline, am working on this file. Started: 2026-03-22 15:12
 // typeanal.v — Semantic analysis of types
-// Переведён из mypy/typeanal.py
+// Translated from mypy/typeanal.py
 
 module mypy
 
-// analyze_type_alias анализирует правую часть определения типа алиаса
-// Возвращает тип и множество имён алиасов, от которых он зависит
+// analyze_type_alias analyzes the right side of a type alias definition
+// Returns the type and the set of alias names it depends on
 pub fn analyze_type_alias(typ MypyTypeNode, api SemanticAnalyzerCoreInterface, tvar_scope TypeVarLikeScope, plugin Plugin, options Options, cur_mod_node MypyFile, is_typeshed_stub bool, allow_placeholder bool, in_dynamic_func bool, global_scope bool, allowed_alias_tvars []TypeVarLikeType, alias_type_params_names []string, python_3_12_type_alias bool) (MypyTypeNode, map[string]bool) {
 	mut analyzer := TypeAnalyser{
 		api:                     api
@@ -27,8 +27,8 @@ pub fn analyze_type_alias(typ MypyTypeNode, api SemanticAnalyzerCoreInterface, t
 	return res, analyzer.aliases_used
 }
 
-// TypeAnalyser — семантический анализатор для типов
-// Конвертирует непривязанные типы в привязанные
+// TypeAnalyser — semantic analyzer for types
+// Converts unbound types to bound types
 pub struct TypeAnalyser {
 pub mut:
 	api                                SemanticAnalyzerCoreInterface
@@ -63,7 +63,7 @@ pub mut:
 	global_scope                       bool
 }
 
-// visit_unbound_type обрабатывает непривязанный тип
+// visit_unbound_type processes an unbound type
 pub fn (mut ta TypeAnalyser) visit_unbound_type(t &UnboundType) MypyTypeNode {
 	typ := ta.visit_unbound_type_nonoptional(t, false)
 	if t.optional {
@@ -72,7 +72,7 @@ pub fn (mut ta TypeAnalyser) visit_unbound_type(t &UnboundType) MypyTypeNode {
 	return typ
 }
 
-// visit_unbound_type_nonoptional обрабатывает непривязанный тип (не optional)
+// visit_unbound_type_nonoptional processes an unbound type (non-optional)
 pub fn (mut ta TypeAnalyser) visit_unbound_type_nonoptional(t &UnboundType, defining_literal bool) MypyTypeNode {
 	sym := ta.lookup_qualified(t.name, t.base.ctx)
 
@@ -174,7 +174,7 @@ pub fn (mut ta TypeAnalyser) visit_unbound_type_nonoptional(t &UnboundType, defi
 	}
 }
 
-// try_analyze_special_unbound_type пытается обработать специальные типы
+// try_analyze_special_unbound_type attempts to process special types
 pub fn (mut ta TypeAnalyser) try_analyze_special_unbound_type(t &UnboundType, fullname string) ?MypyTypeNode {
 	if fullname == 'builtins.None' {
 		return MypyTypeNode(NoneType{})
@@ -206,7 +206,7 @@ pub fn (mut ta TypeAnalyser) try_analyze_special_unbound_type(t &UnboundType, fu
 	return none
 }
 
-// analyze_type_with_type_info обрабатывает тип с TypeInfo
+// analyze_type_with_type_info processes a type with TypeInfo
 pub fn (mut ta TypeAnalyser) analyze_type_with_type_info(info &TypeInfo, args []MypyTypeNode, ctx Context) MypyTypeNode {
 	if args.len > 0 && info.fullname == 'builtins.tuple' {
 		fallback := Instance{
@@ -228,28 +228,28 @@ pub fn (mut ta TypeAnalyser) analyze_type_with_type_info(info &TypeInfo, args []
 	return MypyTypeNode(instance)
 }
 
-// analyze_unbound_type_without_type_info обрабатывает непривязанный тип без TypeInfo
+// analyze_unbound_type_without_type_info processes an unbound type without TypeInfo
 pub fn (mut ta TypeAnalyser) analyze_unbound_type_without_type_info(t &UnboundType, sym &SymbolTableNode, defining_literal bool) MypyTypeNode {
 	ta.fail('Cannot interpret reference as a type', t.base.ctx)
 	return MypyTypeNode(*t)
 }
 
-// visit_any обрабатывает Any
+// visit_any processes Any
 pub fn (mut ta TypeAnalyser) visit_any(t &AnyType) MypyTypeNode {
 	return MypyTypeNode(*t)
 }
 
-// visit_none_type обрабатывает None
+// visit_none_type processes None
 pub fn (mut ta TypeAnalyser) visit_none_type(t &NoneType) MypyTypeNode {
 	return MypyTypeNode(*t)
 }
 
-// visit_uninhabited_type обрабатывает Never
+// visit_uninhabited_type processes Never
 pub fn (mut ta TypeAnalyser) visit_uninhabited_type(t &UninhabitedType) MypyTypeNode {
 	return MypyTypeNode(*t)
 }
 
-// visit_instance обрабатывает Instance
+// visit_instance processes Instance
 pub fn (mut ta TypeAnalyser) visit_instance(t &Instance) MypyTypeNode {
 	return MypyTypeNode(Instance{
 		typ:              t.typ
@@ -258,12 +258,12 @@ pub fn (mut ta TypeAnalyser) visit_instance(t &Instance) MypyTypeNode {
 	})
 }
 
-// visit_type_var обрабатывает TypeVar
+// visit_type_var processes TypeVar
 pub fn (mut ta TypeAnalyser) visit_type_var(t &TypeVarType) MypyTypeNode {
 	return MypyTypeNode(*t)
 }
 
-// visit_tuple_type обрабатывает Tuple
+// visit_tuple_type processes Tuple
 pub fn (mut ta TypeAnalyser) visit_tuple_type(t &TupleType) MypyTypeNode {
 	return MypyTypeNode(TupleType{
 		items:            ta.anal_array(t.items)
@@ -271,12 +271,12 @@ pub fn (mut ta TypeAnalyser) visit_tuple_type(t &TupleType) MypyTypeNode {
 	})
 }
 
-// visit_union_type обрабатывает Union
+// visit_union_type processes Union
 pub fn (mut ta TypeAnalyser) visit_union_type(t &UnionType) MypyTypeNode {
 	return make_union(ta.anal_array(t.items))
 }
 
-// visit_callable_type обрабатывает Callable
+// visit_callable_type processes Callable
 pub fn (mut ta TypeAnalyser) visit_callable_type(t &CallableType) MypyTypeNode {
 	mut new_arg_types := []MypyTypeNode{}
 	for arg in t.arg_types {
@@ -292,7 +292,7 @@ pub fn (mut ta TypeAnalyser) visit_callable_type(t &CallableType) MypyTypeNode {
 	})
 }
 
-// analyze_callable_type обрабатывает тип Callable
+// analyze_callable_type processes the Callable type
 pub fn (mut ta TypeAnalyser) analyze_callable_type(t &UnboundType) MypyTypeNode {
 	if t.args.len != 2 {
 		return MypyTypeNode(AnyType{
@@ -326,14 +326,14 @@ pub fn (mut ta TypeAnalyser) analyze_callable_type(t &UnboundType) MypyTypeNode 
 	})
 }
 
-// analyze_literal_type обрабатывает Literal
+// analyze_literal_type processes Literal
 pub fn (mut ta TypeAnalyser) analyze_literal_type(t &UnboundType) MypyTypeNode {
 	return MypyTypeNode(AnyType{
 		type_of_any: .special_form
 	})
 }
 
-// anal_type анализирует тип
+// anal_type analyzes a type
 pub fn (mut ta TypeAnalyser) anal_type(t MypyTypeNode, nested bool) MypyTypeNode {
 	if nested {
 		ta.nesting_level++
@@ -345,7 +345,7 @@ pub fn (mut ta TypeAnalyser) anal_type(t MypyTypeNode, nested bool) MypyTypeNode
 	return analyzed
 }
 
-// anal_array анализирует массив типов
+// anal_array analyzes an array of types
 pub fn (mut ta TypeAnalyser) anal_array(a []MypyTypeNode) []MypyTypeNode {
 	mut res := []MypyTypeNode{}
 	for t in a {
@@ -354,17 +354,17 @@ pub fn (mut ta TypeAnalyser) anal_array(a []MypyTypeNode) []MypyTypeNode {
 	return res
 }
 
-// lookup_qualified ищет квалифицированное имя
+// lookup_qualified looks up a qualified name
 fn (ta TypeAnalyser) lookup_qualified(name string, ctx Context) ?&SymbolTableNode {
 	return ta.api.lookup_qualified(name, ctx, false)
 }
 
-// cannot_resolve_type сообщает о невозможности разрешить тип
+// cannot_resolve_type reports inability to resolve a type
 fn (mut ta TypeAnalyser) cannot_resolve_type(t &UnboundType) {
 	ta.fail('Cannot resolve name "${t.name}" (possible cyclic definition)', t.base.ctx)
 }
 
-// fail сообщает об ошибке
+// fail reports an error
 fn (mut ta TypeAnalyser) fail(msg string, ctx Context) {
 	if ta.fail_func != unsafe { nil } {
 		ta.fail_func(msg, ctx, .valid_type)
@@ -373,7 +373,7 @@ fn (mut ta TypeAnalyser) fail(msg string, ctx Context) {
 	}
 }
 
-// Вспомогательные функции
+// Helper functions
 fn make_optional_type(t MypyTypeNode) MypyTypeNode {
 	return make_union([t, MypyTypeNode(NoneType{})])
 }

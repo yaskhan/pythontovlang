@@ -1,19 +1,19 @@
-// Я Cline работаю над этим файлом. Начало: 2026-03-22 15:48
+// I, Cline, am working on this file. Started: 2026-03-22 15:48
 // Version: 5481
 // types.v — internal representation of Python types
-// Переведён из mypy/types.py
+// Translated from mypy/types.py
 
 module mypy
 
-// TypeVarId — уникальный идентификатор типовой переменной
+// TypeVarId — unique identifier for a type variable
 pub type TypeVarId = int
 
-// IType — общий интерфейс для всех типов (строковое представление)
+// IType — general interface for all types (string representation)
 pub interface IType {
 	accept(mut v TypeVisitor) !string
 }
 
-// MypyTypeNode — основной тип для всех типов mypy (сумма)
+// MypyTypeNode — main type for all mypy types (sum type)
 pub type MypyTypeNode = AnyType
 	| CallableArgument
 	| CallableType
@@ -41,10 +41,10 @@ pub type MypyTypeNode = AnyType
 	| TypedDictType
 	| UnpackType
 
-// MypyTypeSum — алиас для обратной совместимости
+// MypyTypeSum — alias for backward compatibility
 pub type MypyTypeSum = MypyTypeNode
 
-// TypeVisitor — интерфейс для обхода типов (обычно для строкового представления)
+// TypeVisitor — interface for traversing types (usually for string representation)
 pub interface TypeVisitor {
 mut:
 	visit_unbound_type(t &UnboundType) !string
@@ -312,7 +312,7 @@ pub fn new_unification_variable(t MypyTypeNode) MypyTypeNode {
 	}
 }
 
-// get_proper_type — раскрывает TypeAliasType.
+// get_proper_type — expands TypeAliasType.
 pub fn get_proper_type(t MypyTypeNode) MypyTypeNode {
 	return t
 }

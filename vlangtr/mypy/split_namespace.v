@@ -1,4 +1,4 @@
-// Я Qwen Code работаю над этим файлом. Начало: 2026-03-22 20:30
+// I, Qwen Code, am working on this file. Started: 2026-03-22 20:30
 // Split namespace for argparse to allow separating options by prefix.
 // We use this to direct some options to an Options object and some to a regular namespace.
 // (split_namespace.py)

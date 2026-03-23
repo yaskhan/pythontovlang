@@ -1,14 +1,14 @@
-// Я Cline работаю над этим файлом. Начало: 2026-03-22 14:34
+// I, Cline, am working on this file. Started: 2026-03-22 14:34
 // strconv.v — Conversion of parse tree nodes to strings
-// Переведён из mypy/strconv.py
+// Translated from mypy/strconv.py
 
 module mypy
 
 import os
 import strings
 
-// StrConv — visitor для конвертации узлов в человекочитаемую строку
-// Например, MypyFile из программы '1' конвертируется в:
+// StrConv — visitor for converting nodes to human-readable strings
+// For example, MypyFile from program '1' is converted to:
 //   MypyFile:1(
 //     fnam
 //     ExpressionStmt:1(
@@ -20,7 +20,7 @@ pub mut:
 	id_mapper ?&IdMapper
 }
 
-// new_str_conv создаёт новый StrConv
+// new_str_conv creates a new StrConv
 pub fn new_str_conv(show_ids bool, options Options) StrConv {
 	mut sc := StrConv{
 		options:   options
@@ -33,13 +33,13 @@ pub fn new_str_conv(show_ids bool, options Options) StrConv {
 	return sc
 }
 
-// stringify_type конвертирует тип в строку
+// stringify_type converts a type to a string
 pub fn (mut sc StrConv) stringify_type(t MypyTypeNode) string {
 	// Delegate to types module
 	return t.str()
 }
 
-// get_id возвращает ID объекта
+// get_id returns the ID of an object
 pub fn (sc StrConv) get_id(o voidptr) ?int {
 	if id_mapper := sc.id_mapper {
 		return id_mapper.id(o)
@@ -47,7 +47,7 @@ pub fn (sc StrConv) get_id(o voidptr) ?int {
 	return none
 }
 
-// format_id форматирует ID объекта
+// format_id formats the ID of an object
 pub fn (sc StrConv) format_id(o voidptr) string {
 	if sc.id_mapper != none {
 		id := sc.get_id(o) or { return '' }
@@ -56,7 +56,7 @@ pub fn (sc StrConv) format_id(o voidptr) string {
 	return ''
 }
 
-// dump конвертирует список элементов в многострочную отформатированную строку
+// dump converts a list of items into a multiline formatted string
 pub fn (mut sc StrConv) dump(nodes []DumpNode, obj NodeBase) string {
 	tag := short_type_name(obj) + ':' + obj.line.str()
 	if sc.show_ids {
@@ -66,7 +66,7 @@ pub fn (mut sc StrConv) dump(nodes []DumpNode, obj NodeBase) string {
 	return dump_tagged(nodes, tag, mut sc)
 }
 
-// func_helper возвращает список для dump() представляющий аргументы и тело функции
+// func_helper returns a list for dump() representing function arguments and body
 pub fn (mut sc StrConv) func_helper(o FuncItem) []DumpNode {
 	mut args := []DumpNode{}
 	mut extra := []DumpNode{}
@@ -113,14 +113,14 @@ pub fn (mut sc StrConv) func_helper(o FuncItem) []DumpNode {
 	return a
 }
 
-// visit_mypy_file обрабатывает MypyFile
+// visit_mypy_file processes a MypyFile
 pub fn (mut sc StrConv) visit_mypy_file(o MypyFile) string {
 	mut a := [DumpNode(o.defs)]
 	if o.is_bom {
 		a.insert(0, DumpNode('BOM'))
 	}
 	if o.path != 'main' {
-		// Нормализуем разделители директорий
+		// Normalize directory separators
 		normalized := o.path.replace(os.getwd() + os.path_separator, '').replace(os.path_separator,
 			'/')
 		a.insert(0, DumpNode(normalized))
@@ -132,7 +132,7 @@ pub fn (mut sc StrConv) visit_mypy_file(o MypyFile) string {
 	return sc.dump(a, NodeBase(o))
 }
 
-// visit_import обрабатывает Import
+// visit_import processes an Import
 pub fn (sc StrConv) visit_import(o Import) string {
 	mut a := []string{}
 	for id, as_id in o.ids {
@@ -145,7 +145,7 @@ pub fn (sc StrConv) visit_import(o Import) string {
 	return 'Import:${o.line}(${a.join(', ')})'
 }
 
-// visit_import_from обрабатывает ImportFrom
+// visit_import_from processes an ImportFrom
 pub fn (sc StrConv) visit_import_from(o ImportFrom) string {
 	mut a := []string{}
 	for name, as_name in o.names {
@@ -159,13 +159,13 @@ pub fn (sc StrConv) visit_import_from(o ImportFrom) string {
 	return 'ImportFrom:${o.line}(${dots}${o.id}, [${a.join(', ')}])'
 }
 
-// visit_import_all обрабатывает ImportAll
+// visit_import_all processes an ImportAll
 pub fn (sc StrConv) visit_import_all(o ImportAll) string {
 	dots := '.'.repeat(o.relative)
 	return 'ImportAll:${o.line}(${dots}${o.id})'
 }
 
-// visit_func_def обрабатывает FuncDef
+// visit_func_def processes a FuncDef
 pub fn (mut sc StrConv) visit_func_def(o FuncDef) string {
 	mut a := sc.func_helper(o)
 	a.insert(0, DumpNode(o.name))
@@ -195,7 +195,7 @@ pub fn (mut sc StrConv) visit_func_def(o FuncDef) string {
 	return sc.dump(a, NodeBase(o))
 }
 
-// visit_class_def обрабатывает ClassDef
+// visit_class_def processes a ClassDef
 pub fn (mut sc StrConv) visit_class_def(o ClassDef) string {
 	mut a := [DumpNode(o.name), DumpNode(o.defs.body)]
 
@@ -228,24 +228,24 @@ pub fn (mut sc StrConv) visit_class_def(o ClassDef) string {
 	return sc.dump(a, NodeBase(o))
 }
 
-// visit_var обрабатывает Var
+// visit_var processes a Var
 pub fn (sc StrConv) visit_var(o Var) string {
 	lst := if o.line < 0 { ':nil' } else { '' }
 	return 'Var${lst}(${o.name})'
 }
 
-// visit_block обрабатывает Block
+// visit_block processes a Block
 pub fn (mut sc StrConv) visit_block(o Block) string {
 	body_nodes := o.body.map(DumpNode(NodeBase(it)))
 	return sc.dump(body_nodes, NodeBase(o))
 }
 
-// visit_expression_stmt обрабатывает ExpressionStmt
+// visit_expression_stmt processes an ExpressionStmt
 pub fn (mut sc StrConv) visit_expression_stmt(o ExpressionStmt) string {
 	return sc.dump([DumpNode(NodeBase(o.expr))], NodeBase(o))
 }
 
-// visit_assignment_stmt обрабатывает AssignmentStmt
+// visit_assignment_stmt processes an AssignmentStmt
 pub fn (mut sc StrConv) visit_assignment_stmt(o AssignmentStmt) string {
 	mut a := []DumpNode{}
 	if o.lvalues.len > 1 {
@@ -261,7 +261,7 @@ pub fn (mut sc StrConv) visit_assignment_stmt(o AssignmentStmt) string {
 	return sc.dump(a, NodeBase(o))
 }
 
-// visit_while_stmt обрабатывает WhileStmt
+// visit_while_stmt processes a WhileStmt
 pub fn (mut sc StrConv) visit_while_stmt(o WhileStmt) string {
 	mut a := [DumpNode(NodeBase(o.expr)), DumpNode(NodeBase(o.body))]
 	if o.else_body {
@@ -270,7 +270,7 @@ pub fn (mut sc StrConv) visit_while_stmt(o WhileStmt) string {
 	return sc.dump(a, NodeBase(o))
 }
 
-// visit_for_stmt обрабатывает ForStmt
+// visit_for_stmt processes a ForStmt
 pub fn (mut sc StrConv) visit_for_stmt(o ForStmt) string {
 	mut a := []DumpNode{}
 	if o.is_async {
@@ -288,7 +288,7 @@ pub fn (mut sc StrConv) visit_for_stmt(o ForStmt) string {
 	return sc.dump(a, NodeBase(o))
 }
 
-// visit_return_stmt обрабатывает ReturnStmt
+// visit_return_stmt processes a ReturnStmt
 pub fn (mut sc StrConv) visit_return_stmt(o ReturnStmt) string {
 	mut nodes := []DumpNode{}
 	if o.expr {
@@ -297,7 +297,7 @@ pub fn (mut sc StrConv) visit_return_stmt(o ReturnStmt) string {
 	return sc.dump(nodes, NodeBase(o))
 }
 
-// visit_if_stmt обрабатывает IfStmt
+// visit_if_stmt processes an IfStmt
 pub fn (mut sc StrConv) visit_if_stmt(o IfStmt) string {
 	mut a := []DumpNode{}
 	for i in 0 .. o.expr.len {
@@ -310,22 +310,22 @@ pub fn (mut sc StrConv) visit_if_stmt(o IfStmt) string {
 	return sc.dump(a, NodeBase(o))
 }
 
-// visit_break_stmt обрабатывает BreakStmt
+// visit_break_stmt processes a BreakStmt
 pub fn (mut sc StrConv) visit_break_stmt(o BreakStmt) string {
 	return sc.dump([], NodeBase(o))
 }
 
-// visit_continue_stmt обрабатывает ContinueStmt
+// visit_continue_stmt processes a ContinueStmt
 pub fn (mut sc StrConv) visit_continue_stmt(o ContinueStmt) string {
 	return sc.dump([], NodeBase(o))
 }
 
-// visit_pass_stmt обрабатывает PassStmt
+// visit_pass_stmt processes a PassStmt
 pub fn (mut sc StrConv) visit_pass_stmt(o PassStmt) string {
 	return sc.dump([], NodeBase(o))
 }
 
-// visit_try_stmt обрабатывает TryStmt
+// visit_try_stmt processes a TryStmt
 pub fn (mut sc StrConv) visit_try_stmt(o TryStmt) string {
 	mut a := [DumpNode(NodeBase(o.body))]
 	if o.is_star {
@@ -351,22 +351,22 @@ pub fn (mut sc StrConv) visit_try_stmt(o TryStmt) string {
 	return sc.dump(a, NodeBase(o))
 }
 
-// visit_int_expr обрабатывает IntExpr
+// visit_int_expr processes an IntExpr
 pub fn (sc StrConv) visit_int_expr(o IntExpr) string {
 	return 'IntExpr(${o.value})'
 }
 
-// visit_str_expr обрабатывает StrExpr
+// visit_str_expr processes a StrExpr
 pub fn (sc StrConv) visit_str_expr(o StrExpr) string {
 	return 'StrExpr(${str_repr(o.value)})'
 }
 
-// visit_float_expr обрабатывает FloatExpr
+// visit_float_expr processes a FloatExpr
 pub fn (sc StrConv) visit_float_expr(o FloatExpr) string {
 	return 'FloatExpr(${o.value})'
 }
 
-// visit_name_expr обрабатывает NameExpr
+// visit_name_expr processes a NameExpr
 pub fn (sc StrConv) visit_name_expr(o NameExpr) string {
 	mut pretty := sc.pretty_name(o.name, o.kind, o.fullname, o.is_inferred_def || o.is_special_form,
 		o.node)
@@ -380,7 +380,7 @@ pub fn (sc StrConv) visit_name_expr(o NameExpr) string {
 	return short_type_name(o) + '(' + pretty + ')'
 }
 
-// pretty_name форматирует имя с дополнительной информацией
+// pretty_name formats a name with additional information
 pub fn (sc StrConv) pretty_name(name string, kind int, fullname string, is_inferred_def bool, target_node ?Node) string {
 	mut n := name
 	if is_inferred_def {
@@ -404,13 +404,13 @@ pub fn (sc StrConv) pretty_name(name string, kind int, fullname string, is_infer
 	return n
 }
 
-// visit_member_expr обрабатывает MemberExpr
+// visit_member_expr processes a MemberExpr
 pub fn (mut sc StrConv) visit_member_expr(o MemberExpr) string {
 	pretty := sc.pretty_name(o.name, o.kind, o.fullname, o.is_inferred_def, o.node)
 	return sc.dump([DumpNode(NodeBase(o.expr)), DumpNode(pretty)], NodeBase(o))
 }
 
-// visit_call_expr обрабатывает CallExpr
+// visit_call_expr processes a CallExpr
 pub fn (mut sc StrConv) visit_call_expr(o CallExpr) string {
 	if o.analyzed {
 		return node_to_string(o.analyzed, mut sc)
@@ -437,7 +437,7 @@ pub fn (mut sc StrConv) visit_call_expr(o CallExpr) string {
 	return sc.dump(a, NodeBase(o))
 }
 
-// visit_op_expr обрабатывает OpExpr
+// visit_op_expr processes an OpExpr
 pub fn (mut sc StrConv) visit_op_expr(o OpExpr) string {
 	if o.analyzed {
 		return node_to_string(o.analyzed, mut sc)
@@ -446,30 +446,30 @@ pub fn (mut sc StrConv) visit_op_expr(o OpExpr) string {
 		NodeBase(o))
 }
 
-// visit_unary_expr обрабатывает UnaryExpr
+// visit_unary_expr processes a UnaryExpr
 pub fn (mut sc StrConv) visit_unary_expr(o UnaryExpr) string {
 	return sc.dump([DumpNode(o.op), DumpNode(NodeBase(o.expr))], NodeBase(o))
 }
 
-// visit_list_expr обрабатывает ListExpr
+// visit_list_expr processes a ListExpr
 pub fn (mut sc StrConv) visit_list_expr(o ListExpr) string {
 	nodes := o.items.map(DumpNode(NodeBase(it)))
 	return sc.dump(nodes, NodeBase(o))
 }
 
-// visit_tuple_expr обрабатывает TupleExpr
+// visit_tuple_expr processes a TupleExpr
 pub fn (mut sc StrConv) visit_tuple_expr(o TupleExpr) string {
 	nodes := o.items.map(DumpNode(NodeBase(it)))
 	return sc.dump(nodes, NodeBase(o))
 }
 
-// visit_dict_expr обрабатывает DictExpr
+// visit_dict_expr processes a DictExpr
 pub fn (mut sc StrConv) visit_dict_expr(o DictExpr) string {
 	nodes := o.items.map(DumpNode([DumpNode(NodeBase(it[0])), DumpNode(NodeBase(it[1]))]))
 	return sc.dump(nodes, NodeBase(o))
 }
 
-// type_param обрабатывает TypeParam
+// type_param processes a TypeParam
 pub fn (sc StrConv) type_param(p TypeParam) DumpNode {
 	mut a := []DumpNode{}
 	mut prefix := ''
@@ -492,9 +492,9 @@ pub fn (sc StrConv) type_param(p TypeParam) DumpNode {
 	return DumpNode(TaggedDumpNode{'TypeParam', a})
 }
 
-// str_repr экранирует спецсимволы в строке
+// str_repr escapes special characters in a string
 fn str_repr(s string) string {
-	// Заменяем не-ASCII символы на \uXXXX
+	// Replace non-ASCII characters with \uXXXX
 	mut result := strings.new_builder(s.len * 2)
 	for ch in s {
 		if ch >= 0x20 && ch <= 0x7e {
@@ -508,21 +508,21 @@ fn str_repr(s string) string {
 	return result.str()
 }
 
-// Вспомогательные типы и функции
+// Helper types and functions
 
-// DumpNode — элемент для dump()
+// DumpNode — item for dump()
 pub type DumpNode = Node | NodeBase | string | TaggedDumpNode
 
-// TaggedDumpNode — пара (тег, список элементов)
+// TaggedDumpNode — pair (tag, list of items)
 pub struct TaggedDumpNode {
 pub:
 	tag   string
 	nodes []DumpNode
 }
 
-// short_type_name возвращает короткое имя типа объекта
+// short_type_name returns the short name of the object's type
 fn short_type_name(obj NodeBase) string {
-	// Получаем имя типа из объекта
+	// Get the type name from the object
 	if obj is MypyFile {
 		return 'MypyFile'
 	} else if obj is FuncDef {
@@ -591,7 +591,7 @@ fn short_type_name(obj NodeBase) string {
 	return 'Node'
 }
 
-// dump_tagged конвертирует массив в отформатированную строку
+// dump_tagged converts an array into a formatted string
 fn dump_tagged(nodes []DumpNode, tag string, mut str_conv StrConv) string {
 	mut a := []string{}
 	if tag.len > 0 {
@@ -620,7 +620,7 @@ fn dump_tagged(nodes []DumpNode, tag string, mut str_conv StrConv) string {
 	return a.join('\n')
 }
 
-// indent добавляет отступ ко всем строкам
+// indent adds indentation to all lines
 fn indent(s string, n int) string {
 	prefix := ' '.repeat(n)
 	mut lines := s.split('\n')
@@ -630,20 +630,20 @@ fn indent(s string, n int) string {
 	return lines.join('\n')
 }
 
-// node_to_string конвертирует узел в строку (заглушка)
+// node_to_string converts a node to a string (stub)
 fn node_to_string(node Node, mut str_conv StrConv) string {
-	// TODO: вызвать accept у узла
+	// TODO: call accept on the node
 	return node.str()
 }
 
-// IdMapper — маппер для присвоения ID объектам
+// IdMapper — mapper for assigning IDs to objects
 pub struct IdMapper {
 pub mut:
 	ids     map[string]int
 	next_id int
 }
 
-// id возвращает ID объекта
+// id returns the ID of an object
 pub fn (mut im IdMapper) id(o voidptr) int {
 	key := '${o}'
 	if key in im.ids {

@@ -290,7 +290,7 @@ pub fn (v TypeJoinVisitor) visit_type_type(t &TypeType) ProperType {
 	return object_from_type(v.s)
 }
 
-// Вспомогательные функции
+// Helper functions
 pub fn is_better(t ProperType, s ProperType) bool {
 	if t is Instance {
 		if s !is Instance {

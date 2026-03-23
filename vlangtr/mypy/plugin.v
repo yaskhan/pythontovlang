@@ -1,10 +1,10 @@
-// Я Cline работаю над этим файлом. Начало: 2026-03-22 19:50
+// I, Cline, am working on this file. Started: 2026-03-22 19:50
 // plugin.v — Plugin system for extending mypy
-// Переведён из mypy/plugin.py
+// Translated from mypy/plugin.py
 
 module mypy
 
-// AnalyzeTypeContext — контекст для хука семантического анализа типа
+// AnalyzeTypeContext — context for type semantic analysis hook
 pub struct AnalyzeTypeContext {
 pub:
 	typ     UnboundType
@@ -12,7 +12,7 @@ pub:
 	api     TypeAnalyzerPluginInterface
 }
 
-// ReportConfigContext — контекст для запроса данных конфигурации модуля
+// ReportConfigContext — context for requesting module configuration data
 pub struct ReportConfigContext {
 pub:
 	id       string
@@ -20,7 +20,7 @@ pub:
 	is_check bool
 }
 
-// FunctionSigContext — контекст для хука сигнатуры функции
+// FunctionSigContext — context for function signature hook
 pub struct FunctionSigContext {
 pub:
 	args              [][]Expression
@@ -29,7 +29,7 @@ pub:
 	api               CheckerPluginInterface
 }
 
-// FunctionContext — контекст для хука функции
+// FunctionContext — context for function hook
 pub struct FunctionContext {
 pub:
 	arg_types           [][]MypyTypeNode
@@ -42,7 +42,7 @@ pub:
 	api                 CheckerPluginInterface
 }
 
-// MethodSigContext — контекст для хука сигнатуры метода
+// MethodSigContext — context for method signature hook
 pub struct MethodSigContext {
 pub:
 	typ               ProperType
@@ -52,7 +52,7 @@ pub:
 	api               CheckerPluginInterface
 }
 
-// MethodContext — контекст для хука метода
+// MethodContext — context for method hook
 pub struct MethodContext {
 pub:
 	typ                 ProperType
@@ -66,7 +66,7 @@ pub:
 	api                 CheckerPluginInterface
 }
 
-// AttributeContext — контекст для хука типа атрибута
+// AttributeContext — context for attribute type hook
 pub struct AttributeContext {
 pub:
 	typ               ProperType
@@ -76,7 +76,7 @@ pub:
 	api               CheckerPluginInterface
 }
 
-// ClassDefContext — контекст для хука определения класса
+// ClassDefContext — context for class definition hook
 pub struct ClassDefContext {
 pub:
 	cls    ClassDef
@@ -84,7 +84,7 @@ pub:
 	api    SemanticAnalyzerPluginInterface
 }
 
-// DynamicClassDefContext — контекст для динамического определения класса
+// DynamicClassDefContext — context for dynamic class definition
 pub struct DynamicClassDefContext {
 pub:
 	call CallExpr
@@ -92,7 +92,7 @@ pub:
 	api  SemanticAnalyzerPluginInterface
 }
 
-// Plugin — базовый класс всех плагинов mypy
+// Plugin — base class of all mypy plugins
 pub struct Plugin {
 pub mut:
 	options        Options
@@ -100,7 +100,7 @@ pub mut:
 	modules        ?map[string]MypyFile
 }
 
-// new_plugin создаёт новый Plugin
+// new_plugin creates a new Plugin
 pub fn new_plugin(options Options) Plugin {
 	return Plugin{
 		options:        options
@@ -109,12 +109,12 @@ pub fn new_plugin(options Options) Plugin {
 	}
 }
 
-// set_modules устанавливает модули для плагина
+// set_modules sets modules for the plugin
 pub fn (mut p Plugin) set_modules(modules map[string]MypyFile) {
 	p.modules = modules
 }
 
-// lookup_fully_qualified ищет символ по полному имени
+// lookup_fully_qualified looks up a symbol by its fully qualified name
 pub fn (p Plugin) lookup_fully_qualified(fullname string) ?SymbolTableNode {
 	if modules := p.modules {
 		return lookup_fully_qualified(fullname, modules)
@@ -122,89 +122,89 @@ pub fn (p Plugin) lookup_fully_qualified(fullname string) ?SymbolTableNode {
 	return none
 }
 
-// report_config_data возвращает данные конфигурации для модуля
+// report_config_data returns configuration data for a module
 pub fn (p Plugin) report_config_data(ctx ReportConfigContext) ?Any {
 	return none
 }
 
-// get_additional_deps возвращает дополнительные зависимости для модуля
+// get_additional_deps returns additional dependencies for a module
 pub fn (p Plugin) get_additional_deps(file MypyFile) []Dependency {
 	return []Dependency{}
 }
 
-// get_type_analyze_hook возвращает хук для анализа типа
+// get_type_analyze_hook returns a hook for type analysis
 pub fn (p Plugin) get_type_analyze_hook(fullname string) ?fn (AnalyzeTypeContext) MypyTypeNode {
 	return none
 }
 
-// get_function_signature_hook возвращает хук для сигнатуры функции
+// get_function_signature_hook returns a hook for function signature
 pub fn (p Plugin) get_function_signature_hook(fullname string) ?fn (FunctionSigContext) MypyTypeNode {
 	return none
 }
 
-// get_function_hook возвращает хук для функции
+// get_function_hook returns a hook for function
 pub fn (p Plugin) get_function_hook(fullname string) ?fn (FunctionContext) MypyTypeNode {
 	return none
 }
 
-// get_method_signature_hook возвращает хук для сигнатуры метода
+// get_method_signature_hook returns a hook for method signature
 pub fn (p Plugin) get_method_signature_hook(fullname string) ?fn (MethodSigContext) MypyTypeNode {
 	return none
 }
 
-// get_method_hook возвращает хук для метода
+// get_method_hook returns a hook for method
 pub fn (p Plugin) get_method_hook(fullname string) ?fn (MethodContext) MypyTypeNode {
 	return none
 }
 
-// get_attribute_hook возвращает хук для атрибута
+// get_attribute_hook returns a hook for attribute
 pub fn (p Plugin) get_attribute_hook(fullname string) ?fn (AttributeContext) MypyTypeNode {
 	return none
 }
 
-// get_class_attribute_hook возвращает хук для атрибута класса
+// get_class_attribute_hook returns a hook for class attribute
 pub fn (p Plugin) get_class_attribute_hook(fullname string) ?fn (AttributeContext) MypyTypeNode {
 	return none
 }
 
-// get_class_decorator_hook возвращает хук для декоратора класса
+// get_class_decorator_hook returns a hook for class decorator
 pub fn (p Plugin) get_class_decorator_hook(fullname string) ?fn (ClassDefContext) {
 	return none
 }
 
-// get_class_decorator_hook_2 возвращает хук для декоратора класса (после разрешения placeholders)
+// get_class_decorator_hook_2 returns a hook for class decorator (after resolving placeholders)
 pub fn (p Plugin) get_class_decorator_hook_2(fullname string) ?fn (ClassDefContext) bool {
 	return none
 }
 
-// get_metaclass_hook возвращает хук для метакласса
+// get_metaclass_hook returns a hook for metaclass
 pub fn (p Plugin) get_metaclass_hook(fullname string) ?fn (ClassDefContext) {
 	return none
 }
 
-// get_base_class_hook возвращает хук для базового класса
+// get_base_class_hook returns a hook for base class
 pub fn (p Plugin) get_base_class_hook(fullname string) ?fn (ClassDefContext) {
 	return none
 }
 
-// get_customize_class_mro_hook возвращает хук для настройки MRO
+// get_customize_class_mro_hook returns a hook for MRO customization
 pub fn (p Plugin) get_customize_class_mro_hook(fullname string) ?fn (ClassDefContext) {
 	return none
 }
 
-// get_dynamic_class_hook возвращает хук для динамического класса
+// get_dynamic_class_hook returns a hook for dynamic class
 pub fn (p Plugin) get_dynamic_class_hook(fullname string) ?fn (DynamicClassDefContext) {
 	return none
 }
 
-// ChainedPlugin — плагин, представляющий цепочку плагинов
+// ChainedPlugin — plugin representing a chain of plugins
 pub struct ChainedPlugin {
 	Plugin
 pub:
 	plugins []Plugin
 }
 
-// new_chained_plugin создаёт новый ChainedPlugin
+// new_chained_plugin creates a new ChainedPlugin
 pub fn new_chained_plugin(options Options, plugins []Plugin) ChainedPlugin {
 	return ChainedPlugin{
 		Plugin:  new_plugin(options)
@@ -212,14 +212,14 @@ pub fn new_chained_plugin(options Options, plugins []Plugin) ChainedPlugin {
 	}
 }
 
-// set_modules устанавливает модули для всех плагинов
+// set_modules sets modules for all plugins
 pub fn (mut cp ChainedPlugin) set_modules(modules map[string]MypyFile) {
 	for mut plugin in cp.plugins {
 		plugin.set_modules(modules)
 	}
 }
 
-// get_type_analyze_hook ищет первый ненулевой хук
+// get_type_analyze_hook finds the first non-null hook
 pub fn (cp ChainedPlugin) get_type_analyze_hook(fullname string) ?fn (AnalyzeTypeContext) MypyTypeNode {
 	for plugin in cp.plugins {
 		hook := plugin.get_type_analyze_hook(fullname)
@@ -230,7 +230,7 @@ pub fn (cp ChainedPlugin) get_type_analyze_hook(fullname string) ?fn (AnalyzeTyp
 	return none
 }
 
-// get_function_hook ищет первый ненулевой хук
+// get_function_hook finds the first non-null hook
 pub fn (cp ChainedPlugin) get_function_hook(fullname string) ?fn (FunctionContext) MypyTypeNode {
 	for plugin in cp.plugins {
 		hook := plugin.get_function_hook(fullname)
@@ -241,7 +241,7 @@ pub fn (cp ChainedPlugin) get_function_hook(fullname string) ?fn (FunctionContex
 	return none
 }
 
-// get_method_hook ищет первый ненулевой хук
+// get_method_hook finds the first non-null hook
 pub fn (cp ChainedPlugin) get_method_hook(fullname string) ?fn (MethodContext) MypyTypeNode {
 	for plugin in cp.plugins {
 		hook := plugin.get_method_hook(fullname)
@@ -252,7 +252,7 @@ pub fn (cp ChainedPlugin) get_method_hook(fullname string) ?fn (MethodContext) M
 	return none
 }
 
-// get_attribute_hook ищет первый ненулевой хук
+// get_attribute_hook finds the first non-null hook
 pub fn (cp ChainedPlugin) get_attribute_hook(fullname string) ?fn (AttributeContext) MypyTypeNode {
 	for plugin in cp.plugins {
 		hook := plugin.get_attribute_hook(fullname)
@@ -263,7 +263,7 @@ pub fn (cp ChainedPlugin) get_attribute_hook(fullname string) ?fn (AttributeCont
 	return none
 }
 
-// Вспомогательные типы
+// Helper types
 pub struct Dependency {
 pub:
 	priority int
@@ -271,7 +271,7 @@ pub:
 	line     int
 }
 
-// Интерфейсы плагинов (заглушки)
+// Plugin interfaces (stubs)
 pub interface TypeAnalyzerPluginInterface {
 	options Options
 	fail(msg string, ctx NodeBase, code ?ErrorCode)
@@ -304,7 +304,7 @@ pub interface SemanticAnalyzerPluginInterface {
 	defer()
 }
 
-// Вспомогательные функции-заглушки
+// Helper stub functions
 fn lookup_fully_qualified(fullname string, modules map[string]MypyFile) ?SymbolTableNode {
 	// Split fullname into module and name parts
 	parts := fullname.split('.')

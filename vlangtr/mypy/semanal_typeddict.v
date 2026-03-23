@@ -1,7 +1,7 @@
-// Я Antigravity работаю над этим файлом. Начало: 2026-03-22 04:15
+// I, Antigravity, am working on this file. Started: 2026-03-22 04:15
 module mypy
 
-// Семантический анализ определений TypedDict.
+// Semantic analysis of TypedDict definitions.
 
 pub const tpdict_names = ['typing.TypedDict', 'typing_extensions.TypedDict']
 

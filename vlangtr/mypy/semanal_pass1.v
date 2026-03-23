@@ -1,12 +1,12 @@
-// Я Cline работаю над этим файлом. Начало: 2026-03-22 14:58
+// I, Cline, am working on this file. Started: 2026-03-22 14:58
 // semanal_pass1.v — Block/import reachability analysis
-// Переведён из mypy/semanal_pass1.py
+// Translated from mypy/semanal_pass1.py
 
 module mypy
 
-// SemanticAnalyzerPreAnalysis анализирует достижимость блоков и импортов
-// Выполняется до семантического анализа, поэтому имена ещё не привязаны
-// Определяет статическую достижимость блоков и импортов из-за проверок версии и платформы
+// SemanticAnalyzerPreAnalysis analyzes reachability of blocks and imports
+// Runs before semantic analysis, so names are not yet bound
+// Determines static reachability of blocks and imports due to version and platform checks
 pub struct SemanticAnalyzerPreAnalysis {
 pub mut:
 	platform        string
@@ -17,7 +17,7 @@ pub mut:
 	skipped_lines   map[int]bool
 }
 
-// new_semanal_pre_analysis создаёт новый SemanticAnalyzerPreAnalysis
+// new_semanal_pre_analysis creates a new SemanticAnalyzerPreAnalysis
 pub fn new_semanal_pre_analysis() SemanticAnalyzerPreAnalysis {
 	return SemanticAnalyzerPreAnalysis{
 		platform:        ''
@@ -29,7 +29,7 @@ pub fn new_semanal_pre_analysis() SemanticAnalyzerPreAnalysis {
 	}
 }
 
-// visit_file — главная точка входа
+// visit_file — main entry point
 pub fn (mut spa SemanticAnalyzerPreAnalysis) visit_file(file MypyFile, fnam string, mod_id string, options Options) {
 	spa.platform = options.platform
 	spa.cur_mod_id = mod_id
@@ -63,11 +63,11 @@ pub fn (mut spa SemanticAnalyzerPreAnalysis) visit_file(file MypyFile, fnam stri
 	file.skipped_lines = spa.skipped_lines.keys()
 }
 
-// visit_func_def обрабатывает определение функции
+// visit_func_def handles function definition
 pub fn (mut spa SemanticAnalyzerPreAnalysis) visit_func_def(node FuncDef) {
 	old_global_scope := spa.is_global_scope
 	spa.is_global_scope = false
-	// TODO: вызвать super().visit_func_def(node)
+	// TODO: call super().visit_func_def(node)
 	spa.is_global_scope = old_global_scope
 
 	file_node := spa.cur_mod_node
@@ -77,30 +77,30 @@ pub fn (mut spa SemanticAnalyzerPreAnalysis) visit_func_def(node FuncDef) {
 	}
 }
 
-// visit_class_def обрабатывает определение класса
+// visit_class_def handles class definition
 pub fn (mut spa SemanticAnalyzerPreAnalysis) visit_class_def(node ClassDef) {
 	old_global_scope := spa.is_global_scope
 	spa.is_global_scope = false
-	// TODO: вызвать super().visit_class_def(node)
+	// TODO: call super().visit_class_def(node)
 	spa.is_global_scope = old_global_scope
 }
 
-// visit_import_from обрабатывает from ... import
+// visit_import_from handles from ... import
 pub fn (mut spa SemanticAnalyzerPreAnalysis) visit_import_from(node ImportFrom) {
 	node.is_top_level = spa.is_global_scope
 }
 
-// visit_import_all обрабатывает from ... import *
+// visit_import_all handles from ... import *
 pub fn (mut spa SemanticAnalyzerPreAnalysis) visit_import_all(node ImportAll) {
 	node.is_top_level = spa.is_global_scope
 }
 
-// visit_import обрабатывает import
+// visit_import handles import
 pub fn (mut spa SemanticAnalyzerPreAnalysis) visit_import(node Import) {
 	node.is_top_level = spa.is_global_scope
 }
 
-// visit_if_stmt обрабатывает if-оператор
+// visit_if_stmt handles if statement
 pub fn (mut spa SemanticAnalyzerPreAnalysis) visit_if_stmt(s IfStmt) {
 	infer_reachability_of_if_statement(s, spa.options)
 	for expr in s.expr {
@@ -114,7 +114,7 @@ pub fn (mut spa SemanticAnalyzerPreAnalysis) visit_if_stmt(s IfStmt) {
 	}
 }
 
-// visit_block обрабатывает блок
+// visit_block handles block
 pub fn (mut spa SemanticAnalyzerPreAnalysis) visit_block(b Block) {
 	if b.is_unreachable {
 		if b.end_line != none {
@@ -131,7 +131,7 @@ pub fn (mut spa SemanticAnalyzerPreAnalysis) visit_block(b Block) {
 	}
 }
 
-// visit_match_stmt обрабатывает match-оператор
+// visit_match_stmt handles match statement
 pub fn (mut spa SemanticAnalyzerPreAnalysis) visit_match_stmt(s MatchStmt) {
 	infer_reachability_of_match_statement(s, spa.options)
 	for guard in s.guards {
@@ -144,22 +144,22 @@ pub fn (mut spa SemanticAnalyzerPreAnalysis) visit_match_stmt(s MatchStmt) {
 	}
 }
 
-// visit_assignment_stmt — оптимизация: не посещаем вложенные выражения
+// visit_assignment_stmt — optimization: do not visit nested expressions
 pub fn (spa SemanticAnalyzerPreAnalysis) visit_assignment_stmt(s AssignmentStmt) {
-	// Ничего не делаем
+	// Do nothing
 }
 
-// visit_expression_stmt — оптимизация: не посещаем вложенные выражения
+// visit_expression_stmt — optimization: do not visit nested expressions
 pub fn (spa SemanticAnalyzerPreAnalysis) visit_expression_stmt(s ExpressionStmt) {
-	// Ничего не делаем
+	// Do nothing
 }
 
-// visit_return_stmt — оптимизация: не посещаем вложенные выражения
+// visit_return_stmt — optimization: do not visit nested expressions
 pub fn (spa SemanticAnalyzerPreAnalysis) visit_return_stmt(s ReturnStmt) {
-	// Ничего не делаем
+	// Do nothing
 }
 
-// visit_for_stmt обрабатывает for-цикл
+// visit_for_stmt handles for loop
 pub fn (mut spa SemanticAnalyzerPreAnalysis) visit_for_stmt(s ForStmt) {
 	spa.accept(s.body)
 	if s.else_body != none {
@@ -167,7 +167,7 @@ pub fn (mut spa SemanticAnalyzerPreAnalysis) visit_for_stmt(s ForStmt) {
 	}
 }
 
-// accept вызывает соответствующий visit_метод для узла
+// accept calls the corresponding visit_ method for the node
 pub fn (mut spa SemanticAnalyzerPreAnalysis) accept(node Node) {
 	if node is FuncDef {
 		spa.visit_func_def(node)
@@ -196,7 +196,7 @@ pub fn (mut spa SemanticAnalyzerPreAnalysis) accept(node Node) {
 	}
 }
 
-// assert_will_always_fail проверяет, будет ли assert всегда падать
+// assert_will_always_fail checks if assert will always fail
 fn assert_will_always_fail(node AssertStmt, options Options) bool {
 	if node.expr is NameExpr {
 		if node.expr.name == 'False' || node.expr.name == 'false' {
@@ -211,7 +211,7 @@ fn assert_will_always_fail(node AssertStmt, options Options) bool {
 	return false
 }
 
-// infer_reachability_of_if_statement определяет достижимость ветвей if
+// infer_reachability_of_if_statement determines reachability of if branches
 fn infer_reachability_of_if_statement(s IfStmt, options Options) {
 	for i, expr in s.expr {
 		if expr is NameExpr {
@@ -236,7 +236,7 @@ fn infer_reachability_of_if_statement(s IfStmt, options Options) {
 			}
 		}
 	}
-	// Проверка sys.platform
+	// Check sys.platform
 	if options.platform != '' {
 		for i, expr in s.expr {
 			if expr is ComparisonExpr {
@@ -263,9 +263,9 @@ fn infer_reachability_of_if_statement(s IfStmt, options Options) {
 	}
 }
 
-// infer_reachability_of_match_statement определяет достижимость ветвей match
+// infer_reachability_of_match_statement determines reachability of match branches
 fn infer_reachability_of_match_statement(s MatchStmt, options Options) {
-	// Базовая реализация - mark guards that are always false
+	// Basic implementation - mark guards that are always false
 	for i, guard in s.guards {
 		if guard != none {
 			if guard is NameExpr {

@@ -1,7 +1,7 @@
-// Я Antigravity работаю над этим файлом. Начало: 2026-03-22 14:10
+// I, Antigravity, am working on this file. Started: 2026-03-22 14:10
 module mypy
 
-// Вывод форматированных сообщений об ошибках (MessageBuilder)
+// Output formatted error messages (MessageBuilder)
 
 pub struct MessageBuilder {
 pub mut:
@@ -13,7 +13,7 @@ pub mut:
 }
 
 pub fn (mut m MessageBuilder) report(msg string, context Context, severity string, code ?ErrorCode) {
-	// Основная функция для ошибок/нотаций
+	// Main function for errors/notes
 	mut err_info := &ErrorInfo{
 		line:       context.line
 		column:     context.column
@@ -35,7 +35,7 @@ pub fn (mut m MessageBuilder) note(msg string, context Context, code ?ErrorCode)
 }
 
 // ---------------------------------------------------------
-// Типичные сообщения об ошибках
+// Typical error messages
 // ---------------------------------------------------------
 
 pub fn (mut m MessageBuilder) has_no_attr(original_type MypyTypeNode, typ MypyTypeNode, member string, context Context) MypyTypeNode {
@@ -95,7 +95,7 @@ pub fn (mut m MessageBuilder) invalid_index_type(index_type MypyTypeNode, base_t
 }
 
 // ---------------------------------------------------------
-// Вспомогательные функции
+// Helper functions
 // ---------------------------------------------------------
 
 pub fn (mut m MessageBuilder) are_type_names_disabled() bool {

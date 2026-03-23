@@ -1,11 +1,11 @@
 // typeops.v — Miscellaneous type operations and helpers
 // Translated from mypy/typeops.py to V 0.5.x
 //
-// Я Antigravity работаю над этим файлом. Начало: 2026-03-22 20:00
+// I, Antigravity, am working on this file. Started: 2026-03-22 20:00
 
 module mypy
 
-// is_recursive_pair проверяет, является ли пара типов рекурсивной
+// is_recursive_pair checks if a pair of types is recursive
 pub fn is_recursive_pair(s MypyTypeNode, t MypyTypeNode) bool {
 	if s is TypeAliasType {
 		sat := s as TypeAliasType
@@ -30,7 +30,7 @@ pub fn is_recursive_pair(s MypyTypeNode, t MypyTypeNode) bool {
 	return false
 }
 
-// tuple_fallback возвращает fallback тип для кортежа
+// tuple_fallback returns the fallback type for a tuple
 pub fn tuple_fallback(typ TupleType) Instance {
 	info := typ.partial_fallback.type
 	if info.fullname != 'builtins.tuple' {
@@ -70,7 +70,7 @@ pub fn tuple_fallback(typ TupleType) Instance {
 	}
 }
 
-// get_self_type получает self тип из функции
+// get_self_type gets the self-type from a function
 pub fn get_self_type(func CallableType, def_info TypeInfo) ?MypyTypeNode {
 	default_self := fill_typevars(def_info)
 
@@ -86,15 +86,15 @@ pub fn get_self_type(func CallableType, def_info TypeInfo) ?MypyTypeNode {
 	return default_self
 }
 
-// make_simplified_union создаёт упрощённый union тип
+// make_simplified_union creates a simplified union type
 pub fn make_simplified_union(items []MypyTypeNode, handle_recursive bool) MypyTypeNode {
-	// Упрощённая версия — просто создаёт UnionType
+	// Simplified version — just creates UnionType
 	return UnionType{
 		items: items
 	}
 }
 
-// fill_typevars заполняет переменные типа для TypeInfo
+// fill_typevars fills type variables for TypeInfo
 pub fn fill_typevars(info TypeInfo) Instance {
 	return Instance{
 		type_name: info.fullname
@@ -103,7 +103,7 @@ pub fn fill_typevars(info TypeInfo) Instance {
 	}
 }
 
-// get_proper_type получает proper type (разворачивает TypeAliasType)
+// get_proper_type gets the proper type (unwraps TypeAliasType)
 pub fn get_proper_type(t MypyTypeNode) MypyTypeNode {
 	return match t {
 		TypeAliasType {
@@ -119,7 +119,7 @@ pub fn get_proper_type(t MypyTypeNode) MypyTypeNode {
 	}
 }
 
-// is_optional_type проверяет, является ли тип Optional[X]
+// is_optional_type checks if the type is Optional[X]
 pub fn is_optional_type(t MypyTypeNode) bool {
 	pt := get_proper_type(t)
 	if pt is UnionType {
@@ -135,7 +135,7 @@ pub fn is_optional_type(t MypyTypeNode) bool {
 	return false
 }
 
-// remove_optional удаляет None из Optional типа
+// remove_optional removes None from an Optional type
 pub fn remove_optional(t MypyTypeNode) MypyTypeNode {
 	pt := get_proper_type(t)
 	if pt is UnionType {
@@ -156,17 +156,17 @@ pub fn remove_optional(t MypyTypeNode) MypyTypeNode {
 	return t
 }
 
-// is_none_type проверяет, является ли тип None
+// is_none_type checks if the type is None
 pub fn is_none_type(t MypyTypeNode) bool {
 	return t is NoneType
 }
 
-// is_union проверяет, является ли тип Union
+// is_union checks if the type is Union
 pub fn is_union(t MypyTypeNode) bool {
 	return t is UnionType
 }
 
-// flatten_nested_unions сплющивает вложенные union типы
+// flatten_nested_unions flattens nested union types
 pub fn flatten_nested_unions(t MypyTypeNode) []MypyTypeNode {
 	mut result := []MypyTypeNode{}
 
@@ -182,36 +182,36 @@ pub fn flatten_nested_unions(t MypyTypeNode) []MypyTypeNode {
 	return result
 }
 
-// is_callable_type проверяет, является ли тип Callable
+// is_callable_type checks if the type is Callable
 pub fn is_callable_type(t MypyTypeNode) bool {
 	return t is CallableType
 }
 
-// is_instance_type проверяет, является ли тип Instance
+// is_instance_type checks if the type is Instance
 pub fn is_instance_type(t MypyTypeNode) bool {
 	return t is Instance
 }
 
-// get_type_object_type возвращает тип объекта типа
+// get_type_object_type returns the type object type
 pub fn get_type_object_type(info TypeInfo) ProperType {
-	// Упрощённая версия
+	// Simplified version
 	return ProperType{}
 }
 
 // ProperType — proper type alias (expanded type)
 pub type ProperType = MypyTypeNode
 
-// is_type_var проверяет, является ли тип TypeVar
+// is_type_var checks if the type is TypeVar
 pub fn is_type_var(t MypyTypeNode) bool {
 	return t is TypeVarType
 }
 
-// is_type_var_like проверяет, является ли тип TypeVarLike
+// is_type_var_like checks if the type is TypeVar-like
 pub fn is_type_var_like(t MypyTypeNode) bool {
 	return t is TypeVarType || t is ParamSpecType || t is TypeVarTupleType
 }
 
-// has_type_var проверяет, содержит ли тип переменные типа
+// has_type_var checks if the type contains type variables
 pub fn has_type_var(t MypyTypeNode) bool {
 	return match t {
 		TypeVarType {
@@ -256,7 +256,7 @@ pub fn has_type_var(t MypyTypeNode) bool {
 	}
 }
 
-// replace_type_vars заменяет переменные типа
+// replace_type_vars replaces type variables
 pub fn replace_type_vars(t MypyTypeNode, replacements map[string]MypyTypeNode) MypyTypeNode {
 	return match t {
 		TypeVarType {
@@ -291,7 +291,7 @@ pub fn replace_type_vars(t MypyTypeNode, replacements map[string]MypyTypeNode) M
 	}
 }
 
-// is_generic_instance проверяет, является ли тип generic Instance
+// is_generic_instance checks if the type is a generic Instance
 pub fn is_generic_instance(t MypyTypeNode) bool {
 	if t is Instance {
 		inst := t as Instance
@@ -300,7 +300,7 @@ pub fn is_generic_instance(t MypyTypeNode) bool {
 	return false
 }
 
-// get_instance_type_args получает аргументы типа Instance
+// get_instance_type_args gets the type arguments of an Instance
 pub fn get_instance_type_args(t MypyTypeNode) []MypyTypeNode {
 	if t is Instance {
 		inst := t as Instance
@@ -309,23 +309,23 @@ pub fn get_instance_type_args(t MypyTypeNode) []MypyTypeNode {
 	return []MypyTypeNode{}
 }
 
-// is_same_type проверяет, являются ли типы одинаковыми
+// is_same_type checks if types are the same
 pub fn is_same_type(t1 MypyTypeNode, t2 MypyTypeNode) bool {
 	return t1.type_str() == t2.type_str()
 }
 
-// is_subtype проверяет, является ли t1 подтипом t2
+// is_subtype checks if t1 is a subtype of t2
 pub fn is_subtype(t1 MypyTypeNode, t2 MypyTypeNode) bool {
-	// Упрощённая версия
+	// Simplified version
 	return is_same_type(t1, t2)
 }
 
-// is_equivalent проверяет эквивалентность типов
+// is_equivalent checks type equivalence
 pub fn is_equivalent(t1 MypyTypeNode, t2 MypyTypeNode) bool {
 	return is_subtype(t1, t2) && is_subtype(t2, t1)
 }
 
-// get_union_items получает элементы Union типа
+// get_union_items gets the items of a Union type
 pub fn get_union_items(t MypyTypeNode) []MypyTypeNode {
 	if t is UnionType {
 		ut := t as UnionType
@@ -334,22 +334,22 @@ pub fn get_union_items(t MypyTypeNode) []MypyTypeNode {
 	return [t]
 }
 
-// is_literal_type проверяет, является ли тип Literal
+// is_literal_type checks if the type is Literal
 pub fn is_literal_type(t MypyTypeNode) bool {
 	return t is LiteralType
 }
 
-// is_typeddict_type проверяет, является ли тип TypedDict
+// is_typeddict_type checks if the type is TypedDict
 pub fn is_typeddict_type(t MypyTypeNode) bool {
 	return t is TypedDictType
 }
 
-// is_overloaded проверяет, является ли тип Overloaded
+// is_overloaded checks if the type is Overloaded
 pub fn is_overloaded(t MypyTypeNode) bool {
 	return t is Overloaded
 }
 
-// get_overloaded_items получает элементы Overloaded
+// get_overloaded_items gets items of Overloaded
 pub fn get_overloaded_items(t MypyTypeNode) []CallableType {
 	if t is Overloaded {
 		ot := t as Overloaded
@@ -358,37 +358,37 @@ pub fn get_overloaded_items(t MypyTypeNode) []CallableType {
 	return []CallableType{}
 }
 
-// is_paramspec_type проверяет, является ли тип ParamSpec
+// is_paramspec_type checks if the type is ParamSpec
 pub fn is_paramspec_type(t MypyTypeNode) bool {
 	return t is ParamSpecType
 }
 
-// is_type_var_tuple_type проверяет, является ли тип TypeVarTuple
+// is_type_var_tuple_type checks if the type is TypeVarTuple
 pub fn is_type_var_tuple_type(t MypyTypeNode) bool {
 	return t is TypeVarTupleType
 }
 
-// is_unpack_type проверяет, является ли тип Unpack
+// is_unpack_type checks if the type is Unpack
 pub fn is_unpack_type(t MypyTypeNode) bool {
 	return t is UnpackType
 }
 
-// is_parameters_type проверяет, является ли тип Parameters
+// is_parameters_type checks if the type is Parameters
 pub fn is_parameters_type(t MypyTypeNode) bool {
 	return t is Parameters
 }
 
-// is_partial_type проверяет, является ли тип PartialType
+// is_partial_type checks if the type is PartialType
 pub fn is_partial_type(t MypyTypeNode) bool {
 	return t is PartialType
 }
 
-// is_type_type проверяет, является ли тип Type[...]
+// is_type_type checks if the type is Type[...]
 pub fn is_type_type(t MypyTypeNode) bool {
 	return t is TypeType
 }
 
-// get_type_type_item получает элемент Type[...]
+// get_type_type_item gets the item of Type[...]
 pub fn get_type_type_item(t MypyTypeNode) ?MypyTypeNode {
 	if t is TypeType {
 		tt := t as TypeType
@@ -397,37 +397,37 @@ pub fn get_type_type_item(t MypyTypeNode) ?MypyTypeNode {
 	return none
 }
 
-// is_any_type проверяет, является ли тип Any
+// is_any_type checks if the type is Any
 pub fn is_any_type(t MypyTypeNode) bool {
 	return t is AnyType
 }
 
-// is_uninhabited_type проверяет, является ли тип Never/NoReturn
+// is_uninhabited_type checks if the type is Never/NoReturn
 pub fn is_uninhabited_type(t MypyTypeNode) bool {
 	return t is UninhabitedType
 }
 
-// is_erased_type проверяет, является ли тип ErasedType
+// is_erased_type checks if the type is ErasedType
 pub fn is_erased_type(t MypyTypeNode) bool {
 	return t is ErasedType
 }
 
-// is_deleted_type проверяет, является ли тип DeletedType
+// is_deleted_type checks if the type is DeletedType
 pub fn is_deleted_type(t MypyTypeNode) bool {
 	return t is DeletedType
 }
 
-// is_unbound_type проверяет, является ли тип UnboundType
+// is_unbound_type checks if the type is UnboundType
 pub fn is_unbound_type(t MypyTypeNode) bool {
 	return t is UnboundType
 }
 
-// is_tuple_type проверяет, является ли тип TupleType
+// is_tuple_type checks if the type is TupleType
 pub fn is_tuple_type(t MypyTypeNode) bool {
 	return t is TupleType
 }
 
-// get_tuple_items получает элементы TupleType
+// get_tuple_items gets items of TupleType
 pub fn get_tuple_items(t MypyTypeNode) []MypyTypeNode {
 	if t is TupleType {
 		tt := t as TupleType
@@ -436,12 +436,12 @@ pub fn get_tuple_items(t MypyTypeNode) []MypyTypeNode {
 	return []MypyTypeNode{}
 }
 
-// is_type_alias_type проверяет, является ли тип TypeAliasType
+// is_type_alias_type checks if the type is TypeAliasType
 pub fn is_type_alias_type(t MypyTypeNode) bool {
 	return t is TypeAliasType
 }
 
-// copy_type копирует тип
+// copy_type copies the type
 pub fn copy_type(t MypyTypeNode) MypyTypeNode {
 	return match t {
 		Instance {

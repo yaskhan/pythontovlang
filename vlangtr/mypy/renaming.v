@@ -173,11 +173,11 @@ fn (mut v VariableRenameVisitor) flush_refs() {
 
 		// If there was a redefinition and few reads
 		if collections.len > 1 && reads <= 1 {
-			// Переименовываем первое определение
+			// Rename the first definition
 			for i, coll in collections {
 				if i > 0 {
 					for expr in coll {
-						// Помечаем для переименования
+						// Mark for renaming
 						expr.is_special_form = true
 					}
 				}
@@ -186,7 +186,7 @@ fn (mut v VariableRenameVisitor) flush_refs() {
 	}
 }
 
-// visit_name_expr обрабатывает имя переменной
+// visit_name_expr handles variable name
 pub fn (mut v VariableRenameVisitor) visit_name_expr(expr NameExpr) {
 	if v.var_blocks.len == 0 {
 		return
@@ -198,10 +198,10 @@ pub fn (mut v VariableRenameVisitor) visit_name_expr(expr NameExpr) {
 	if name !in current {
 		current[name] = v.current_block()
 	} else {
-		// Проверяем, в том же ли блоке определение
+		// Check if definition is in the same block
 		def_block := current[name]
 		if def_block != v.current_block() {
-			// Переопределение в другом блоке
+			// Redefinition in another block
 			if name !in v.refs.last() {
 				v.refs.last()[name] = [][]NameExpr{}
 			}
@@ -210,7 +210,7 @@ pub fn (mut v VariableRenameVisitor) visit_name_expr(expr NameExpr) {
 	}
 }
 
-// visit_assignment_stmt обрабатывает присваивание
+// visit_assignment_stmt handles assignment
 pub fn (mut v VariableRenameVisitor) visit_assignment_stmt(stmt AssignmentStmt) {
 	for lval in stmt.lvalues {
 		v.visit_lvalue(lval)
@@ -220,7 +220,7 @@ pub fn (mut v VariableRenameVisitor) visit_assignment_stmt(stmt AssignmentStmt) 
 	}
 }
 
-// visit_lvalue обрабатывает lvalue
+// visit_lvalue handles lvalue
 fn (mut v VariableRenameVisitor) visit_lvalue(lval Lvalue) {
 	if lval is NameExpr {
 		if v.var_blocks.len > 0 {
@@ -228,7 +228,7 @@ fn (mut v VariableRenameVisitor) visit_lvalue(lval Lvalue) {
 			name := lval.name
 
 			if name in current {
-				// Переопределение
+				// Redefinition
 				if v.disallow_redef_depth == 0 {
 					current[name] = v.current_block()
 				}
@@ -236,7 +236,7 @@ fn (mut v VariableRenameVisitor) visit_lvalue(lval Lvalue) {
 				current[name] = v.current_block()
 			}
 
-			// Сбрасываем счётчик чтений
+			// Reset read counter
 			if v.num_reads.len > 0 {
 				v.num_reads.last()[name] = 0
 			}
@@ -250,11 +250,11 @@ fn (mut v VariableRenameVisitor) visit_lvalue(lval Lvalue) {
 	}
 }
 
-// visit_expression обрабатывает выражение
+// visit_expression handles expression
 fn (mut v VariableRenameVisitor) visit_expression(expr Expression) {
 	if expr is NameExpr {
 		v.visit_name_expr(expr)
-		// Увеличиваем счётчик чтений
+		// Increment read counter
 		if v.num_reads.len > 0 && v.var_blocks.len > 0 {
 			name := expr.name
 			if name in v.var_blocks.last() {
@@ -282,7 +282,7 @@ fn (mut v VariableRenameVisitor) visit_expression(expr Expression) {
 	}
 }
 
-// visit_func_def обрабатывает определение функции
+// visit_func_def handles function definition
 pub fn (mut v VariableRenameVisitor) visit_func_def(defn FuncDef) {
 	_ = v.enter_scope(function_scope)
 	defer {
@@ -300,7 +300,7 @@ pub fn (mut v VariableRenameVisitor) visit_func_def(defn FuncDef) {
 	}
 }
 
-// visit_class_def обрабатывает определение класса
+// visit_class_def handles class definition
 pub fn (mut v VariableRenameVisitor) visit_class_def(defn ClassDef) {
 	_ = v.enter_scope(class_scope)
 	defer {
@@ -314,7 +314,7 @@ pub fn (mut v VariableRenameVisitor) visit_class_def(defn ClassDef) {
 	}
 }
 
-// visit_block обрабатывает блок
+// visit_block handles block
 pub fn (mut v VariableRenameVisitor) visit_block(block Block) {
 	_ = v.enter_block()
 	defer {
@@ -328,7 +328,7 @@ pub fn (mut v VariableRenameVisitor) visit_block(block Block) {
 	}
 }
 
-// visit_statement обрабатывает утверждение
+// visit_statement handles statement
 fn (mut v VariableRenameVisitor) visit_statement(stmt Statement) {
 	if stmt is AssignmentStmt {
 		v.visit_assignment_stmt(stmt)

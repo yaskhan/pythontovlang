@@ -1,4 +1,4 @@
-// Я Antigravity работаю над этим файлом. Начало: 2026-03-22 18:00
+// I, Antigravity, am working on this file. Started: 2026-03-22 18:00
 // Type state for mypy (typestate.py)
 // Shared state for all TypeInfos that holds global cache and dependency information.
 
@@ -138,7 +138,7 @@ pub fn (mut ts TypeState) is_cached_subtype_check(kind SubtypeKind, left &Instan
 	if left.last_known_value != none || right.last_known_value != none {
 		return false
 	}
-	info_name := right.type_info?.fullname or { return false }
+	info_name := right.typ?.fullname or { return false }
 	cache := ts._subtype_caches[info_name] or { return false }
 	subcache := cache[kind] or { return false }
 	for pair in subcache {
@@ -154,7 +154,7 @@ pub fn (mut ts TypeState) is_cached_negative_subtype_check(kind SubtypeKind, lef
 	if left.last_known_value != none || right.last_known_value != none {
 		return false
 	}
-	info_name := right.type_info?.fullname or { return false }
+	info_name := right.typ?.fullname or { return false }
 	cache := ts._negative_subtype_caches[info_name] or { return false }
 	subcache := cache[kind] or { return false }
 	for pair in subcache {
@@ -170,7 +170,7 @@ pub fn (mut ts TypeState) record_subtype_cache_entry(kind SubtypeKind, left &Ins
 	if left.last_known_value != none || right.last_known_value != none {
 		return
 	}
-	r_info := right.type_info or { return }
+	r_info := right.typ or { return }
 	for tv in r_info.type_vars {
 		if tv is TypeVarType {
 			if tv.variance == .variance_not_ready {
@@ -199,7 +199,7 @@ pub fn (mut ts TypeState) record_negative_subtype_cache_entry(kind SubtypeKind, 
 	if ts._negative_subtype_caches.len > max_negative_cache_types {
 		ts.reset_all_subtype_caches()
 	}
-	r_info := right.type_info or { return }
+	r_info := right.typ or { return }
 	if r_info.fullname !in ts._negative_subtype_caches {
 		ts._negative_subtype_caches[r_info.fullname] = map[u32][]SubtypePair{}
 	}
@@ -286,7 +286,7 @@ pub fn reset_global_state() {
 
 // Helper to check if two instances are same (based on type info and args)
 fn is_same_instance(a Instance, b Instance) bool {
-	if a.type_info?.fullname != b.type_info?.fullname {
+	if a.typ?.fullname != b.typ?.fullname {
 		return false
 	}
 	if a.args.len != b.args.len {

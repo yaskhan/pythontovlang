@@ -1,20 +1,20 @@
-// Я Cline работаю над этим файлом. Начало: 2026-03-22 19:57
+// I, Cline, am working on this file. Started: 2026-03-22 19:57
 // solve.v — Type inference constraint solving
-// Переведён из mypy/solve.py
+// Translated from mypy/solve.py
 
 module mypy
 
-// Bounds — маппинг TypeVarId -> множество типов
+// Bounds — mapping TypeVarId -> set of types
 pub type Bounds = map[TypeVarId]map[string]bool
 
-// Graph — множество рёбер между типовыми переменными
+// Graph — set of edges between type variables
 pub type Graph = map[string]bool
 
-// Solutions — маппинг TypeVarId -> решение
+// Solutions — mapping TypeVarId -> solution
 pub type Solutions = map[TypeVarId]?MypyTypeNode
 
-// solve_constraints решает ограничения типов
-// Возвращает лучшие типы для типовых переменных
+// solve_constraints solves type constraints
+// Returns the best types for type variables
 pub fn solve_constraints(original_vars []TypeVarLikeType, constraints []Constraint, strict bool, allow_polymorphic bool) ([]?MypyTypeNode, []TypeVarLikeType) {
 	mut vars := []TypeVarId{}
 	for tv in original_vars {
@@ -89,7 +89,7 @@ pub fn solve_constraints(original_vars []TypeVarLikeType, constraints []Constrai
 	return res, []TypeVarLikeType{}
 }
 
-// solve_one решает ограничения используя meet верхних границ и join нижних границ
+// solve_one solves constraints using meet of upper bounds and join of lower bounds
 pub fn solve_one(lowers []MypyTypeNode, uppers []MypyTypeNode) ?MypyTypeNode {
 	mut candidate := ?MypyTypeNode(none)
 
@@ -155,7 +155,7 @@ pub fn solve_one(lowers []MypyTypeNode, uppers []MypyTypeNode) ?MypyTypeNode {
 	return candidate
 }
 
-// transitive_closure находит транзитивное замыкание для ограничений
+// transitive_closure finds transitive closure for constraints
 pub fn transitive_closure(tvars []TypeVarId, constraints []Constraint) (Graph, Bounds, Bounds) {
 	mut uppers := map[TypeVarId]map[string]bool{}
 	mut lowers := map[TypeVarId]map[string]bool{}
@@ -215,7 +215,7 @@ pub fn transitive_closure(tvars []TypeVarId, constraints []Constraint) (Graph, B
 	return graph, lowers, uppers
 }
 
-// find_linear проверяет является ли ограничение линейным
+// find_linear checks if a constraint is linear
 pub fn find_linear(c Constraint) (bool, ?TypeVarId) {
 	if c.target is TypeVarTypeNode {
 		return true, c.target.id
@@ -223,7 +223,7 @@ pub fn find_linear(c Constraint) (bool, ?TypeVarId) {
 	return false, none
 }
 
-// compute_dependencies вычисляет зависимости между типовыми переменными
+// compute_dependencies computes dependencies between type variables
 pub fn compute_dependencies(tvars []TypeVarId, graph Graph, lowers Bounds, uppers Bounds) map[TypeVarId][]TypeVarId {
 	mut res := map[TypeVarId][]TypeVarId{}
 	for tv in tvars {
@@ -247,7 +247,7 @@ pub fn compute_dependencies(tvars []TypeVarId, graph Graph, lowers Bounds, upper
 	return res
 }
 
-// check_linear проверяет что в SCC только линейные ограничения
+// check_linear checks that SCC contains only linear constraints
 pub fn check_linear(scc []TypeVarId, lowers Bounds, uppers Bounds) bool {
 	for tv in scc {
 		for lt in lowers[tv].keys() {
@@ -266,7 +266,7 @@ pub fn check_linear(scc []TypeVarId, lowers Bounds, uppers Bounds) bool {
 	return true
 }
 
-// get_vars находит типовые переменные в целевом типе
+// get_vars finds type variables in a target type
 pub fn get_vars(target MypyTypeNode, vars []TypeVarId) []TypeVarId {
 	mut result := []TypeVarId{}
 	if target is TypeVarTypeNode {
@@ -296,7 +296,7 @@ pub fn get_vars(target MypyTypeNode, vars []TypeVarId) []TypeVarId {
 	return result
 }
 
-// Вспомогательные функции-заглушки
+// Helper stub functions
 fn get_proper_type(t MypyTypeNode) MypyTypeNode {
 	return t
 }

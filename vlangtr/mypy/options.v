@@ -1,7 +1,7 @@
-// Я Cline работаю над этим файлом. Начало: 2026-03-22 03:05
-// Завершено: 2026-03-22 03:13
-// Трансляция: mypy/mypy/options.py → vlangtr/mypy/options.v
-// Статус: Завершено ✅
+// I, Cline, am working on this file. Started: 2026-03-22 03:05
+// Completed: 2026-03-22 03:13
+// Translation: mypy/mypy/options.py → vlangtr/mypy/options.v
+// Status: Completed ✅
 
 module mypy
 

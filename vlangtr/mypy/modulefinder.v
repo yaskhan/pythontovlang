@@ -149,14 +149,14 @@ pub fn new_find_module_cache(search_paths SearchPaths, options ?Options) MypyFin
 	}
 }
 
-// clear очищает кэш
+// clear clears the cache
 pub fn (mut fmc MypyFindModuleCache) clear() {
 	fmc.results.clear()
 	fmc.initial_components.clear()
 	fmc.ns_ancestors.clear()
 }
 
-// find_module ищет модуль и возвращает путь или причину неудачи
+// find_module finds a module and returns the path or failure reason
 pub fn (mut fmc MypyFindModuleCache) find_module(id string) ModuleSearchResult {
 	if id in fmc.results {
 		return fmc.results[id]
@@ -167,12 +167,12 @@ pub fn (mut fmc MypyFindModuleCache) find_module(id string) ModuleSearchResult {
 	return result
 }
 
-// find_module_internal — внутренняя реализация поиска модуля
+// find_module_internal — internal implementation of module search
 fn (mut fmc MypyFindModuleCache) find_module_internal(id string) ModuleSearchResult {
 	components := id.split('.')
 	dir_chain := components[..components.len - 1].join(os.path_separator)
 
-	// Поиск в package_path
+	// Search in package_path
 	for pkg_dir in fmc.search_paths.package_path {
 		stub_name := components[0] + '-stubs'
 		stub_dir := os.join_path(pkg_dir, stub_name)
@@ -183,7 +183,7 @@ fn (mut fmc MypyFindModuleCache) find_module_internal(id string) ModuleSearchRes
 			}
 		}
 
-		// Обычный поиск
+		// Normal search
 		path := os.join_path(pkg_dir, dir_chain, components.last() + '.pyi')
 		if os.is_file(path) {
 			return path
@@ -194,7 +194,7 @@ fn (mut fmc MypyFindModuleCache) find_module_internal(id string) ModuleSearchRes
 		}
 	}
 
-	// Поиск в mypy_path и python_path
+	// Search in mypy_path and python_path
 	for dir in fmc.search_paths.mypy_path + fmc.search_paths.python_path {
 		path := os.join_path(dir, dir_chain, components.last() + '.pyi')
 		if os.is_file(path) {
@@ -206,7 +206,7 @@ fn (mut fmc MypyFindModuleCache) find_module_internal(id string) ModuleSearchRes
 		}
 	}
 
-	// Поиск в typeshed_path
+	// Search in typeshed_path
 	for dir in fmc.search_paths.typeshed_path {
 		path := os.join_path(dir, dir_chain, components.last() + '.pyi')
 		if os.is_file(path) {
@@ -217,7 +217,7 @@ fn (mut fmc MypyFindModuleCache) find_module_internal(id string) ModuleSearchRes
 	return ModuleNotFoundReason.not_found
 }
 
-// find_lib_path_dirs находит директории в lib_path, содержащие модуль
+// find_lib_path_dirs finds directories in lib_path containing the module
 pub fn (fmc MypyFindModuleCache) find_lib_path_dirs(id string, lib_path []string) []string {
 	components := id.split('.')
 	dir_chain := components[..components.len - 1].join(os.path_separator)
@@ -238,7 +238,7 @@ pub fn (fmc MypyFindModuleCache) find_lib_path_dirs(id string, lib_path []string
 	return dirs
 }
 
-// get_toplevel_possibilities находит возможные директории для top-level модуля
+// get_toplevel_possibilities finds possible directories for top-level module
 pub fn (mut fmc MypyFindModuleCache) get_toplevel_possibilities(lib_path []string, id string) []string {
 	lib_path_key := lib_path.join(':')
 	if lib_path_key in fmc.initial_components {
@@ -261,13 +261,13 @@ pub fn (mut fmc MypyFindModuleCache) get_toplevel_possibilities(lib_path []strin
 	return components[id] or { []string{} }
 }
 
-// is_init_file проверяет, является ли файл __init__.py[i]
+// is_init_file checks if the file is __init__.py[i]
 pub fn is_init_file(path string) bool {
 	base := os.base(path)
 	return base == '__init__.py' || base == '__init__.pyi'
 }
 
-// verify_module проверяет, что все пакеты, содержащие id, имеют __init__ файл
+// verify_module verifies that all packages containing id have __init__ file
 pub fn verify_module(id string, path string) bool {
 	mut check_path := if is_init_file(path) { os.dir(path) } else { path }
 	for _ in 0 .. id.count('.') {
@@ -280,11 +280,11 @@ pub fn verify_module(id string, path string) bool {
 	return true
 }
 
-// compute_search_paths вычисляет пути поиска модулей
+// compute_search_paths computes module search paths
 pub fn compute_search_paths(sources []MypyBuildSource, options Options, data_dir string, alt_lib_path ?string) SearchPaths {
 	mut lib_path := []string{}
 
-	// Добавляем стандартную библиотеку
+	// Add standard library
 	lib_path << os.join_path(data_dir, 'typeshed', 'stdlib')
 
 	// Python path
@@ -308,7 +308,7 @@ pub fn compute_search_paths(sources []MypyBuildSource, options Options, data_dir
 	mypypath << options.mypy_path
 
 	// Package path (site-packages)
-	package_path := []string{} // TODO: получить из pyinfo
+	package_path := []string{} // TODO: get from pyinfo
 
 	return SearchPaths{
 		python_path:   python_path.reverse()

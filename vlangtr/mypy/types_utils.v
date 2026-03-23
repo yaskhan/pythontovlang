@@ -1,11 +1,11 @@
-// Я Cline работаю над этим файлом. Начало: 2026-03-22 14:56
+// I, Cline, am working on this file. Started: 2026-03-22 14:56
 // types_utils.v — Basic type operations utilities
-// Переведён из mypy/types_utils.py
-// Этот модуль содержит базовые операции с типами, не зависящие от is_subtype, meet_types, join_types
+// Translated from mypy/types_utils.py
+// This module contains basic type operations that don't depend on is_subtype, meet_types, join_types
 
 module mypy
 
-// flatten_types разворачивает вложенные Union типы
+// flatten_types unrolls nested Union types
 pub fn flatten_types(types []MypyTypeNode) []MypyTypeNode {
 	mut result := []MypyTypeNode{}
 	for t in types {
@@ -19,7 +19,7 @@ pub fn flatten_types(types []MypyTypeNode) []MypyTypeNode {
 	return result
 }
 
-// strip_type создаёт копию типа без отладочной информации (имени функции)
+// strip_type creates a type copy without debug information (function name)
 pub fn strip_type(typ MypyTypeNode) MypyTypeNode {
 	orig_typ := typ
 	tp := get_proper_type(typ)
@@ -38,7 +38,7 @@ pub fn strip_type(typ MypyTypeNode) MypyTypeNode {
 	}
 }
 
-// is_invalid_recursive_alias проверяет рекурсивные алиасы типа A = Union[int, A]
+// is_invalid_recursive_alias checks for recursive type aliases like A = Union[int, A]
 pub fn is_invalid_recursive_alias(seen_nodes map[string]bool, target MypyTypeNode) bool {
 	if target is TypeAliasType {
 		alias_key := '${target.alias}'
@@ -76,7 +76,7 @@ pub fn is_invalid_recursive_alias(seen_nodes map[string]bool, target MypyTypeNod
 	return false
 }
 
-// get_bad_type_type_item проверяет запрещённые типы вида Type[Type[...]]
+// get_bad_type_type_item checks for forbidden types like Type[Type[...]]
 pub fn get_bad_type_type_item(item MypyTypeNode) ?string {
 	tp := get_proper_type(item)
 	if tp is TypeType {
@@ -103,7 +103,7 @@ pub fn get_bad_type_type_item(item MypyTypeNode) ?string {
 	return none
 }
 
-// is_union_with_any проверяет, является ли тип объединением с Any или просто Any
+// is_union_with_any checks if a type is a union with Any or just Any
 pub fn is_union_with_any(tp MypyTypeNode) bool {
 	tp = get_proper_type(tp)
 	if tp is AnyType {
@@ -120,13 +120,13 @@ pub fn is_union_with_any(tp MypyTypeNode) bool {
 	return false
 }
 
-// is_generic_instance проверяет, является ли тип обобщённым экземпляром
+// is_generic_instance checks if a type is a generic instance
 pub fn is_generic_instance(tp MypyTypeNode) bool {
 	tp = get_proper_type(tp)
 	return tp is Instance && tp.args.len > 0
 }
 
-// is_overlapping_none проверяет, может ли тип быть None
+// is_overlapping_none checks if a type can be None
 pub fn is_overlapping_none(t MypyTypeNode) bool {
 	tp := get_proper_type(t)
 	if tp is NoneTypeNode {
@@ -142,7 +142,7 @@ pub fn is_overlapping_none(t MypyTypeNode) bool {
 	return false
 }
 
-// remove_optional удаляет None из типа
+// remove_optional removes None from a type
 pub fn remove_optional(typ MypyTypeNode) MypyTypeNode {
 	tp := get_proper_type(typ)
 	if tp is UnionType {
@@ -160,7 +160,7 @@ pub fn remove_optional(typ MypyTypeNode) MypyTypeNode {
 	}
 }
 
-// is_self_type_like проверяет, похож ли тип на аннотацию self-type
+// is_self_type_like checks if a type looks like a self-type annotation
 pub fn is_self_type_like(typ MypyTypeNode, is_classmethod bool) bool {
 	tp := get_proper_type(typ)
 	if !is_classmethod {
@@ -172,12 +172,12 @@ pub fn is_self_type_like(typ MypyTypeNode, is_classmethod bool) bool {
 	return (tp as TypeType).item is TypeVarType
 }
 
-// store_argument_type сохраняет тип аргумента в определении функции
+// store_argument_type stores an argument type in a function definition
 pub fn store_argument_type(defn FuncItem, i int, typ CallableType, named_type fn (string, []MypyTypeNode) Instance) {
 	mut arg_type := typ.arg_types[i]
 	if typ.arg_kinds[i] == ArgKind.star {
 		if arg_type is ParamSpecType {
-			// Ничего не делаем
+			// Do nothing
 		} else if arg_type is UnpackType {
 			unpacked := get_proper_type(arg_type.typ)
 			if unpacked is TupleType {
@@ -203,7 +203,7 @@ pub fn store_argument_type(defn FuncItem, i int, typ CallableType, named_type fn
 	defn.arguments[i].variable.typ = arg_type
 }
 
-// Вспомогательные функции-заглушки
+// Helper stub functions
 fn get_proper_type(t MypyTypeNode) MypyTypeNode {
 	// Delegate to types module
 	return get_proper_type(t)

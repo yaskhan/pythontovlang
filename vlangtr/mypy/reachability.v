@@ -1,18 +1,18 @@
 // reachability.v — Utilities for determining code reachability
 // Translated from mypy/reachability.py to V 0.5.x
 //
-// Я Antigravity работаю над этим файлом. Начало: 2026-03-22 13:30
+// I, Antigravity, am working on this file. Started: 2026-03-22 13:30
 
 module mypy
 
-// Значения истинности выражений
+// Truth values of expressions
 pub const always_true = 1
-pub const mypy_true = 2 // True в mypy, False в runtime
+pub const mypy_true = 2 // True in mypy, False in runtime
 pub const always_false = 3
-pub const mypy_false = 4 // False в mypy, True в runtime
+pub const mypy_false = 4 // False in mypy, True in runtime
 pub const truth_value_unknown = 5
 
-// inverted_truth_mapping — инвертированные значения истинности
+// inverted_truth_mapping — inverted truth values
 pub fn inverted_truth_mapping(value int) int {
 	return match value {
 		always_true { always_false }
@@ -24,7 +24,7 @@ pub fn inverted_truth_mapping(value int) int {
 	}
 }
 
-// reverse_op — обратные операторы сравнения
+// reverse_op — reverse comparison operators
 pub fn reverse_op(op string) string {
 	return match op {
 		'==' { '==' }
@@ -37,15 +37,15 @@ pub fn reverse_op(op string) string {
 	}
 }
 
-// infer_reachability_of_if_statement определяет достижимость if statement
+// infer_reachability_of_if_statement determines reachability of if statement
 pub fn infer_reachability_of_if_statement(mut s IfStmt, options Options) {
 	for i in 0 .. s.expr.len {
 		result := infer_condition_value(s.expr[i], options)
 		if result == always_false || result == mypy_false {
-			// Условие всегда false, пропускаем тело if/elif
+			// Condition is always false, skip if/elif body
 			mark_block_unreachable(mut s.body[i])
 		} else if result == always_true || result == mypy_true {
-			// Условие всегда true, остальные elif/else недостижимы
+			// Condition is always true, remaining elif/else are unreachable
 			if result == mypy_true {
 				mark_block_mypy_only(mut s.body[i])
 			}
@@ -53,7 +53,7 @@ pub fn infer_reachability_of_if_statement(mut s IfStmt, options Options) {
 				mark_block_unreachable(mut body)
 			}
 
-			// Убеждаемся, что else body существует и помечен как недостижимый
+			// Ensure else body exists and mark as unreachable
 			if s.else_body == none {
 				s.else_body = Block{}
 			}
@@ -63,7 +63,7 @@ pub fn infer_reachability_of_if_statement(mut s IfStmt, options Options) {
 	}
 }
 
-// infer_reachability_of_match_statement определяет достижимость match statement
+// infer_reachability_of_match_statement determines reachability of match statement
 pub fn infer_reachability_of_match_statement(mut s MatchStmt, options Options) {
 	for i, guard in s.guards {
 		pattern_value := infer_pattern_value(s.patterns[i])
@@ -75,7 +75,7 @@ pub fn infer_reachability_of_match_statement(mut s MatchStmt, options Options) {
 
 		if pattern_value == always_false || pattern_value == mypy_false
 			|| guard_value == always_false || guard_value == mypy_false {
-			// Case всегда false, пропускаем тело
+			// Case is always false, skip body
 			mark_block_unreachable(mut s.bodies[i])
 		} else if (pattern_value == always_true || pattern_value == mypy_true)
 			&& (guard_value == always_true || guard_value == mypy_true) {
@@ -90,15 +90,15 @@ pub fn infer_reachability_of_match_statement(mut s MatchStmt, options Options) {
 	}
 }
 
-// assert_will_always_fail проверяет, всегда ли assert fails
+// assert_will_always_fail checks if assert always fails
 pub fn assert_will_always_fail(s AssertStmt, options Options) bool {
 	result := infer_condition_value(s.expr, options)
 	return result == always_false || result == mypy_false
 }
 
-// infer_condition_value определяет истинность условия
+// infer_condition_value determines the truth value of a condition
 pub fn infer_condition_value(expr Expression, options Options) int {
-	// Проверяем на "not"
+	// Check for "not"
 	if expr is UnaryExpr {
 		ue := expr as UnaryExpr
 		if ue.op == 'not' {
@@ -172,7 +172,7 @@ pub fn infer_condition_value(expr Expression, options Options) int {
 	return result
 }
 
-// infer_pattern_value определяет истинность паттерна
+// infer_pattern_value determines the truth value of a pattern
 pub fn infer_pattern_value(pattern Pattern) int {
 	if pattern is AsPattern {
 		ap := pattern as AsPattern
@@ -190,7 +190,7 @@ pub fn infer_pattern_value(pattern Pattern) int {
 	return truth_value_unknown
 }
 
-// consider_sys_version_info проверяет сравнения с sys.version_info
+// consider_sys_version_info checks comparisons with sys.version_info
 pub fn consider_sys_version_info(expr Expression, pyversion []int) int {
 	if expr !is ComparisonExpr {
 		return truth_value_unknown
@@ -206,11 +206,11 @@ pub fn consider_sys_version_info(expr Expression, pyversion []int) int {
 		return truth_value_unknown
 	}
 
-	// Упрощённая версия — без полной поддержки всех случаев
+	// Simplified version — without full support for all cases
 	return truth_value_unknown
 }
 
-// consider_sys_platform проверяет сравнения с sys.platform
+// consider_sys_platform checks comparisons with sys.platform
 pub fn consider_sys_platform(expr Expression, platform string) int {
 	if expr is ComparisonExpr {
 		ce := expr as ComparisonExpr
@@ -222,7 +222,7 @@ pub fn consider_sys_platform(expr Expression, platform string) int {
 			return truth_value_unknown
 		}
 
-		// Проверяем sys.platform
+		// Check sys.platform
 		if !is_sys_attr(ce.operands[0], 'platform') {
 			return truth_value_unknown
 		}
@@ -264,7 +264,7 @@ pub fn consider_sys_platform(expr Expression, platform string) int {
 	return truth_value_unknown
 }
 
-// fixed_comparison выполняет сравнение значений
+// fixed_comparison performs value comparison
 pub fn fixed_comparison(left any, op string, right any) int {
 	rmap := {
 		false: always_false
@@ -282,7 +282,7 @@ pub fn fixed_comparison(left any, op string, right any) int {
 	}
 }
 
-// contains_int_or_tuple_of_ints проверяет, является ли expr int или tuple of ints
+// contains_int_or_tuple_of_ints checks if expr is int or tuple of ints
 pub fn contains_int_or_tuple_of_ints(expr Expression) ?any {
 	if expr is IntExpr {
 		return (expr as IntExpr).value
@@ -301,7 +301,7 @@ pub fn contains_int_or_tuple_of_ints(expr Expression) ?any {
 	return none
 }
 
-// contains_sys_version_info проверяет, является ли expr sys.version_info
+// contains_sys_version_info checks if expr is sys.version_info
 pub fn contains_sys_version_info(expr Expression) ?any {
 	if is_sys_attr(expr, 'version_info') {
 		return [none, none] // sys.version_info[:]
@@ -341,7 +341,7 @@ pub fn contains_sys_version_info(expr Expression) ?any {
 	return none
 }
 
-// is_sys_attr проверяет, является ли expr sys.<name>
+// is_sys_attr checks if expr is sys.<name>
 pub fn is_sys_attr(expr Expression, name string) bool {
 	if expr is MemberExpr {
 		me := expr as MemberExpr
@@ -357,14 +357,14 @@ pub fn is_sys_attr(expr Expression, name string) bool {
 	return false
 }
 
-// mark_block_unreachable помечает блок как недостижимый
+// mark_block_unreachable marks a block as unreachable
 pub fn mark_block_unreachable(mut block Block) {
 	block.is_unreachable = true
 	mut visitor := MarkImportsUnreachableVisitor{}
 	visitor.visit_block(mut block)
 }
 
-// MarkImportsUnreachableVisitor — посетитель для пометки импортов как недостижимых
+// MarkImportsUnreachableVisitor — visitor for marking imports as unreachable
 pub struct MarkImportsUnreachableVisitor {}
 
 pub fn (mut v MarkImportsUnreachableVisitor) visit_block(mut block Block) {
@@ -379,13 +379,13 @@ pub fn (mut v MarkImportsUnreachableVisitor) visit_block(mut block Block) {
 	}
 }
 
-// mark_block_mypy_only помечает блок как mypy-only
+// mark_block_mypy_only marks a block as mypy-only
 pub fn mark_block_mypy_only(mut block Block) {
 	mut visitor := MarkImportsMypyOnlyVisitor{}
 	visitor.visit_block(mut block)
 }
 
-// MarkImportsMypyOnlyVisitor — посетитель для пометки импортов как mypy-only
+// MarkImportsMypyOnlyVisitor — visitor for marking imports as mypy-only
 pub struct MarkImportsMypyOnlyVisitor {}
 
 pub fn (mut v MarkImportsMypyOnlyVisitor) visit_block(mut block Block) {

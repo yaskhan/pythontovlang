@@ -1,4 +1,4 @@
-// Я Qwen Code работаю над этим файлом. Начало: 2026-03-22 22:00
+// I, Qwen Code, am working on this file. Started: 2026-03-22 22:00
 // Stub information utilities for mypy (stubinfo.py)
 
 module mypy

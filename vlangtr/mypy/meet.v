@@ -4,7 +4,7 @@
 
 module mypy
 
-// trivial_meet возвращает один из типов если он является подтипом другого
+// trivial_meet returns one of the types if it is a subtype of the other
 pub fn trivial_meet(s MypyTypeNode, t MypyTypeNode) ProperType {
 	if is_subtype(s, t) {
 		return get_proper_type(s)
@@ -15,7 +15,7 @@ pub fn trivial_meet(s MypyTypeNode, t MypyTypeNode) ProperType {
 	}
 }
 
-// meet_types вычисляет greatest lower bound двух типов
+// meet_types computes the greatest lower bound of two types
 pub fn meet_types(s MypyTypeNode, t MypyTypeNode) ProperType {
 	s_proper := get_proper_type(s)
 	t_proper := get_proper_type(t)
@@ -333,7 +333,7 @@ pub fn (v TypeMeetVisitor) visit_type_type(t &TypeType) ProperType {
 	return object_from_type(v.s)
 }
 
-// Вспомогательные функции
+// Helper functions
 pub fn meet_similar_callables(t CallableType, s CallableType) CallableType {
 	mut arg_types := []MypyTypeNode{}
 	for i in 0 .. t.arg_types.len {

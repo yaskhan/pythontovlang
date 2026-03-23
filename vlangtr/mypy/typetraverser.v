@@ -1,9 +1,9 @@
-// Я Antigravity работаю над этим файлом. Начало: 2026-03-22 03:40
+// I, Antigravity, am working on this file. Started: 2026-03-22 03:40
 module mypy
 
-// TypeTraverserVisitor — базовый класс для обхода всех компонентов типа.
-// В V мы реализуем его как структуру, методы которой можно переопределять
-// через встраивание (embedding), либо использовать как есть.
+// TypeTraverserVisitor — base class for traversing all type components.
+// In V, we implement it as a struct whose methods can be overridden
+// via embedding, or used as is.
 
 pub struct TypeTraverserVisitor {}
 
@@ -33,8 +33,8 @@ pub fn (mut v TypeTraverserVisitor) visit_deleted_type(t &DeletedType) !string {
 }
 
 pub fn (mut v TypeTraverserVisitor) visit_type_var(t &TypeVarType) !string {
-	// Мы не обходим значения и верхнюю границу, так как они привязаны к определению TVar
-	// Но можем обойти значение по умолчанию, если оно есть.
+	// We do not traverse values and upper bound, as they are bound to the TVar definition
+	// But we can traverse the default value, if it exists.
 	t.default_.accept_synthetic(v)!
 	return ''
 }
@@ -62,8 +62,8 @@ pub fn (mut v TypeTraverserVisitor) visit_instance(t &Instance) !string {
 pub fn (mut v TypeTraverserVisitor) visit_callable_type(t &CallableType) !string {
 	v.traverse_type_list(t.arg_types)!
 	t.ret_type.accept_synthetic(v)!
-	// Fallback обычно не обходится, чтобы избежать циклов,
-	// но если нужно — можно добавить.
+	// Fallback is usually not traversed to avoid cycles,
+	// but if needed, it can be added.
 	return ''
 }
 
