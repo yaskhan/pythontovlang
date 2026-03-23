@@ -6,6 +6,7 @@ import json
 import tempfile
 from typing import Tuple
 from py2v_transpiler.models.v_types import map_python_type_to_v
+from py2v_transpiler.core.compatibility import CompatibilityLayer
 from .base import TypeInferenceBase
 
 try:
@@ -19,6 +20,12 @@ class TypeInferenceMypyMixin(TypeInferenceBase):
         """Runs mypy on the given file path and returns the output."""
         if not mypy_api_module:
             return ("Mypy not installed.", "", 1)
+
+        compatibility = CompatibilityLayer()
+        processed_temp_path = None
+        with open(path, "r", encoding="utf-8") as source_file:
+            original_source = source_file.read()
+        processed_source = compatibility.preprocess_source(original_source)
 
         # Create a temporary config file to load the plugin
         with tempfile.NamedTemporaryFile(mode="w", suffix=".ini", delete=False) as f:
@@ -50,6 +57,16 @@ class TypeInferenceMypyMixin(TypeInferenceBase):
                 pass
 
             args = [path, "--config-file", config_path]
+            if processed_source != original_source:
+                with tempfile.NamedTemporaryFile(
+                    mode="w",
+                    suffix=os.path.splitext(path)[1] or ".py",
+                    delete=False,
+                    encoding="utf-8",
+                ) as processed_file:
+                    processed_file.write(processed_source)
+                    processed_temp_path = processed_file.name
+                args.extend(["--shadow-file", path, processed_temp_path])
             if experimental:
                 args.append("--enable-incomplete-feature=TypeForm")
 
@@ -140,6 +157,8 @@ class TypeInferenceMypyMixin(TypeInferenceBase):
             elif "PYTHONPATH" in os.environ:
                 del os.environ["PYTHONPATH"]
 
+            if processed_temp_path and os.path.exists(processed_temp_path):
+                os.remove(processed_temp_path)
             os.remove(config_path)
 
         return result, error, exit_code

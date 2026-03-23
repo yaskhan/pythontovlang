@@ -130,27 +130,88 @@ class CompatibilityLayer:
         For example: `except ValueError, TypeError:` becomes `except (ValueError, TypeError):`.
         """
         lines = source.split('\n')
-        for i, line in enumerate(lines):
-            if 'except' not in line:
+        result: List[str] = []
+        i = 0
+
+        while i < len(lines):
+            line = lines[i]
+            header_match = re.match(r"^(\s*)(except\*?\s+)(.*)$", line)
+            if not header_match:
+                result.append(line)
+                i += 1
                 continue
 
-            # Match `except` or `except*`, capturing leading whitespace
-            m = re.match(r"^(\s*)(except\*?\s+)(.+?):(.*)$", line)
-            if m:
-                indent, except_kwd, rest, after_colon = m.groups()
-                rest_stripped = rest.strip()
+            indent, except_kwd, rest = header_match.groups()
+            header_parts = [rest]
+            j = i
 
-                # Skip empty excepts `except:` or already parenthesized `except (A, B):`
-                if not rest_stripped or rest_stripped.startswith('('):
-                    continue
+            while self._find_header_colon('\n'.join(header_parts)) == -1 and j + 1 < len(lines):
+                j += 1
+                header_parts.append(lines[j])
 
-                # Check for multiple exceptions separated by commas
-                if ',' in rest_stripped:
-                    # Handle optional `as alias`
-                    parts = rest_stripped.rsplit(' as ', 1)
-                    exc_list = parts[0].strip()
-                    as_clause = f" as {parts[1].strip()}" if len(parts) > 1 else ""
+            full_header = '\n'.join(header_parts)
+            colon_index = self._find_header_colon(full_header)
+            if colon_index == -1:
+                result.append(line)
+                i += 1
+                continue
 
-                    lines[i] = f"{indent}{except_kwd}({exc_list}){as_clause}:{after_colon}"
+            clause = full_header[:colon_index]
+            suffix = full_header[colon_index + 1:]
+            rewritten_clause = self._wrap_bracketless_except_clause(clause)
+            rewritten_lines = f"{indent}{except_kwd}{rewritten_clause}:{suffix}".split('\n')
+            result.extend(rewritten_lines)
+            i = j + 1
 
-        return '\n'.join(lines)
+        return '\n'.join(result)
+
+    def _find_header_colon(self, text: str) -> int:
+        """Finds the colon that terminates an except header, ignoring nested brackets."""
+        depth = 0
+        for index, char in enumerate(text):
+            if char in "([{":
+                depth += 1
+            elif char in ")]}":
+                depth = max(0, depth - 1)
+            elif char == ':' and depth == 0:
+                return index
+        return -1
+
+    def _wrap_bracketless_except_clause(self, clause: str) -> str:
+        """Wraps a multi-exception except clause in parentheses when needed."""
+        stripped = clause.strip()
+        if not stripped or stripped.startswith('('):
+            return clause
+
+        head, as_clause = self._split_except_alias(clause)
+        if not self._has_top_level_comma(head):
+            return clause
+
+        return f"({head.strip()}){as_clause}"
+
+    def _split_except_alias(self, clause: str) -> tuple[str, str]:
+        """Splits `ValueError, TypeError as e` into exception list and alias suffix."""
+        depth = 0
+        idx = 0
+        while idx < len(clause):
+            char = clause[idx]
+            if char in "([{":
+                depth += 1
+            elif char in ")]}":
+                depth = max(0, depth - 1)
+            elif depth == 0 and clause[idx:idx + 4] == " as ":
+                return clause[:idx], clause[idx:]
+            idx += 1
+        return clause, ""
+
+    def _has_top_level_comma(self, text: str) -> bool:
+        """Returns True when the clause contains a comma outside nested brackets."""
+        depth = 0
+        for char in text:
+            if char in "([{":
+                depth += 1
+            elif char in ")]}":
+                depth = max(0, depth - 1)
+            elif char == ',' and depth == 0:
+                return True
+        return False
