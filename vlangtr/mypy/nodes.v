@@ -454,6 +454,7 @@ pub type Expression = AssignmentExpr
 	| SuperExpr
 	| TempNode
 	| TemplateStrExpr
+	| FormatStringExpr
 	| TupleExpr
 	| TypeAliasExpr
 	| UnaryExpr
@@ -1442,6 +1443,23 @@ pub fn (mut n TemplateStrExpr) get_context() Context {
 
 pub fn (mut n TemplateStrExpr) accept(mut v NodeVisitor) !string {
 	return v.visit_template_str_expr(mut n)!
+}
+
+pub struct FormatStringExpr {
+pub mut:
+	base            NodeBase
+	value           Expression
+	conversion      int // 115 (s), 114 (r), 97 (a), -1 (none)
+	format_spec     ?Expression // TemplateStrExpr
+}
+
+pub fn (mut n FormatStringExpr) get_context() Context {
+	return n.base.ctx
+}
+
+pub fn (mut n FormatStringExpr) accept(mut v NodeVisitor) !string {
+	// visit_format_string_expr might not exist yet, using visit_template_str_expr or adding it
+	return v.visit_template_str_expr(mut TemplateStrExpr{base: n.base, parts: [n.value]})! 
 }
 
 pub struct TupleExpr {

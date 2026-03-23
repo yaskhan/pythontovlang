@@ -5,6 +5,7 @@
 module mypy
 
 import os
+import math
 import vlangtr.ast
 
 // ---------------------------------------------------------------------------
@@ -49,6 +50,8 @@ const nodes_class_def = u8(21)
 const nodes_match_stmt = u8(22)
 const nodes_type_alias_stmt = u8(23)
 const nodes_block = u8(24)
+const nodes_global_stmt = u8(25)
+const nodes_nonlocal_stmt = u8(26)
 
 const nodes_name_expr = u8(100)
 const nodes_int_expr = u8(101)
@@ -75,6 +78,15 @@ const nodes_yield_from_expr = u8(121)
 const nodes_conditional_expr = u8(122)
 const nodes_lambda_expr = u8(123)
 const nodes_named_expr = u8(124)
+const nodes_compare_expr = u8(125)
+const nodes_await_expr = u8(126)
+const nodes_starred_expr = u8(127)
+const nodes_slice_expr = u8(128)
+const nodes_joined_str = u8(129)
+const nodes_formatted_value = u8(130)
+const nodes_type_param = u8(131)
+const nodes_comprehension = u8(132)
+const nodes_none_expr = u8(133)
 
 // Type tags
 const types_unbound_type = u8(200)
@@ -171,9 +183,16 @@ pub fn (mut b ASTReadBuffer) read_bool() bool {
 }
 
 pub fn (mut b ASTReadBuffer) read_float_bare() f64 {
-	// Simple float reading (not implemented here, placeholder)
+	if b.pos + 8 > b.data.len {
+		b.pos = b.data.len
+		return 0.0
+	}
+	mut bits := u64(0)
+	for i in 0 .. 8 {
+		bits |= u64(b.data[b.pos + i]) << (i * 8)
+	}
 	b.pos += 8
-	return 0.0
+	return math.f64_from_bits(bits)
 }
 
 pub fn (mut b ASTReadBuffer) read_str_bare() string {
@@ -453,6 +472,9 @@ fn read_statement(mut state ParseState, mut data ASTReadBuffer) !Statement {
 		nodes_try_stmt {
 			return Statement(read_try_stmt(mut state, mut data)!)
 		}
+		nodes_class_def {
+			return Statement(read_class_def(mut state, mut data)!)
+		}
 		nodes_pass_stmt {
 			mut stmt := PassStmt{}
 			data.read_loc(mut stmt.base)
@@ -572,6 +594,170 @@ fn read_try_stmt(mut state State, mut data ASTReadBuffer) !TryStmt {
 	data.read_loc(mut stmt.base)
 	data.expect_end_tag()
 	return stmt
+}
+
+fn read_class_def(mut state State, mut data ASTReadBuffer) !ClassDef {
+	name := data.read_str()
+	type_params := read_type_params(mut state, mut data)!
+	base_type_exprs := read_expression_list(mut state, mut data)!
+	keywords := read_keyword_expr_map(mut state, mut data)!
+	defs := read_block(mut state, mut data)!
+
+	mut stmt := ClassDef{
+		name:            name
+		defs:            defs
+		base_type_exprs: base_type_exprs
+		keywords:        keywords
+		type_params:     type_params
+	}
+	if metaclass_expr := keywords['metaclass'] {
+		if metaclass_name := expr_to_name(metaclass_expr) {
+			stmt.metaclass = metaclass_name
+		}
+	}
+	data.read_loc(mut stmt.base)
+	data.expect_end_tag()
+	return stmt
+}
+
+fn read_keyword_expr_map(mut state State, mut data ASTReadBuffer) !map[string]Expression {
+	data.expect_tag(list_gen)
+	n := data.read_int_bare()
+	mut keywords := map[string]Expression{}
+	for _ in 0 .. n {
+		key := data.read_str()
+		value := read_expression(mut state, mut data)!
+		keywords[key] = value
+	}
+	return keywords
+}
+
+fn read_type_params(mut state ParseState, mut data ASTReadBuffer) ![]TypeParam {
+	data.expect_tag(list_gen)
+	n := data.read_int_bare()
+	mut params := []TypeParam{}
+	for _ in 0 .. n {
+		params << read_type_param(mut state, mut data)!
+	}
+	return params
+}
+
+fn read_type_param(mut state ParseState, mut data ASTReadBuffer) !TypeParam {
+	data.expect_tag(nodes_type_param)
+	name := data.read_str()
+	kind := data.read_int_bare()
+	mut upper_bound := ?MypyTypeNode(none)
+	if data.read_bool() {
+		upper_bound = read_type(mut state, mut data)!
+	}
+	mut default := ?MypyTypeNode(none)
+	if data.read_bool() {
+		default = read_type(mut state, mut data)!
+	}
+	mut dummy := NodeBase{}
+	data.read_loc(mut dummy)
+	data.expect_end_tag()
+	return TypeParam{
+		name:        name
+		kind:        kind
+		upper_bound: upper_bound
+		default:     default
+	}
+}
+
+fn expr_to_name(expr Expression) ?string {
+	match expr {
+		NameExpr {
+			return expr.name
+		}
+		MemberExpr {
+			if left := expr_to_name(expr.expr) {
+				return '${left}.${expr.name}'
+			}
+			return expr.name
+		}
+		else {
+			return none
+		}
+	}
+}
+
+fn read_slice_expr(mut state ParseState, mut data ASTReadBuffer) !SliceExpr {
+	has_lower := data.read_bool()
+	lower := if has_lower { read_expression(mut state, mut data)! } else { none }
+	has_upper := data.read_bool()
+	upper := if has_upper { read_expression(mut state, mut data)! } else { none }
+	has_step := data.read_bool()
+	step := if has_step { read_expression(mut state, mut data)! } else { none }
+	mut res := SliceExpr{
+		begin_index: lower
+		end_index:   upper
+		stride:      step
+	}
+	data.read_loc(mut res.base)
+	data.expect_end_tag()
+	return res
+}
+
+fn read_dict_expr(mut state ParseState, mut data ASTReadBuffer) !DictExpr {
+	data.expect_tag(list_gen)
+	n := data.read_int_bare()
+	mut items := []DictItem{}
+	for _ in 0 .. n {
+		// Key can be NoneExpr (nodes_none_expr) for **spread
+		mut key_tag := data.peek_tag()
+		mut key := ?Expression(none)
+		if key_tag == nodes_none_expr {
+			data.read_tag() // consume nodes_none_expr
+			data.read_loc(mut NodeBase{}) // consume its loc
+			data.expect_end_tag()
+		} else {
+			key = read_expression(mut state, mut data)!
+		}
+		value := read_expression(mut state, mut data)!
+		items << DictItem{
+			key:   key
+			value: value
+		}
+	}
+	mut res := DictExpr{
+		items: items
+	}
+	data.read_loc(mut res.base)
+	data.expect_end_tag()
+	return res
+}
+
+fn read_joined_str(mut state ParseState, mut data ASTReadBuffer) !TemplateStrExpr {
+	parts := read_expression_list(mut state, mut data)!
+	mut res := TemplateStrExpr{
+		parts: parts
+	}
+	data.read_loc(mut res.base)
+	data.expect_end_tag()
+	return res
+}
+
+fn read_format_string_expr(mut state ParseState, mut data ASTReadBuffer) !FormatStringExpr {
+	value := read_expression(mut state, mut data)!
+	conversion := data.read_int()
+	has_spec := data.read_bool()
+	format_spec := if has_spec { read_expression(mut state, mut data)! } else { none }
+	mut res := FormatStringExpr{
+		value:       value
+		conversion:  conversion
+		format_spec: format_spec
+	}
+	data.read_loc(mut res.base)
+	data.expect_end_tag()
+	return res
+}
+
+fn (mut b ASTReadBuffer) peek_tag() u8 {
+	if b.pos >= b.data.len {
+		return end_tag
+	}
+	return b.data[b.pos]
 }
 
 fn read_expression(mut state ParseState, mut data ASTReadBuffer) !Expression {
@@ -722,6 +908,88 @@ fn read_expression(mut state ParseState, mut data ASTReadBuffer) !Expression {
 			data.expect_end_tag()
 			return Expression(res)
 		}
+		nodes_yield_from_expr {
+			expr := read_expression(mut state, mut data)!
+			mut res := YieldFromExpr{
+				expr: expr
+			}
+			data.read_loc(mut res.base)
+			data.expect_end_tag()
+			return Expression(res)
+		}
+		nodes_await_expr {
+			expr := read_expression(mut state, mut data)!
+			mut res := AwaitExpr{
+				expr: expr
+			}
+			data.read_loc(mut res.base)
+			data.expect_end_tag()
+			return Expression(res)
+		}
+		nodes_slice_expr {
+			return Expression(read_slice_expr(mut state, mut data)!)
+		}
+		nodes_dict_expr {
+			return Expression(read_dict_expr(mut state, mut data)!)
+		}
+		nodes_set_expr {
+			items := read_expression_list(mut state, mut data)!
+			mut res := SetExpr{
+				items: items
+			}
+			data.read_loc(mut res.base)
+			data.expect_end_tag()
+			return Expression(res)
+		}
+		nodes_joined_str {
+			return Expression(read_joined_str(mut state, mut data)!)
+		}
+		nodes_formatted_value {
+			return Expression(read_format_string_expr(mut state, mut data)!)
+		}
+		nodes_lambda_expr {
+			args, arg_kinds, arg_names, _ := read_parameters(mut state, mut data)!
+			body := read_expression(mut state, mut data)!
+			mut res := LambdaExpr{
+				arguments: args
+				arg_kinds: arg_kinds
+				arg_names: arg_names
+				body:      body
+			}
+			data.read_loc(mut res.base)
+			data.expect_end_tag()
+			return Expression(res)
+		}
+		nodes_starred_expr {
+			expr := read_expression(mut state, mut data)!
+			mut res := StarExpr{
+				expr: expr
+			}
+			data.read_loc(mut res.base)
+			data.expect_end_tag()
+			return Expression(res)
+		}
+		nodes_named_expr {
+			target := read_expression(mut state, mut data)!
+			value := read_expression(mut state, mut data)!
+			if target is NameExpr {
+				mut res := AssignmentExpr{
+					target: target
+					value:  value
+				}
+				data.read_loc(mut res.base)
+				data.expect_end_tag()
+				return Expression(res)
+			}
+			return error('NamedExpr must have a Name target')
+		}
+		nodes_none_expr {
+			// This is a special placeholder for **spread in Dict
+			// Since we can't return 'none' as an Expression sum type, 
+			// we return a temporary marker or handle it in DictExpr.
+			// Formally, this should NOT happen outside of Dict keys.
+			return error('NoneExpr should only occur in Dict keys')
+		}
 		else {
 			return error('Unknown expression tag: ${tag}')
 		}
@@ -741,13 +1009,15 @@ fn read_expression_list(mut state State, mut data ASTReadBuffer) ![]Expression {
 fn read_func_def(mut state State, mut data ASTReadBuffer) !FuncDef {
 	state.num_funcs++
 	name := data.read_str()
-	args, _ := read_parameters(mut state, mut data)!
+	args, arg_kinds, arg_names, _ := read_parameters(mut state, mut data)!
 	body := read_block(mut state, mut data)!
 	is_async := data.read_bool()
 
 	mut fdef := FuncDef{
 		name:      name
 		arguments: args
+		arg_kinds: arg_kinds
+		arg_names: arg_names
 		body:      body
 	}
 	if is_async {
@@ -758,14 +1028,17 @@ fn read_func_def(mut state State, mut data ASTReadBuffer) !FuncDef {
 	return fdef
 }
 
-fn read_parameters(mut state State, mut data ASTReadBuffer) !([]Argument, bool) {
+fn read_parameters(mut state State, mut data ASTReadBuffer) !([]Argument, []ArgKind, []?string, bool) {
 	data.expect_tag(list_gen)
 	n := data.read_int_bare()
 	mut arguments := []Argument{}
+	mut arg_kinds := []ArgKind{}
+	mut arg_names := []?string{}
 	mut has_ann := false
 	for _ in 0 .. n {
 		arg_name := data.read_str()
-		_ = data.read_int() // kind
+		kind_idx := data.read_int()
+		kind := arg_kinds_list[kind_idx] or { arg_pos }
 		mut typ := ?MypyTypeNode(none)
 		if data.read_bool() {
 			typ = read_type(mut state, mut data)!
@@ -774,17 +1047,21 @@ fn read_parameters(mut state State, mut data ASTReadBuffer) !([]Argument, bool) 
 		if data.read_bool() {
 			_ = read_expression(mut state, mut data)! // default
 		}
-		_ = data.read_bool() // pos_only
+		pos_only := data.read_bool()
 		mut arg := Argument{
 			variable:        Var{
 				name: arg_name
 			}
 			type_annotation: typ
+			kind:            kind
+			pos_only:        pos_only
 		}
 		data.read_loc(mut arg.base)
 		arguments << arg
+		arg_kinds << kind
+		arg_names << arg_name
 	}
-	return arguments, has_ann
+	return arguments, arg_kinds, arg_names, has_ann
 }
 
 fn read_type(mut state ParseState, mut data ASTReadBuffer) !MypyTypeNode {
@@ -851,4 +1128,4 @@ fn set_line_column_range(mut node NodeBase, source Context) {
 	node.ctx.set_end_line_int(source.end_line, source.end_column)
 }
 
-const arg_kinds_list = [arg_pos, arg_opt, arg_star, arg_named, arg_named_opt]
+const arg_kinds_list = [arg_pos, arg_opt, arg_star, arg_named, arg_named_opt, arg_star2]
