@@ -115,6 +115,9 @@ mut:
 	visit_var(mut o Var) !string
 	visit_type_alias(mut o TypeAlias) !string
 	visit_placeholder_node(mut o PlaceholderNode) !string
+	visit_argument(mut o Argument) !string
+	visit_type_param(mut o TypeParam) !string
+	visit_type_info(mut o TypeInfo) !string
 
 	// From ExpressionVisitor
 	visit_int_expr(mut o IntExpr) !string
