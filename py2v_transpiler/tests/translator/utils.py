@@ -3,7 +3,27 @@ from py2v_transpiler.core.translator import VNodeVisitor
 from py2v_transpiler.core.analyzer import TypeInference
 import textwrap
 import ast
+import tempfile
+import os
 from typing import cast
+
+def translate_with_mypy(code: str, parser: PyASTParser, type_inference: TypeInference) -> str:
+    """Helper to translate code with Mypy analysis using a temporary file."""
+    tree = parser.parse(code)
+
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".py", delete=False) as f:
+        f.write(code)
+        temp_path = f.name
+
+    try:
+        type_inference.run_mypy(temp_path)
+    finally:
+        if os.path.exists(temp_path):
+            os.remove(temp_path)
+
+    visitor = VNodeVisitor(type_inference)
+    visitor.visit(tree)
+    return visitor.emitter.emit()
 
 class TranspilerTest:
     def assert_transpilation(self, python_code: str, v_code: str):

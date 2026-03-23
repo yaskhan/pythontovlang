@@ -1,5 +1,6 @@
 import pytest
 import ast
+import sys
 from py2v_transpiler.core.compatibility import CompatibilityLayer
 from py2v_transpiler.core.parser import PyASTParser
 from py2v_transpiler.core.analyzer import TypeInference, mypy_api_module
@@ -31,7 +32,10 @@ except* ValueError, TypeError:
     pass
 """
     processed = comp.preprocess_source(source)
-    assert "except* (ValueError, TypeError):" in processed
+    if sys.version_info >= (3, 11):
+        assert "except* (ValueError, TypeError):" in processed
+    else:
+        assert "except (ValueError, TypeError):" in processed
 
 def test_preprocess_multiline_bracketless_except():
     comp = CompatibilityLayer()
@@ -57,7 +61,13 @@ except* ValueError,
     tree = parser.parse(source)
     assert isinstance(tree, ast.Module)
     try_node = tree.body[0]
-    assert isinstance(try_node, ast.TryStar)
+
+    # TryStar is Python 3.11+
+    if sys.version_info >= (3, 11):
+        assert isinstance(try_node, ast.TryStar)
+    else:
+        assert isinstance(try_node, ast.Try)
+
     handler = try_node.handlers[0]
     assert isinstance(handler.type, ast.Tuple)
     assert handler.name == "group"

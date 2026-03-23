@@ -1,4 +1,5 @@
 import re
+import sys
 from typing import Set, List
 
 class CompatibilityLayer:
@@ -128,6 +129,8 @@ class CompatibilityLayer:
         Pre-processes Python source code to wrap bracketless multi-exception clauses
         in parentheses before AST parsing, to support PEP 758 syntax (Python 3.14).
         For example: `except ValueError, TypeError:` becomes `except (ValueError, TypeError):`.
+
+        Also handles `except*` syntax on Python versions < 3.11 by converting it to `except`.
         """
         lines = source.split('\n')
         result: List[str] = []
@@ -158,8 +161,13 @@ class CompatibilityLayer:
 
             clause = full_header[:colon_index]
             suffix = full_header[colon_index + 1:]
+
+            # Map except* to except on Python < 3.11
+            if except_kwd.strip().endswith('*') and sys.version_info < (3, 11):
+                except_kwd = f"{indent}except "
+
             rewritten_clause = self._wrap_bracketless_except_clause(clause)
-            rewritten_lines = f"{indent}{except_kwd}{rewritten_clause}:{suffix}".split('\n')
+            rewritten_lines = f"{indent}{except_kwd.strip()} {rewritten_clause}:{suffix}".split('\n')
             result.extend(rewritten_lines)
             i = j + 1
 

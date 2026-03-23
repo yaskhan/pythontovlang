@@ -1,7 +1,7 @@
 import unittest
 from py2v_transpiler.core.parser import PyASTParser
-from py2v_transpiler.core.translator import VNodeVisitor
 from py2v_transpiler.core.analyzer import TypeInference
+from py2v_transpiler.tests.translator.utils import translate_with_mypy
 
 class TestPydanticValidators(unittest.TestCase):
     def setUp(self):
@@ -9,11 +9,7 @@ class TestPydanticValidators(unittest.TestCase):
         self.type_inference = TypeInference()
 
     def translate(self, code: str) -> str:
-        tree = self.parser.parse(code)
-        self.type_inference.run_mypy(code)
-        visitor = VNodeVisitor(self.type_inference)
-        visitor.visit(tree)
-        return visitor.emitter.emit()
+        return translate_with_mypy(code, self.parser, self.type_inference)
 
     def test_field_validator(self):
         code = """
