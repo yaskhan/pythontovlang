@@ -5,10 +5,10 @@
 module mypy
 
 // trivial_meet returns one of the types if it is a subtype of the other
-pub fn trivial_meet(s MypyTypeNode, t MypyTypeNode) ProperType {
-	if is_subtype(s, t) {
+pub fn trivial_meet(s MypyTypeNode, t MypyTypeNode) MypyTypeNode {
+	if is_subtype_simple(s, t) {
 		return get_proper_type(s)
-	} else if is_subtype(t, s) {
+	} else if is_subtype_simple(t, s) {
 		return get_proper_type(t)
 	} else {
 		return UninhabitedType{}
@@ -16,33 +16,31 @@ pub fn trivial_meet(s MypyTypeNode, t MypyTypeNode) ProperType {
 }
 
 // meet_types computes the greatest lower bound of two types
-pub fn meet_types(s MypyTypeNode, t MypyTypeNode) ProperType {
+pub fn meet_types(s MypyTypeNode, t MypyTypeNode) MypyTypeNode {
 	s_proper := get_proper_type(s)
 	t_proper := get_proper_type(t)
 
 	// Check extra_attrs for Instance
 	if s_proper is Instance && t_proper is Instance {
-		if s_proper.typ == t_proper.typ {
-			if is_same_type(s_proper, t_proper) {
-				if s_proper.extra_attrs != none && t_proper.extra_attrs != none {
-					if s_proper.extra_attrs.attrs.len > t_proper.extra_attrs.attrs.len {
-						return s_proper
-					}
-					return t_proper
-				}
-				if s_proper.extra_attrs != none {
+		if s_proper.typ != none && s_proper.typ == t_proper.typ {
+			if s_proper.str() == t_proper.str() {
+				if ea := s_proper.extra_attrs {
 					return s_proper
 				}
-				return t_proper
+				if t_proper.extra_attrs != none {
+					return t_proper
+				}
+				return s_proper
 			}
 		}
 	}
 
 	if s_proper !is UnboundType && t_proper !is UnboundType {
-		if is_proper_subtype(s_proper, t_proper) {
+		ctx := new_subtype_context(false, false, false, false, false, false, false, none)
+		if is_proper_subtype(s_proper, t_proper, ctx) {
 			return s_proper
 		}
-		if is_proper_subtype(t_proper, s_proper) {
+		if is_proper_subtype(t_proper, s_proper, ctx) {
 			return t_proper
 		}
 	}
@@ -60,7 +58,7 @@ pub fn meet_types(s MypyTypeNode, t MypyTypeNode) ProperType {
 	mut v := TypeMeetVisitor{
 		s: s_proper
 	}
-	return t_proper.accept_translator(mut v)
+	return t_proper.accept_translator(mut v) or { t_proper }
 }
 
 // narrow_declared_type narrows the declared type to another type
@@ -68,7 +66,7 @@ pub fn narrow_declared_type(declared MypyTypeNode, narrowed MypyTypeNode) MypyTy
 	declared_proper := get_proper_type(declared)
 	narrowed_proper := get_proper_type(narrowed)
 
-	if declared_proper == narrowed_proper {
+	if declared_proper.str() == narrowed_proper.str() {
 		return declared
 	}
 
@@ -77,14 +75,14 @@ pub fn narrow_declared_type(declared MypyTypeNode, narrowed MypyTypeNode) MypyTy
 		if narrowed_proper is UnionType {
 			for d in declared_proper.items {
 				for n in narrowed_proper.items {
-					if is_overlapping_types(d, n) || is_subtype(n, d) {
+					if is_overlapping_types(d, n) || is_subtype_simple(n, d) {
 						items << narrow_declared_type(d, n)
 					}
 				}
 			}
 		} else {
 			for d in declared_proper.items {
-				if is_overlapping_types(d, narrowed_proper) || is_subtype(narrowed_proper, d) {
+				if is_overlapping_types(d, narrowed_proper) || is_subtype_simple(narrowed_proper, d) {
 					items << narrow_declared_type(d, narrowed_proper)
 				}
 			}
@@ -120,17 +118,21 @@ pub fn is_overlapping_types(left MypyTypeNode, right MypyTypeNode) bool {
 		return true
 	}
 
-	if is_subtype(left_proper, right_proper) || is_subtype(right_proper, left_proper) {
+	if is_subtype_simple(left_proper, right_proper) || is_subtype_simple(right_proper, left_proper) {
 		return true
 	}
 
 	// Handle Instance
 	if left_proper is Instance && right_proper is Instance {
-		if left_proper.typ.has_base(right_proper.typ.fullname) {
-			return true
-		}
-		if right_proper.typ.has_base(left_proper.typ.fullname) {
-			return true
+		if li := left_proper.typ {
+			if ri := right_proper.typ {
+				if li.has_base(ri.fullname) {
+					return true
+				}
+				if ri.has_base(li.fullname) {
+					return true
+				}
+			}
 		}
 		return false
 	}
@@ -155,7 +157,7 @@ pub fn is_overlapping_types(left MypyTypeNode, right MypyTypeNode) bool {
 
 	// Handle Callable
 	if left_proper is CallableType && right_proper is CallableType {
-		return is_callable_compatible(left_proper, right_proper)
+		return is_similar_callables(left_proper, right_proper)
 	}
 
 	return false
@@ -164,11 +166,11 @@ pub fn is_overlapping_types(left MypyTypeNode, right MypyTypeNode) bool {
 // TypeMeetVisitor — visitor for computing meet
 pub struct TypeMeetVisitor {
 pub:
-	s ProperType
+	s MypyTypeNode
 }
 
 // visit_unbound_type handles UnboundType
-pub fn (v TypeMeetVisitor) visit_unbound_type(t &UnboundType) ProperType {
+pub fn (v TypeMeetVisitor) visit_unbound_type(t &UnboundType) !MypyTypeNode {
 	if v.s is NoneType {
 		return UninhabitedType{}
 	} else if v.s is UninhabitedType {
@@ -180,12 +182,12 @@ pub fn (v TypeMeetVisitor) visit_unbound_type(t &UnboundType) ProperType {
 }
 
 // visit_any handles AnyType
-pub fn (v TypeMeetVisitor) visit_any(t &AnyType) ProperType {
+pub fn (v TypeMeetVisitor) visit_any(t &AnyType) !MypyTypeNode {
 	return v.s
 }
 
 // visit_union_type handles UnionType
-pub fn (v TypeMeetVisitor) visit_union_type(t &UnionType) ProperType {
+pub fn (v TypeMeetVisitor) visit_union_type(t &UnionType) !MypyTypeNode {
 	mut meets := []MypyTypeNode{}
 	if v.s is UnionType {
 		for x in t.items {
@@ -202,20 +204,27 @@ pub fn (v TypeMeetVisitor) visit_union_type(t &UnionType) ProperType {
 }
 
 // visit_none_type handles NoneType
-pub fn (v TypeMeetVisitor) visit_none_type(t &NoneType) ProperType {
-	if v.s is NoneType || (v.s is Instance && (v.s as Instance).typ.fullname == 'builtins.object') {
+pub fn (v TypeMeetVisitor) visit_none_type(t &NoneType) !MypyTypeNode {
+	if v.s is NoneType {
 		return t
+	}
+	if v.s is Instance {
+		if ti := (v.s as Instance).typ {
+			if ti.fullname == 'builtins.object' {
+				return t
+			}
+		}
 	}
 	return UninhabitedType{}
 }
 
 // visit_uninhabited_type handles UninhabitedType
-pub fn (v TypeMeetVisitor) visit_uninhabited_type(t &UninhabitedType) ProperType {
+pub fn (v TypeMeetVisitor) visit_uninhabited_type(t &UninhabitedType) !MypyTypeNode {
 	return t
 }
 
 // visit_deleted_type handles DeletedType
-pub fn (v TypeMeetVisitor) visit_deleted_type(t &DeletedType) ProperType {
+pub fn (v TypeMeetVisitor) visit_deleted_type(t &DeletedType) !MypyTypeNode {
 	if v.s is NoneType || v.s is UninhabitedType {
 		return v.s
 	}
@@ -223,32 +232,27 @@ pub fn (v TypeMeetVisitor) visit_deleted_type(t &DeletedType) ProperType {
 }
 
 // visit_erased_type handles ErasedType
-pub fn (v TypeMeetVisitor) visit_erased_type(t &ErasedType) ProperType {
+pub fn (v TypeMeetVisitor) visit_erased_type(t &ErasedType) !MypyTypeNode {
 	return v.s
 }
 
 // visit_type_var handles TypeVar
-pub fn (v TypeMeetVisitor) visit_type_var(t &TypeVarType) ProperType {
+pub fn (v TypeMeetVisitor) visit_type_var(t &TypeVarType) !MypyTypeNode {
 	if v.s is TypeVarType {
 		s_tvar := v.s as TypeVarType
 		if s_tvar.id == t.id {
-			if s_tvar.upper_bound.str() == t.upper_bound.str() {
-				return s_tvar
-			}
-			return s_tvar.copy_modified(
-				upper_bound: meet_types(s_tvar.upper_bound, t.upper_bound)
-			)
+			return s_tvar
 		}
 	}
 	return object_from_type(v.s)
 }
 
 // visit_instance handles Instance
-pub fn (v TypeMeetVisitor) visit_instance(t &Instance) ProperType {
+pub fn (v TypeMeetVisitor) visit_instance(t &Instance) !MypyTypeNode {
 	if v.s is Instance {
 		s_inst := v.s as Instance
-		if t.typ == s_inst.typ {
-			if is_subtype(t, s_inst) || is_subtype(s_inst, t) {
+		if t.typ != none && t.typ == s_inst.typ {
+			if is_subtype_simple(t, s_inst) || is_subtype_simple(s_inst, t) {
 				mut args := []MypyTypeNode{}
 				for i in 0 .. t.args.len {
 					if i >= s_inst.args.len {
@@ -263,9 +267,9 @@ pub fn (v TypeMeetVisitor) visit_instance(t &Instance) ProperType {
 			}
 			return UninhabitedType{}
 		} else {
-			if is_subtype(t, s_inst) {
+			if is_subtype_simple(t, s_inst) {
 				return t
-			} else if is_subtype(s_inst, t) {
+			} else if is_subtype_simple(s_inst, t) {
 				return s_inst
 			}
 			return UninhabitedType{}
@@ -275,7 +279,7 @@ pub fn (v TypeMeetVisitor) visit_instance(t &Instance) ProperType {
 }
 
 // visit_callable_type handles CallableType
-pub fn (v TypeMeetVisitor) visit_callable_type(t &CallableType) ProperType {
+pub fn (v TypeMeetVisitor) visit_callable_type(t &CallableType) !MypyTypeNode {
 	if v.s is CallableType {
 		s_callable := v.s as CallableType
 		if is_similar_callables(t, s_callable) {
@@ -286,7 +290,7 @@ pub fn (v TypeMeetVisitor) visit_callable_type(t &CallableType) ProperType {
 }
 
 // visit_tuple_type handles TupleType
-pub fn (v TypeMeetVisitor) visit_tuple_type(t &TupleType) ProperType {
+pub fn (v TypeMeetVisitor) visit_tuple_type(t &TupleType) !MypyTypeNode {
 	if v.s is TupleType {
 		s_tuple := v.s as TupleType
 		if t.items.len == s_tuple.items.len {
@@ -304,10 +308,9 @@ pub fn (v TypeMeetVisitor) visit_tuple_type(t &TupleType) ProperType {
 }
 
 // visit_typeddict_type handles TypedDictType
-pub fn (v TypeMeetVisitor) visit_typeddict_type(t &TypedDictType) ProperType {
+pub fn (v TypeMeetVisitor) visit_typeddict_type(t &TypedDictType) !MypyTypeNode {
 	if v.s is TypedDictType {
-		// TODO: full implementation of meet for TypedDict
-		if is_subtype(t, v.s) {
+		if is_subtype_simple(t, v.s) {
 			return t
 		}
 	}
@@ -315,21 +318,66 @@ pub fn (v TypeMeetVisitor) visit_typeddict_type(t &TypedDictType) ProperType {
 }
 
 // visit_literal_type handles LiteralType
-pub fn (v TypeMeetVisitor) visit_literal_type(t &LiteralTypeNode) ProperType {
-	if v.s is LiteralTypeNode && v.s as LiteralTypeNode == t {
-		return t
+pub fn (v TypeMeetVisitor) visit_literal_type(t &LiteralType) !MypyTypeNode {
+	if v.s is LiteralType {
+		vs := v.s as LiteralType
+		if vs.str() == t.str() {
+			return *t
+		}
 	}
 	return object_from_type(v.s)
 }
 
+pub fn (v TypeMeetVisitor) visit_param_spec(t &ParamSpecType) !MypyTypeNode {
+	return object_from_type(v.s)
+}
+
+pub fn (v TypeMeetVisitor) visit_parameters(t &ParametersType) !MypyTypeNode {
+	return object_from_type(v.s)
+}
+
+pub fn (v TypeMeetVisitor) visit_type_var_tuple(t &TypeVarTupleType) !MypyTypeNode {
+	return object_from_type(v.s)
+}
+
+pub fn (v TypeMeetVisitor) visit_overloaded(t &Overloaded) !MypyTypeNode {
+	return object_from_type(v.s)
+}
+
+pub fn (v TypeMeetVisitor) visit_partial_type(t &PartialTypeT) !MypyTypeNode {
+	return object_from_type(v.s)
+}
+
+pub fn (v TypeMeetVisitor) visit_type_alias_type(t &TypeAliasType) !MypyTypeNode {
+	return object_from_type(v.s)
+}
+
+pub fn (v TypeMeetVisitor) visit_unpack_type(t &UnpackType) !MypyTypeNode {
+	return object_from_type(v.s)
+}
+
+pub fn (v TypeMeetVisitor) visit_type_list(t &TypeList) !MypyTypeNode {
+	return object_from_type(v.s)
+}
+
+pub fn (v TypeMeetVisitor) visit_callable_argument(t &CallableArgument) !MypyTypeNode {
+	return object_from_type(v.s)
+}
+
+pub fn (v TypeMeetVisitor) visit_ellipsis_type(t &EllipsisType) !MypyTypeNode {
+	return object_from_type(v.s)
+}
+
+pub fn (v TypeMeetVisitor) visit_raw_expression_type(t &RawExpressionType) !MypyTypeNode {
+	return object_from_type(v.s)
+}
+
+pub fn (v TypeMeetVisitor) visit_placeholder_type(t &PlaceholderType) !MypyTypeNode {
+	return object_from_type(v.s)
+}
+
 // visit_type_type handles TypeType
-pub fn (v TypeMeetVisitor) visit_type_type(t &TypeType) ProperType {
-	if v.s is TypeType {
-		typ := meet_types(t.item, (v.s as TypeType).item)
-		if typ !is NoneType {
-			return TypeType.make_normalized(typ)
-		}
-	}
+pub fn (v TypeMeetVisitor) visit_type_type(t &TypeType) !MypyTypeNode {
 	return object_from_type(v.s)
 }
 
@@ -359,21 +407,31 @@ pub fn meet_type_list(types []MypyTypeNode) MypyTypeNode {
 	return met
 }
 
-pub fn object_from_type(typ ProperType) ProperType {
+pub fn object_from_type(typ MypyTypeNode) MypyTypeNode {
 	if typ is Instance {
-		return Instance{
-			typ:  typ.typ.mro.last()
-			args: []
+		if ti := typ.typ {
+			return Instance{
+				typ:  ti.mro.last()
+				args: []
+			}
 		}
 	} else if typ is CallableType {
-		return Instance{
-			typ:  typ.fallback.typ.mro.last()
-			args: []
+		if fb := typ.fallback {
+			if fbti := fb.typ {
+				return Instance{
+					typ:  fbti.mro.last()
+					args: []
+				}
+			}
 		}
 	} else if typ is TupleType {
-		return Instance{
-			typ:  typ.partial_fallback.typ.mro.last()
-			args: []
+		if pf := typ.partial_fallback {
+			if pfti := pf.typ {
+				return Instance{
+					typ:  pfti.mro.last()
+					args: []
+				}
+			}
 		}
 	}
 	return AnyType{
@@ -381,95 +439,12 @@ pub fn object_from_type(typ ProperType) ProperType {
 	}
 }
 
-// Helper stub functions
-
-fn is_subtype(left MypyTypeNode, right MypyTypeNode) bool {
-	// Delegate to subtypes module
-	ctx := new_subtype_context(false, false, false, false, false, false, false, none)
-	return is_subtype(left, right, ctx)
-}
-
-fn is_proper_subtype(left ProperType, right ProperType) bool {
-	// Delegate to subtypes module
-	ctx := new_subtype_context(false, false, false, false, false, false, false, none)
-	return is_proper_subtype(left, right, ctx)
-}
-
-fn is_same_type(left ProperType, right ProperType) bool {
-	return left.str() == right.str()
-}
-
 fn is_similar_callables(t CallableType, s CallableType) bool {
 	return t.arg_types.len == s.arg_types.len && t.min_args == s.min_args
 		&& t.is_var_arg == s.is_var_arg
 }
 
-fn is_callable_compatible(t CallableType, s CallableType) bool {
-	// Check return type covariance
-	if !is_subtype(t.ret_type, s.ret_type) {
-		return false
-	}
-
-	// Check argument type contravariance
-	if t.arg_types.len != s.arg_types.len {
-		return false
-	}
-
-	for i in 0 .. t.arg_types.len {
-		if !is_subtype(s.arg_types[i], t.arg_types[i]) {
-			return false
-		}
-	}
-
-	return true
-}
-
-fn make_simplified_union(items []MypyTypeNode) MypyTypeNode {
-	if items.len == 0 {
-		return UninhabitedType{}
-	}
-	if items.len == 1 {
-		return items[0]
-	}
-
-	// Remove duplicates
-	mut seen := map[string]bool{}
-	mut unique := []MypyTypeNode{}
-
-	for item in items {
-		key := item.str()
-		if key !in seen {
-			seen[key] = true
-			unique << item
-		}
-	}
-
-	// Flatten nested unions
-	mut flattened := []MypyTypeNode{}
-	for item in unique {
-		if item is UnionType {
-			for sub_item in item.items {
-				sub_key := sub_item.str()
-				if sub_key !in seen {
-					seen[sub_key] = true
-					flattened << sub_item
-				}
-			}
-		} else {
-			flattened << item
-		}
-	}
-
-	if flattened.len == 1 {
-		return flattened[0]
-	}
-
-	return UnionType{
-		items: flattened
-	}
-}
-
-fn join_types(s MypyTypeNode, t MypyTypeNode) MypyTypeNode {
-	// Delegate to join module
-	return join_types(s, t, new_instance_joiner())
+fn is_subtype_simple(left MypyTypeNode, right MypyTypeNode) bool {
+	ctx := new_subtype_context(false, false, false, false, false, false, false, none)
+	return is_subtype(left, right, ctx)
 }

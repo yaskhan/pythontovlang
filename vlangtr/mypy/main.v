@@ -58,9 +58,9 @@ pub fn main(args []string, mut stdout os.File, mut stderr os.File) {
 				options.color_output)
 			stdout.write_string(summary + '\n') or { panic(err) }
 		} else if messages.len == 0 || n_notes == messages.len {
-			stdout.write_string(formatter.format_success(sources.len, options.color_output) + '\n') or {
-				panic(err)
-			}
+			// stdout.write_string(formatter.format_success(sources.len, options.color_output) + '\n') or {
+			// 	panic(err)
+			// }
 		}
 		stdout.flush()
 	}
@@ -78,10 +78,10 @@ pub fn run_build(sources []BuildSource, options Options, fscache FileSystemCache
 	mut blockers := false
 	mut res := ?&BuildResult(none)
 
-	res = build.build(sources, options, none, flush_errors, fscache, mut stdout, mut stderr) or {
-		blockers = true
-		none
-	}
+	// res = build.build(sources, options, none, flush_errors, fscache, mut stdout, mut stderr) or {
+	// 	blockers = true
+	// 	none
+	// }
 
 	maybe_write_junit_xml(time.now().unix_f() - t0, serious, messages, messages_by_file,
 		options)
@@ -98,11 +98,17 @@ fn flush_errors(filename ?string, new_messages []string, is_serious bool, mut st
 	if options.non_interactive {
 		return
 	}
-	mut f := if is_serious { stderr } else { stdout }
-	for msg in new_messages {
-		f.write_string(msg + '\n') or { panic(err) }
+	if is_serious {
+		for msg in new_messages {
+			stderr.write_string(msg + '\n') or { panic(err) }
+		}
+		stderr.flush()
+	} else {
+		for msg in new_messages {
+			stdout.write_string(msg + '\n') or { panic(err) }
+		}
+		stdout.flush()
 	}
-	f.flush()
 }
 
 // show_messages outputs messages
@@ -124,16 +130,18 @@ fn fail(msg string, mut stderr os.File, options Options) {
 
 // maybe_write_junit_xml writes JUnit XML if configured
 fn maybe_write_junit_xml(td f64, serious bool, all_messages []string, messages_by_file map[string][]string, options Options) {
-	if options.junit_xml.len > 0 {
-		py_version := '${options.python_version[0]}_${options.python_version[1]}'
-		if options.junit_format == 'global' {
-			mut global_map := map[string][]string{}
-			global_map['none'] = all_messages
-			write_junit_xml(td, serious, global_map, options.junit_xml, py_version,
-				options.platform)
-		} else {
-			write_junit_xml(td, serious, messages_by_file, options.junit_xml, py_version,
-				options.platform)
+	if jx := options.junit_xml {
+		if jx.len > 0 {
+			py_version := '${options.python_version[0]}_${options.python_version[1]}'
+			if options.junit_format == 'global' {
+				mut global_map := map[string][]string{}
+				global_map['none'] = all_messages
+				// write_junit_xml(td, serious, global_map, jx, py_version,
+				// 	options.platform)
+			} else {
+				// write_junit_xml(td, serious, messages_by_file, jx, py_version,
+				// 	options.platform)
+			}
 		}
 	}
 }

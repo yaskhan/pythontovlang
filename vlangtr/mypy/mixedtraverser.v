@@ -25,7 +25,7 @@ pub fn (mut v MixedTraverserVisitor) visit_class_def(o &ClassDef) !string {
 	v.NodeTraverser.visit_class_def(o)!
 	if info := o.info {
 		for base in info.bases {
-			MypyTypeNode(base).accept(mut v)!
+			v.visit_optional_type(MypyTypeNode(base))!
 		}
 	}
 	return ''
@@ -38,10 +38,10 @@ pub fn (mut v MixedTraverserVisitor) visit_type_alias_expr(o &TypeAliasExpr) !st
 
 pub fn (mut v MixedTraverserVisitor) visit_type_var_expr(o &TypeVarExpr) !string {
 	v.NodeTraverser.visit_type_var_expr(o)!
-	o.upper_bound.accept(mut v)!
-	o.default_.accept(mut v)!
+	v.visit_optional_type(o.upper_bound)!
+	v.visit_optional_type(o.default_)!
 	for val in o.values {
-		val.accept(mut v)!
+		v.visit_optional_type(val)!
 	}
 	return ''
 }
@@ -60,7 +60,7 @@ pub fn (mut v MixedTraverserVisitor) visit_namedtuple_expr(o &NamedTupleExpr) !s
 
 pub fn (mut v MixedTraverserVisitor) visit_promote_expr(o &PromoteExpr) !string {
 	v.NodeTraverser.visit_promote_expr(o)!
-	o.type_.accept(mut v)!
+	v.visit_optional_type(o.type_)!
 	return ''
 }
 
@@ -86,7 +86,7 @@ pub fn (mut v MixedTraverserVisitor) visit_type_alias_stmt(o &TypeAliasStmt) !st
 pub fn (mut v MixedTraverserVisitor) visit_type_alias(o &TypeAlias) !string {
 	v.NodeTraverser.visit_type_alias(o)!
 	v.in_type_alias_expr = true
-	o.target.accept(mut v)!
+	v.visit_optional_type(o.target)!
 	v.in_type_alias_expr = false
 	return ''
 }
@@ -107,20 +107,20 @@ pub fn (mut v MixedTraverserVisitor) visit_with_stmt(o &WithStmt) !string {
 
 pub fn (mut v MixedTraverserVisitor) visit_cast_expr(o &CastExpr) !string {
 	v.NodeTraverser.visit_cast_expr(o)!
-	o.type_.accept(mut v)!
+	v.visit_optional_type(o.type_)!
 	return ''
 }
 
 pub fn (mut v MixedTraverserVisitor) visit_assert_type_expr(o &AssertTypeExpr) !string {
 	v.NodeTraverser.visit_assert_type_expr(o)!
-	o.type_.accept(mut v)!
+	v.visit_optional_type(o.type_)!
 	return ''
 }
 
 pub fn (mut v MixedTraverserVisitor) visit_type_application(o &TypeApplication) !string {
 	v.NodeTraverser.visit_type_application(o)!
 	for t in o.types {
-		t.accept(mut v)!
+		v.visit_optional_type(t)!
 	}
 	return ''
 }

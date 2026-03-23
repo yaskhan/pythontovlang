@@ -140,13 +140,19 @@ fn is_instance_subtype(left Instance, right Instance, ctx SubtypeContext) bool {
 	}
 
 	// Promotions
-	if !ctx.ignore_promotions && !right.typ.is_protocol {
-		for base in left.typ.mro {
-			if base._promote.len > 0 {
-				for p in base._promote {
-					if is_subtype(p, right, ctx) {
-						type_state.record_subtype_cache(left, right)
-						return true
+	if !ctx.ignore_promotions {
+		if rti := right.typ {
+			if !rti.is_protocol {
+				if lti := left.typ {
+					for base in lti.mro {
+						if base._promote.len > 0 {
+							for p in base._promote {
+								if is_subtype(p, right, ctx) {
+									type_state.record_subtype_cache(left, right)
+									return true
+								}
+							}
+						}
 					}
 				}
 			}
@@ -154,40 +160,45 @@ fn is_instance_subtype(left Instance, right Instance, ctx SubtypeContext) bool {
 	}
 
 	// Nominal check
-	rname := (right.typ or { return '' }).fullname
-	if (left.typ or { return false }).has_base(rname) || rname == 'builtins.object' {
-		mapped := map_instance_to_supertype(left, right.typ)
+	if rti := right.typ {
+		rname := rti.fullname
+		if lti := left.typ {
+			if lti.has_base(rname) || rname == 'builtins.object' {
+				mapped := map_instance_to_supertype(left, rti)
 
-		// Check type arguments
-		if !ctx.ignore_type_params {
-			for i, tvar in (right.typ or { return false }).defn.type_vars {
-				if i >= mapped.args.len || i >= right.args.len {
-					continue
-				}
-				left_arg := mapped.args[i]
-				right_arg := right.args[i]
+				// Check type arguments
+				if !ctx.ignore_type_params {
+					for i, tvar in rti.defn.type_vars {
+						if i >= mapped.args.len || i >= right.args.len {
+							continue
+						}
+						left_arg := mapped.args[i]
+						right_arg := right.args[i]
 
-				if tvar is TypeVarType {
-					variance := tvar.variance
-					if ctx.always_covariant && variance == 0 {
-						variance = 1 // COVARIANT
-					}
-					if !check_type_parameter(left_arg, right_arg, variance, ctx) {
-						type_state.record_negative_subtype_cache(left, right)
-						return false
+						if tvar is TypeVarType {
+							variance := tvar.variance
+							if ctx.always_covariant && variance == 0 {
+								variance = 1 // COVARIANT
+							}
+							if !check_type_parameter(left_arg, right_arg, variance, ctx) {
+								type_state.record_negative_subtype_cache(left, right)
+								return false
+							}
+						}
 					}
 				}
+				type_state.record_subtype_cache(left, right)
+				return true
 			}
 		}
-
-		type_state.record_subtype_cache(left, right)
-		return true
 	}
 
 	// Protocols
-	if right.typ.is_protocol {
-		if is_protocol_implementation(left, right, ctx) {
-			return true
+	if rti := right.typ {
+		if rti.is_protocol {
+			if is_protocol_implementation(left, right, ctx) {
+				return true
+			}
 		}
 	}
 

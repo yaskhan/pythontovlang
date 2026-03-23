@@ -6,25 +6,9 @@ module mypy
 
 import os
 import math
-import vlangtr.ast
+import ast
 
 // ---------------------------------------------------------------------------
-// Constants for binary tags (normally imported from nodes/cache)
-// ---------------------------------------------------------------------------
-const literal_false = u8(0)
-const literal_true = u8(1)
-const literal_none = u8(2)
-const literal_int = u8(3)
-const literal_str = u8(4)
-const literal_bytes = u8(5)
-const literal_float = u8(6)
-const list_gen = u8(20)
-const list_int = u8(21)
-const list_str = u8(22)
-const dict_str_gen = u8(30)
-const location = u8(152)
-const end_tag = u8(255)
-
 // Node tags (Placeholders)
 const nodes_func_def_stmt = u8(1)
 const nodes_decorator = u8(2)

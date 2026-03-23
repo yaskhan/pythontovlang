@@ -41,6 +41,37 @@ pub type MypyTypeNode = AnyType
 	| TypedDictType
 	| UnpackType
 
+pub fn (t MypyTypeNode) accept_translator(mut v ITypeTranslator) !MypyTypeNode {
+	return match t {
+		AnyType { v.visit_any(&t)! }
+		CallableArgument { v.visit_callable_argument(&t)! }
+		CallableType { v.visit_callable_type(&t)! }
+		DeletedType { v.visit_deleted_type(&t)! }
+		EllipsisType { v.visit_ellipsis_type(&t)! }
+		ErasedType { v.visit_erased_type(&t)! }
+		Instance { v.visit_instance(&t)! }
+		LiteralType { v.visit_literal_type(&t)! }
+		NoneType { v.visit_none_type(&t)! }
+		Overloaded { v.visit_overloaded(&t)! }
+		ParamSpecType { v.visit_param_spec(&t)! }
+		ParametersType { v.visit_parameters(&t)! }
+		PartialTypeT { v.visit_partial_type(&t)! }
+		PlaceholderType { v.visit_placeholder_type(&t)! }
+		RawExpressionType { v.visit_raw_expression_type(&t)! }
+		TupleType { v.visit_tuple_type(&t)! }
+		TypeAliasType { v.visit_type_alias_type(&t)! }
+		TypeList { v.visit_type_list(&t)! }
+		TypeType { v.visit_type_type(&t)! }
+		TypeVarTupleType { v.visit_type_var_tuple(&t)! }
+		TypeVarType { v.visit_type_var(&t)! }
+		UnboundType { v.visit_unbound_type(&t)! }
+		UninhabitedType { v.visit_uninhabited_type(&t)! }
+		UnionType { v.visit_union_type(&t)! }
+		TypedDictType { v.visit_typeddict_type(&t)! }
+		UnpackType { v.visit_unpack_type(&t)! }
+	}
+}
+
 // MypyTypeSum — alias for backward compatibility
 pub type MypyTypeSum = MypyTypeNode
 
@@ -75,7 +106,97 @@ mut:
 	visit_placeholder_type(t &PlaceholderType) !string
 }
 
-// ITypeTranslator REMOVED for diagnostic purposes
+pub interface ITypeTranslator {
+mut:
+	visit_unbound_type(t &UnboundType) !MypyTypeNode
+	visit_any(t &AnyType) !MypyTypeNode
+	visit_none_type(t &NoneType) !MypyTypeNode
+	visit_uninhabited_type(t &UninhabitedType) !MypyTypeNode
+	visit_erased_type(t &ErasedType) !MypyTypeNode
+	visit_deleted_type(t &DeletedType) !MypyTypeNode
+	visit_type_var(t &TypeVarType) !MypyTypeNode
+	visit_param_spec(t &ParamSpecType) !MypyTypeNode
+	visit_parameters(t &ParametersType) !MypyTypeNode
+	visit_type_var_tuple(t &TypeVarTupleType) !MypyTypeNode
+	visit_instance(t &Instance) !MypyTypeNode
+	visit_callable_type(t &CallableType) !MypyTypeNode
+	visit_overloaded(t &Overloaded) !MypyTypeNode
+	visit_tuple_type(t &TupleType) !MypyTypeNode
+	visit_typeddict_type(t &TypedDictType) !MypyTypeNode
+	visit_literal_type(t &LiteralType) !MypyTypeNode
+	visit_union_type(t &UnionType) !MypyTypeNode
+	visit_partial_type(t &PartialTypeT) !MypyTypeNode
+	visit_type_type(t &TypeType) !MypyTypeNode
+	visit_type_alias_type(t &TypeAliasType) !MypyTypeNode
+	visit_unpack_type(t &UnpackType) !MypyTypeNode
+	visit_type_list(t &TypeList) !MypyTypeNode
+	visit_callable_argument(t &CallableArgument) !MypyTypeNode
+	visit_ellipsis_type(t &EllipsisType) !MypyTypeNode
+	visit_raw_expression_type(t &RawExpressionType) !MypyTypeNode
+	visit_placeholder_type(t &PlaceholderType) !MypyTypeNode
+}
+
+pub fn (t MypyTypeNode) accept(mut v TypeVisitor) !string {
+	return match t {
+		AnyType { v.visit_any(&t)! }
+		CallableArgument { v.visit_callable_argument(&t)! }
+		CallableType { v.visit_callable_type(&t)! }
+		DeletedType { v.visit_deleted_type(&t)! }
+		EllipsisType { v.visit_ellipsis_type(&t)! }
+		ErasedType { v.visit_erased_type(&t)! }
+		Instance { v.visit_instance(&t)! }
+		LiteralType { v.visit_literal_type(&t)! }
+		NoneType { v.visit_none_type(&t)! }
+		Overloaded { v.visit_overloaded(&t)! }
+		ParamSpecType { v.visit_param_spec(&t)! }
+		ParametersType { v.visit_parameters(&t)! }
+		PartialTypeT { v.visit_partial_type(&t)! }
+		PlaceholderType { v.visit_placeholder_type(&t)! }
+		RawExpressionType { v.visit_raw_expression_type(&t)! }
+		TupleType { v.visit_tuple_type(&t)! }
+		TypeAliasType { v.visit_type_alias_type(&t)! }
+		TypeList { v.visit_type_list(&t)! }
+		TypeType { v.visit_type_type(&t)! }
+		TypeVarTupleType { v.visit_type_var_tuple(&t)! }
+		TypeVarType { v.visit_type_var(&t)! }
+		UnboundType { v.visit_unbound_type(&t)! }
+		UninhabitedType { v.visit_uninhabited_type(&t)! }
+		UnionType { v.visit_union_type(&t)! }
+		TypedDictType { v.visit_typeddict_type(&t)! }
+		UnpackType { v.visit_unpack_type(&t)! }
+	}
+}
+
+pub fn (t MypyTypeNode) accept_synthetic(mut v TypeTraverserVisitor) !string {
+	return match t {
+		AnyType { v.visit_any(&t)! }
+		CallableArgument { v.visit_callable_argument(&t)! }
+		CallableType { v.visit_callable_type(&t)! }
+		DeletedType { v.visit_deleted_type(&t)! }
+		EllipsisType { v.visit_ellipsis_type(&t)! }
+		ErasedType { v.visit_erased_type(&t)! }
+		Instance { v.visit_instance(&t)! }
+		LiteralType { v.visit_literal_type(&t)! }
+		NoneType { v.visit_none_type(&t)! }
+		Overloaded { v.visit_overloaded(&t)! }
+		ParamSpecType { v.visit_param_spec(&t)! }
+		ParametersType { v.visit_parameters(&t)! }
+		PartialTypeT { v.visit_partial_type(&t)! }
+		PlaceholderType { v.visit_placeholder_type(&t)! }
+		RawExpressionType { v.visit_raw_expression_type(&t)! }
+		TupleType { v.visit_tuple_type(&t)! }
+		TypeAliasType { v.visit_type_alias_type(&t)! }
+		TypeList { v.visit_type_list(&t)! }
+		TypeType { v.visit_type_type(&t)! }
+		TypeVarTupleType { v.visit_type_var_tuple(&t)! }
+		TypeVarType { v.visit_type_var(&t)! }
+		UnboundType { v.visit_unbound_type(&t)! }
+		UninhabitedType { v.visit_uninhabited_type(&t)! }
+		UnionType { v.visit_union_type(&t)! }
+		TypedDictType { v.visit_typeddict_type(&t)! }
+		UnpackType { v.visit_unpack_type(&t)! }
+	}
+}
 
 // ---------------------------------------------------------------------------
 // Structs for all types...
@@ -93,6 +214,8 @@ pub enum TypeOfAny {
 	from_untyped_call
 	from_error
 	special_form
+	implementation_artifact
+	from_another_any
 }
 
 pub struct UnboundType {
@@ -101,6 +224,11 @@ pub mut:
 	line int = -1
 	args []MypyTypeNode
 	empty_tuple_index bool
+}
+
+pub struct NoneType {
+pub:
+	line int = -1
 }
 
 pub struct UninhabitedType {
@@ -151,9 +279,13 @@ pub struct Instance {
 pub mut:
 	typ              ?&TypeInfo = none
 	args             []MypyTypeNode
-	last_known_value ?&LiteralType
+	last_known_value ?&LiteralType = none
 	line             int = -1
-	type_ref         ?string
+	column           int = -1
+	type_ref         ?string = none
+	type_name        string // Full name for fast comparison
+	extra_attrs      ?MypyTypeNode = none
+	invalid          bool
 }
 
 pub fn (t &Instance) copy_modified(args []MypyTypeNode, last_known_value ?&LiteralType) Instance {
@@ -166,18 +298,24 @@ pub fn (t &Instance) copy_modified(args []MypyTypeNode, last_known_value ?&Liter
 			t.last_known_value
 		}
 		line:             t.line
+		type_name:        t.type_name
+		extra_attrs:      t.extra_attrs
 	}
 }
 
 pub struct CallableType {
-pub:
-	arg_types []MypyTypeNode
-	arg_kinds []ArgKind
-	arg_names []?string
-	ret_type  MypyTypeNode
-	variables []MypyTypeNode
-	line      int = -1
-	fallback  ?MypyTypeNode
+pub mut:
+	arg_types   []MypyTypeNode
+	arg_kinds   []ArgKind
+	arg_names   []?string
+	ret_type    MypyTypeNode
+	variables   []MypyTypeNode
+	line        int = -1
+	fallback    ?&Instance
+	name        string
+	is_var_arg  bool
+	is_ellipsis bool
+	min_args    int
 }
 
 pub fn (t &CallableType) is_generic() bool {
@@ -189,9 +327,12 @@ pub fn (t &CallableType) copy_modified(arg_types []MypyTypeNode, ret_type MypyTy
 		arg_types: if arg_types.len > 0 { arg_types } else { t.arg_types }
 		arg_kinds: t.arg_kinds
 		arg_names: t.arg_names
-		ret_type:  if ret_type != none { ret_type } else { t.ret_type }
+		ret_type:  ret_type
 		variables: if variables.len > 0 { variables } else { t.variables }
 		line:      t.line
+		fallback:  t.fallback
+		name:      t.name
+		min_args:  t.min_args
 	}
 }
 
@@ -224,7 +365,7 @@ pub struct TypedDictType {
 pub:
 	items    map[string]MypyTypeNode
 	line     int = -1
-	fallback ?MypyTypeNode
+	fallback ?&Instance
 }
 
 pub struct LiteralType {
@@ -232,6 +373,22 @@ pub:
 	fallback MypyTypeNode
 	line     int = -1
 }
+
+pub struct Interpolation {
+pub:
+    value       Any
+    expression  string
+    conversion  string
+    format_spec string
+}
+
+pub struct Template {
+pub:
+    strings        []string
+    interpolations []Interpolation
+}
+
+pub type Any = Interpolation | NoneType | Template | []Any | []u8 | bool | f64 | i64 | int | map[string]Any | string
 
 pub struct UnionType {
 pub:
@@ -255,6 +412,7 @@ pub mut:
 	args     []MypyTypeNode
 	line     int = -1
 	type_ref ?string
+	is_recursive bool
 }
 
 pub struct UnpackType {
@@ -285,18 +443,18 @@ pub:
 
 // extract_type_var_id returns TypeVarId if the type is a TypeVar-like type
 pub fn extract_type_var_id(t MypyTypeNode) ?TypeVarId {
-	match t {
-		TypeVarType { return t.id }
-		ParamSpecType { return t.id }
-		TypeVarTupleType { return t.id }
-		else { return none }
+	return match t {
+		TypeVarType { t.id }
+		ParamSpecType { t.id }
+		TypeVarTupleType { t.id }
+		else { none }
 	}
 }
 
 pub fn new_unification_variable(t MypyTypeNode) MypyTypeNode {
-	match t {
+	return match t {
 		TypeVarType {
-			return MypyTypeNode(TypeVarType{
+			MypyTypeNode(TypeVarType{
 				name:        t.name
 				id:          t.id
 				values:      t.values
@@ -304,10 +462,33 @@ pub fn new_unification_variable(t MypyTypeNode) MypyTypeNode {
 				line:        t.line
 			})
 		}
-		else {
-			return MypyTypeNode(AnyType{
-				type_of_any: .from_error
+		Instance {
+			inst := t as Instance
+			MypyTypeNode(Instance{
+				typ:      inst.typ
+				args:     inst.args.clone()
+				line:     inst.line
+				column:   inst.column
+				type_ref: inst.type_ref
+				type_name: inst.type_name
 			})
+		}
+		CallableType {
+			ct := t as CallableType
+			MypyTypeNode(CallableType{
+				arg_types: ct.arg_types.clone()
+				arg_kinds: ct.arg_kinds.clone()
+				arg_names: ct.arg_names.clone()
+				ret_type:  ct.ret_type
+				variables: ct.variables.clone()
+				line:      ct.line
+				name:      ct.name
+				min_args:  ct.min_args
+				fallback:  ct.fallback
+			})
+		}
+		else {
+			t
 		}
 	}
 }

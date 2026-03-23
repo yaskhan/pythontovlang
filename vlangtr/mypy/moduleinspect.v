@@ -41,7 +41,7 @@ pub fn is_c_module(module_file ?string) bool {
 		// May be namespace package
 		return true
 	}
-	ext := os.ext(module_file or { '' })
+	ext := os.file_ext(module_file or { '' })
 	return ext in ['.so', '.pyd', '.dll']
 }
 
@@ -51,7 +51,7 @@ pub fn is_pyc_only(file ?string) bool {
 		return false
 	}
 	f := file or { '' }
-	return f.ends_with('.pyc') && !os.file_exists(f[..f.len - 1])
+	return f.ends_with('.pyc') && !os.exists(f[..f.len - 1])
 }
 
 // InspectError — introspection error
@@ -76,6 +76,7 @@ pub fn get_package_properties(package_id string) !ModuleProperties {
 
 // ModuleInspect — runtime module introspection
 // Simplified version without using separate processes
+@[heap]
 pub struct ModuleInspect {
 pub mut:
 	counter int // Number of successful requests
@@ -99,7 +100,7 @@ pub fn (mut m ModuleInspect) close() {
 pub fn (mut m ModuleInspect) get_package_properties(package_id string) !ModuleProperties {
 	// Simplified version — without process and queue
 	prop := get_package_properties(package_id) or {
-		return InspectError('Cannot import ${package_id}')
+		return error('Cannot import ${package_id}')
 	}
 	m.counter++
 	return prop

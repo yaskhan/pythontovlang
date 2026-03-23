@@ -32,9 +32,10 @@ pub fn is_recursive_pair(s MypyTypeNode, t MypyTypeNode) bool {
 
 // tuple_fallback returns the fallback type for a tuple
 pub fn tuple_fallback(typ TupleType) Instance {
-	info := typ.partial_fallback.type
+	pf := typ.partial_fallback or { return Instance{} }
+	info := pf.typ or { return pf }
 	if info.fullname != 'builtins.tuple' {
-		return typ.partial_fallback
+		return pf
 	}
 
 	mut items := []MypyTypeNode{}
@@ -57,7 +58,7 @@ pub fn tuple_fallback(typ TupleType) Instance {
 			}
 
 			// Not implemented for complex cases
-			return typ.partial_fallback
+			return pf
 		} else {
 			items << item
 		}
@@ -66,7 +67,7 @@ pub fn tuple_fallback(typ TupleType) Instance {
 	return Instance{
 		type_name:   info.fullname
 		args:        [make_simplified_union(items, false)]
-		extra_attrs: typ.partial_fallback.extra_attrs
+		extra_attrs: pf.extra_attrs
 	}
 }
 
@@ -99,7 +100,7 @@ pub fn fill_typevars(info TypeInfo) Instance {
 	return Instance{
 		type_name: info.fullname
 		args:      []MypyTypeNode{}
-		type:      info
+		typ:       &info
 	}
 }
 

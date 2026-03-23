@@ -19,8 +19,8 @@ pub fn calculate_mro(mut info TypeInfo) ! {
 }
 
 // linearize_hierarchy linearizes the hierarchy for MRO calculation.
-// Returns a list of fullname strings representing the MRO.
-pub fn linearize_hierarchy(info &TypeInfo) ![]string {
+// Returns a list of TypeInfo pointers representing the MRO.
+pub fn linearize_hierarchy(info &TypeInfo) ![]&TypeInfo {
 	// If already computed, return cached
 	if info.mro.len > 0 {
 		return info.mro
@@ -34,35 +34,40 @@ pub fn linearize_hierarchy(info &TypeInfo) ![]string {
 		}
 	}
 
-	mut lin_bases := [][]string{}
+	mut lin_bases := [][]&TypeInfo{}
 	for base in base_infos {
 		lin_bases << linearize_hierarchy(base)!
 	}
 
-	// Add the list of direct base class names
-	mut base_names := []string{}
-	for base in base_infos {
-		base_names << base.fullname
-	}
-	lin_bases << base_names
+	// Add the list of direct base class pointers
+	lin_bases << base_infos
 
-	return [info.fullname] + merge(lin_bases)
+	mut res := [&TypeInfo(info)]
+	res << merge_mro(lin_bases)
+	return res
 }
 
-// merge merges multiple sequences into a single linearized order using C3 linearization.
-pub fn merge(seqs [][]string) []string {
+// merge_mro merges multiple sequences into a single linearized order using C3 linearization.
+pub fn merge_mro(seqs [][]&TypeInfo) []&TypeInfo {
 	mut work_seqs := seqs.clone()
-	mut result := []string{}
+	mut result := []&TypeInfo{}
 
 	for {
 		// Remove empty sequences
-		work_seqs = work_seqs.filter(it.len > 0)
-
-		if work_seqs.len == 0 {
-			return result
+		mut active_seqs := [][]&TypeInfo{}
+		for s in work_seqs {
+			if s.len > 0 {
+				active_seqs << s
+			}
 		}
+		
+		if active_seqs.len == 0 {
+			break
+		}
+		
+		work_seqs = active_seqs.clone()
 
-		mut head := ?string(none)
+		mut head := ?&TypeInfo(none)
 		mut found := false
 
 		// Find a valid head element
@@ -76,8 +81,15 @@ pub fn merge(seqs [][]string) []string {
 			// Check if candidate appears in any tail
 			mut appears_in_tail := false
 			for s in work_seqs {
-				if s.len > 1 && candidate in s[1..] {
-					appears_in_tail = true
+				if s.len > 1 {
+					for item in s[1..] {
+						if item.fullname == candidate.fullname {
+							appears_in_tail = true
+							break
+						}
+					}
+				}
+				if appears_in_tail {
 					break
 				}
 			}
@@ -94,16 +106,17 @@ pub fn merge(seqs [][]string) []string {
 			panic('MroError: cannot find consistent MRO')
 		}
 
-		result << head or { panic('head is none') }
+		h := head or { panic('head is none') }
+		result << h
 
 		// Remove head from all sequences
-		for mut s in work_seqs {
-			if s.len > 0 {
-				h := head or { continue }
-				if s[0] == h {
-					s.delete(0)
+		for i in 0 .. work_seqs.len {
+			if work_seqs[i].len > 0 {
+				if work_seqs[i][0].fullname == h.fullname {
+					work_seqs[i].delete(0)
 				}
 			}
 		}
 	}
+	return result
 }

@@ -33,8 +33,8 @@ pub mut:
 
 // new_filesystem_metadata_store creates a new FilesystemMetadataStore
 pub fn new_filesystem_metadata_store(cache_dir_prefix string) FilesystemMetadataStore {
-	// Check if path is os.devnull
-	if cache_dir_prefix.starts_with(os.devnull) {
+	// Check if path is os.path_devnull
+	if cache_dir_prefix.starts_with(os.path_devnull) {
 		return FilesystemMetadataStore{
 			cache_dir_prefix: none
 		}
@@ -77,7 +77,7 @@ pub fn (mut fs FilesystemMetadataStore) write(name string, data []u8, mtime ?f64
 	path := os.join_path(prefix, name)
 	tmp_filename := path + '.' + random_string()
 
-	os.mkdir_all(os.dir(path), os.default_dir_mod) or { return false }
+	os.mkdir_all(os.dir(path), 0o755) or { return false }
 
 	os.write_file(tmp_filename, data) or { return false }
 	os.rename(tmp_filename, path) or { return false }
@@ -117,7 +117,7 @@ pub fn (mut fs FilesystemMetadataStore) list_all() []string {
 	prefix := fs.cache_dir_prefix or { '' }
 	walk_fn := fn (path string, info &os.FileInfo) bool {
 		if !info.is_dir() {
-			rel_path := os.rel(path, prefix) or { path }
+			rel_path := os.relative_path(path, prefix)
 			result << os.normpath(rel_path)
 		}
 		return true
@@ -144,14 +144,14 @@ pub mut:
 
 // new_sqlite_metadata_store creates a new SqliteMetadataStore
 pub fn new_sqlite_metadata_store(cache_dir_prefix string, sync_off bool) SqliteMetadataStore {
-	if cache_dir_prefix.starts_with(os.devnull) {
+	if cache_dir_prefix.starts_with(os.path_devnull) {
 		return SqliteMetadataStore{
 			cache_dir_prefix: none
-			db:               voidptr(none)
+			db:               unsafe { nil }
 		}
 	}
 
-	os.mkdir_all(cache_dir_prefix, os.default_dir_mod) or {
+	os.mkdir_all(cache_dir_prefix, 0o755) or {
 		// ignore
 	}
 
@@ -160,13 +160,13 @@ pub fn new_sqlite_metadata_store(cache_dir_prefix string, sync_off bool) SqliteM
 
 	return SqliteMetadataStore{
 		cache_dir_prefix: cache_dir_prefix
-		db:               voidptr(none)
+		db:               unsafe { nil }
 	}
 }
 
 // getmtime reads mtime of metadata record
 pub fn (mut sq SqliteMetadataStore) getmtime(name string) !f64 {
-	if sq.db == voidptr(none) {
+	if sq.db == unsafe { nil } {
 		return error('FileNotFound')
 	}
 	// In full version: SELECT mtime FROM files2 WHERE path = ?
@@ -175,7 +175,7 @@ pub fn (mut sq SqliteMetadataStore) getmtime(name string) !f64 {
 
 // read reads contents of metadata record
 pub fn (mut sq SqliteMetadataStore) read(name string) ![]u8 {
-	if sq.db == voidptr(none) {
+	if sq.db == unsafe { nil } {
 		return error('FileNotFound')
 	}
 	// In full version: SELECT data FROM files2 WHERE path = ?
@@ -184,7 +184,7 @@ pub fn (mut sq SqliteMetadataStore) read(name string) ![]u8 {
 
 // write writes metadata record
 pub fn (mut sq SqliteMetadataStore) write(name string, data []u8, mtime ?f64) bool {
-	if sq.db == voidptr(none) {
+	if sq.db == unsafe { nil } {
 		return false
 	}
 
@@ -196,7 +196,7 @@ pub fn (mut sq SqliteMetadataStore) write(name string, data []u8, mtime ?f64) bo
 
 // remove removes metadata record
 pub fn (mut sq SqliteMetadataStore) remove(name string) ! {
-	if sq.db == voidptr(none) {
+	if sq.db == unsafe { nil } {
 		return error('FileNotFound')
 	}
 	// In full version: DELETE FROM files2 WHERE path = ?
@@ -215,8 +215,8 @@ pub fn (mut sq SqliteMetadataStore) list_all() []string {
 
 // close releases resources
 pub fn (mut sq SqliteMetadataStore) close() {
-	if sq.db != voidptr(none) {
+	if sq.db != unsafe { nil } {
 		// In full version: db.close()
-		sq.db = voidptr(none)
+		sq.db = unsafe { nil }
 	}
 }

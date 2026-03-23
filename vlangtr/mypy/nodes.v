@@ -1865,6 +1865,7 @@ pub mut:
 
 	type_vars           []MypyTypeNode
 	bases               []Instance
+	_promote            []MypyTypeNode // Added for join.v
 	abstract_attributes []string
 	typeddict_type      ?MypyTypeNode
 	declared_metaclass  ?Instance
