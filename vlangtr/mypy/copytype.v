@@ -17,15 +17,12 @@ pub fn type_shallow_copy(t MypyTypeNode) !MypyTypeNode {
 		AnyType {
 			MypyTypeNode(AnyType{
 				type_of_any: t.type_of_any
-				source_any:  t.source_any
 				line:        t.line
-				column:      t.column
 			})
 		}
 		NoneType {
 			MypyTypeNode(NoneType{
 				line:   t.line
-				column: t.column
 			})
 		}
 		Instance {
@@ -33,7 +30,6 @@ pub fn type_shallow_copy(t MypyTypeNode) !MypyTypeNode {
 				type_:  t.type_
 				args:   t.args.clone()
 				line:   t.line
-				column: t.column
 			})
 		}
 		CallableType {
@@ -43,9 +39,8 @@ pub fn type_shallow_copy(t MypyTypeNode) !MypyTypeNode {
 				arg_names: t.arg_names.clone()
 				ret_type:  t.ret_type
 				fallback:  t.fallback
-				name:      t.name
+				variables: t.variables.clone()
 				line:      t.line
-				column:    t.column
 			})
 		}
 		else {

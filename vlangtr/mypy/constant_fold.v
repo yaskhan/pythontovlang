@@ -28,15 +28,17 @@ pub fn constant_fold_expr(expr Expression, cur_mod_id string) ?ConstantValue {
 			return false
 		}
 		// Binding to final constants of the current module
-		if expr.node is Var {
-			node := expr.node
-			if node.is_final {
-				parts := node.fullname.split('.')
-				if parts.len >= 2 {
-					mod_name := parts[..parts.len - 1].join('.')
-					if mod_name == cur_mod_id {
-						if fval := node.final_value {
-							return constant_fold_expr(fval, cur_mod_id)
+		if sym_node := expr.node {
+			if sym_node is Var {
+				node := sym_node
+				if node.is_final {
+					parts := node.fullname.split('.')
+					if parts.len >= 2 {
+						mod_name := parts[..parts.len - 1].join('.')
+						if mod_name == cur_mod_id {
+							if fval := node.final_value {
+								return constant_fold_expr(fval, cur_mod_id)
+							}
 						}
 					}
 				}

@@ -38,6 +38,7 @@ pub type MypyTypeNode = AnyType
 	| UnboundType
 	| UninhabitedType
 	| UnionType
+	| TypedDictType
 	| UnpackType
 
 // MypyTypeSum — алиас для обратной совместимости
@@ -95,14 +96,11 @@ pub enum TypeOfAny {
 }
 
 pub struct UnboundType {
-pub:
+pub mut:
 	name string
 	line int = -1
-}
-
-pub struct NoneType {
-pub:
-	line int = -1
+	args []MypyTypeNode
+	empty_tuple_index bool
 }
 
 pub struct UninhabitedType {
@@ -273,7 +271,12 @@ pub:
 	items []MypyTypeNode
 }
 
-pub struct RawExpressionType {}
+pub struct RawExpressionType {
+pub mut:
+	literal_value Any
+	base_type_name string
+	line int = -1
+}
 
 pub struct PlaceholderType {
 pub:
