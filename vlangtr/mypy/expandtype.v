@@ -181,17 +181,19 @@ pub fn expand_type(typ MypyTypeNode, env map[TypeVarId]MypyTypeNode) MypyTypeNod
 				})
 			}
 		}
+        TypedDictType {
+			return v.visit_typeddict_type(&proper) or {
+				MypyTypeNode(AnyType{
+					type_of_any: .from_error
+				})
+			}
+		}
 		UnpackType {
 			return v.visit_unpack_type(&proper) or {
 				MypyTypeNode(AnyType{
 					type_of_any: .from_error
 				})
 			}
-		}
-		else {
-			return MypyTypeNode(AnyType{
-				type_of_any: .from_error
-			})
 		}
 	}
 }
@@ -231,7 +233,7 @@ pub fn freshen_function_type_vars(callee &CallableType) CallableType {
 	proper_res := get_proper_type(res)
 	if proper_res is CallableType {
 		// redundant 'as' removal
-		return proper_res.copy_modified(variables: tvs)
+		return proper_res.copy_modified([], AnyType{type_of_any: .unannotated}, tvs)
 	}
 	return *callee
 }
@@ -267,7 +269,7 @@ pub fn freshen_all_functions_type_vars(t MypyTypeNode) MypyTypeNode {
 		UnboundType { return v.visit_unbound_type(&proper) or { t } }
 		UninhabitedType { return v.visit_uninhabited_type(&proper) or { t } }
 		UnionType { return v.visit_union_type(&proper) or { t } }
-		UnpackType { return v.visit_unpack_type(&proper) or { t } }
+        TypedDictType { return v.visit_typeddict_type(&proper) or { t } }
 		else { return t }
 	}
 }
@@ -327,14 +329,14 @@ pub fn (mut v ExpandTypeVisitor) visit_instance(t &Instance) !MypyTypeNode {
 		return MypyTypeNode(*t)
 	}
 	args := v.expand_types(t.args)
-	return MypyTypeNode(t.copy_modified(args: args, last_known_value: none))
+	return MypyTypeNode(t.copy_modified(args, none))
 }
 
 pub fn (mut v ExpandTypeVisitor) visit_type_var(t &TypeVarType) !MypyTypeNode {
 	repl := v.variables[t.id] or { return MypyTypeNode(*t) }
 	proper_repl := get_proper_type(repl)
 	if proper_repl is Instance {
-		return MypyTypeNode(proper_repl.copy_modified(args: proper_repl.args, last_known_value: none))
+		return MypyTypeNode(proper_repl.copy_modified(proper_repl.args, none))
 	}
 	return repl
 }
@@ -356,11 +358,7 @@ pub fn (mut v ExpandTypeVisitor) visit_type_var_tuple(t &TypeVarTupleType) !Mypy
 pub fn (mut v ExpandTypeVisitor) visit_callable_type(t &CallableType) !MypyTypeNode {
 	arg_types := v.expand_types(t.arg_types)
 	res_typ := expand_type(t.ret_type, v.variables)
-	return MypyTypeNode(t.copy_modified(
-		arg_types: arg_types
-		ret_type:  res_typ
-		variables: t.variables
-	))
+    return MypyTypeNode(t.copy_modified(arg_types, res_typ, t.variables))
 }
 
 pub fn (mut v ExpandTypeVisitor) visit_overloaded(t &Overloaded) !MypyTypeNode {
@@ -393,7 +391,7 @@ pub fn (mut v ExpandTypeVisitor) visit_tuple_type(t &TupleType) !MypyTypeNode {
 			}
 		}
 	}
-	return MypyTypeNode(t.copy_modified(items: items, partial_fallback: partial_fallback))
+	return MypyTypeNode(t.copy_modified(items, partial_fallback))
 }
 
 pub fn (mut v ExpandTypeVisitor) visit_typeddict_type(t &TypedDictType) !MypyTypeNode {

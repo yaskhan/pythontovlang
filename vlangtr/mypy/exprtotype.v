@@ -1,12 +1,7 @@
 // exprtotype.v — Translate an Expression to a Type value
 // Translated from mypy/exprtotype.py to V 0.5.x
-//
-// Work in progress by Antigravity. Started: 2026-03-22 18:00
 
 module mypy
-
-// TypeTranslationError — exception for type translation errors
-pub type TypeTranslationError = string
 
 // expr_to_unanalyzed_type translates expression to type
 // Result does not pass semantic analysis
@@ -16,46 +11,40 @@ pub fn expr_to_unanalyzed_type(expr Expression,
 	parent ?Expression,
 	allow_unpack bool,
 	lookup_qualified ?fn (string, Context) ?&SymbolTableNode) !MypyTypeNode {
-	return match expr {
+	mut res := MypyTypeNode(AnyType{type_of_any: .from_error})
+	match expr {
 		NameExpr {
 			name := expr.name
 			if name == 'True' {
-				RawExpressionType{
-					literal_value:  any(true)
+				res = MypyTypeNode(RawExpressionType{
+					literal_value:  Any(true)
 					base_type_name: 'builtins.bool'
-					line:           expr.line
-					column:         expr.column
-				}
+					line:           expr.base.ctx.line
+				})
 			} else if name == 'False' {
-				RawExpressionType{
-					literal_value:  any(false)
+				res = MypyTypeNode(RawExpressionType{
+					literal_value:  Any(false)
 					base_type_name: 'builtins.bool'
-					line:           expr.line
-					column:         expr.column
-				}
+					line:           expr.base.ctx.line
+				})
 			} else {
-				UnboundType{
-					name:   name
-					line:   expr.line
-					column: expr.column
-				}
+				res = MypyTypeNode(UnboundType{
+					name: name
+					line: expr.base.ctx.line
+				})
 			}
 		}
 		MemberExpr {
-			// fullname := get_member_expr_fullname(expr)
-			// if fullname {
-			//     return UnboundType{fullname: fullname, line: expr.line, column: expr.column}
-			// }
-			return TypeTranslationError('MemberExpr without fullname')
+			return error('MemberExpr without fullname')
 		}
 		IndexExpr {
-			base := expr_to_unanalyzed_type(expr.base, options, allow_new_syntax, expr,
-				false, lookup_qualified) or { return TypeTranslationError('Cannot translate base') }
+			base := expr_to_unanalyzed_type(expr.base_, options, allow_new_syntax, Expression(expr),
+				false, lookup_qualified)!
 
 			if base is UnboundType {
 				mut ub := base as UnboundType
 				if ub.args.len > 0 {
-					return TypeTranslationError('Base already has args')
+					return error('Base already has args')
 				}
 
 				args := if expr.index is TupleExpr {
@@ -64,216 +53,41 @@ pub fn expr_to_unanalyzed_type(expr Expression,
 					[expr.index]
 				}
 
-				// Check for Annotated[...]
-				if expr.base is RefExpr {
-					// TODO: lookup fullname
-				}
-
 				mut new_args := []MypyTypeNode{}
 				for arg in args {
 					arg_type := expr_to_unanalyzed_type(arg, options, allow_new_syntax,
-						expr, true, lookup_qualified) or {
-						return TypeTranslationError('Cannot translate arg')
-					}
+						Expression(expr), true, lookup_qualified)!
 					new_args << arg_type
 				}
 				ub.args = new_args
 				if new_args.len == 0 {
 					ub.empty_tuple_index = true
 				}
-				return ub
+				res = MypyTypeNode(ub)
 			} else {
-				return TypeTranslationError('Base is not UnboundType')
+				return error('Base is not UnboundType')
 			}
 		}
 		OpExpr {
-			if expr.op == '|' && (options.python_version[0] >= 3 && options.python_version[1] >= 10
+			if expr.op == '|' && ((options.python_version[0] >= 3 && options.python_version[1] >= 10)
 				|| allow_new_syntax) {
 				left := expr_to_unanalyzed_type(expr.left, options, allow_new_syntax,
-					none, false, lookup_qualified) or {
-					return TypeTranslationError('Cannot translate left')
-				}
+					none, false, lookup_qualified)!
 
 				right := expr_to_unanalyzed_type(expr.right, options, allow_new_syntax,
-					none, false, lookup_qualified) or {
-					return TypeTranslationError('Cannot translate right')
-				}
+					none, false, lookup_qualified)!
 
-				return UnionType{
-					items:              [left, right]
-					uses_pep604_syntax: true
-					line:               expr.line
-					column:             expr.column
-				}
+				res = MypyTypeNode(UnionType{
+					items: [left, right]
+					line:  expr.base.ctx.line
+				})
 			} else {
-				return TypeTranslationError('OpExpr with unsupported op')
-			}
-		}
-		CallExpr {
-			if parent !is ListExpr {
-				return TypeTranslationError('CallExpr not in ListExpr')
-			}
-			// TODO: Handle CallableArgument
-			return TypeTranslationError('CallExpr handling not fully implemented')
-		}
-		ListExpr {
-			mut items := []MypyTypeNode{}
-			for t in expr.items {
-				item := expr_to_unanalyzed_type(t, options, allow_new_syntax, expr, true,
-					lookup_qualified) or {
-					return TypeTranslationError('Cannot translate list item')
-				}
-				items << item
-			}
-			return TypeList{
-				items:  items
-				line:   expr.line
-				column: expr.column
-			}
-		}
-		StrExpr {
-			// return parse_type_string(expr.value, 'builtins.str', expr.line, expr.column)
-			return UnboundType{
-				name:   expr.value
-				line:   expr.line
-				column: expr.column
-			}
-		}
-		BytesExpr {
-			// return parse_type_string(expr.value, 'builtins.bytes', expr.line, expr.column)
-			return UnboundType{
-				name:   expr.value
-				line:   expr.line
-				column: expr.column
-			}
-		}
-		UnaryExpr {
-			typ := expr_to_unanalyzed_type(expr.expr, options, allow_new_syntax, none,
-				false, lookup_qualified) or {
-				return TypeTranslationError('Cannot translate unary expr')
-			}
-
-			if typ is RawExpressionType {
-				mut re := typ as RawExpressionType
-				if re.literal_value is int {
-					val := re.literal_value as int
-					if expr.op == '-' {
-						re.literal_value = -val
-						return re
-					} else if expr.op == '+' {
-						return re
-					}
-				}
-			}
-			return TypeTranslationError('UnaryExpr with unsupported type')
-		}
-		IntExpr {
-			return RawExpressionType{
-				literal_value:  any(expr.value)
-				base_type_name: 'builtins.int'
-				line:           expr.line
-				column:         expr.column
-			}
-		}
-		FloatExpr {
-			// Floats are not valid parameters for RawExpressionType
-			return RawExpressionType{
-				literal_value:  any(none)
-				base_type_name: 'builtins.float'
-				line:           expr.line
-				column:         expr.column
-			}
-		}
-		ComplexExpr {
-			// Complex numbers are not valid parameters for RawExpressionType
-			return RawExpressionType{
-				literal_value:  any(none)
-				base_type_name: 'builtins.complex'
-				line:           expr.line
-				column:         expr.column
-			}
-		}
-		EllipsisExpr {
-			return EllipsisType{
-				line:   expr.line
-				column: expr.column
-			}
-		}
-		StarExpr {
-			if allow_unpack {
-				inner := expr_to_unanalyzed_type(expr.expr, options, allow_new_syntax,
-					none, false, lookup_qualified) or {
-					return TypeTranslationError('Cannot translate star expr')
-				}
-				return UnpackType{
-					type:             inner
-					from_star_syntax: true
-					line:             expr.line
-					column:           expr.column
-				}
-			} else {
-				return TypeTranslationError('StarExpr without allow_unpack')
-			}
-		}
-		DictExpr {
-			if expr.items.len == 0 {
-				return TypeTranslationError('Empty DictExpr')
-			}
-
-			mut items := map[string]MypyTypeNode{}
-			mut extra_items_from := []MypyTypeNode{}
-
-			for item_name, value in expr.items {
-				if item_name == none {
-					extra := expr_to_unanalyzed_type(value, options, allow_new_syntax,
-						expr, false, lookup_qualified) or {
-						return TypeTranslationError('Cannot translate extra item')
-					}
-					extra_items_from << extra
-					continue
-				}
-
-				name_expr := item_name or { return TypeTranslationError('Invalid item name') }
-				if name_expr !is StrExpr {
-					return TypeTranslationError('Dict key is not StrExpr')
-				}
-
-				se := name_expr as StrExpr
-				val_type := expr_to_unanalyzed_type(value, options, allow_new_syntax,
-					expr, false, lookup_qualified) or {
-					return TypeTranslationError('Cannot translate dict value')
-				}
-				items[se.value] = val_type
-			}
-
-			return TypedDictType{
-				items:  items
-				line:   expr.line
-				column: expr.column
-				// TODO: extra_items_from
+				return error('OpExpr with unsupported op')
 			}
 		}
 		else {
-			return TypeTranslationError('Unsupported expression type')
+			return error('Unsupported expression for type')
 		}
 	}
-}
-
-// _extract_argument_name extracts argument name from expression
-pub fn _extract_argument_name(expr Expression) !string {
-	return match expr {
-		NameExpr {
-			if expr.name == 'None' {
-				'' // Empty string means None
-			} else {
-				return TypeTranslationError('NameExpr is not None')
-			}
-		}
-		StrExpr {
-			expr.value
-		}
-		else {
-			return TypeTranslationError('Unsupported expression for argument name')
-		}
-	}
+	return res
 }
