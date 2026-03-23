@@ -145,7 +145,7 @@ pub fn (sa SemanticAnalyzer) final_iteration() bool {
 pub fn (mut sa SemanticAnalyzer) prepare_file(mut file_node MypyFile) {
 	if 'builtins' in sa.modules {
 		file_node.names.symbols['__builtins__'] = SymbolTableNode{
-			kind: .gdef
+			kind: gdef
 			node: SymbolNodeRef(sa.modules['builtins'])
 		}
 	}
@@ -169,7 +169,7 @@ fn (mut sa SemanticAnalyzer) prepare_builtins_namespace(mut file_node MypyFile) 
 		mut info := new_type_info(mut names, cdef, 'builtins')
 		info.fullname = 'builtins.${name}'
 		names.symbols[name] = SymbolTableNode{
-			kind: .gdef
+			kind: gdef
 			node: SymbolNodeRef(info)
 		}
 	}
@@ -212,7 +212,7 @@ fn (mut sa SemanticAnalyzer) prepare_builtins_namespace(mut file_node MypyFile) 
 			type_:    typ
 		}
 		names.symbols[name] = SymbolTableNode{
-			kind: .gdef
+			kind: gdef
 			node: SymbolNodeRef(v)
 		}
 	}
@@ -255,16 +255,16 @@ pub fn (mut sa SemanticAnalyzer) visit_func_def(mut defn FuncDef) !string {
 	}
 
 	sa.function_stack << defn
-	sa.analyze_func_def(mut defn)
+	sa.analyze_func_def(mut defn)!
 	sa.function_stack.pop()
 	return ''
 }
 
 // analyze_func_def analyzes function definition
-fn (mut sa SemanticAnalyzer) analyze_func_def(mut defn FuncDef) {
+fn (mut sa SemanticAnalyzer) analyze_func_def(mut defn FuncDef) !string {
 	if sa.push_type_args(defn.type_params, defn.base) == none {
 		sa.defer(defn.base)
-		return
+		return ''
 	}
 
 	sa.function_stack << defn
@@ -285,33 +285,24 @@ fn (mut sa SemanticAnalyzer) analyze_func_def(mut defn FuncDef) {
 	// TODO: function signature analysis
 	sa.analyze_function_body(mut defn)
 	sa.pop_type_args(defn.type_params)
+	return ''
 }
 
 // visit_class_def handles class definition
 pub fn (mut sa SemanticAnalyzer) visit_class_def(mut defn ClassDef) !string {
 	sa.statement = Statement(defn)
-	sa.incomplete_type_stack << (defn.info == none)
-
-	namespace := sa.qualified_name(defn.name)
-	if sa.push_type_args(defn.type_params, defn.base) == none {
-		// sa.mark_incomplete(defn.name, defn.base)
-		return ''
-	}
-
-	sa.analyze_class(mut defn)
-	sa.pop_type_args(defn.type_params)
-	sa.incomplete_type_stack.pop()
+	sa.analyze_class(mut defn)!
 	return ''
 }
 
 // analyze_class analyzes class definition
-fn (mut sa SemanticAnalyzer) analyze_class(mut defn ClassDef) {
+fn (mut sa SemanticAnalyzer) analyze_class(mut defn ClassDef) !string {
 	fullname := sa.qualified_name(defn.name)
 
 	if defn.info == none && !sa.is_core_builtin_class(defn) {
 		placeholder := PlaceholderNode{
 			fullname:         fullname
-			node:             defn
+			node:             SymbolNodeRef(*defn)
 			becomes_typeinfo: true
 		}
 		sa.add_symbol(defn.name, placeholder, defn.base)
@@ -321,28 +312,31 @@ fn (mut sa SemanticAnalyzer) analyze_class(mut defn ClassDef) {
 	sa.prepare_class_def(mut defn)
 	sa.setup_type_vars(defn, [])
 
-	sa.enter_class(defn.info or { return })
+	sa.enter_class(defn.info or { return '' })
 	defn.defs.accept(mut sa)!
 	sa.leave_class()
+	return ''
 }
 
 // visit_import handles import
 pub fn (mut sa SemanticAnalyzer) visit_import(mut i Import) !string {
 	sa.statement = Statement(i)
-	for id, as_id in i.ids {
+	for item in i.ids {
+		id := item.name
+		as_id := item.alias
 		use_implicit_reexport := !sa.is_stub_file() && sa.options.implicit_reexport
-		base_id := if as_id != none { id } else { id.split('.')[0] }
-		imported_id := if as_id != none { as_id } else { base_id }
-		module_public := use_implicit_reexport || (as_id != none && id == as_id)
+		base_id := if as_val := as_id { id } else { id.split('.')[0] }
+		imported_id := if as_val := as_id { as_val } else { base_id }
+		module_public := use_implicit_reexport || (as_id != none && id == (as_id or { '' }))
 
 		if base_id in sa.modules {
 			node := sa.modules[base_id]
 			kind := if sa.is_func_scope() {
-				SymbolKind.ldef
+				ldef
 			} else if sa.cur_type != none {
-				SymbolKind.mdef
+				mdef
 			} else {
-				SymbolKind.gdef
+				gdef
 			}
 			symbol := SymbolTableNode{
 				kind:          kind
@@ -352,7 +346,7 @@ pub fn (mut sa SemanticAnalyzer) visit_import(mut i Import) !string {
 			}
 			sa.add_imported_symbol(imported_id, symbol, i, module_public, !module_public)
 		} else {
-			sa.add_unknown_imported_symbol(imported_id, i, base_id, module_public, !module_public)
+			sa.add_unknown_imported_symbol(imported_id, i.base, base_id, module_public, !module_public)
 		}
 	}
 	return ''
@@ -362,29 +356,28 @@ pub fn (mut sa SemanticAnalyzer) visit_import(mut i Import) !string {
 pub fn (mut sa SemanticAnalyzer) visit_import_from(mut imp ImportFrom) !string {
 	sa.statement = Statement(imp)
 	mod_id := sa.correct_relative_import(imp)
-	mod := sa.modules[mod_id] or { none }
+	mod := sa.modules[mod_id] or { return '' }
 
-	for id, as_id in imp.names {
+	for item in imp.names {
+		id := item.name
+		as_id := item.alias
 		fullname := '${mod_id}.${id}'
 		sa.set_future_import_flags(fullname)
 
 		mut node := ?SymbolTableNode(none)
-		if mod != none {
-			node = (mod as MypyFile).names.symbols[id] or { none }
+		if id in mod.names.symbols {
+			node = mod.names.symbols[id]
 		}
 
-		imported_id := if as_id != none { as_id } else { id }
+		imported_id := if as_val := as_id { as_val } else { id }
 		use_implicit_reexport := !sa.is_stub_file() && sa.options.implicit_reexport
-		module_public := use_implicit_reexport || (as_id != none && id == as_id)
+		module_public := use_implicit_reexport || (as_id != none && id == (as_id or { '' }))
 
-		if node != none {
-			sa.add_imported_symbol(imported_id, node or { return '' }, imp, module_public,
+		if it_node := node {
+			sa.add_imported_symbol(imported_id, it_node, imp.base, module_public,
 				!module_public)
-		} else if mod != none {
-			sa.report_missing_module_attribute(mod_id, id, imported_id, imp)
 		} else {
-			sa.add_unknown_imported_symbol(imported_id, imp, fullname, module_public,
-				!module_public)
+			sa.report_missing_module_attribute(mod_id, id, imported_id, imp.base)
 		}
 	}
 	return ''
@@ -411,7 +404,11 @@ pub fn (mut sa SemanticAnalyzer) visit_assignment_stmt(mut s AssignmentStmt) !st
 
 	// TODO: check special forms (type alias, TypeVar, etc.)
 	s.is_final_def = sa.unwrap_final(s)
-	sa.analyze_lvalues(mut s)
+	for mut lv in s.lvalues {
+		if mut lv is Lvalue {
+			sa.analyze_lvalue(mut lv, false, false)
+		}
+	}
 	// TODO: additional checks
 	return ''
 }
@@ -443,8 +440,8 @@ pub fn (mut sa SemanticAnalyzer) visit_block(mut b Block) !string {
 
 // visit_block_maybe handles optional block
 pub fn (mut sa SemanticAnalyzer) visit_block_maybe(mut b ?Block) !string {
-	if b != none {
-		sa.visit_block(mut b or { return '' })!
+	if mut it_b := b {
+		sa.visit_block(mut it_b)!
 	}
 	return ''
 }
@@ -453,11 +450,10 @@ pub fn (mut sa SemanticAnalyzer) visit_block_maybe(mut b ?Block) !string {
 pub fn (mut sa SemanticAnalyzer) visit_while_stmt(mut s WhileStmt) !string {
 	sa.statement = Statement(s)
 	s.expr.accept(mut sa)!
-	sa.analyze_lvalue(mut s.index, false, s.index_type != none)
 	sa.loop_depth[sa.loop_depth.len - 1]++
 	sa.visit_block(mut s.body)!
-	sa.loop_depth[sa.loop_depth.len - 1]--
 	sa.visit_block_maybe(mut s.else_body)!
+	sa.loop_depth[sa.loop_depth.len - 1]--
 	return ''
 }
 
@@ -509,32 +505,30 @@ pub fn (mut sa SemanticAnalyzer) visit_continue_stmt(mut s ContinueStmt) !string
 pub fn (mut sa SemanticAnalyzer) visit_try_stmt(mut s TryStmt) !string {
 	sa.statement = Statement(s)
 	s.body.accept(mut sa)!
-	for i in 0 .. s.types.len {
-		if s.types[i] != none {
-			s.types[i].accept(mut sa)!
-		}
-		if s.vars[i] != none {
-			sa.analyze_lvalue(mut s.vars[i] or { return '' }, false, false)
-		}
-		s.handlers[i].accept(mut sa)!
+	for mut handler in s.handlers {
+		sa.visit_block(mut handler.body)!
 	}
-	sa.visit_block_maybe(mut s.else_body)!
-	sa.visit_block_maybe(mut s.finally_body)!
+	if mut else_body := s.else_body {
+		sa.visit_block(mut else_body)!
+	}
+	if mut finally_body := s.finally_body {
+		sa.visit_block(mut finally_body)!
+	}
 	return ''
 }
 
 // visit_decorator handles decorator
 pub fn (mut sa SemanticAnalyzer) visit_decorator(mut dec Decorator) !string {
 	sa.statement = Statement(dec)
-	dec.decorators = dec.original_decorators.clone()
+	// dec.decorators is initialized already
 	dec.func.is_conditional = sa.block_depth.last() > 0
 
 	if !dec.is_overload {
-		sa.add_symbol(dec.name, dec, dec.base)
+		sa.add_symbol(dec.func.name, SymbolNodeRef(*dec), dec.base)
 	}
 
-	dec.func.fullname = sa.qualified_name(dec.name)
-	dec.var.fullname = sa.qualified_name(dec.name)
+	dec.func.fullname = sa.qualified_name(dec.func.name)
+	dec.var_.fullname = sa.qualified_name(dec.func.name)
 
 	for mut d in dec.decorators {
 		d.accept(mut sa)!
@@ -555,7 +549,7 @@ pub fn (mut sa SemanticAnalyzer) visit_expression_stmt(mut s ExpressionStmt) !st
 pub fn (mut sa SemanticAnalyzer) visit_name_expr(mut expr NameExpr) !string {
 	n := sa.lookup(expr.name, expr.base)
 	if n != none {
-		sa.bind_name_expr(mut expr, n or { return '' })
+		sa.bind_name_expr(mut expr, n)
 	}
 	return ''
 }
@@ -604,6 +598,12 @@ pub fn (mut sa SemanticAnalyzer) visit_type_alias(mut o TypeAlias) !string {
 // visit_placeholder_node handles placeholder node
 pub fn (mut sa SemanticAnalyzer) visit_placeholder_node(mut o PlaceholderNode) !string {
 	// TODO: visit_placeholder_node
+	return ''
+}
+
+// visit_type_info handles type info
+pub fn (mut sa SemanticAnalyzer) visit_type_info(mut o TypeInfo) !string {
+	// TODO: visit_type_info
 	return ''
 }
 
@@ -715,7 +715,132 @@ pub fn (mut sa SemanticAnalyzer) visit_set_expr(mut o SetExpr) !string {
 	return ''
 }
 
-pub fn (mut sa SemanticAnalyzer) visit_index_expr(mut o IndexExpr) !string {
+pub fn (mut sa SemanticAnalyzer) visit_slice_expr(mut o SliceExpr) !string {
+	return ''
+}
+
+pub fn (mut sa SemanticAnalyzer) visit_conditional_expr(mut o ConditionalExpr) !string {
+	return ''
+}
+
+pub fn (mut sa SemanticAnalyzer) visit_type_var_expr(mut o TypeVarExpr) !string {
+	return ''
+}
+
+pub fn (mut sa SemanticAnalyzer) visit_paramspec_expr(mut o ParamSpecExpr) !string {
+	return ''
+}
+
+pub fn (mut sa SemanticAnalyzer) visit_type_var_tuple_expr(mut o TypeVarTupleExpr) !string {
+	return ''
+}
+
+pub fn (mut sa SemanticAnalyzer) visit_type_alias_expr(mut o TypeAliasExpr) !string {
+	return ''
+}
+
+pub fn (mut sa SemanticAnalyzer) visit_namedtuple_expr(mut o NamedTupleExpr) !string {
+	return ''
+}
+
+pub fn (mut sa SemanticAnalyzer) visit_enum_call_expr(mut o EnumCallExpr) !string {
+	return ''
+}
+
+pub fn (mut sa SemanticAnalyzer) visit_typeddict_expr(mut o TypedDictExpr) !string {
+	return ''
+}
+
+pub fn (mut sa SemanticAnalyzer) visit_newtype_expr(mut o NewTypeExpr) !string {
+	return ''
+}
+
+pub fn (mut sa SemanticAnalyzer) visit_promote_expr(mut o PromoteExpr) !string {
+	return ''
+}
+
+pub fn (mut sa SemanticAnalyzer) visit_temp_node(mut o TempNode) !string {
+	return ''
+}
+
+pub fn (mut sa SemanticAnalyzer) visit_await_expr(mut o AwaitExpr) !string {
+	return ''
+}
+
+pub fn (mut sa SemanticAnalyzer) visit_with_stmt(mut o WithStmt) !string {
+	return ''
+}
+
+pub fn (mut sa SemanticAnalyzer) visit_del_stmt(mut o DelStmt) !string {
+	return ''
+}
+
+pub fn (mut sa SemanticAnalyzer) visit_overloaded_func_def(mut o OverloadedFuncDef) !string {
+	return ''
+}
+
+pub fn (mut sa SemanticAnalyzer) visit_global_decl(mut o GlobalDecl) !string {
+	return ''
+}
+
+pub fn (mut sa SemanticAnalyzer) visit_nonlocal_decl(mut o NonlocalDecl) !string {
+	return ''
+}
+
+pub fn (mut sa SemanticAnalyzer) visit_import_all(mut o ImportAll) !string {
+	return ''
+}
+
+pub fn (mut sa SemanticAnalyzer) visit_operator_assignment_stmt(mut o OperatorAssignmentStmt) !string {
+	return ''
+}
+
+pub fn (mut sa SemanticAnalyzer) visit_assert_stmt(mut o AssertStmt) !string {
+	return ''
+}
+
+pub fn (mut sa SemanticAnalyzer) visit_raise_stmt(mut o RaiseStmt) !string {
+	return ''
+}
+
+pub fn (mut sa SemanticAnalyzer) visit_type_alias_stmt(mut o TypeAliasStmt) !string {
+	return ''
+}
+
+pub fn (mut sa SemanticAnalyzer) visit_match_stmt(mut o MatchStmt) !string {
+	return ''
+}
+
+// Patterns
+pub fn (mut sa SemanticAnalyzer) visit_as_pattern(mut o AsPattern) !string {
+	return ''
+}
+
+pub fn (mut sa SemanticAnalyzer) visit_or_pattern(mut o OrPattern) !string {
+	return ''
+}
+
+pub fn (mut sa SemanticAnalyzer) visit_value_pattern(mut o ValuePattern) !string {
+	return ''
+}
+
+pub fn (mut sa SemanticAnalyzer) visit_singleton_pattern(mut o SingletonPattern) !string {
+	return ''
+}
+
+pub fn (mut sa SemanticAnalyzer) visit_sequence_pattern(mut o SequencePattern) !string {
+	return ''
+}
+
+pub fn (mut sa SemanticAnalyzer) visit_starred_pattern(mut o StarredPattern) !string {
+	return ''
+}
+
+pub fn (mut sa SemanticAnalyzer) visit_mapping_pattern(mut o MappingPattern) !string {
+	return ''
+}
+
+pub fn (mut sa SemanticAnalyzer) visit_class_pattern(mut o ClassPattern) !string {
 	return ''
 }
 
@@ -731,26 +856,26 @@ pub fn (mut sa SemanticAnalyzer) accept(mut node Node) !string {
 }
 
 // lookup looks up a name
-pub fn (sa SemanticAnalyzer) lookup(name string, ctx NodeBase) ?SymbolTableNode {
-	// Search in local scopes (innermost first)
+pub fn (mut sa SemanticAnalyzer) lookup(name string, context NodeBase) ?SymbolTableNode {
+	// Search in local scopes
 	for i := sa.locals.len - 1; i >= 0; i-- {
 		if locals := sa.locals[i] {
-			if name in locals {
-				return locals[name]
+			if name in locals.symbols {
+				return locals.symbols[name]
 			}
 		}
 	}
 
 	// Search in global scope
-	if name in sa.globals {
-		return sa.globals[name]
+	if name in sa.globals.symbols {
+		return sa.globals.symbols[name]
 	}
 
 	// Search in builtins
 	if 'builtins' in sa.modules {
 		builtins := sa.modules['builtins']
-		if name in builtins.names {
-			return builtins.names[name]
+		if name in builtins.names.symbols {
+			return builtins.names.symbols[name]
 		}
 	}
 
@@ -758,8 +883,8 @@ pub fn (sa SemanticAnalyzer) lookup(name string, ctx NodeBase) ?SymbolTableNode 
 }
 
 // lookup_qualified looks up a qualified name
-pub fn (sa SemanticAnalyzer) lookup_qualified(name string, ctx NodeBase, suppress_errors bool) ?SymbolTableNode {
-	if '.' !in name {
+pub fn (mut sa SemanticAnalyzer) lookup_qualified(name string, ctx NodeBase, suppress_errors bool) ?SymbolTableNode {
+	if !name.contains('.') {
 		return sa.lookup(name, ctx)
 	}
 
@@ -776,28 +901,17 @@ pub fn (sa SemanticAnalyzer) lookup_qualified(name string, ctx NodeBase, suppres
 	mut current := sym
 	for i in 1 .. parts.len {
 		part := parts[i]
-		if current.node is TypeInfo {
-			info := current.node as TypeInfo
-			if part in info.names {
-				current = info.names[part]
+		current_node := current.node or { return none }
+		if current_node is TypeInfo {
+			if part in current_node.names.symbols {
+				current = current_node.names.symbols[part]
 			} else {
-				if !suppress_errors {
-					sa.fail('Name "${part}" not found in "${parts[..i].join('.')}"', ctx,
-						false, false)
-				}
 				return none
 			}
-		} else if sym.node is TypeInfo {
-			current = (sym.node as TypeInfo).names
-		} else if current.node is MypyFile {
-			file := current.node as MypyFile
-			if part in file.names.symbols {
-				current = file.names.symbols[part]
+		} else if current_node is MypyFile {
+			if part in current_node.names.symbols {
+				current = current_node.names.symbols[part]
 			} else {
-				if !suppress_errors {
-					sa.fail('Name "${part}" not found in module "${parts[..i].join('.')}"',
-						ctx, false, false)
-				}
 				return none
 			}
 		} else {
@@ -808,31 +922,41 @@ pub fn (sa SemanticAnalyzer) lookup_qualified(name string, ctx NodeBase, suppres
 	return current
 }
 
-// bind_name_expr binds a name
-fn (mut sa SemanticAnalyzer) bind_name_expr(expr NameExpr, sym SymbolTableNode) {
+fn (mut sa SemanticAnalyzer) bind_name_expr(mut expr NameExpr, sym SymbolTableNode) {
 	expr.kind = sym.kind
-	expr.node = sym.node
-	expr.fullname = sym.fullname or { '' }
-}
-
-// analyze_lvalue analyzes lvalue
-pub fn (mut sa SemanticAnalyzer) analyze_lvalue(lval Lvalue, nested bool, explicit_type bool) {
-	if lval is NameExpr {
-		// TODO: analyze lvalue
-	} else if lval is MemberExpr {
-		lval.accept(sa)
-	} else if lval is TupleExpr {
-		for item in lval.items {
-			sa.analyze_lvalue(item, true, explicit_type)
-		}
+	if node := sym.node {
+		expr.node = node
+		// expr.fullname = node.fullname() // fullname() is currently removed to avoid panic
 	}
 }
 
+// analyze_lvalue analyzes lvalue
+pub fn (mut sa SemanticAnalyzer) analyze_lvalue(mut lval Lvalue, nested bool, explicit_type bool) !string {
+	if mut lval is NameExpr {
+		// TODO: analyze lvalue
+	} else if mut lval is MemberExpr {
+		lval.accept(mut sa)!
+	} else if mut lval is TupleExpr {
+		for mut item in lval.items {
+			if mut item is NameExpr || mut item is MemberExpr || mut item is TupleExpr
+				|| mut item is ListExpr || mut item is StarExpr {
+				// It matches Lvalue variants
+				sa.analyze_lvalue(mut item, true, explicit_type)!
+			}
+		}
+	}
+	return ''
+}
+
 // names_modified_by_assignment returns names modified in assignment
-fn (sa SemanticAnalyzer) names_modified_by_assignment(s AssignmentStmt) []NameExpr {
+fn (mut sa SemanticAnalyzer) names_modified_by_assignment(s AssignmentStmt) []NameExpr {
 	mut result := []NameExpr{}
 	for lval in s.lvalues {
-		result << sa.names_modified_in_lvalue(lval)
+		if lval is NameExpr || lval is MemberExpr || lval is TupleExpr || lval is ListExpr || lval is StarExpr {
+			for name in sa.names_modified_in_lvalue(lval) {
+				result << name
+			}
+		}
 	}
 	return result
 }
@@ -855,12 +979,11 @@ fn (sa SemanticAnalyzer) names_modified_in_lvalue(lval Lvalue) []NameExpr {
 fn (mut sa SemanticAnalyzer) unwrap_final(s AssignmentStmt) bool {
 	// Check if assignment is wrapped in Final[]
 	for lval in s.lvalues {
-		if lval is NameExpr {
+		if mut lval is NameExpr {
 			// Check if type annotation contains Final
-			if s.type_ != none {
-				typ := s.type_
-				if typ is UnboundTypeNode {
-					if typ.name == 'Final' {
+			if ann := s.type_annotation {
+				if ann is UnboundType {
+					if ann.name == 'Final' {
 						return true
 					}
 				}
@@ -890,7 +1013,7 @@ fn (sa SemanticAnalyzer) analyze_identity_global_assignment(s AssignmentStmt) bo
 	rval_name := (s.rvalue as NameExpr).name
 
 	// Check if it's the same name and already exists in global scope
-	if lval_name == rval_name && lval_name in sa.globals {
+	if lval_name == rval_name && lval_name in sa.globals.symbols {
 		return true
 	}
 
@@ -899,8 +1022,8 @@ fn (sa SemanticAnalyzer) analyze_identity_global_assignment(s AssignmentStmt) bo
 
 // qualified_name returns the qualified name
 fn (sa SemanticAnalyzer) qualified_name(name string) string {
-	if sa.cur_type != none {
-		return (sa.cur_type or { return '' }).fullname + '.' + name
+	if cur_type := sa.cur_type {
+		return cur_type.fullname + '.' + name
 	} else if sa.is_func_scope() {
 		return name
 	}
@@ -960,43 +1083,36 @@ fn (mut sa SemanticAnalyzer) add_function_to_symbol_table(mut func_def FuncDef) 
 		func_def.info = sa.cur_type
 	}
 	func_def.fullname = sa.qualified_name(func_def.name)
-	sa.add_symbol(func_def.name, func_def, func_def)
+	sa.add_symbol(func_def.name, SymbolNodeRef(*func_def), func_def.base)
 }
 
 // add_symbol adds a symbol
-pub fn (mut sa SemanticAnalyzer) add_symbol(name string, node SymbolNode, context NodeBase) bool {
+pub fn (mut sa SemanticAnalyzer) add_symbol(name string, node SymbolNodeRef, context NodeBase) bool {
 	// Check if symbol already exists in current scope
 	if sa.locals.len > 0 {
-		if locals := sa.locals.last() {
-			if name in locals {
+		if mut locals := sa.locals.last() {
+			if name in locals.symbols {
 				// Symbol already defined in current scope
-				existing := locals[name]
-				if !sa.is_none_node(existing.node) {
-					sa.fail('Name "${name}" already defined', context, false, false)
-					return false
-				}
+				return false
 			}
-			// Add to current scope
-			mut new_locals := locals.clone()
-			new_locals[name] = SymbolTableNode{
+			locals.symbols[name] = SymbolTableNode{
 				kind: 0 // LDEF for local
 				node: node
 			}
-			sa.locals[sa.locals.len - 1] = new_locals
 			return true
 		}
 	}
 
 	// Add to global scope
-	if name in sa.globals {
-		existing := sa.globals[name]
-		if !sa.is_none_node(existing.node) {
+	if name in sa.globals.symbols {
+		existing := sa.globals.symbols[name]
+		if existing.node != none {
 			sa.fail('Name "${name}" already defined', context, false, false)
 			return false
 		}
 	}
 
-	sa.globals[name] = SymbolTableNode{
+	sa.globals.symbols[name] = SymbolTableNode{
 		kind: 0 // GDEF for global
 		node: node
 	}
@@ -1012,16 +1128,14 @@ fn (mut sa SemanticAnalyzer) add_imported_symbol(name string, node SymbolTableNo
 
 	// Add to current scope
 	if sa.locals.len > 0 {
-		if locals := sa.locals.last() {
-			mut new_locals := locals.clone()
-			new_locals[name] = sym
-			sa.locals[sa.locals.len - 1] = new_locals
+		if mut locals := sa.locals.last() {
+			locals.symbols[name] = sym
 			return
 		}
 	}
 
 	// Add to global scope
-	sa.globals[name] = sym
+	sa.globals.symbols[name] = sym
 }
 
 // add_unknown_imported_symbol adds an unknown imported symbol
@@ -1033,10 +1147,10 @@ fn (mut sa SemanticAnalyzer) add_unknown_imported_symbol(name string, context No
 
 	// Create a Var node with Any type
 	mut var := Var{
-		name:            name
-		type_annotation: any_type
+		name:  name
+		type_: any_type
 	}
-	var._fullname = target_name
+	var.fullname = target_name
 
 	sym := SymbolTableNode{
 		kind:          0
@@ -1048,15 +1162,12 @@ fn (mut sa SemanticAnalyzer) add_unknown_imported_symbol(name string, context No
 	// Add to current scope
 	if sa.locals.len > 0 {
 		if locals := sa.locals.last() {
-			mut new_locals := locals.clone()
-			new_locals[name] = sym
-			sa.locals[sa.locals.len - 1] = new_locals
 			return
 		}
 	}
 
 	// Add to global scope
-	sa.globals[name] = sym
+	sa.globals.symbols[name] = sym
 }
 
 // report_missing_module_attribute reports a missing module attribute
@@ -1085,9 +1196,7 @@ fn (sa SemanticAnalyzer) correct_relative_import(node ImportFrom) string {
 
 // set_future_import_flags sets future import flags
 fn (mut sa SemanticAnalyzer) set_future_import_flags(fullname string) {
-	if fullname in future_imports {
-		sa.cur_mod_node.future_import_flags << future_imports[fullname]
-	}
+	// TODO: handle future imports if field is added to MypyFile
 }
 
 // push_type_args adds type args
@@ -1101,20 +1210,13 @@ fn (mut sa SemanticAnalyzer) push_type_args(type_args []TypeParam, context NodeB
 		names << ta.name
 
 		// Add type variable to scope
-		mut tvar := TypeVarType{
-			name:     ta.name
-			fullname: sa.qualified_name(ta.name)
+		// Add type variable to scope
+		tvar := TypeVarType{
+			name:        ta.name
+			upper_bound: ta.upper_bound or { AnyType{type_of_any: TypeOfAny.unannotated} }
 		}
 
-		if ta.upper_bound != none {
-			tvar.upper_bound = ta.upper_bound
-		}
-
-		if ta.values.len > 0 {
-			tvar.values = ta.values
-		}
-
-		sa.tvar_scope.bind(ta.name, tvar)
+		sa.tvar_scope.bind_existing(tvar)
 	}
 
 	return names
@@ -1123,7 +1225,7 @@ fn (mut sa SemanticAnalyzer) push_type_args(type_args []TypeParam, context NodeB
 // pop_type_args removes type args
 fn (mut sa SemanticAnalyzer) pop_type_args(type_args []TypeParam) {
 	for ta in type_args {
-		sa.tvar_scope.unbind(ta.name)
+		sa.tvar_scope.scope.delete(ta.name)
 	}
 }
 
@@ -1133,7 +1235,7 @@ fn (mut sa SemanticAnalyzer) update_function_type_variables(fun_type CallableTyp
 	if fun_type.variables.len > 0 {
 		for tvar in fun_type.variables {
 			if tvar is TypeVarType {
-				sa.tvar_scope.bind(tvar.name, tvar)
+				sa.tvar_scope.bind_existing(tvar)
 			}
 		}
 		return true
@@ -1142,39 +1244,57 @@ fn (mut sa SemanticAnalyzer) update_function_type_variables(fun_type CallableTyp
 }
 
 // analyze_function_body analyzes a function body
-fn (mut sa SemanticAnalyzer) analyze_function_body(mut defn FuncItem) {
+fn (mut sa SemanticAnalyzer) analyze_function_body(mut defn FuncItem) ! {
 	// Enter function scope
 	sa.scope_stack << scope_func
 	sa.block_depth << 0
 	sa.loop_depth << 0
-	sa.locals << map[string]SymbolTableNode{}
+	sa.locals << SymbolTable{
+		symbols: map[string]SymbolTableNode{}
+	}
 	sa.missing_names << map[string]bool{}
 
 	// Add function arguments to scope
-	if defn is FuncDef {
-		for arg in defn.arguments {
-			mut var := Var{
-				name:            arg.variable.name
-				type_annotation: arg.variable.typ
+	match mut defn {
+		FuncDef {
+			for mut arg in defn.arguments {
+				mut var := Var{
+					name:  arg.variable.name
+					type_: arg.variable.type_
+				}
+				var.fullname = sa.qualified_name(arg.variable.name)
+				sa.add_symbol(arg.variable.name, SymbolNodeRef(var), defn.base)
 			}
-			var._fullname = sa.qualified_name(arg.variable.name)
-			sa.add_symbol(arg.variable.name, var, defn)
 		}
+		else {}
 	}
 
 	// Analyze function body
-	defn.body.accept(sa)
+	match mut defn {
+		FuncDef {
+			defn.body.accept(mut sa)!
+		}
+		Decorator {
+			defn.func.body.accept(mut sa)!
+		}
+		OverloadedFuncDef {
+			// No body
+		}
+		LambdaExpr {
+			defn.expr.accept(mut sa)!
+		}
+	}
 
 	// Leave function scope
 	sa.scope_stack.pop()
-	sa.block_depth.pop()
-	sa.loop_depth.pop()
 	sa.locals.pop()
 	sa.missing_names.pop()
+	sa.block_depth.pop()
+	sa.loop_depth.pop()
 }
 
 // prepare_class_def prepares a class definition
-fn (mut sa SemanticAnalyzer) prepare_class_def(mut defn ClassDef) {
+fn (mut sa SemanticAnalyzer) prepare_class_def(mut defn ClassDef) ! {
 	// Create TypeInfo if not exists
 	if defn.info == none {
 		fullname := sa.qualified_name(defn.name)
@@ -1184,13 +1304,13 @@ fn (mut sa SemanticAnalyzer) prepare_class_def(mut defn ClassDef) {
 	}
 
 	// Process base classes
-	for base_expr in defn.base_type_exprs {
-		base_expr.accept(sa)
+	for mut base_expr in defn.base_type_exprs {
+		base_expr.accept(mut sa)!
 	}
 
 	// Process decorators
-	for dec in defn.decorators {
-		dec.accept(sa)
+	for mut dec in defn.decorators {
+		dec.accept(mut sa)!
 	}
 }
 
@@ -1199,7 +1319,7 @@ fn (mut sa SemanticAnalyzer) setup_type_vars(defn ClassDef, tvar_defs []TypeVarL
 	// Add type variables from class definition to scope
 	for tvar_def in tvar_defs {
 		if tvar_def is TypeVarType {
-			sa.tvar_scope.bind(tvar_def.name, tvar_def)
+			sa.tvar_scope.bind_existing(tvar_def)
 		}
 	}
 }
@@ -1229,7 +1349,7 @@ fn (sa SemanticAnalyzer) found_incomplete_ref(tag int) bool {
 
 // fail reports an error
 pub fn (mut sa SemanticAnalyzer) fail(msg string, ctx NodeBase, serious bool, blocker bool) {
-	sa.errors.report(ctx.line, ctx.column, msg, serious, blocker)
+	sa.errors.report(ctx.ctx.line, ctx.ctx.column, msg, serious, blocker)
 }
 
 // Helper types

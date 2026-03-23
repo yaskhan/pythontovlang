@@ -198,7 +198,8 @@ pub mut:
 }
 
 // new_scope creates a new PartiallyDefinedScope
-pub fn new_scope(stmts []BranchStatement, scope_type ScopeType) PartiallyDefinedScope {
+// new_partially_defined_scope creates a new PartiallyDefinedScope
+pub fn new_partially_defined_scope(stmts []BranchStatement, scope_type ScopeType) PartiallyDefinedScope {
 	return PartiallyDefinedScope{
 		branch_stmts:   stmts
 		scope_type:     scope_type
@@ -272,7 +273,7 @@ pub fn (mut dvt DefinedVariableTracker) enter_scope(scope_type ScopeType) {
 	if scope_type == ScopeType.generator {
 		initial_state = dvt._scope().branch_stmts[dvt._scope().branch_stmts.len - 1].branches.last()
 	}
-	dvt.scopes << new_scope([new_branch_statement(initial_state)], scope_type)
+	dvt.scopes << new_partially_defined_scope([new_branch_statement(initial_state)], scope_type)
 }
 
 // exit_scope exits the current scope

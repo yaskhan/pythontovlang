@@ -48,8 +48,8 @@ pub fn new_type_var_like_scope(parent ?&TypeVarLikeScope,
 	mut scope := TypeVarLikeScope{
 		scope:          map[string]TypeVarLikeType{}
 		parent:         parent
-		func_raw_id:    0
-		class_raw_id:   0
+		func_id:        0
+		class_id:       0
 		is_class_scope: is_class_scope
 		prohibited:     prohibited
 		namespace:      namespace
@@ -57,7 +57,7 @@ pub fn new_type_var_like_scope(parent ?&TypeVarLikeScope,
 
 	if parent != none {
 		p := parent
-		!scope.func_id = p.func_id
+		scope.func_id = p.func_id
 		scope.class_id = p.class_id
 	}
 

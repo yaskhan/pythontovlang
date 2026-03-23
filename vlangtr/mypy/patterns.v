@@ -32,8 +32,8 @@ pub fn (n &AsPattern) get_context() Context {
 	return n.pbase.base.ctx
 }
 
-pub fn (n &AsPattern) accept(v PatternVisitor) !string {
-	return v.visit_as_pattern(n)!
+pub fn (mut n AsPattern) accept(mut v PatternVisitor) !string {
+	return v.visit_as_pattern(mut n)!
 }
 
 // ---------------------------------------------------------------------------
@@ -50,8 +50,8 @@ pub fn (n &OrPattern) get_context() Context {
 	return n.pbase.base.ctx
 }
 
-pub fn (n &OrPattern) accept(v PatternVisitor) !string {
-	return v.visit_or_pattern(n)!
+pub fn (mut n OrPattern) accept(mut v PatternVisitor) !string {
+	return v.visit_or_pattern(mut n)!
 }
 
 // ---------------------------------------------------------------------------
@@ -68,8 +68,8 @@ pub fn (n &ValuePattern) get_context() Context {
 	return n.pbase.base.ctx
 }
 
-pub fn (n &ValuePattern) accept(v PatternVisitor) !string {
-	return v.visit_value_pattern(n)!
+pub fn (mut n ValuePattern) accept(mut v PatternVisitor) !string {
+	return v.visit_value_pattern(mut n)!
 }
 
 // ---------------------------------------------------------------------------
@@ -94,8 +94,8 @@ pub fn (n &SingletonPattern) get_context() Context {
 	return n.pbase.base.ctx
 }
 
-pub fn (n &SingletonPattern) accept(v PatternVisitor) !string {
-	return v.visit_singleton_pattern(n)!
+pub fn (mut n SingletonPattern) accept(mut v PatternVisitor) !string {
+	return v.visit_singleton_pattern(mut n)!
 }
 
 // ---------------------------------------------------------------------------
@@ -112,8 +112,8 @@ pub fn (n &SequencePattern) get_context() Context {
 	return n.pbase.base.ctx
 }
 
-pub fn (n &SequencePattern) accept(v PatternVisitor) !string {
-	return v.visit_sequence_pattern(n)!
+pub fn (mut n SequencePattern) accept(mut v PatternVisitor) !string {
+	return v.visit_sequence_pattern(mut n)!
 }
 
 // ---------------------------------------------------------------------------
@@ -131,8 +131,8 @@ pub fn (n &StarredPattern) get_context() Context {
 	return n.pbase.base.ctx
 }
 
-pub fn (n &StarredPattern) accept(v PatternVisitor) !string {
-	return v.visit_starred_pattern(n)!
+pub fn (mut n StarredPattern) accept(mut v PatternVisitor) !string {
+	return v.visit_starred_pattern(mut n)!
 }
 
 // ---------------------------------------------------------------------------
@@ -152,8 +152,8 @@ pub fn (n &MappingPattern) get_context() Context {
 	return n.pbase.base.ctx
 }
 
-pub fn (n &MappingPattern) accept(v PatternVisitor) !string {
-	return v.visit_mapping_pattern(n)!
+pub fn (mut n MappingPattern) accept(mut v PatternVisitor) !string {
+	return v.visit_mapping_pattern(mut n)!
 }
 
 // ---------------------------------------------------------------------------
@@ -175,8 +175,8 @@ pub fn (n &ClassPattern) get_context() Context {
 	return n.pbase.base.ctx
 }
 
-pub fn (n &ClassPattern) accept(v PatternVisitor) !string {
-	return v.visit_class_pattern(n)!
+pub fn (mut n ClassPattern) accept(mut v PatternVisitor) !string {
+	return v.visit_class_pattern(mut n)!
 }
 
 // ---------------------------------------------------------------------------
@@ -194,16 +194,19 @@ pub type PatternNode = AsPattern
 	| StarredPattern
 	| ValuePattern
 
-// Helper: dispatch accept on a PatternNode value.
-pub fn pattern_accept(p PatternNode, v PatternVisitor) !string {
-	return match p {
-		AsPattern { p.accept(v)! }
-		OrPattern { p.accept(v)! }
-		ValuePattern { p.accept(v)! }
-		SingletonPattern { p.accept(v)! }
-		SequencePattern { p.accept(v)! }
-		StarredPattern { p.accept(v)! }
-		MappingPattern { p.accept(v)! }
-		ClassPattern { p.accept(v)! }
+pub fn (mut p PatternNode) accept(mut v PatternVisitor) !string {
+	return match mut p {
+		AsPattern { p.accept(mut v)! }
+		OrPattern { p.accept(mut v)! }
+		ValuePattern { p.accept(mut v)! }
+		SingletonPattern { p.accept(mut v)! }
+		SequencePattern { p.accept(mut v)! }
+		StarredPattern { p.accept(mut v)! }
+		MappingPattern { p.accept(mut v)! }
+		ClassPattern { p.accept(mut v)! }
 	}
+}
+
+pub fn pattern_accept(mut p PatternNode, mut v PatternVisitor) !string {
+	return p.accept(mut v)!
 }

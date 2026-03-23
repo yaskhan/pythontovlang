@@ -111,7 +111,7 @@ pub fn new_plugin(options Options) Plugin {
 
 // set_modules sets modules for the plugin
 pub fn (mut p Plugin) set_modules(modules map[string]MypyFile) {
-	p.modules = modules
+	p.modules = modules.clone()
 }
 
 // lookup_fully_qualified looks up a symbol by its fully qualified name
@@ -317,17 +317,21 @@ fn lookup_fully_qualified(fullname string, modules map[string]MypyFile) ?SymbolT
 	mod := modules[module_name] or { return none }
 
 	// Lookup in module namespace
-	current := mod.names
+	mut current := modules[parts[0]].names
 	for i in 1 .. parts.len {
 		name := parts[i]
-		if name in current {
-			sym := current[name]
+		if name in current.symbols {
+			sym := current.symbols[name]
 			if i == parts.len - 1 {
 				return sym
 			}
 			// Continue lookup in nested namespace
-			if sym.node is TypeInfo {
-				current = sym.node.names
+			if mut node := sym.node {
+				if node is TypeInfo {
+					current = (node as TypeInfo).names
+				} else {
+					return none
+				}
 			} else {
 				return none
 			}

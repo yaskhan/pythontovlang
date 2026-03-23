@@ -2140,7 +2140,7 @@ fn (mut p Parser) parse_pattern() Pattern {
 			p.advance()
 			patterns << p.parse_pattern_atom()
 		}
-		return MatchOr{
+		pat = MatchOr{
 			token:    tok
 			patterns: patterns
 		}

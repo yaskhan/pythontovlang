@@ -40,7 +40,7 @@ pub fn (mut v RefInfoVisitor) record_ref_expr(expr &RefExpr) {
 	// Since RefExpr is a sum type, use a match or is check correctly
 	match expr {
 		NameExpr {
-			if int(expr.kind) != int(SymbolKind.ldef) && expr.fullname.contains('.') {
+			if int(expr.kind) != int(ldef) && expr.fullname.contains('.') {
 				fullname = expr.fullname
 			}
 		}

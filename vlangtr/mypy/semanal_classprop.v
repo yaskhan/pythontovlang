@@ -33,42 +33,48 @@ pub fn calculate_class_abstract_status(typ &TypeInfo, is_stub_file bool, mut err
 			node := symnode.node or { continue }
 			mut working_node := node
 
-			if working_node is OverloadedFuncDef {
-				if working_node.items.len > 0 {
-					working_node = SymbolNodeRef(working_node.items[0])
-				} else {
-					continue
-				}
-			}
-
-			if working_node is Decorator {
-				working_node = SymbolNodeRef(working_node.func)
-			}
-
-			if working_node is FuncDef {
-				if working_node.abstract_status in [1, 2] && name !in concrete {
-					mutable_typ.is_abstract = true
-					if name !in abstract {
-						abstract << name
+			match mut working_node {
+				OverloadedFuncDef {
+					if working_node.items.len > 0 {
+						working_node = SymbolNodeRef(working_node.items[0])
 					}
-					if base.fullname == typ.fullname {
-						if name !in abstract_in_this_class {
-							abstract_in_this_class << name
+				}
+				Decorator {
+					working_node = SymbolNodeRef(working_node.func)
+				}
+				else {}
+			}
+
+			node_to_check := working_node
+			match node_to_check {
+				FuncDef {
+					if (node_to_check.abstract_status == 1 || node_to_check.abstract_status == 2)
+						&& name !in concrete {
+						mutable_typ.is_abstract = true
+						if name !in abstract {
+							abstract << name
+						}
+						if base.fullname == typ.fullname {
+							if name !in abstract_in_this_class {
+								abstract_in_this_class << name
+							}
 						}
 					}
 				}
-			} else if working_node is Var {
-				if working_node.is_abstract_var && name !in concrete {
-					mutable_typ.is_abstract = true
-					if name !in abstract {
-						abstract << name
-					}
-					if base.fullname == typ.fullname {
-						if name !in abstract_in_this_class {
-							abstract_in_this_class << name
+				Var {
+					if node_to_check.is_abstract_var && name !in concrete {
+						mutable_typ.is_abstract = true
+						if name !in abstract {
+							abstract << name
+						}
+						if base.fullname == typ.fullname {
+							if name !in abstract_in_this_class {
+								abstract_in_this_class << name
+							}
 						}
 					}
 				}
+				else {}
 			}
 			concrete[name] = true
 		}
@@ -91,16 +97,16 @@ pub fn calculate_class_abstract_status(typ &TypeInfo, is_stub_file bool, mut err
 		if abstract.len > 0 && abstract_in_this_class.len == 0 {
 			attrs := sorted_abstract.map('"${it}"').join(', ')
 			errors.report(typ.base.ctx.line, typ.base.ctx.column, 'Class ${typ.fullname} has abstract attributes ${attrs}',
-				.error, none)
+				none, 'error', false, false)
 			errors.report(typ.base.ctx.line, typ.base.ctx.column, "If it is meant to be abstract, add 'abc.ABCMeta' as an explicit metaclass",
-				.note, none)
+				none, 'note', false, false)
 		}
 	}
 
 	if typ.is_final && abstract.len > 0 {
 		attrs := sorted_abstract.map('"${it}"').join(', ')
 		errors.report(typ.base.ctx.line, typ.base.ctx.column, 'Final class ${typ.fullname} has abstract attributes ${attrs}',
-			.error, none)
+			none, 'error', false, false)
 	}
 }
 
@@ -110,7 +116,7 @@ pub fn check_protocol_status(info &TypeInfo, mut errors Errors) {
 			if base_type.typ != none {
 				if !base_type.typ.is_protocol && base_type.typ.fullname != 'builtins.object' {
 					errors.report(info.base.ctx.line, info.base.ctx.column, 'All bases of a protocol must be protocols',
-						.error, none)
+						none, 'error', false, false)
 				}
 			}
 		}
