@@ -149,14 +149,14 @@ fn (mut v VariableRenameVisitor) flush_refs() {
 		return
 	}
 
-	last_refs := v.refs.pop()
-	last_reads := v.num_reads.pop()
+	mut last_refs := v.refs.pop()
+	mut last_reads := v.num_reads.pop()
 
-	for name, collections in last_refs {
+	for name, mut collections in last_refs {
 		reads := last_reads[name] or { 0 }
 
 		if collections.len > 1 && reads <= 1 {
-			for i, coll in collections {
+			for i, mut coll in collections {
 				if i > 0 {
 					for mut expr in coll {
 						expr.is_special_form = true
@@ -206,49 +206,43 @@ pub fn (mut v VariableRenameVisitor) visit_name_expr(mut expr NameExpr) {
 
 // visit_assignment_stmt handles assignment
 pub fn (mut v VariableRenameVisitor) visit_assignment_stmt(mut stmt AssignmentStmt) {
-	for lval in stmt.lvalues {
-		if lval is NameExpr { v.visit_lvalue(Lvalue(lval as NameExpr)) }
-		else if lval is MemberExpr { v.visit_lvalue(Lvalue(lval as MemberExpr)) }
-		else if lval is TupleExpr { v.visit_lvalue(Lvalue(lval as TupleExpr)) }
-		else if lval is ListExpr { v.visit_lvalue(Lvalue(lval as ListExpr)) }
-		else if lval is StarExpr { v.visit_lvalue(Lvalue(lval as StarExpr)) }
+	for mut lval in stmt.lvalues {
+		match mut lval {
+			NameExpr, MemberExpr, ListExpr, TupleExpr, StarExpr {
+				v.visit_lvalue(mut lval)
+			}
+			else {}
+		}
 	}
 	v.visit_expression(mut stmt.rvalue)
 }
 
 // visit_lvalue handles lvalue
-fn (mut v VariableRenameVisitor) visit_lvalue(lval Lvalue) {
-	match lval {
+fn (mut v VariableRenameVisitor) visit_lvalue(mut lval Lvalue) {
+	match mut lval {
 		NameExpr {
-			v.record_definition_helper(lval.name)
+			v.visit_expression(mut Expression(lval))
 		}
-		TupleExpr {
-			for item in lval.items {
-				if item is NameExpr { v.visit_lvalue(Lvalue(item as NameExpr)) }
-				else if item is MemberExpr { v.visit_lvalue(Lvalue(item as MemberExpr)) }
-				else if item is TupleExpr { v.visit_lvalue(Lvalue(item as TupleExpr)) }
-				else if item is ListExpr { v.visit_lvalue(Lvalue(item as ListExpr)) }
-				else if item is StarExpr { v.visit_lvalue(Lvalue(item as StarExpr)) }
-			}
-		}
-		ListExpr {
-			for item in lval.items {
-				if item is NameExpr { v.visit_lvalue(Lvalue(item as NameExpr)) }
-				else if item is MemberExpr { v.visit_lvalue(Lvalue(item as MemberExpr)) }
-				else if item is TupleExpr { v.visit_lvalue(Lvalue(item as TupleExpr)) }
-				else if item is ListExpr { v.visit_lvalue(Lvalue(item as ListExpr)) }
-				else if item is StarExpr { v.visit_lvalue(Lvalue(item as StarExpr)) }
+		TupleExpr, ListExpr {
+			for mut item in lval.items {
+				match mut item {
+					NameExpr, MemberExpr, TupleExpr, ListExpr, StarExpr {
+						v.visit_lvalue(mut Lvalue(item))
+					}
+					else {}
+				}
 			}
 		}
 		MemberExpr {
-			v.visit_expression(mut lval.expr)
+			v.visit_expression(mut Expression(lval))
 		}
 		StarExpr {
-			if lval.expr is NameExpr { v.visit_lvalue(Lvalue(lval.expr as NameExpr)) }
-			else if lval.expr is MemberExpr { v.visit_lvalue(Lvalue(lval.expr as MemberExpr)) }
-			else if lval.expr is TupleExpr { v.visit_lvalue(Lvalue(lval.expr as TupleExpr)) }
-			else if lval.expr is ListExpr { v.visit_lvalue(Lvalue(lval.expr as ListExpr)) }
-			else if lval.expr is StarExpr { v.visit_lvalue(Lvalue(lval.expr as StarExpr)) }
+			match mut lval.expr {
+				NameExpr, MemberExpr, TupleExpr, ListExpr, StarExpr {
+					v.visit_lvalue(mut Lvalue(lval.expr))
+				}
+				else {}
+			}
 		}
 	}
 }
@@ -368,11 +362,12 @@ fn (mut v VariableRenameVisitor) visit_statement(mut stmt Statement) {
 		}
 		ForStmt {
 			v.visit_expression(mut stmt.iter)
-			if stmt.index is NameExpr { v.visit_lvalue(Lvalue(stmt.index as NameExpr)) }
-			else if stmt.index is MemberExpr { v.visit_lvalue(Lvalue(stmt.index as MemberExpr)) }
-			else if stmt.index is TupleExpr { v.visit_lvalue(Lvalue(stmt.index as TupleExpr)) }
-			else if stmt.index is ListExpr { v.visit_lvalue(Lvalue(stmt.index as ListExpr)) }
-			else if stmt.index is StarExpr { v.visit_lvalue(Lvalue(stmt.index as StarExpr)) }
+			match mut stmt.index {
+				NameExpr, MemberExpr, ListExpr, TupleExpr, StarExpr {
+					v.visit_lvalue(mut stmt.index)
+				}
+				else {}
+			}
 			mut lg := v.enter_loop()
 			defer {
 				lg.drop()

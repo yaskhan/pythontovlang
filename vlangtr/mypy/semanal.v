@@ -39,20 +39,20 @@ pub mut:
 	locals                               []?SymbolTable
 	scope_stack                          []int
 	block_depth                          []int
-	_type                                ?TypeInfo
-	type_stack                           []?TypeInfo
+	cur_type                             ?&TypeInfo
+	type_stack                           []?&TypeInfo
 	tvar_scope                           TypeVarLikeScope
 	options                              Options
 	function_stack                       []FuncItem
 	progress                             bool
 	deferred                             bool
 	incomplete                           bool
-	_final_iteration                     bool
+	final_iteration                      bool
 	missing_names                        []map[string]bool
 	loop_depth                           []int
 	cur_mod_id                           string
-	_is_stub_file                        bool
-	_is_typeshed_stub_file               bool
+	is_stub_file                         bool
+	is_typeshed_stub_file                bool
 	imports                              map[string]bool
 	errors                               Errors
 	plugin                               Plugin
@@ -83,26 +83,29 @@ pub fn new_semantic_analyzer(modules map[string]MypyFile, errors Errors, plugin 
 		locals:                               [?SymbolTable(none)]
 		scope_stack:                          [scope_global]
 		block_depth:                          [0]
-		_type:                                none
-		type_stack:                           []?TypeInfo{}
+		cur_type:                             none
+		type_stack:                           []?&TypeInfo{}
 		tvar_scope:                           TypeVarLikeScope{}
 		options:                              options
 		function_stack:                       []FuncItem{}
 		progress:                             false
 		deferred:                             false
 		incomplete:                           false
-		_final_iteration:                     false
+		final_iteration:                      false
 		missing_names:                        [map[string]bool{}]
 		loop_depth:                           [0]
 		cur_mod_id:                           ''
-		_is_stub_file:                        false
-		_is_typeshed_stub_file:               false
+		is_stub_file:                         false
+		is_typeshed_stub_file:                false
 		imports:                              map[string]bool{}
 		errors:                               errors
 		plugin:                               plugin
 		statement:                            none
 		cur_mod_node:                         none
-		msg:                                  MessageBuilder{}
+		msg:                                  MessageBuilder{
+			errors:  &errors
+			options: &options
+		}
 		scope:                                Scope{}
 		incomplete_type_stack:                []bool{}
 		allow_unbound_tvars:                  false
@@ -119,41 +122,41 @@ pub fn new_semantic_analyzer(modules map[string]MypyFile, errors Errors, plugin 
 }
 
 // type returns the current TypeInfo
-pub fn (sa SemanticAnalyzer) type() ?TypeInfo {
-	return sa._type
+pub fn (sa SemanticAnalyzer) type() ?&TypeInfo {
+	return sa.cur_type
 }
 
 // is_stub_file checks if the file is a stub
 pub fn (sa SemanticAnalyzer) is_stub_file() bool {
-	return sa._is_stub_file
+	return sa.is_stub_file
 }
 
 // is_typeshed_stub_file checks if the file is a stub from typeshed
 pub fn (sa SemanticAnalyzer) is_typeshed_stub_file() bool {
-	return sa._is_typeshed_stub_file
+	return sa.is_typeshed_stub_file
 }
 
 // final_iteration checks if this is the final iteration
 pub fn (sa SemanticAnalyzer) final_iteration() bool {
-	return sa._final_iteration
+	return sa.final_iteration
 }
 
 // prepare_file prepares a file for analysis
-pub fn (mut sa SemanticAnalyzer) prepare_file(file_node MypyFile) {
+pub fn (mut sa SemanticAnalyzer) prepare_file(mut file_node MypyFile) {
 	if 'builtins' in sa.modules {
-		file_node.names['__builtins__'] = SymbolTableNode{
-			kind: 0 // GDEF
-			node: sa.modules['builtins']
+		file_node.names.symbols['__builtins__'] = SymbolTableNode{
+			kind: .gdef
+			node: SymbolNodeRef(sa.modules['builtins'])
 		}
 	}
 	if file_node.fullname == 'builtins' {
-		sa.prepare_builtins_namespace(file_node)
+		sa.prepare_builtins_namespace(mut file_node)
 	}
 }
 
 // prepare_builtins_namespace adds special definitions to builtins
-fn (mut sa SemanticAnalyzer) prepare_builtins_namespace(file_node MypyFile) {
-	names := file_node.names
+fn (mut sa SemanticAnalyzer) prepare_builtins_namespace(mut file_node MypyFile) {
+	mut names := file_node.names
 
 	// Add empty definitions for base classes
 	for name in core_builtin_classes {
@@ -163,69 +166,74 @@ fn (mut sa SemanticAnalyzer) prepare_builtins_namespace(file_node MypyFile) {
 				body: []
 			}
 		}
-		info := new_type_info(names, cdef, 'builtins')
-		info._fullname = 'builtins.${name}'
-		names[name] = SymbolTableNode{
-			kind: 0
-			node: info
+		mut info := new_type_info(mut names, cdef, 'builtins')
+		info.fullname = 'builtins.${name}'
+		names.symbols[name] = SymbolTableNode{
+			kind: .gdef
+			node: SymbolNodeRef(info)
 		}
 	}
 
 	// Add special variables
-	bool_info := names['bool'].node
-	assert bool_info is TypeInfoNode
+	bool_node := names.symbols['bool'].node or { panic('bool not found') }
+	bool_info := bool_node as TypeInfo
 
 	special_names := ['None', 'reveal_type', 'reveal_locals', 'True', 'False', '__debug__']
 	special_types := [
-		NoneTypeNode{},
-		AnyTypeNode{
-			reason: TypeOfAny.special_form
-		},
-		AnyTypeNode{
-			reason: TypeOfAny.special_form
-		},
-		InstanceNode{
-			typ:  bool_info
-			args: []
-		},
-		InstanceNode{
-			typ:  bool_info
-			args: []
-		},
-		InstanceNode{
-			typ:  bool_info
-			args: []
-		},
+		MypyTypeNode(NoneType{}),
+		MypyTypeNode(AnyType{
+			type_of_any: .special_form
+		}),
+		MypyTypeNode(AnyType{
+			type_of_any: .special_form
+		}),
+		MypyTypeNode(Instance{
+			type_:     &bool_info
+			args:      []
+			type_name: 'builtins.bool'
+		}),
+		MypyTypeNode(Instance{
+			type_:     &bool_info
+			args:      []
+			type_name: 'builtins.bool'
+		}),
+		MypyTypeNode(Instance{
+			type_:     &bool_info
+			args:      []
+			type_name: 'builtins.bool'
+		}),
 	]
 
 	for i, name in special_names {
 		typ := special_types[i]
-		v := Var{
-			name:            name
-			type_annotation: typ
+		mut v := Var{
+			name:     name
+			fullname: 'builtins.${name}'
+			type_:    typ
 		}
-		v._fullname = 'builtins.${name}'
-		names[name] = SymbolTableNode{
-			kind: 0
-			node: v
+		names.symbols[name] = SymbolTableNode{
+			kind: .gdef
+			node: SymbolNodeRef(v)
 		}
 	}
 }
 
 // visit_mypy_file handles MypyFile
-pub fn (mut sa SemanticAnalyzer) visit_mypy_file(file_node MypyFile) {
+pub fn (mut sa SemanticAnalyzer) visit_mypy_file(mut file_node MypyFile) !string {
 	sa.cur_mod_node = file_node
 	sa.cur_mod_id = file_node.fullname
+
 	sa.globals = file_node.names
 
-	for defn in file_node.defs {
-		sa.accept(defn)
+	for mut defn in file_node.defs {
+		defn.accept(mut sa)!
 	}
+	return ''
 }
 
 // visit_func_def handles function definition
-pub fn (mut sa SemanticAnalyzer) visit_func_def(defn FuncDef) {
-	sa.statement = defn
+pub fn (mut sa SemanticAnalyzer) visit_func_def(mut defn FuncDef) !string {
+	sa.statement = Statement(defn)
 
 	for arg in defn.arguments {
 		if arg.initializer != none {
@@ -234,91 +242,93 @@ pub fn (mut sa SemanticAnalyzer) visit_func_def(defn FuncDef) {
 	}
 
 	defn.is_conditional = sa.block_depth.last() > 0
-	defn._fullname = sa.qualified_name(defn.name)
+	defn.fullname = sa.qualified_name(defn.name)
 
 	if !sa.recurse_into_functions() || sa.function_stack.len > 0 {
 		if !defn.is_decorated && !defn.is_overload {
-			sa.add_function_to_symbol_table(defn)
+			sa.add_function_to_symbol_table(mut defn)
 		}
 	}
 
 	if !sa.recurse_into_functions() && !defn.def_or_infer_vars {
-		return
+		return ''
 	}
 
 	sa.function_stack << defn
-	sa.analyze_func_def(defn)
+	sa.analyze_func_def(mut defn)
 	sa.function_stack.pop()
+	return ''
 }
 
 // analyze_func_def analyzes function definition
-fn (mut sa SemanticAnalyzer) analyze_func_def(defn FuncDef) {
-	if sa.push_type_args(defn.type_args, defn) == none {
-		sa.defer(defn)
+fn (mut sa SemanticAnalyzer) analyze_func_def(mut defn FuncDef) {
+	if sa.push_type_args(defn.type_params, defn.base) == none {
+		sa.defer(defn.base)
 		return
 	}
 
 	sa.function_stack << defn
 
 	mut has_self_type := false
-	if defn.type != none {
-		has_self_type = sa.update_function_type_variables(defn.type as CallableTypeNode,
-			defn)
+	if defn.type_ != none {
+		if defn.type_ is CallableType {
+			sa.update_function_type_variables(defn.type_ as CallableType, defn)
+		}
 	}
 
 	sa.function_stack.pop()
 
 	if sa.is_class_scope() {
-		defn.info = sa._type
+		defn.info = sa.cur_type
 	}
 
 	// TODO: function signature analysis
-	sa.analyze_function_body(defn)
-	sa.pop_type_args(defn.type_args)
+	sa.analyze_function_body(mut defn)
+	sa.pop_type_args(defn.type_params)
 }
 
 // visit_class_def handles class definition
-pub fn (mut sa SemanticAnalyzer) visit_class_def(defn ClassDef) {
-	sa.statement = defn
+pub fn (mut sa SemanticAnalyzer) visit_class_def(mut defn ClassDef) !string {
+	sa.statement = Statement(defn)
 	sa.incomplete_type_stack << (defn.info == none)
 
 	namespace := sa.qualified_name(defn.name)
-	if sa.push_type_args(defn.type_args, defn) == none {
-		sa.mark_incomplete(defn.name, defn)
-		return
+	if sa.push_type_args(defn.type_params, defn.base) == none {
+		// sa.mark_incomplete(defn.name, defn.base)
+		return ''
 	}
 
-	sa.analyze_class(defn)
-	sa.pop_type_args(defn.type_args)
+	sa.analyze_class(mut defn)
+	sa.pop_type_args(defn.type_params)
 	sa.incomplete_type_stack.pop()
+	return ''
 }
 
 // analyze_class analyzes class definition
-fn (mut sa SemanticAnalyzer) analyze_class(defn ClassDef) {
+fn (mut sa SemanticAnalyzer) analyze_class(mut defn ClassDef) {
 	fullname := sa.qualified_name(defn.name)
 
 	if defn.info == none && !sa.is_core_builtin_class(defn) {
 		placeholder := PlaceholderNode{
 			fullname:         fullname
 			node:             defn
-			line:             defn.line
 			becomes_typeinfo: true
 		}
-		sa.add_symbol(defn.name, placeholder, defn)
+		sa.add_symbol(defn.name, placeholder, defn.base)
 	}
 
 	// TODO: full class analysis implementation
-	sa.prepare_class_def(defn)
+	sa.prepare_class_def(mut defn)
 	sa.setup_type_vars(defn, [])
 
 	sa.enter_class(defn.info or { return })
-	defn.defs.accept(sa)
+	defn.defs.accept(mut sa)!
 	sa.leave_class()
 }
 
 // visit_import handles import
-pub fn (mut sa SemanticAnalyzer) visit_import(i Import) {
-	sa.statement = i
+pub fn (mut sa SemanticAnalyzer) visit_import(mut i Import) !string {
+	sa.statement = Statement(i)
 	for id, as_id in i.ids {
 		use_implicit_reexport := !sa.is_stub_file() && sa.options.implicit_reexport
 		base_id := if as_id != none { id } else { id.split('.')[0] }
@@ -328,15 +338,15 @@ pub fn (mut sa SemanticAnalyzer) visit_import(i Import) {
 		if base_id in sa.modules {
 			node := sa.modules[base_id]
 			kind := if sa.is_func_scope() {
-				2
-			} else if sa._type != none {
-				1
+				SymbolKind.ldef
+			} else if sa.cur_type != none {
+				SymbolKind.mdef
 			} else {
-				0
+				SymbolKind.gdef
 			}
 			symbol := SymbolTableNode{
 				kind:          kind
-				node:          node
+				node:          SymbolNodeRef(node)
 				module_public: module_public
 				module_hidden: !module_public
 			}
@@ -345,11 +355,12 @@ pub fn (mut sa SemanticAnalyzer) visit_import(i Import) {
 			sa.add_unknown_imported_symbol(imported_id, i, base_id, module_public, !module_public)
 		}
 	}
+	return ''
 }
 
 // visit_import_from handles from ... import
-pub fn (mut sa SemanticAnalyzer) visit_import_from(imp ImportFrom) {
-	sa.statement = imp
+pub fn (mut sa SemanticAnalyzer) visit_import_from(mut imp ImportFrom) !string {
+	sa.statement = Statement(imp)
 	mod_id := sa.correct_relative_import(imp)
 	mod := sa.modules[mod_id] or { none }
 
@@ -359,7 +370,7 @@ pub fn (mut sa SemanticAnalyzer) visit_import_from(imp ImportFrom) {
 
 		mut node := ?SymbolTableNode(none)
 		if mod != none {
-			node = (mod as MypyFile).names[id] or { none }
+			node = (mod as MypyFile).names.symbols[id] or { none }
 		}
 
 		imported_id := if as_id != none { as_id } else { id }
@@ -367,7 +378,8 @@ pub fn (mut sa SemanticAnalyzer) visit_import_from(imp ImportFrom) {
 		module_public := use_implicit_reexport || (as_id != none && id == as_id)
 
 		if node != none {
-			sa.add_imported_symbol(imported_id, node, imp, module_public, !module_public)
+			sa.add_imported_symbol(imported_id, node or { return '' }, imp, module_public,
+				!module_public)
 		} else if mod != none {
 			sa.report_missing_module_attribute(mod_id, id, imported_id, imp)
 		} else {
@@ -375,237 +387,347 @@ pub fn (mut sa SemanticAnalyzer) visit_import_from(imp ImportFrom) {
 				!module_public)
 		}
 	}
+	return ''
 }
 
 // visit_assignment_stmt handles assignment
-pub fn (mut sa SemanticAnalyzer) visit_assignment_stmt(s AssignmentStmt) {
-	sa.statement = s
+pub fn (mut sa SemanticAnalyzer) visit_assignment_stmt(mut s AssignmentStmt) !string {
+	sa.statement = Statement(s)
 
 	if sa.analyze_identity_global_assignment(s) {
-		return
+		return ''
 	}
 
 	tag := sa.track_incomplete_refs()
 	// TODO: analyze rvalue
-	s.rvalue.accept(sa)
+	s.rvalue.accept(mut sa)!
 
 	if sa.found_incomplete_ref(tag) {
 		for expr in sa.names_modified_by_assignment(s) {
-			sa.mark_incomplete(expr.name, expr)
+			sa.mark_incomplete(expr.name, expr.base)
 		}
-		return
+		return ''
 	}
 
 	// TODO: check special forms (type alias, TypeVar, etc.)
 	s.is_final_def = sa.unwrap_final(s)
-	sa.analyze_lvalues(s)
+	sa.analyze_lvalues(mut s)
 	// TODO: additional checks
+	return ''
 }
 
 // visit_if_stmt handles if
-pub fn (mut sa SemanticAnalyzer) visit_if_stmt(s IfStmt) {
-	sa.statement = s
+pub fn (mut sa SemanticAnalyzer) visit_if_stmt(mut s IfStmt) !string {
+	sa.statement = Statement(s)
 	// TODO: infer_reachability_of_if_statement
 	for i in 0 .. s.expr.len {
-		s.expr[i].accept(sa)
-		sa.visit_block(s.body[i])
+		s.expr[i].accept(mut sa)!
+		sa.visit_block(mut s.body[i])!
 	}
-	sa.visit_block_maybe(s.else_body)
+	sa.visit_block_maybe(mut s.else_body)!
+	return ''
 }
 
 // visit_block handles block
-pub fn (mut sa SemanticAnalyzer) visit_block(b Block) {
+pub fn (mut sa SemanticAnalyzer) visit_block(mut b Block) !string {
 	if b.is_unreachable {
-		return
+		return ''
 	}
 	sa.block_depth[sa.block_depth.len - 1]++
-	for s in b.body {
-		sa.accept(s)
+	for mut s in b.body {
+		sa.accept(mut s)!
 	}
 	sa.block_depth[sa.block_depth.len - 1]--
+	return ''
 }
 
 // visit_block_maybe handles optional block
-pub fn (mut sa SemanticAnalyzer) visit_block_maybe(b ?Block) {
+pub fn (mut sa SemanticAnalyzer) visit_block_maybe(mut b ?Block) !string {
 	if b != none {
-		sa.visit_block(b)
+		sa.visit_block(mut b or { return '' })!
 	}
+	return ''
 }
 
 // visit_while_stmt handles while
-pub fn (mut sa SemanticAnalyzer) visit_while_stmt(s WhileStmt) {
-	sa.statement = s
-	s.expr.accept(sa)
+pub fn (mut sa SemanticAnalyzer) visit_while_stmt(mut s WhileStmt) !string {
+	sa.statement = Statement(s)
+	s.expr.accept(mut sa)!
+	sa.analyze_lvalue(mut s.index, false, s.index_type != none)
 	sa.loop_depth[sa.loop_depth.len - 1]++
-	sa.visit_block(s.body)
+	sa.visit_block(mut s.body)!
 	sa.loop_depth[sa.loop_depth.len - 1]--
-	sa.visit_block_maybe(s.else_body)
+	sa.visit_block_maybe(mut s.else_body)!
+	return ''
 }
 
 // visit_for_stmt handles for
-pub fn (mut sa SemanticAnalyzer) visit_for_stmt(s ForStmt) {
+pub fn (mut sa SemanticAnalyzer) visit_for_stmt(mut s ForStmt) !string {
 	if s.is_async {
 		// TODO: async check
 	}
-	sa.statement = s
-	s.expr.accept(sa)
-	sa.analyze_lvalue(s.index, false, s.index_type != none)
+	sa.statement = Statement(s)
+	s.expr.accept(mut sa)!
+	sa.analyze_lvalue(mut s.index, false, s.index_type != none)
 	sa.loop_depth[sa.loop_depth.len - 1]++
-	sa.visit_block(s.body)
+	sa.visit_block(mut s.body)!
 	sa.loop_depth[sa.loop_depth.len - 1]--
-	sa.visit_block_maybe(s.else_body)
+	sa.visit_block_maybe(mut s.else_body)!
+	return ''
 }
 
 // visit_return_stmt handles return
-pub fn (mut sa SemanticAnalyzer) visit_return_stmt(s ReturnStmt) {
+pub fn (mut sa SemanticAnalyzer) visit_return_stmt(mut s ReturnStmt) !string {
 	if !sa.is_func_scope() {
-		sa.fail('"return" outside function', s)
+		sa.fail('"return" outside function', s.base)
 	}
 	if s.expr != none {
-		s.expr.accept(sa)
+		s.expr.accept(mut sa)!
 	}
+	return ''
 }
 
 // visit_break_stmt handles break
-pub fn (mut sa SemanticAnalyzer) visit_break_stmt(s BreakStmt) {
+pub fn (mut sa SemanticAnalyzer) visit_break_stmt(mut s BreakStmt) !string {
+	sa.statement = Statement(s)
 	if sa.loop_depth.last() == 0 {
 		sa.fail('"break" outside loop', s, serious: true, blocker: true)
 	}
+	return ''
 }
 
 // visit_continue_stmt handles continue
-pub fn (mut sa SemanticAnalyzer) visit_continue_stmt(s ContinueStmt) {
+pub fn (mut sa SemanticAnalyzer) visit_continue_stmt(mut s ContinueStmt) !string {
+	sa.statement = Statement(s)
 	if sa.loop_depth.last() == 0 {
 		sa.fail('"continue" outside loop', s, serious: true, blocker: true)
 	}
+	return ''
 }
 
 // visit_try_stmt handles try
-pub fn (mut sa SemanticAnalyzer) visit_try_stmt(s TryStmt) {
-	sa.statement = s
-	s.body.accept(sa)
+pub fn (mut sa SemanticAnalyzer) visit_try_stmt(mut s TryStmt) !string {
+	sa.statement = Statement(s)
+	s.body.accept(mut sa)!
 	for i in 0 .. s.types.len {
 		if s.types[i] != none {
-			s.types[i].accept(sa)
+			s.types[i].accept(mut sa)!
 		}
 		if s.vars[i] != none {
-			sa.analyze_lvalue(s.vars[i], false, false)
+			sa.analyze_lvalue(mut s.vars[i] or { return '' }, false, false)
 		}
-		s.handlers[i].accept(sa)
+		s.handlers[i].accept(mut sa)!
 	}
-	sa.visit_block_maybe(s.else_body)
-	sa.visit_block_maybe(s.finally_body)
+	sa.visit_block_maybe(mut s.else_body)!
+	sa.visit_block_maybe(mut s.finally_body)!
+	return ''
 }
 
 // visit_decorator handles decorator
-pub fn (mut sa SemanticAnalyzer) visit_decorator(dec Decorator) {
-	sa.statement = dec
+pub fn (mut sa SemanticAnalyzer) visit_decorator(mut dec Decorator) !string {
+	sa.statement = Statement(dec)
 	dec.decorators = dec.original_decorators.clone()
 	dec.func.is_conditional = sa.block_depth.last() > 0
 
 	if !dec.is_overload {
-		sa.add_symbol(dec.name, dec, dec)
+		sa.add_symbol(dec.name, dec, dec.base)
 	}
 
-	dec.func._fullname = sa.qualified_name(dec.name)
-	dec.var._fullname = sa.qualified_name(dec.name)
+	dec.func.fullname = sa.qualified_name(dec.name)
+	dec.var.fullname = sa.qualified_name(dec.name)
 
-	for d in dec.decorators {
-		d.accept(sa)
+	for mut d in dec.decorators {
+		d.accept(mut sa)!
 	}
 
 	// TODO: handle special decorators (abstractmethod, staticmethod, etc.)
+	return ''
 }
 
 // visit_expression_stmt handles expression statement
-pub fn (mut sa SemanticAnalyzer) visit_expression_stmt(s ExpressionStmt) {
-	sa.statement = s
-	s.expr.accept(sa)
+pub fn (mut sa SemanticAnalyzer) visit_expression_stmt(mut s ExpressionStmt) !string {
+	sa.statement = Statement(s)
+	s.expr.accept(mut sa)!
+	return ''
 }
 
 // visit_name_expr handles name
-pub fn (mut sa SemanticAnalyzer) visit_name_expr(expr NameExpr) {
-	n := sa.lookup(expr.name, expr)
+pub fn (mut sa SemanticAnalyzer) visit_name_expr(mut expr NameExpr) !string {
+	n := sa.lookup(expr.name, expr.base)
 	if n != none {
-		sa.bind_name_expr(expr, n)
+		sa.bind_name_expr(mut expr, n or { return '' })
 	}
+	return ''
 }
 
 // visit_member_expr handles member access
-pub fn (mut sa SemanticAnalyzer) visit_member_expr(expr MemberExpr) {
-	expr.expr.accept(sa)
+pub fn (mut sa SemanticAnalyzer) visit_member_expr(mut expr MemberExpr) !string {
+	expr.expr.accept(mut sa)!
 	// TODO: handle member access
+	return ''
 }
 
 // visit_call_expr handles call
-pub fn (mut sa SemanticAnalyzer) visit_call_expr(expr CallExpr) {
-	expr.callee.accept(sa)
+pub fn (mut sa SemanticAnalyzer) visit_call_expr(mut expr CallExpr) !string {
+	expr.callee.accept(mut sa)!
 	// TODO: handle special calls (cast, reveal_type, etc.)
-	for a in expr.args {
-		a.accept(sa)
+	for mut a in expr.args {
+		a.accept(mut sa)!
 	}
+	return ''
 }
 
 // visit_int_expr handles int literal
-pub fn (sa SemanticAnalyzer) visit_int_expr(expr IntExpr) {
+pub fn (mut sa SemanticAnalyzer) visit_int_expr(mut expr IntExpr) !string {
 	// Do nothing
+	return ''
 }
 
 // visit_str_expr handles string literal
-pub fn (sa SemanticAnalyzer) visit_str_expr(expr StrExpr) {
+pub fn (mut sa SemanticAnalyzer) visit_str_expr(mut expr StrExpr) !string {
 	// Do nothing
+	return ''
+}
+
+// visit_var handles variable
+pub fn (mut sa SemanticAnalyzer) visit_var(mut o Var) !string {
+	// TODO: visit_var
+	return ''
+}
+
+// visit_type_alias handles type alias
+pub fn (mut sa SemanticAnalyzer) visit_type_alias(mut o TypeAlias) !string {
+	// TODO: visit_type_alias
+	return ''
+}
+
+// visit_placeholder_node handles placeholder node
+pub fn (mut sa SemanticAnalyzer) visit_placeholder_node(mut o PlaceholderNode) !string {
+	// TODO: visit_placeholder_node
+	return ''
+}
+
+pub fn (mut sa SemanticAnalyzer) visit_bytes_expr(mut o BytesExpr) !string {
+	return ''
+}
+
+pub fn (mut sa SemanticAnalyzer) visit_float_expr(mut o FloatExpr) !string {
+	return ''
+}
+
+pub fn (mut sa SemanticAnalyzer) visit_complex_expr(mut o ComplexExpr) !string {
+	return ''
+}
+
+pub fn (mut sa SemanticAnalyzer) visit_ellipsis(mut o EllipsisExpr) !string {
+	return ''
+}
+
+pub fn (mut sa SemanticAnalyzer) visit_star_expr(mut o StarExpr) !string {
+	return ''
+}
+
+pub fn (mut sa SemanticAnalyzer) visit_yield_from_expr(mut o YieldFromExpr) !string {
+	return ''
+}
+
+pub fn (mut sa SemanticAnalyzer) visit_yield_expr(mut o YieldExpr) !string {
+	return ''
+}
+
+pub fn (mut sa SemanticAnalyzer) visit_op_expr(mut o OpExpr) !string {
+	return ''
+}
+
+pub fn (mut sa SemanticAnalyzer) visit_comparison_expr(mut o ComparisonExpr) !string {
+	return ''
+}
+
+pub fn (mut sa SemanticAnalyzer) visit_cast_expr(mut o CastExpr) !string {
+	return ''
+}
+
+pub fn (mut sa SemanticAnalyzer) visit_assert_type_expr(mut o AssertTypeExpr) !string {
+	return ''
+}
+
+pub fn (mut sa SemanticAnalyzer) visit_reveal_expr(mut o RevealExpr) !string {
+	return ''
+}
+
+pub fn (mut sa SemanticAnalyzer) visit_super_expr(mut o SuperExpr) !string {
+	return ''
+}
+
+pub fn (mut sa SemanticAnalyzer) visit_unary_expr(mut o UnaryExpr) !string {
+	return ''
+}
+
+pub fn (mut sa SemanticAnalyzer) visit_assignment_expr(mut o AssignmentExpr) !string {
+	return ''
+}
+
+pub fn (mut sa SemanticAnalyzer) visit_index_expr(mut o IndexExpr) !string {
+	return ''
+}
+
+pub fn (mut sa SemanticAnalyzer) visit_type_application(mut o TypeApplication) !string {
+	return ''
+}
+
+pub fn (mut sa SemanticAnalyzer) visit_lambda_expr(mut o LambdaExpr) !string {
+	return ''
+}
+
+pub fn (mut sa SemanticAnalyzer) visit_list_comprehension(mut o ListComprehension) !string {
+	return ''
+}
+
+pub fn (mut sa SemanticAnalyzer) visit_set_comprehension(mut o SetComprehension) !string {
+	return ''
+}
+
+pub fn (mut sa SemanticAnalyzer) visit_dictionary_comprehension(mut o DictionaryComprehension) !string {
+	return ''
+}
+
+pub fn (mut sa SemanticAnalyzer) visit_generator_expr(mut o GeneratorExpr) !string {
+	return ''
+}
+
+pub fn (mut sa SemanticAnalyzer) visit_list_expr(mut o ListExpr) !string {
+	return ''
+}
+
+pub fn (mut sa SemanticAnalyzer) visit_dict_expr(mut o DictExpr) !string {
+	return ''
+}
+
+pub fn (mut sa SemanticAnalyzer) visit_template_str_expr(mut o TemplateStrExpr) !string {
+	return ''
+}
+
+pub fn (mut sa SemanticAnalyzer) visit_tuple_expr(mut o TupleExpr) !string {
+	return ''
+}
+
+pub fn (mut sa SemanticAnalyzer) visit_set_expr(mut o SetExpr) !string {
+	return ''
+}
+
+pub fn (mut sa SemanticAnalyzer) visit_index_expr(mut o IndexExpr) !string {
+	return ''
 }
 
 // visit_pass_stmt handles pass
-pub fn (sa SemanticAnalyzer) visit_pass_stmt(s PassStmt) {
+pub fn (sa SemanticAnalyzer) visit_pass_stmt(mut s PassStmt) !string {
 	// Do nothing
+	return ''
 }
 
 // accept accepts a node
-pub fn (mut sa SemanticAnalyzer) accept(node Node) {
-	if node is FuncDef {
-		sa.visit_func_def(node)
-	} else if node is ClassDef {
-		sa.visit_class_def(node)
-	} else if node is AssignmentStmt {
-		sa.visit_assignment_stmt(node)
-	} else if node is IfStmt {
-		sa.visit_if_stmt(node)
-	} else if node is WhileStmt {
-		sa.visit_while_stmt(node)
-	} else if node is ForStmt {
-		sa.visit_for_stmt(node)
-	} else if node is ReturnStmt {
-		sa.visit_return_stmt(node)
-	} else if node is BreakStmt {
-		sa.visit_break_stmt(node)
-	} else if node is ContinueStmt {
-		sa.visit_continue_stmt(node)
-	} else if node is TryStmt {
-		sa.visit_try_stmt(node)
-	} else if node is Decorator {
-		sa.visit_decorator(node)
-	} else if node is ExpressionStmt {
-		sa.visit_expression_stmt(node)
-	} else if node is PassStmt {
-		sa.visit_pass_stmt(node)
-	} else if node is Import {
-		sa.visit_import(node)
-	} else if node is ImportFrom {
-		sa.visit_import_from(node)
-	} else if node is Block {
-		sa.visit_block(node)
-	} else if node is NameExpr {
-		sa.visit_name_expr(node)
-	} else if node is MemberExpr {
-		sa.visit_member_expr(node)
-	} else if node is CallExpr {
-		sa.visit_call_expr(node)
-	} else if node is IntExpr {
-		sa.visit_int_expr(node)
-	} else if node is StrExpr {
-		sa.visit_str_expr(node)
-	}
+pub fn (mut sa SemanticAnalyzer) accept(mut node Node) !string {
+	return node.accept(mut sa)!
 }
 
 // lookup looks up a name
@@ -665,10 +787,12 @@ pub fn (sa SemanticAnalyzer) lookup_qualified(name string, ctx NodeBase, suppres
 				}
 				return none
 			}
+		} else if sym.node is TypeInfo {
+			current = (sym.node as TypeInfo).names
 		} else if current.node is MypyFile {
 			file := current.node as MypyFile
-			if part in file.names {
-				current = file.names[part]
+			if part in file.names.symbols {
+				current = file.names.symbols[part]
 			} else {
 				if !suppress_errors {
 					sa.fail('Name "${part}" not found in module "${parts[..i].join('.')}"',
@@ -775,8 +899,8 @@ fn (sa SemanticAnalyzer) analyze_identity_global_assignment(s AssignmentStmt) bo
 
 // qualified_name returns the qualified name
 fn (sa SemanticAnalyzer) qualified_name(name string) string {
-	if sa._type != none {
-		return (sa._type or { return '' })._fullname + '.' + name
+	if sa.cur_type != none {
+		return (sa.cur_type or { return '' }).fullname + '.' + name
 	} else if sa.is_func_scope() {
 		return name
 	}
@@ -791,7 +915,7 @@ fn (sa SemanticAnalyzer) is_func_scope() bool {
 
 // is_class_scope checks if we are in a class
 fn (sa SemanticAnalyzer) is_class_scope() bool {
-	return sa._type != none && !sa.is_func_scope()
+	return sa.cur_type != none && !sa.is_func_scope()
 }
 
 // is_module_scope checks if we are in a module
@@ -810,13 +934,13 @@ fn (sa SemanticAnalyzer) recurse_into_functions() bool {
 }
 
 // enter_class enters a class
-fn (mut sa SemanticAnalyzer) enter_class(info TypeInfo) {
-	sa.type_stack << sa._type
+fn (mut sa SemanticAnalyzer) enter_class(info &TypeInfo) {
+	sa.type_stack << sa.cur_type
 	sa.locals << none
 	sa.scope_stack << scope_class
 	sa.block_depth << -1
-	sa.loop_depth << 0
-	sa._type = info
+	sa.loop_depth << [0]
+	sa.cur_type = info
 	sa.missing_names << map[string]bool{}
 }
 
@@ -826,16 +950,16 @@ fn (mut sa SemanticAnalyzer) leave_class() {
 	sa.loop_depth.pop()
 	sa.locals.pop()
 	sa.scope_stack.pop()
-	sa._type = sa.type_stack.pop()
+	sa.cur_type = sa.type_stack.pop()
 	sa.missing_names.pop()
 }
 
 // add_function_to_symbol_table adds a function to the symbol table
-fn (mut sa SemanticAnalyzer) add_function_to_symbol_table(func_def FuncDef) {
+fn (mut sa SemanticAnalyzer) add_function_to_symbol_table(mut func_def FuncDef) {
 	if sa.is_class_scope() {
-		func_def.info = sa._type
+		func_def.info = sa.cur_type
 	}
-	func_def._fullname = sa.qualified_name(func_def.name)
+	func_def.fullname = sa.qualified_name(func_def.name)
 	sa.add_symbol(func_def.name, func_def, func_def)
 }
 
@@ -1004,7 +1128,7 @@ fn (mut sa SemanticAnalyzer) pop_type_args(type_args []TypeParam) {
 }
 
 // update_function_type_variables updates function type variables
-fn (mut sa SemanticAnalyzer) update_function_type_variables(fun_type CallableTypeNode, defn FuncItem) bool {
+fn (mut sa SemanticAnalyzer) update_function_type_variables(fun_type CallableType, defn FuncItem) bool {
 	// Process type variables from function signature
 	if fun_type.variables.len > 0 {
 		for tvar in fun_type.variables {
@@ -1018,7 +1142,7 @@ fn (mut sa SemanticAnalyzer) update_function_type_variables(fun_type CallableTyp
 }
 
 // analyze_function_body analyzes a function body
-fn (mut sa SemanticAnalyzer) analyze_function_body(defn FuncItem) {
+fn (mut sa SemanticAnalyzer) analyze_function_body(mut defn FuncItem) {
 	// Enter function scope
 	sa.scope_stack << scope_func
 	sa.block_depth << 0
@@ -1050,12 +1174,12 @@ fn (mut sa SemanticAnalyzer) analyze_function_body(defn FuncItem) {
 }
 
 // prepare_class_def prepares a class definition
-fn (mut sa SemanticAnalyzer) prepare_class_def(defn ClassDef) {
+fn (mut sa SemanticAnalyzer) prepare_class_def(mut defn ClassDef) {
 	// Create TypeInfo if not exists
 	if defn.info == none {
 		fullname := sa.qualified_name(defn.name)
-		mut info := new_type_info(sa.globals, defn, sa.cur_mod_id)
-		info._fullname = fullname
+		mut info := new_type_info(mut sa.globals, defn, sa.cur_mod_id)
+		info.fullname = fullname
 		defn.info = info
 	}
 
@@ -1109,24 +1233,13 @@ pub fn (mut sa SemanticAnalyzer) fail(msg string, ctx NodeBase, serious bool, bl
 }
 
 // Helper types
-type FuncItem = FuncDef | LambdaExpr | Decorator
-type SymbolNode = FuncDef
-	| Var
-	| TypeInfo
-	| Decorator
-	| TypeAlias
-	| PlaceholderNode
-	| OverloadedFuncDef
-type Lvalue = NameExpr | MemberExpr | TupleExpr | StarExpr | ListExpr
-type Statement = FuncDef
-	| ClassDef
-	| AssignmentStmt
-	| IfStmt
-	| WhileStmt
-	| ForStmt
-	| ReturnStmt
-	| Import
-	| ImportFrom
-	| Block
-type Expression = NameExpr | MemberExpr | CallExpr | IntExpr | StrExpr | OpExpr
-type NodeBase = Context | Statement | Expression | FuncDef | ClassDef
+// new_type_info — helper for creating TypeInfo
+pub fn new_type_info(mut names SymbolTable, defn ClassDef, module_name string) &TypeInfo {
+	return &TypeInfo{
+		name:        defn.name
+		fullname:    module_name + '.' + defn.name
+		module_name: module_name
+		names:       names
+		defn:        &defn
+	}
+}

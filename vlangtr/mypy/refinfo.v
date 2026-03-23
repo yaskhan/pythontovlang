@@ -40,16 +40,16 @@ pub fn (mut v RefInfoVisitor) record_ref_expr(expr &RefExpr) {
 	// Since RefExpr is a sum type, use a match or is check correctly
 	match expr {
 		NameExpr {
-			if expr.kind != .ldef && expr.fullname.contains('.') {
+			if int(expr.kind) != int(SymbolKind.ldef) && expr.fullname.contains('.') {
 				fullname = expr.fullname
 			}
 		}
 		MemberExpr {
-			if expr.kind != .ldef && (expr.fullname or { '' }).contains('.') {
+			if expr.kind != ldef && (expr.fullname or { '' }).contains('.') {
 				fullname = expr.fullname or { '' }
 			} else {
 				m_expr := expr
-				typ := v.type_map[voidptr(m_expr.expr)] or { MypyTypeNode(AnyType{}) }
+				typ := v.type_map[unsafe { voidptr(&m_expr.expr) }] or { MypyTypeNode(AnyType{}) }
 				// Extract node if the sub-expression is NameExpr or MemberExpr
 				sym := match m_expr.expr {
 					NameExpr { m_expr.expr.node }

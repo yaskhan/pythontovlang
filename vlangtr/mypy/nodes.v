@@ -98,6 +98,7 @@ pub mut:
 	ids            []ImportAlias
 	is_top_level   bool
 	is_unreachable bool
+	is_mypy_only   bool
 }
 
 pub struct ImportAlias {
@@ -106,11 +107,11 @@ pub:
 	alias ?string
 }
 
-pub fn (mut n Import) get_context() Context {
+pub fn (n Import) get_context() Context {
 	return n.base.ctx
 }
 
-pub fn (mut n Import) accept(mut v NodeVisitor) !string {
+pub fn (n Import) accept(mut v NodeVisitor) !string {
 	return v.visit_import(mut n)!
 }
 
@@ -123,13 +124,14 @@ pub mut:
 	names          []ImportAlias
 	is_top_level   bool
 	is_unreachable bool
+	is_mypy_only   bool
 }
 
-pub fn (mut n ImportFrom) get_context() Context {
+pub fn (n ImportFrom) get_context() Context {
 	return n.base.ctx
 }
 
-pub fn (mut n ImportFrom) accept(mut v NodeVisitor) !string {
+pub fn (n ImportFrom) accept(mut v NodeVisitor) !string {
 	return v.visit_import_from(mut n)!
 }
 
@@ -141,13 +143,14 @@ pub mut:
 	relative       int
 	is_top_level   bool
 	is_unreachable bool
+	is_mypy_only   bool
 }
 
-pub fn (mut n ImportAll) get_context() Context {
+pub fn (n ImportAll) get_context() Context {
 	return n.base.ctx
 }
 
-pub fn (mut n ImportAll) accept(mut v NodeVisitor) !string {
+pub fn (n ImportAll) accept(mut v NodeVisitor) !string {
 	return v.visit_import_all(mut n)!
 }
 
@@ -299,11 +302,11 @@ pub mut:
 	is_unreachable bool
 }
 
-pub fn (mut n Block) get_context() Context {
+pub fn (n Block) get_context() Context {
 	return n.base.ctx
 }
 
-pub fn (mut n Block) accept(mut v NodeVisitor) !string {
+pub fn (n Block) accept(mut v NodeVisitor) !string {
 	return v.visit_block(mut n)!
 }
 
@@ -450,6 +453,8 @@ pub type Expression = AssignmentExpr
 	| YieldExpr
 	| YieldFromExpr
 
+pub type Lvalue = ListExpr | MemberExpr | NameExpr | StarExpr | TupleExpr
+
 pub fn (e Expression) get_context() Context {
 	return match e {
 		AssignmentExpr { e.base.ctx }
@@ -552,17 +557,47 @@ pub fn (mut e Expression) accept(mut v NodeVisitor) !string {
 	}
 }
 
+pub fn (mut lval Lvalue) accept(mut v NodeVisitor) !string {
+	return match mut lval {
+		NameExpr { v.visit_name_expr(mut lval)! }
+		MemberExpr { v.visit_member_expr(mut lval)! }
+		TupleExpr, ListExpr {
+			for mut item in lval.items {
+				match mut item {
+					NameExpr, MemberExpr, TupleExpr, ListExpr, StarExpr {
+						v.visit_lvalue(mut item as Lvalue)!
+					}
+					else {
+						return error('Invalid lvalue: ${item.type_name()}')
+					}
+				}
+			}
+			return ''
+		}
+		StarExpr {
+			match mut lval.expr {
+				NameExpr, MemberExpr, TupleExpr, ListExpr, StarExpr {
+					v.visit_lvalue(mut lval.expr as Lvalue)!
+				}
+				else {
+					return error('Invalid lvalue: ${lval.expr.type_name()}')
+				}
+			}
+		}
+	}
+}
+
 pub struct ExpressionStmt {
 pub mut:
 	base NodeBase
 	expr Expression
 }
 
-pub fn (mut n ExpressionStmt) get_context() Context {
+pub fn (n ExpressionStmt) get_context() Context {
 	return n.base.ctx
 }
 
-pub fn (mut n ExpressionStmt) accept(mut v NodeVisitor) !string {
+pub fn (n ExpressionStmt) accept(mut v NodeVisitor) !string {
 	return v.visit_expression_stmt(mut n)!
 }
 
@@ -577,11 +612,11 @@ pub mut:
 	is_alias_def    bool
 }
 
-pub fn (mut n AssignmentStmt) get_context() Context {
+pub fn (n AssignmentStmt) get_context() Context {
 	return n.base.ctx
 }
 
-pub fn (mut n AssignmentStmt) accept(mut v NodeVisitor) !string {
+pub fn (n AssignmentStmt) accept(mut v NodeVisitor) !string {
 	return v.visit_assignment_stmt(mut n)!
 }
 
@@ -593,11 +628,11 @@ pub mut:
 	rvalue Expression
 }
 
-pub fn (mut n OperatorAssignmentStmt) get_context() Context {
+pub fn (n OperatorAssignmentStmt) get_context() Context {
 	return n.base.ctx
 }
 
-pub fn (mut n OperatorAssignmentStmt) accept(mut v NodeVisitor) !string {
+pub fn (n OperatorAssignmentStmt) accept(mut v NodeVisitor) !string {
 	return v.visit_operator_assignment_stmt(mut n)!
 }
 
@@ -609,11 +644,11 @@ pub mut:
 	else_body ?Block
 }
 
-pub fn (mut n WhileStmt) get_context() Context {
+pub fn (n WhileStmt) get_context() Context {
 	return n.base.ctx
 }
 
-pub fn (mut n WhileStmt) accept(mut v NodeVisitor) !string {
+pub fn (n WhileStmt) accept(mut v NodeVisitor) !string {
 	return v.visit_while_stmt(mut n)!
 }
 
@@ -628,11 +663,11 @@ pub mut:
 	is_async   bool
 }
 
-pub fn (mut n ForStmt) get_context() Context {
+pub fn (n ForStmt) get_context() Context {
 	return n.base.ctx
 }
 
-pub fn (mut n ForStmt) accept(mut v NodeVisitor) !string {
+pub fn (n ForStmt) accept(mut v NodeVisitor) !string {
 	return v.visit_for_stmt(mut n)!
 }
 
@@ -642,11 +677,11 @@ pub mut:
 	expr ?Expression
 }
 
-pub fn (mut n ReturnStmt) get_context() Context {
+pub fn (n ReturnStmt) get_context() Context {
 	return n.base.ctx
 }
 
-pub fn (mut n ReturnStmt) accept(mut v NodeVisitor) !string {
+pub fn (n ReturnStmt) accept(mut v NodeVisitor) !string {
 	return v.visit_return_stmt(mut n)!
 }
 
@@ -657,11 +692,11 @@ pub mut:
 	msg  ?Expression
 }
 
-pub fn (mut n AssertStmt) get_context() Context {
+pub fn (n AssertStmt) get_context() Context {
 	return n.base.ctx
 }
 
-pub fn (mut n AssertStmt) accept(mut v NodeVisitor) !string {
+pub fn (n AssertStmt) accept(mut v NodeVisitor) !string {
 	return v.visit_assert_stmt(mut n)!
 }
 
@@ -671,11 +706,11 @@ pub mut:
 	expr Expression
 }
 
-pub fn (mut n DelStmt) get_context() Context {
+pub fn (n DelStmt) get_context() Context {
 	return n.base.ctx
 }
 
-pub fn (mut n DelStmt) accept(mut v NodeVisitor) !string {
+pub fn (n DelStmt) accept(mut v NodeVisitor) !string {
 	return v.visit_del_stmt(mut n)!
 }
 
@@ -684,11 +719,11 @@ pub mut:
 	base NodeBase
 }
 
-pub fn (mut n BreakStmt) get_context() Context {
+pub fn (n BreakStmt) get_context() Context {
 	return n.base.ctx
 }
 
-pub fn (mut n BreakStmt) accept(mut v NodeVisitor) !string {
+pub fn (n BreakStmt) accept(mut v NodeVisitor) !string {
 	return v.visit_break_stmt(mut n)!
 }
 
@@ -697,11 +732,11 @@ pub mut:
 	base NodeBase
 }
 
-pub fn (mut n ContinueStmt) get_context() Context {
+pub fn (n ContinueStmt) get_context() Context {
 	return n.base.ctx
 }
 
-pub fn (mut n ContinueStmt) accept(mut v NodeVisitor) !string {
+pub fn (n ContinueStmt) accept(mut v NodeVisitor) !string {
 	return v.visit_continue_stmt(mut n)!
 }
 
@@ -710,11 +745,11 @@ pub mut:
 	base NodeBase
 }
 
-pub fn (mut n PassStmt) get_context() Context {
+pub fn (n PassStmt) get_context() Context {
 	return n.base.ctx
 }
 
-pub fn (mut n PassStmt) accept(mut v NodeVisitor) !string {
+pub fn (n PassStmt) accept(mut v NodeVisitor) !string {
 	return v.visit_pass_stmt(mut n)!
 }
 
@@ -726,11 +761,11 @@ pub mut:
 	else_body ?Block
 }
 
-pub fn (mut n IfStmt) get_context() Context {
+pub fn (n IfStmt) get_context() Context {
 	return n.base.ctx
 }
 
-pub fn (mut n IfStmt) accept(mut v NodeVisitor) !string {
+pub fn (n IfStmt) accept(mut v NodeVisitor) !string {
 	return v.visit_if_stmt(mut n)!
 }
 
@@ -741,11 +776,11 @@ pub mut:
 	from_expr ?Expression
 }
 
-pub fn (mut n RaiseStmt) get_context() Context {
+pub fn (n RaiseStmt) get_context() Context {
 	return n.base.ctx
 }
 
-pub fn (mut n RaiseStmt) accept(mut v NodeVisitor) !string {
+pub fn (n RaiseStmt) accept(mut v NodeVisitor) !string {
 	return v.visit_raise_stmt(mut n)!
 }
 
@@ -761,11 +796,11 @@ pub mut:
 	finally_body ?Block
 }
 
-pub fn (mut n TryStmt) get_context() Context {
+pub fn (n TryStmt) get_context() Context {
 	return n.base.ctx
 }
 
-pub fn (mut n TryStmt) accept(mut v NodeVisitor) !string {
+pub fn (n TryStmt) accept(mut v NodeVisitor) !string {
 	return v.visit_try_stmt(mut n)!
 }
 
@@ -778,11 +813,11 @@ pub mut:
 	is_async bool
 }
 
-pub fn (mut n WithStmt) get_context() Context {
+pub fn (n WithStmt) get_context() Context {
 	return n.base.ctx
 }
 
-pub fn (mut n WithStmt) accept(mut v NodeVisitor) !string {
+pub fn (n WithStmt) accept(mut v NodeVisitor) !string {
 	return v.visit_with_stmt(mut n)!
 }
 
@@ -795,11 +830,11 @@ pub mut:
 	bodies   []Block
 }
 
-pub fn (mut n MatchStmt) get_context() Context {
+pub fn (n MatchStmt) get_context() Context {
 	return n.base.ctx
 }
 
-pub fn (mut n MatchStmt) accept(mut v NodeVisitor) !string {
+pub fn (n MatchStmt) accept(mut v NodeVisitor) !string {
 	return v.visit_match_stmt(mut n)!
 }
 
@@ -809,11 +844,11 @@ pub mut:
 	names []string
 }
 
-pub fn (mut n GlobalDecl) get_context() Context {
+pub fn (n GlobalDecl) get_context() Context {
 	return n.base.ctx
 }
 
-pub fn (mut n GlobalDecl) accept(mut v NodeVisitor) !string {
+pub fn (n GlobalDecl) accept(mut v NodeVisitor) !string {
 	return v.visit_global_decl(mut n)!
 }
 
@@ -823,11 +858,11 @@ pub mut:
 	names []string
 }
 
-pub fn (mut n NonlocalDecl) get_context() Context {
+pub fn (n NonlocalDecl) get_context() Context {
 	return n.base.ctx
 }
 
-pub fn (mut n NonlocalDecl) accept(mut v NodeVisitor) !string {
+pub fn (n NonlocalDecl) accept(mut v NodeVisitor) !string {
 	return v.visit_nonlocal_decl(mut n)!
 }
 
@@ -839,11 +874,11 @@ pub mut:
 	value     Expression
 }
 
-pub fn (mut n TypeAliasStmt) get_context() Context {
+pub fn (n TypeAliasStmt) get_context() Context {
 	return n.base.ctx
 }
 
-pub fn (mut n TypeAliasStmt) accept(mut v NodeVisitor) !string {
+pub fn (n TypeAliasStmt) accept(mut v NodeVisitor) !string {
 	return v.visit_type_alias_stmt(mut n)!
 }
 
@@ -904,13 +939,18 @@ pub mut:
 	type_params          []TypeParam
 	fullname             string
 	abstract_status      int // 0=concrete, 1=abstract, 2=implicitly_abstract
+	info                 ?&TypeInfo
+	is_mypy_only         bool
+	is_unreachable       bool
+	is_conditional       bool
+	def_or_infer_vars    bool
 }
 
-pub fn (mut n FuncDef) get_context() Context {
+pub fn (n FuncDef) get_context() Context {
 	return n.base.ctx
 }
 
-pub fn (mut n FuncDef) accept(mut v NodeVisitor) !string {
+pub fn (n FuncDef) accept(mut v NodeVisitor) !string {
 	return v.visit_func_def(mut n)!
 }
 
@@ -926,11 +966,11 @@ pub mut:
 	is_property bool
 }
 
-pub fn (mut n OverloadedFuncDef) get_context() Context {
+pub fn (n OverloadedFuncDef) get_context() Context {
 	return n.base.ctx
 }
 
-pub fn (mut n OverloadedFuncDef) accept(mut v NodeVisitor) !string {
+pub fn (n OverloadedFuncDef) accept(mut v NodeVisitor) !string {
 	return v.visit_overloaded_func_def(mut n)!
 }
 
@@ -945,11 +985,11 @@ pub mut:
 	is_overload bool
 }
 
-pub fn (mut n Decorator) get_context() Context {
+pub fn (n Decorator) get_context() Context {
 	return n.base.ctx
 }
 
-pub fn (mut n Decorator) accept(mut v NodeVisitor) !string {
+pub fn (n Decorator) accept(mut v NodeVisitor) !string {
 	return v.visit_decorator(mut n)!
 }
 
@@ -977,11 +1017,11 @@ pub mut:
 	info                    ?&TypeInfo
 }
 
-pub fn (mut n Var) get_context() Context {
+pub fn (n Var) get_context() Context {
 	return n.base.ctx
 }
 
-pub fn (mut n Var) accept(mut v NodeVisitor) !string {
+pub fn (n Var) accept(mut v NodeVisitor) !string {
 	return v.visit_var(mut n)!
 }
 
@@ -1005,11 +1045,11 @@ pub mut:
 	type_params                []TypeParam
 }
 
-pub fn (mut n ClassDef) get_context() Context {
+pub fn (n ClassDef) get_context() Context {
 	return n.base.ctx
 }
 
-pub fn (mut n ClassDef) accept(mut v NodeVisitor) !string {
+pub fn (n ClassDef) accept(mut v NodeVisitor) !string {
 	return v.visit_class_def(mut n)!
 }
 
@@ -1023,11 +1063,11 @@ pub mut:
 	value i64
 }
 
-pub fn (mut n IntExpr) get_context() Context {
+pub fn (n IntExpr) get_context() Context {
 	return n.base.ctx
 }
 
-pub fn (mut n IntExpr) accept(mut v NodeVisitor) !string {
+pub fn (n IntExpr) accept(mut v NodeVisitor) !string {
 	return v.visit_int_expr(mut n)!
 }
 
@@ -1037,11 +1077,11 @@ pub mut:
 	value string
 }
 
-pub fn (mut n StrExpr) get_context() Context {
+pub fn (n StrExpr) get_context() Context {
 	return n.base.ctx
 }
 
-pub fn (mut n StrExpr) accept(mut v NodeVisitor) !string {
+pub fn (n StrExpr) accept(mut v NodeVisitor) !string {
 	return v.visit_str_expr(mut n)!
 }
 
@@ -1052,11 +1092,11 @@ pub mut:
 	value string
 }
 
-pub fn (mut n BytesExpr) get_context() Context {
+pub fn (n BytesExpr) get_context() Context {
 	return n.base.ctx
 }
 
-pub fn (mut n BytesExpr) accept(mut v NodeVisitor) !string {
+pub fn (n BytesExpr) accept(mut v NodeVisitor) !string {
 	return v.visit_bytes_expr(mut n)!
 }
 
@@ -1066,11 +1106,11 @@ pub mut:
 	value f64
 }
 
-pub fn (mut n FloatExpr) get_context() Context {
+pub fn (n FloatExpr) get_context() Context {
 	return n.base.ctx
 }
 
-pub fn (mut n FloatExpr) accept(mut v NodeVisitor) !string {
+pub fn (n FloatExpr) accept(mut v NodeVisitor) !string {
 	return v.visit_float_expr(mut n)!
 }
 
@@ -1081,11 +1121,11 @@ pub mut:
 	imag f64
 }
 
-pub fn (mut n ComplexExpr) get_context() Context {
+pub fn (n ComplexExpr) get_context() Context {
 	return n.base.ctx
 }
 
-pub fn (mut n ComplexExpr) accept(mut v NodeVisitor) !string {
+pub fn (n ComplexExpr) accept(mut v NodeVisitor) !string {
 	return v.visit_complex_expr(mut n)!
 }
 
@@ -1094,11 +1134,11 @@ pub mut:
 	base NodeBase
 }
 
-pub fn (mut n EllipsisExpr) get_context() Context {
+pub fn (n EllipsisExpr) get_context() Context {
 	return n.base.ctx
 }
 
-pub fn (mut n EllipsisExpr) accept(mut v NodeVisitor) !string {
+pub fn (n EllipsisExpr) accept(mut v NodeVisitor) !string {
 	return v.visit_ellipsis(mut n)!
 }
 
@@ -1110,11 +1150,11 @@ pub mut:
 	valid bool
 }
 
-pub fn (mut n StarExpr) get_context() Context {
+pub fn (n StarExpr) get_context() Context {
 	return n.base.ctx
 }
 
-pub fn (mut n StarExpr) accept(mut v NodeVisitor) !string {
+pub fn (n StarExpr) accept(mut v NodeVisitor) !string {
 	return v.visit_star_expr(mut n)!
 }
 
@@ -1129,11 +1169,11 @@ pub mut:
 	is_special_form bool
 }
 
-pub fn (mut n NameExpr) get_context() Context {
+pub fn (n NameExpr) get_context() Context {
 	return n.base.ctx
 }
 
-pub fn (mut n NameExpr) accept(mut v NodeVisitor) !string {
+pub fn (n NameExpr) accept(mut v NodeVisitor) !string {
 	return v.visit_name_expr(mut n)!
 }
 
@@ -1146,12 +1186,12 @@ pub type SymbolNodeRef = ClassDef
 	| FuncDef
 	| MypyFile
 	| OverloadedFuncDef
+	| PlaceholderNode
 	| TypeAlias
 	| TypeInfo
 	| Var
-	| PlaceholderNode
 
-pub fn (mut n SymbolNodeRef) fullname() string {
+pub fn (n SymbolNodeRef) fullname() string {
 	return match n {
 		ClassDef { n.fullname }
 		Decorator { n.func.fullname }
@@ -1176,11 +1216,11 @@ pub mut:
 	def_var         ?Var
 }
 
-pub fn (mut n MemberExpr) get_context() Context {
+pub fn (n MemberExpr) get_context() Context {
 	return n.base.ctx
 }
 
-pub fn (mut n MemberExpr) accept(mut v NodeVisitor) !string {
+pub fn (n MemberExpr) accept(mut v NodeVisitor) !string {
 	return v.visit_member_expr(mut n)!
 }
 
@@ -1190,11 +1230,11 @@ pub mut:
 	expr Expression
 }
 
-pub fn (mut n YieldFromExpr) get_context() Context {
+pub fn (n YieldFromExpr) get_context() Context {
 	return n.base.ctx
 }
 
-pub fn (mut n YieldFromExpr) accept(mut v NodeVisitor) !string {
+pub fn (n YieldFromExpr) accept(mut v NodeVisitor) !string {
 	return v.visit_yield_from_expr(mut n)!
 }
 
@@ -1204,11 +1244,11 @@ pub mut:
 	expr ?Expression
 }
 
-pub fn (mut n YieldExpr) get_context() Context {
+pub fn (n YieldExpr) get_context() Context {
 	return n.base.ctx
 }
 
-pub fn (mut n YieldExpr) accept(mut v NodeVisitor) !string {
+pub fn (n YieldExpr) accept(mut v NodeVisitor) !string {
 	return v.visit_yield_expr(mut n)!
 }
 
@@ -1221,11 +1261,11 @@ pub mut:
 	arg_names []?string
 }
 
-pub fn (mut n CallExpr) get_context() Context {
+pub fn (n CallExpr) get_context() Context {
 	return n.base.ctx
 }
 
-pub fn (mut n CallExpr) accept(mut v NodeVisitor) !string {
+pub fn (n CallExpr) accept(mut v NodeVisitor) !string {
 	return v.visit_call_expr(mut n)!
 }
 
@@ -1238,11 +1278,11 @@ pub mut:
 	analyzed ?Expression
 }
 
-pub fn (mut n IndexExpr) get_context() Context {
+pub fn (n IndexExpr) get_context() Context {
 	return n.base.ctx
 }
 
-pub fn (mut n IndexExpr) accept(mut v NodeVisitor) !string {
+pub fn (n IndexExpr) accept(mut v NodeVisitor) !string {
 	return v.visit_index_expr(mut n)!
 }
 
@@ -1253,11 +1293,11 @@ pub mut:
 	expr Expression
 }
 
-pub fn (mut n UnaryExpr) get_context() Context {
+pub fn (n UnaryExpr) get_context() Context {
 	return n.base.ctx
 }
 
-pub fn (mut n UnaryExpr) accept(mut v NodeVisitor) !string {
+pub fn (n UnaryExpr) accept(mut v NodeVisitor) !string {
 	return v.visit_unary_expr(mut n)!
 }
 
@@ -1268,11 +1308,11 @@ pub mut:
 	value  Expression
 }
 
-pub fn (mut n AssignmentExpr) get_context() Context {
+pub fn (n AssignmentExpr) get_context() Context {
 	return n.base.ctx
 }
 
-pub fn (mut n AssignmentExpr) accept(mut v NodeVisitor) !string {
+pub fn (n AssignmentExpr) accept(mut v NodeVisitor) !string {
 	return v.visit_assignment_expr(mut n)!
 }
 
@@ -1286,11 +1326,11 @@ pub mut:
 	right_type ?MypyTypeNode
 }
 
-pub fn (mut n OpExpr) get_context() Context {
+pub fn (n OpExpr) get_context() Context {
 	return n.base.ctx
 }
 
-pub fn (mut n OpExpr) accept(mut v NodeVisitor) !string {
+pub fn (n OpExpr) accept(mut v NodeVisitor) !string {
 	return v.visit_op_expr(mut n)!
 }
 
@@ -1301,11 +1341,11 @@ pub mut:
 	operands  []Expression
 }
 
-pub fn (mut n ComparisonExpr) get_context() Context {
+pub fn (n ComparisonExpr) get_context() Context {
 	return n.base.ctx
 }
 
-pub fn (mut n ComparisonExpr) accept(mut v NodeVisitor) !string {
+pub fn (n ComparisonExpr) accept(mut v NodeVisitor) !string {
 	return v.visit_comparison_expr(mut n)!
 }
 
@@ -1317,11 +1357,11 @@ pub mut:
 	stride      ?Expression
 }
 
-pub fn (mut n SliceExpr) get_context() Context {
+pub fn (n SliceExpr) get_context() Context {
 	return n.base.ctx
 }
 
-pub fn (mut n SliceExpr) accept(mut v NodeVisitor) !string {
+pub fn (n SliceExpr) accept(mut v NodeVisitor) !string {
 	return v.visit_slice_expr(mut n)!
 }
 
@@ -1332,11 +1372,11 @@ pub mut:
 	type_ MypyTypeNode
 }
 
-pub fn (mut n CastExpr) get_context() Context {
+pub fn (n CastExpr) get_context() Context {
 	return n.base.ctx
 }
 
-pub fn (mut n CastExpr) accept(mut v NodeVisitor) !string {
+pub fn (n CastExpr) accept(mut v NodeVisitor) !string {
 	return v.visit_cast_expr(mut n)!
 }
 
@@ -1347,11 +1387,11 @@ pub mut:
 	type_ MypyTypeNode
 }
 
-pub fn (mut n AssertTypeExpr) get_context() Context {
+pub fn (n AssertTypeExpr) get_context() Context {
 	return n.base.ctx
 }
 
-pub fn (mut n AssertTypeExpr) accept(mut v NodeVisitor) !string {
+pub fn (n AssertTypeExpr) accept(mut v NodeVisitor) !string {
 	return v.visit_assert_type_expr(mut n)!
 }
 
@@ -1363,11 +1403,11 @@ pub mut:
 	is_imported bool
 }
 
-pub fn (mut n RevealExpr) get_context() Context {
+pub fn (n RevealExpr) get_context() Context {
 	return n.base.ctx
 }
 
-pub fn (mut n RevealExpr) accept(mut v NodeVisitor) !string {
+pub fn (n RevealExpr) accept(mut v NodeVisitor) !string {
 	return v.visit_reveal_expr(mut n)!
 }
 
@@ -1378,11 +1418,11 @@ pub mut:
 	info ?TypeInfo
 }
 
-pub fn (mut n SuperExpr) get_context() Context {
+pub fn (n SuperExpr) get_context() Context {
 	return n.base.ctx
 }
 
-pub fn (mut n SuperExpr) accept(mut v NodeVisitor) !string {
+pub fn (n SuperExpr) accept(mut v NodeVisitor) !string {
 	return v.visit_super_expr(mut n)!
 }
 
@@ -1392,11 +1432,11 @@ pub mut:
 	items []Expression
 }
 
-pub fn (mut n ListExpr) get_context() Context {
+pub fn (n ListExpr) get_context() Context {
 	return n.base.ctx
 }
 
-pub fn (mut n ListExpr) accept(mut v NodeVisitor) !string {
+pub fn (n ListExpr) accept(mut v NodeVisitor) !string {
 	return v.visit_list_expr(mut n)!
 }
 
@@ -1413,11 +1453,11 @@ pub mut:
 	value Expression
 }
 
-pub fn (mut n DictExpr) get_context() Context {
+pub fn (n DictExpr) get_context() Context {
 	return n.base.ctx
 }
 
-pub fn (mut n DictExpr) accept(mut v NodeVisitor) !string {
+pub fn (n DictExpr) accept(mut v NodeVisitor) !string {
 	return v.visit_dict_expr(mut n)!
 }
 
@@ -1428,11 +1468,11 @@ pub mut:
 	parts []Expression
 }
 
-pub fn (mut n TemplateStrExpr) get_context() Context {
+pub fn (n TemplateStrExpr) get_context() Context {
 	return n.base.ctx
 }
 
-pub fn (mut n TemplateStrExpr) accept(mut v NodeVisitor) !string {
+pub fn (n TemplateStrExpr) accept(mut v NodeVisitor) !string {
 	return v.visit_template_str_expr(mut n)!
 }
 
@@ -1444,11 +1484,11 @@ pub mut:
 	format_spec     ?Expression // TemplateStrExpr
 }
 
-pub fn (mut n FormatStringExpr) get_context() Context {
+pub fn (n FormatStringExpr) get_context() Context {
 	return n.base.ctx
 }
 
-pub fn (mut n FormatStringExpr) accept(mut v NodeVisitor) !string {
+pub fn (n FormatStringExpr) accept(mut v NodeVisitor) !string {
 	// visit_format_string_expr might not exist yet, using visit_template_str_expr or adding it
 	return v.visit_template_str_expr(mut TemplateStrExpr{base: n.base, parts: [n.value]})! 
 }
@@ -1459,11 +1499,11 @@ pub mut:
 	items []Expression
 }
 
-pub fn (mut n TupleExpr) get_context() Context {
+pub fn (n TupleExpr) get_context() Context {
 	return n.base.ctx
 }
 
-pub fn (mut n TupleExpr) accept(mut v NodeVisitor) !string {
+pub fn (n TupleExpr) accept(mut v NodeVisitor) !string {
 	return v.visit_tuple_expr(mut n)!
 }
 
@@ -1473,11 +1513,11 @@ pub mut:
 	items []Expression
 }
 
-pub fn (mut n SetExpr) get_context() Context {
+pub fn (n SetExpr) get_context() Context {
 	return n.base.ctx
 }
 
-pub fn (mut n SetExpr) accept(mut v NodeVisitor) !string {
+pub fn (n SetExpr) accept(mut v NodeVisitor) !string {
 	return v.visit_set_expr(mut n)!
 }
 
@@ -1492,11 +1532,11 @@ pub mut:
 	is_async  []bool
 }
 
-pub fn (mut n GeneratorExpr) get_context() Context {
+pub fn (n GeneratorExpr) get_context() Context {
 	return n.base.ctx
 }
 
-pub fn (mut n GeneratorExpr) accept(mut v NodeVisitor) !string {
+pub fn (n GeneratorExpr) accept(mut v NodeVisitor) !string {
 	return v.visit_generator_expr(mut n)!
 }
 
@@ -1506,11 +1546,11 @@ pub mut:
 	generator GeneratorExpr
 }
 
-pub fn (mut n ListComprehension) get_context() Context {
+pub fn (n ListComprehension) get_context() Context {
 	return n.base.ctx
 }
 
-pub fn (mut n ListComprehension) accept(mut v NodeVisitor) !string {
+pub fn (n ListComprehension) accept(mut v NodeVisitor) !string {
 	return v.visit_list_comprehension(mut n)!
 }
 
@@ -1520,11 +1560,11 @@ pub mut:
 	generator GeneratorExpr
 }
 
-pub fn (mut n SetComprehension) get_context() Context {
+pub fn (n SetComprehension) get_context() Context {
 	return n.base.ctx
 }
 
-pub fn (mut n SetComprehension) accept(mut v NodeVisitor) !string {
+pub fn (n SetComprehension) accept(mut v NodeVisitor) !string {
 	return v.visit_set_comprehension(mut n)!
 }
 
@@ -1539,11 +1579,11 @@ pub mut:
 	is_async  []bool
 }
 
-pub fn (mut n DictionaryComprehension) get_context() Context {
+pub fn (n DictionaryComprehension) get_context() Context {
 	return n.base.ctx
 }
 
-pub fn (mut n DictionaryComprehension) accept(mut v NodeVisitor) !string {
+pub fn (n DictionaryComprehension) accept(mut v NodeVisitor) !string {
 	return v.visit_dictionary_comprehension(mut n)!
 }
 
@@ -1555,11 +1595,11 @@ pub mut:
 	else_expr Expression
 }
 
-pub fn (mut n ConditionalExpr) get_context() Context {
+pub fn (n ConditionalExpr) get_context() Context {
 	return n.base.ctx
 }
 
-pub fn (mut n ConditionalExpr) accept(mut v NodeVisitor) !string {
+pub fn (n ConditionalExpr) accept(mut v NodeVisitor) !string {
 	return v.visit_conditional_expr(mut n)!
 }
 
@@ -1570,11 +1610,11 @@ pub mut:
 	types []MypyTypeNode
 }
 
-pub fn (mut n TypeApplication) get_context() Context {
+pub fn (n TypeApplication) get_context() Context {
 	return n.base.ctx
 }
 
-pub fn (mut n TypeApplication) accept(mut v NodeVisitor) !string {
+pub fn (n TypeApplication) accept(mut v NodeVisitor) !string {
 	return v.visit_type_application(mut n)!
 }
 
@@ -1588,11 +1628,11 @@ pub mut:
 	type_     ?MypyTypeNode
 }
 
-pub fn (mut n LambdaExpr) get_context() Context {
+pub fn (n LambdaExpr) get_context() Context {
 	return n.base.ctx
 }
 
-pub fn (mut n LambdaExpr) accept(mut v NodeVisitor) !string {
+pub fn (n LambdaExpr) accept(mut v NodeVisitor) !string {
 	return v.visit_lambda_expr(mut n)!
 }
 
@@ -1608,11 +1648,11 @@ pub mut:
 	variance    int
 }
 
-pub fn (mut n TypeVarExpr) get_context() Context {
+pub fn (n TypeVarExpr) get_context() Context {
 	return n.base.ctx
 }
 
-pub fn (mut n TypeVarExpr) accept(mut v NodeVisitor) !string {
+pub fn (n TypeVarExpr) accept(mut v NodeVisitor) !string {
 	return v.visit_type_var_expr(mut n)!
 }
 
@@ -1625,11 +1665,11 @@ pub mut:
 	default_    MypyTypeNode
 }
 
-pub fn (mut n ParamSpecExpr) get_context() Context {
+pub fn (n ParamSpecExpr) get_context() Context {
 	return n.base.ctx
 }
 
-pub fn (mut n ParamSpecExpr) accept(mut v NodeVisitor) !string {
+pub fn (n ParamSpecExpr) accept(mut v NodeVisitor) !string {
 	return v.visit_paramspec_expr(mut n)!
 }
 
@@ -1642,11 +1682,11 @@ pub mut:
 	default_    MypyTypeNode
 }
 
-pub fn (mut n TypeVarTupleExpr) get_context() Context {
+pub fn (n TypeVarTupleExpr) get_context() Context {
 	return n.base.ctx
 }
 
-pub fn (mut n TypeVarTupleExpr) accept(mut v NodeVisitor) !string {
+pub fn (n TypeVarTupleExpr) accept(mut v NodeVisitor) !string {
 	return v.visit_type_var_tuple_expr(mut n)!
 }
 
@@ -1656,11 +1696,11 @@ pub mut:
 	node TypeAlias
 }
 
-pub fn (mut n TypeAliasExpr) get_context() Context {
+pub fn (n TypeAliasExpr) get_context() Context {
 	return n.base.ctx
 }
 
-pub fn (mut n TypeAliasExpr) accept(mut v NodeVisitor) !string {
+pub fn (n TypeAliasExpr) accept(mut v NodeVisitor) !string {
 	return v.visit_type_alias_expr(mut n)!
 }
 
@@ -1671,11 +1711,11 @@ pub mut:
 	is_typed_dict bool
 }
 
-pub fn (mut n NamedTupleExpr) get_context() Context {
+pub fn (n NamedTupleExpr) get_context() Context {
 	return n.base.ctx
 }
 
-pub fn (mut n NamedTupleExpr) accept(mut v NodeVisitor) !string {
+pub fn (n NamedTupleExpr) accept(mut v NodeVisitor) !string {
 	return v.visit_namedtuple_expr(mut n)!
 }
 
@@ -1685,11 +1725,11 @@ pub mut:
 	info TypeInfo
 }
 
-pub fn (mut n TypedDictExpr) get_context() Context {
+pub fn (n TypedDictExpr) get_context() Context {
 	return n.base.ctx
 }
 
-pub fn (mut n TypedDictExpr) accept(mut v NodeVisitor) !string {
+pub fn (n TypedDictExpr) accept(mut v NodeVisitor) !string {
 	return v.visit_typeddict_expr(mut n)!
 }
 
@@ -1701,11 +1741,11 @@ pub mut:
 	values []?Expression
 }
 
-pub fn (mut n EnumCallExpr) get_context() Context {
+pub fn (n EnumCallExpr) get_context() Context {
 	return n.base.ctx
 }
 
-pub fn (mut n EnumCallExpr) accept(mut v NodeVisitor) !string {
+pub fn (n EnumCallExpr) accept(mut v NodeVisitor) !string {
 	return v.visit_enum_call_expr(mut n)!
 }
 
@@ -1715,11 +1755,11 @@ pub mut:
 	type_ MypyTypeNode
 }
 
-pub fn (mut n PromoteExpr) get_context() Context {
+pub fn (n PromoteExpr) get_context() Context {
 	return n.base.ctx
 }
 
-pub fn (mut n PromoteExpr) accept(mut v NodeVisitor) !string {
+pub fn (n PromoteExpr) accept(mut v NodeVisitor) !string {
 	return v.visit_promote_expr(mut n)!
 }
 
@@ -1731,11 +1771,11 @@ pub mut:
 	info     ?TypeInfo
 }
 
-pub fn (mut n NewTypeExpr) get_context() Context {
+pub fn (n NewTypeExpr) get_context() Context {
 	return n.base.ctx
 }
 
-pub fn (mut n NewTypeExpr) accept(mut v NodeVisitor) !string {
+pub fn (n NewTypeExpr) accept(mut v NodeVisitor) !string {
 	return v.visit_newtype_expr(mut n)!
 }
 
@@ -1745,11 +1785,11 @@ pub mut:
 	expr Expression
 }
 
-pub fn (mut n AwaitExpr) get_context() Context {
+pub fn (n AwaitExpr) get_context() Context {
 	return n.base.ctx
 }
 
-pub fn (mut n AwaitExpr) accept(mut v NodeVisitor) !string {
+pub fn (n AwaitExpr) accept(mut v NodeVisitor) !string {
 	return v.visit_await_expr(mut n)!
 }
 
@@ -1762,11 +1802,11 @@ pub mut:
 	context ?Node
 }
 
-pub fn (mut n TempNode) get_context() Context {
+pub fn (n TempNode) get_context() Context {
 	return n.base.ctx
 }
 
-pub fn (mut n TempNode) accept(mut v NodeVisitor) !string {
+pub fn (n TempNode) accept(mut v NodeVisitor) !string {
 	return v.visit_temp_node(mut n)!
 }
 
@@ -1794,11 +1834,11 @@ pub interface ImportBase {
 	get_context() Context
 }
 
-pub fn (mut n MypyFile) get_context() Context {
+pub fn (n MypyFile) get_context() Context {
 	return n.base.ctx
 }
 
-pub fn (mut n MypyFile) accept(mut v NodeVisitor) !string {
+pub fn (n MypyFile) accept(mut v NodeVisitor) !string {
 	return v.visit_mypy_file(mut n)!
 }
 
@@ -1877,11 +1917,11 @@ pub mut:
 	eager       bool
 }
 
-pub fn (mut n TypeAlias) get_context() Context {
+pub fn (n TypeAlias) get_context() Context {
 	return n.base.ctx
 }
 
-pub fn (mut n TypeAlias) accept(mut v NodeVisitor) !string {
+pub fn (n TypeAlias) accept(mut v NodeVisitor) !string {
 	return v.visit_type_alias(mut n)!
 }
 
@@ -1906,11 +1946,11 @@ pub mut:
 	becomes_typeinfo bool
 }
 
-pub fn (mut n PlaceholderNode) get_context() Context {
+pub fn (n PlaceholderNode) get_context() Context {
 	return n.base.ctx
 }
 
-pub fn (mut n PlaceholderNode) accept(mut v NodeVisitor) !string {
+pub fn (n PlaceholderNode) accept(mut v NodeVisitor) !string {
 	return v.visit_placeholder_node(mut n)!
 }
 
