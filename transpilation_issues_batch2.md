@@ -17,7 +17,7 @@
 13. test_string_methods.py
 
 ---
-
+*****************
 ## Issue #1: Polymorphism with mixed types in array
 
 **File:** test_classes_inheritance.py
@@ -89,7 +89,7 @@ pub const Vehicle_wheels = 4
 - The separate constant `Vehicle_wheels` is generated but changes to the class variable won't be reflected.
 
 ---
-
+**********
 ## Issue #4: Set comprehension uses `map[T]bool` instead of native set
 
 **File:** test_comprehensions.py
@@ -219,7 +219,7 @@ println('Doc: ${original_func____doc__}')
 - V functions do not have `__name__` or `__doc__` attributes.
 
 ---
-
+********
 ## Issue #9: Property setter has incorrect return type
 
 **File:** test_decorators.py
@@ -269,26 +269,7 @@ println('Cleared: ${d}')
 - `d.clear()` is commented out and replaced with `d = {}`.
 - If `d` is passed by reference elsewhere, this creates a new map instead of clearing the existing one.
 
----
 
-## Issue #11: `dict.fromkeys()` with mutable default value
-
-**File:** test_dict_operations.py
-
-**Python code:**
-```python
-d2 = dict.fromkeys(keys, [])
-```
-
-**Generated V code:**
-```v
-mut d2 := py_dict_fromkeys<map[string]int>(keys, []Any{}).clone()
-```
-
-**Problem:**
-- In Python, `dict.fromkeys(keys, [])` shares the same list object for all keys.
-- The V code uses `[]Any{}` which is also shared, but the semantics may differ.
-- The `.clone()` call may not work correctly with `py_dict_fromkeys`.
 
 ---
 
