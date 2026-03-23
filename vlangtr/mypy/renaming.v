@@ -1,50 +1,50 @@
-// Я Cline работаю над этим файлом. Начало: 2026-03-22 14:49
+// I, Cline, am working on this file. Started: 2026-03-22 14:49
 // renaming.v — Variable renaming for redefinition support
-// Переведён из mypy/renaming.py
+// Translated from mypy/renaming.py
 
 module mypy
 
-// Константы для типов областей видимости
+// Constants for scope types
 pub const file_scope = 0
 pub const function_scope = 1
 pub const class_scope = 2
 
-// VariableRenameVisitor переименовывает переменные для поддержки переопределения
-// Например, код:
+// VariableRenameVisitor renames variables to support redefinition
+// For example, the code:
 //   x = 0
 //   f(x)
 //   x = "a"
 //   g(x)
-// Трансформируется в:
+// Is transformed to:
 //   x' = 0
 //   f(x')
 //   x = "a"
 //   g(x)
 pub struct VariableRenameVisitor {
 pub mut:
-	// Счётчик для нумерации новых блоков
+	// Counter for numbering new blocks
 	block_id int
-	// Количество окружающих операторов try, запрещающих переопределение переменных
+	// Number of surrounding try operators that prohibit variable redefinition
 	disallow_redef_depth int
-	// Количество окружающих циклов
+	// Number of surrounding loops
 	loop_depth int
-	// Маппинг block_id -> loop_depth
+	// Mapping block_id -> loop_depth
 	block_loop_depth map[int]int
-	// Стек обрабатываемых block_id
+	// Stack of processed block_id
 	blocks []int
-	// Список областей видимости; каждая область маппит имя -> block_id
+	// List of scopes; each scope maps name -> block_id
 	var_blocks []map[string]int
 
-	// Ссылки на переменные, которые могут потребовать переименования
-	// Список областей; каждая область — маппинг name -> list of collections
+	// References to variables that may require renaming
+	// List of scopes; each scope is a mapping name -> list of collections
 	refs []map[string][][]NameExpr
-	// Количество чтений последнего определения переменной (на область)
+	// Number of reads of the last variable definition (per scope)
 	num_reads []map[string]int
-	// Типы вложенных областей (FILE, FUNCTION или CLASS)
+	// Types of nested scopes (FILE, FUNCTION or CLASS)
 	scope_kinds []int
 }
 
-// new_variable_rename_visitor создаёт новый VariableRenameVisitor
+// new_variable_rename_visitor creates a new VariableRenameVisitor
 pub fn new_variable_rename_visitor() VariableRenameVisitor {
 	return VariableRenameVisitor{
 		block_id:             0
@@ -59,13 +59,13 @@ pub fn new_variable_rename_visitor() VariableRenameVisitor {
 	}
 }
 
-// clear очищает состояние
+// clear clears the state
 pub fn (mut v VariableRenameVisitor) clear() {
 	v.blocks = []
 	v.var_blocks = []
 }
 
-// enter_block входит в новый блок
+// enter_block enters a new block
 pub fn (mut v VariableRenameVisitor) enter_block() BlockGuard {
 	v.block_id++
 	v.blocks << v.block_id
@@ -75,18 +75,18 @@ pub fn (mut v VariableRenameVisitor) enter_block() BlockGuard {
 	}
 }
 
-// BlockGuard для автоматического выхода из блока
+// BlockGuard for automatic exit from block
 pub struct BlockGuard {
 mut:
 	v &VariableRenameVisitor
 }
 
-// drop удаляет блок при выходе
+// drop removes the block on exit
 pub fn (bg BlockGuard) drop() {
 	bg.v.blocks.pop()
 }
 
-// enter_try входит в try-блок
+// enter_try enters a try-block
 pub fn (mut v VariableRenameVisitor) enter_try() TryGuard {
 	v.disallow_redef_depth++
 	return TryGuard{
@@ -94,18 +94,18 @@ pub fn (mut v VariableRenameVisitor) enter_try() TryGuard {
 	}
 }
 
-// TryGuard для автоматического выхода из try
+// TryGuard for automatic exit from try
 pub struct TryGuard {
 mut:
 	v &VariableRenameVisitor
 }
 
-// drop уменьшает глубину try
+// drop decreases try depth
 pub fn (tg TryGuard) drop() {
 	tg.v.disallow_redef_depth--
 }
 
-// enter_loop входит в цикл
+// enter_loop enters a loop
 pub fn (mut v VariableRenameVisitor) enter_loop() LoopGuard {
 	v.loop_depth++
 	return LoopGuard{
@@ -113,18 +113,18 @@ pub fn (mut v VariableRenameVisitor) enter_loop() LoopGuard {
 	}
 }
 
-// LoopGuard для автоматического выхода из цикла
+// LoopGuard for automatic exit from loop
 pub struct LoopGuard {
 mut:
 	v &VariableRenameVisitor
 }
 
-// drop уменьшает глубину цикла
+// drop decreases loop depth
 pub fn (lg LoopGuard) drop() {
 	lg.v.loop_depth--
 }
 
-// enter_scope входит в новую область видимости
+// enter_scope enters a new scope
 pub fn (mut v VariableRenameVisitor) enter_scope(kind int) ScopeGuard {
 	v.var_blocks << map[string]int{}
 	v.refs << map[string][][]NameExpr{}
@@ -135,13 +135,13 @@ pub fn (mut v VariableRenameVisitor) enter_scope(kind int) ScopeGuard {
 	}
 }
 
-// ScopeGuard для автоматического выхода из области видимости
+// ScopeGuard for automatic exit from scope
 pub struct ScopeGuard {
 mut:
 	v &VariableRenameVisitor
 }
 
-// drop выполняет flush_refs при выходе
+// drop executes flush_refs on exit
 pub fn (sg ScopeGuard) drop() {
 	sg.v.flush_refs()
 	sg.v.var_blocks.pop()
@@ -149,17 +149,17 @@ pub fn (sg ScopeGuard) drop() {
 	sg.v.scope_kinds.pop()
 }
 
-// current_block возвращает текущий block_id
+// current_block returns the current block_id
 fn (v VariableRenameVisitor) current_block() int {
 	return v.blocks[v.blocks.len - 1]
 }
 
-// is_nested проверяет, вложены ли мы
+// is_nested checks if we are nested
 fn (v VariableRenameVisitor) is_nested() bool {
 	return v.var_blocks.len > 1
 }
 
-// flush_refs обрабатывает ссылки на переменные
+// flush_refs processes variable references
 fn (mut v VariableRenameVisitor) flush_refs() {
 	if v.refs.len == 0 {
 		return
@@ -171,7 +171,7 @@ fn (mut v VariableRenameVisitor) flush_refs() {
 	for name, collections in last_refs {
 		reads := last_reads[name] or { 0 }
 
-		// Если было переопределение и мало чтений
+		// If there was a redefinition and few reads
 		if collections.len > 1 && reads <= 1 {
 			// Переименовываем первое определение
 			for i, coll in collections {

@@ -149,7 +149,7 @@ pub:
 
 pub struct Instance {
 pub mut:
-	type_            &TypeInfo = none
+	typ              ?&TypeInfo = none
 	args             []MypyTypeNode
 	last_known_value ?&LiteralType
 	line             int = -1
@@ -158,7 +158,7 @@ pub mut:
 
 pub fn (t &Instance) copy_modified(args []MypyTypeNode, last_known_value ?&LiteralType) Instance {
 	return Instance{
-		type_:            t.type_
+		typ:              t.typ
 		args:             args
 		last_known_value: if last_known_value != none {
 			last_known_value

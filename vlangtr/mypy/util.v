@@ -390,6 +390,14 @@ pub fn quote_docstring(docstr string) string {
 
 // Utility struct for fancy formatting
 
+pub fn new_fancy_formatter(stdout os.File, stderr os.File, hide_error_codes bool, hide_success bool) FancyFormatter {
+	return FancyFormatter{
+		hide_error_codes: hide_error_codes
+		hide_success:     hide_success
+		dummy_term:       false
+	}
+}
+
 pub struct FancyFormatter {
 pub mut:
 	hide_error_codes bool

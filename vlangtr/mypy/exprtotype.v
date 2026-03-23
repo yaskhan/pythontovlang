@@ -35,14 +35,18 @@ pub fn expr_to_unanalyzed_type(expr Expression,
 			}
 		}
 		MemberExpr {
-			return error('MemberExpr without fullname')
+			// Simple fallback for qualified names
+			res = MypyTypeNode(UnboundType{
+				name: expr.name
+				line: expr.base.ctx.line
+			})
 		}
 		IndexExpr {
-			base := expr_to_unanalyzed_type(expr.base_, options, allow_new_syntax, Expression(expr),
+			base_ := expr_to_unanalyzed_type(expr.base_, options, allow_new_syntax, Expression(expr),
 				false, lookup_qualified)!
 
-			if base is UnboundType {
-				mut ub := base as UnboundType
+			if base_ is UnboundType {
+				mut ub := base_ as UnboundType
 				if ub.args.len > 0 {
 					return error('Base already has args')
 				}
@@ -84,6 +88,112 @@ pub fn expr_to_unanalyzed_type(expr Expression,
 			} else {
 				return error('OpExpr with unsupported op')
 			}
+		}
+		CallExpr {
+			if parent !is ListExpr {
+				return error('CallExpr not in ListExpr (callable args expected)')
+			}
+			// Handle arg_name=type in Callable
+			res = MypyTypeNode(AnyType{
+				type_of_any: .special_form
+			})
+		}
+		ListExpr {
+			mut items := []MypyTypeNode{}
+			for t in expr.items {
+				item := expr_to_unanalyzed_type(t, options, allow_new_syntax, Expression(expr), true,
+					lookup_qualified)!
+				items << item
+			}
+			res = MypyTypeNode(TypeList{
+				items: items
+			})
+		}
+		StrExpr {
+			res = MypyTypeNode(UnboundType{
+				name: expr.value
+				line: expr.base.ctx.line
+			})
+		}
+		BytesExpr {
+			res = MypyTypeNode(UnboundType{
+				name: expr.value
+				line: expr.base.ctx.line
+			})
+		}
+		UnaryExpr {
+			typ := expr_to_unanalyzed_type(expr.expr, options, allow_new_syntax, none,
+				false, lookup_qualified)!
+
+			if typ is RawExpressionType {
+				mut re := typ as RawExpressionType
+				if re.literal_value is int {
+					val := re.literal_value as int
+					if expr.op == '-' {
+						re.literal_value = Any(-val)
+						return MypyTypeNode(re)
+					} else if expr.op == '+' {
+						return MypyTypeNode(re)
+					}
+				}
+			}
+			return error('UnaryExpr with unsupported type')
+		}
+		IntExpr {
+			res = MypyTypeNode(RawExpressionType{
+				literal_value:  Any(expr.value)
+				base_type_name: 'builtins.int'
+				line:           expr.base.ctx.line
+			})
+		}
+		FloatExpr {
+			res = MypyTypeNode(RawExpressionType{
+				literal_value:  Any(expr.value)
+				base_type_name: 'builtins.float'
+				line:           expr.base.ctx.line
+			})
+		}
+		ComplexExpr {
+			res = MypyTypeNode(RawExpressionType{
+				literal_value:  Any(expr.real)
+				base_type_name: 'builtins.complex'
+				line:           expr.base.ctx.line
+			})
+		}
+		EllipsisExpr {
+			res = MypyTypeNode(EllipsisType{})
+		}
+		StarExpr {
+			if allow_unpack {
+				inner := expr_to_unanalyzed_type(expr.expr, options, allow_new_syntax,
+					none, false, lookup_qualified)!
+				res = MypyTypeNode(UnpackType{
+					type: inner
+				})
+			} else {
+				return error('StarExpr without allow_unpack')
+			}
+		}
+		DictExpr {
+			if expr.items.len == 0 {
+				return error('Empty DictExpr')
+			}
+			mut items := map[string]MypyTypeNode{}
+			for item in expr.items {
+				if key_expr := item.key {
+					if key_expr is StrExpr {
+						val_type := expr_to_unanalyzed_type(item.value, options, allow_new_syntax,
+							Expression(expr), false, lookup_qualified)!
+						items[key_expr.value] = val_type
+					} else {
+						return error('Dict key is not StrExpr')
+					}
+				}
+			}
+			res = MypyTypeNode(TypedDictType{
+				items: items
+				line:  expr.base.ctx.line
+			})
 		}
 		else {
 			return error('Unsupported expression for type')

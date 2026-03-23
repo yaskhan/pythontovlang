@@ -1,6 +1,6 @@
-// Я Antigravity работаю над этим файлом. Начало: 2026-03-22 03:05
+// I, Antigravity, am working on this file. Started: 2026-03-22 03:05
 // errors.v — Mypy error reporter
-// Переведён из mypy/errors.py
+// Translated from mypy/errors.py
 //
 // ---------------------------------------------------------------------------
 
@@ -8,7 +8,7 @@ module mypy
 
 import os
 
-// ImportContext — контекст импорта для отслеживания цепочки импортов
+// ImportContext — import context for tracking import chain
 pub struct ImportContext {
 pub:
 	path   string
@@ -16,12 +16,12 @@ pub:
 	module string
 }
 
-// ErrorWatcher — интерфейс для прослушивания ошибок
+// ErrorWatcher — interface for listening to errors
 pub interface ErrorWatcher {
 	on_error(file string, line int, offset int, msg string, severity string, code ?string)
 }
 
-// ErrorIcon — иконка ошибки
+// ErrorIcon — error icon
 pub enum ErrorIcon {
 	none
 	error
@@ -48,7 +48,7 @@ pub mut:
 	allow_not_found bool
 }
 
-// Errors — основной класс для сбора и вывода ошибок
+// Errors — main class for collecting and outputting errors
 @[heap]
 pub struct Errors {
 pub mut:
@@ -101,7 +101,7 @@ pub fn Errors.new(options &Options, read_source ?fn (string) []string, hide_erro
 	}
 }
 
-// reset очищает все ошибки
+// reset clears all errors
 pub fn (mut e Errors) reset() {
 	e.error_info_map.clear()
 	e.has_blockers.clear()
@@ -111,13 +111,13 @@ pub fn (mut e Errors) reset() {
 	e.seen_import_error = false
 }
 
-// set_file устанавливает текущий файл для ошибок
+// set_file sets the current file for errors
 pub fn (mut e Errors) set_file(file string, module_name ?string) {
 	e.file = file
 	e.target_module = module_name
 }
 
-// report сообщает об ошибке
+// report reports an error
 pub fn (mut e Errors) report(line int, column int, message string, code ?string, severity string, blocker bool, only_once bool) {
 	if only_once && message in e.only_once_messages {
 		return

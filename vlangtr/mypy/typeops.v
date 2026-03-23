@@ -198,11 +198,8 @@ pub fn get_type_object_type(info TypeInfo) ProperType {
 	return ProperType{}
 }
 
-// ProperType — proper type wrapper
-pub struct ProperType {
-pub mut:
-	type_node ?MypyTypeNode
-}
+// ProperType — proper type alias (expanded type)
+pub type ProperType = MypyTypeNode
 
 // is_type_var проверяет, является ли тип TypeVar
 pub fn is_type_var(t MypyTypeNode) bool {

@@ -1159,6 +1159,7 @@ pub type SymbolNodeRef = ClassDef
 	| TypeAlias
 	| TypeInfo
 	| Var
+	| PlaceholderNode
 
 pub fn (mut n SymbolNodeRef) fullname() string {
 	return match n {

@@ -4,7 +4,7 @@
 
 module mypy
 
-pub type FormatStringExpr = BytesExpr | StrExpr
+pub type StringOrBytesExpr = BytesExpr | StrExpr
 
 pub struct ConversionSpecifier {
 pub mut:
@@ -169,7 +169,7 @@ pub fn (mut sfc StringFormatterChecker) auto_generate_keys(mut all_specs []Conve
 	return true
 }
 
-pub fn (mut sfc StringFormatterChecker) check_str_interpolation(expr FormatStringExpr, replacements Expression) MypyTypeNode {
+pub fn (mut sfc StringFormatterChecker) check_str_interpolation(expr StringOrBytesExpr, replacements Expression) MypyTypeNode {
 	expr_ctx := format_string_expr_context(expr)
 	expr_val := match expr {
 		StrExpr {
@@ -222,7 +222,7 @@ pub fn (mut sfc StringFormatterChecker) analyze_conversion_specifiers(specifiers
 	return has_key
 }
 
-pub fn (mut sfc StringFormatterChecker) conversion_type(p string, context Context, expr FormatStringExpr) ?MypyTypeNode {
+pub fn (mut sfc StringFormatterChecker) conversion_type(p string, context Context, expr StringOrBytesExpr) ?MypyTypeNode {
 	if p == 'b' {
 		if expr !is BytesExpr {
 			sfc.msg.fail('Format character "b" is only supported on bytes patterns', context,
@@ -258,7 +258,7 @@ fn (mut sfc StringFormatterChecker) accept(expr Expression) MypyTypeNode {
 	return sfc.chk.expr_checker.accept(expr)
 }
 
-fn format_string_expr_context(expr FormatStringExpr) Context {
+fn format_string_expr_context(expr StringOrBytesExpr) Context {
 	return match expr {
 		StrExpr { expr.base.ctx }
 		BytesExpr { expr.base.ctx }

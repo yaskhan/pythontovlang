@@ -21,7 +21,7 @@ pub fn main(args []string, mut stdout os.File, mut stderr os.File) {
 	sources := res_opt.sources
 	options := res_opt.options
 
-	mut formatter := util.new_fancy_formatter(stdout, stderr, options.hide_error_codes,
+	mut formatter := new_fancy_formatter(stdout, stderr, options.hide_error_codes,
 		options.output.len > 0)
 
 	if options.allow_redefinition_new && !options.local_partial_types {
@@ -43,7 +43,7 @@ pub fn main(args []string, mut stdout os.File, mut stderr os.File) {
 		stderr)
 
 	code := 0
-	n_errors, n_notes, n_files := util.count_stats(messages)
+	n_errors, n_notes, n_files := count_stats(messages)
 	if messages.len > 0 && n_notes < messages.len {
 		if blockers {
 			code = 2
@@ -129,10 +129,10 @@ fn maybe_write_junit_xml(td f64, serious bool, all_messages []string, messages_b
 		if options.junit_format == 'global' {
 			mut global_map := map[string][]string{}
 			global_map['none'] = all_messages
-			util.write_junit_xml(td, serious, global_map, options.junit_xml, py_version,
+			write_junit_xml(td, serious, global_map, options.junit_xml, py_version,
 				options.platform)
 		} else {
-			util.write_junit_xml(td, serious, messages_by_file, options.junit_xml, py_version,
+			write_junit_xml(td, serious, messages_by_file, options.junit_xml, py_version,
 				options.platform)
 		}
 	}

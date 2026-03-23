@@ -261,7 +261,7 @@ pub fn native_parse(filename string, options Options, skip_function_bodies bool,
 
 	mut data := ASTReadBuffer.new(ast_bytes)
 	n := data.read_int()
-	mut state := State{
+	mut state := ParseState{
 		options: &options
 	}
 

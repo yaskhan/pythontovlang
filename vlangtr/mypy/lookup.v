@@ -49,27 +49,28 @@ pub fn lookup_fully_qualified(name string, modules map[string]MypyFile, raise_on
 				rest[0] += name[i..]
 			}
 			// Traverse the rest of the path
-			mut current_names := names.clone()
+			mut current_symbols := names.symbols
 			for rest.len > 0 {
 				key := rest.pop()
-				if key !in current_names {
+				if key !in current_symbols {
 					if raise_on_missing {
 						panic('Cannot find component ${key} for ${name}')
 					}
 					return none
 				}
-				stnode := current_names[key] or { return none }
+				stnode := current_symbols[key] or { return none }
 				if rest.len == 0 {
 					return stnode
 				}
 				if n := stnode.node {
-					if n !is TypeInfo {
+					if n is TypeInfo {
+						current_symbols = (n as TypeInfo).names.symbols
+					} else {
 						if raise_on_missing {
 							panic('Cannot find ${name}')
 						}
 						return none
 					}
-					current_names = (n as TypeInfo).names
 				} else {
 					return none
 				}

@@ -7,7 +7,7 @@ module mypy
 // AnalyzeTypeContext — контекст для хука семантического анализа типа
 pub struct AnalyzeTypeContext {
 pub:
-	typ     UnboundTypeNode
+	typ     UnboundType
 	context NodeBase
 	api     TypeAnalyzerPluginInterface
 }
@@ -24,7 +24,7 @@ pub:
 pub struct FunctionSigContext {
 pub:
 	args              [][]Expression
-	default_signature CallableTypeNode
+	default_signature CallableType
 	context           NodeBase
 	api               CheckerPluginInterface
 }
@@ -45,9 +45,9 @@ pub:
 // MethodSigContext — контекст для хука сигнатуры метода
 pub struct MethodSigContext {
 pub:
-	typ               ProperTypeNode
+	typ               ProperType
 	args              [][]Expression
-	default_signature CallableTypeNode
+	default_signature CallableType
 	context           NodeBase
 	api               CheckerPluginInterface
 }
@@ -55,7 +55,7 @@ pub:
 // MethodContext — контекст для хука метода
 pub struct MethodContext {
 pub:
-	typ                 ProperTypeNode
+	typ                 ProperType
 	arg_types           [][]MypyTypeNode
 	arg_kinds           [][]ArgKind
 	callee_arg_names    []string
@@ -69,7 +69,7 @@ pub:
 // AttributeContext — контекст для хука типа атрибута
 pub struct AttributeContext {
 pub:
-	typ               ProperTypeNode
+	typ               ProperType
 	default_attr_type MypyTypeNode
 	is_lvalue         bool
 	context           NodeBase
@@ -79,7 +79,7 @@ pub:
 // ClassDefContext — контекст для хука определения класса
 pub struct ClassDefContext {
 pub:
-	cls    ClassDefNode
+	cls    ClassDef
 	reason Expression
 	api    SemanticAnalyzerPluginInterface
 }
@@ -87,7 +87,7 @@ pub:
 // DynamicClassDefContext — контекст для динамического определения класса
 pub struct DynamicClassDefContext {
 pub:
-	call CallExprNode
+	call CallExpr
 	name string
 	api  SemanticAnalyzerPluginInterface
 }
@@ -138,7 +138,7 @@ pub fn (p Plugin) get_type_analyze_hook(fullname string) ?fn (AnalyzeTypeContext
 }
 
 // get_function_signature_hook возвращает хук для сигнатуры функции
-pub fn (p Plugin) get_function_signature_hook(fullname string) ?fn (FunctionSigContext) FunctionLikeNode {
+pub fn (p Plugin) get_function_signature_hook(fullname string) ?fn (FunctionSigContext) MypyTypeNode {
 	return none
 }
 
@@ -148,7 +148,7 @@ pub fn (p Plugin) get_function_hook(fullname string) ?fn (FunctionContext) MypyT
 }
 
 // get_method_signature_hook возвращает хук для сигнатуры метода
-pub fn (p Plugin) get_method_signature_hook(fullname string) ?fn (MethodSigContext) FunctionLikeNode {
+pub fn (p Plugin) get_method_signature_hook(fullname string) ?fn (MethodSigContext) MypyTypeNode {
 	return none
 }
 
@@ -275,7 +275,7 @@ pub:
 pub interface TypeAnalyzerPluginInterface {
 	options Options
 	fail(msg string, ctx NodeBase, code ?ErrorCode)
-	named_type(fullname string, args []MypyTypeNode) InstanceNode
+	named_type(fullname string, args []MypyTypeNode) Instance
 	analyze_type(typ MypyTypeNode) MypyTypeNode
 }
 
@@ -284,7 +284,7 @@ pub interface CheckerPluginInterface {
 	options Options
 	path    string
 	fail(msg string, ctx NodeBase, code ?ErrorCode) ?ErrorInfo
-	named_generic_type(name string, args []MypyTypeNode) InstanceNode
+	named_generic_type(name string, args []MypyTypeNode) Instance
 	get_expression_type(node Expression, type_context ?MypyTypeNode) MypyTypeNode
 }
 
@@ -294,8 +294,8 @@ pub interface SemanticAnalyzerPluginInterface {
 	cur_mod_id      string
 	msg             MessageBuilder
 	final_iteration bool
-	named_type(fullname string, args ?[]MypyTypeNode) InstanceNode
-	builtin_type(fullname string) InstanceNode
+	named_type(fullname string, args ?[]MypyTypeNode) Instance
+	builtin_type(fullname string) Instance
 	fail(msg string, ctx NodeBase, serious bool, blocker bool, code ?ErrorCode)
 	anal_type(typ MypyTypeNode, allow_unbound_tvars bool) ?MypyTypeNode
 	lookup_fully_qualified(fullname string) SymbolTableNode
