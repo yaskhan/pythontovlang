@@ -111,6 +111,10 @@ pub fn (mut e Errors) reset() {
 	e.seen_import_error = false
 }
 
+pub fn new_errors(options Options) Errors {
+	return Errors.new(&options, none, none)
+}
+
 // set_file sets the current file for errors
 pub fn (mut e Errors) set_file(file string, module_name ?string) {
 	e.file = file

@@ -946,6 +946,8 @@ pub fn (mut n OverloadedFuncDef) accept(mut v NodeVisitor) !string {
 	return v.visit_overloaded_func_def(mut n)!
 }
 
+pub type FuncItem = FuncDef | OverloadedFuncDef | LambdaExpr | Decorator
+
 pub struct Decorator {
 pub mut:
 	base        NodeBase
@@ -1418,7 +1420,7 @@ pub mut:
 }
 
 pub struct DictItem {
-pub:
+pub mut:
 	key   ?Expression
 	value Expression
 }

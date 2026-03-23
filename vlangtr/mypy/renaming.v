@@ -1,4 +1,3 @@
-// I, Cline, am working on this file. Started: 2026-03-22 14:49
 // renaming.v — Variable renaming for redefinition support
 // Translated from mypy/renaming.py
 
@@ -10,16 +9,6 @@ pub const function_scope = 1
 pub const class_scope = 2
 
 // VariableRenameVisitor renames variables to support redefinition
-// For example, the code:
-//   x = 0
-//   f(x)
-//   x = "a"
-//   g(x)
-// Is transformed to:
-//   x' = 0
-//   f(x')
-//   x = "a"
-//   g(x)
 pub struct VariableRenameVisitor {
 pub mut:
 	// Counter for numbering new blocks
@@ -36,7 +25,6 @@ pub mut:
 	var_blocks []map[string]int
 
 	// References to variables that may require renaming
-	// List of scopes; each scope is a mapping name -> list of collections
 	refs []map[string][][]NameExpr
 	// Number of reads of the last variable definition (per scope)
 	num_reads []map[string]int
@@ -51,7 +39,7 @@ pub fn new_variable_rename_visitor() VariableRenameVisitor {
 		disallow_redef_depth: 0
 		loop_depth:           0
 		block_loop_depth:     map[int]int{}
-		blocks:               []int{}
+		blocks:               [0]
 		var_blocks:           []map[string]int{}
 		refs:                 []map[string][][]NameExpr{}
 		num_reads:            []map[string]int{}
@@ -61,7 +49,7 @@ pub fn new_variable_rename_visitor() VariableRenameVisitor {
 
 // clear clears the state
 pub fn (mut v VariableRenameVisitor) clear() {
-	v.blocks = []
+	v.blocks = [0]
 	v.var_blocks = []
 }
 
@@ -77,12 +65,12 @@ pub fn (mut v VariableRenameVisitor) enter_block() BlockGuard {
 
 // BlockGuard for automatic exit from block
 pub struct BlockGuard {
-mut:
+pub mut:
 	v &VariableRenameVisitor
 }
 
 // drop removes the block on exit
-pub fn (bg BlockGuard) drop() {
+pub fn (mut bg BlockGuard) drop() {
 	bg.v.blocks.pop()
 }
 
@@ -96,12 +84,12 @@ pub fn (mut v VariableRenameVisitor) enter_try() TryGuard {
 
 // TryGuard for automatic exit from try
 pub struct TryGuard {
-mut:
+pub mut:
 	v &VariableRenameVisitor
 }
 
 // drop decreases try depth
-pub fn (tg TryGuard) drop() {
+pub fn (mut tg TryGuard) drop() {
 	tg.v.disallow_redef_depth--
 }
 
@@ -115,12 +103,12 @@ pub fn (mut v VariableRenameVisitor) enter_loop() LoopGuard {
 
 // LoopGuard for automatic exit from loop
 pub struct LoopGuard {
-mut:
+pub mut:
 	v &VariableRenameVisitor
 }
 
 // drop decreases loop depth
-pub fn (lg LoopGuard) drop() {
+pub fn (mut lg LoopGuard) drop() {
 	lg.v.loop_depth--
 }
 
@@ -137,12 +125,12 @@ pub fn (mut v VariableRenameVisitor) enter_scope(kind int) ScopeGuard {
 
 // ScopeGuard for automatic exit from scope
 pub struct ScopeGuard {
-mut:
+pub mut:
 	v &VariableRenameVisitor
 }
 
 // drop executes flush_refs on exit
-pub fn (sg ScopeGuard) drop() {
+pub fn (mut sg ScopeGuard) drop() {
 	sg.v.flush_refs()
 	sg.v.var_blocks.pop()
 	sg.v.num_reads.pop()
@@ -151,12 +139,8 @@ pub fn (sg ScopeGuard) drop() {
 
 // current_block returns the current block_id
 fn (v VariableRenameVisitor) current_block() int {
-	return v.blocks[v.blocks.len - 1]
-}
-
-// is_nested checks if we are nested
-fn (v VariableRenameVisitor) is_nested() bool {
-	return v.var_blocks.len > 1
+	if v.blocks.len == 0 { return 0 }
+	return v.blocks.last()
 }
 
 // flush_refs processes variable references
@@ -171,13 +155,10 @@ fn (mut v VariableRenameVisitor) flush_refs() {
 	for name, collections in last_refs {
 		reads := last_reads[name] or { 0 }
 
-		// If there was a redefinition and few reads
 		if collections.len > 1 && reads <= 1 {
-			// Rename the first definition
 			for i, coll in collections {
 				if i > 0 {
-					for expr in coll {
-						// Mark for renaming
+					for mut expr in coll {
 						expr.is_special_form = true
 					}
 				}
@@ -186,22 +167,35 @@ fn (mut v VariableRenameVisitor) flush_refs() {
 	}
 }
 
+// record_definition_helper records a name definition
+fn (mut v VariableRenameVisitor) record_definition_helper(name string) {
+	if v.var_blocks.len > 0 {
+		mut current := v.var_blocks.last()
+		if name in current {
+			if v.disallow_redef_depth == 0 {
+				current[name] = v.current_block()
+			}
+		} else {
+			current[name] = v.current_block()
+		}
+		if v.num_reads.len > 0 {
+			v.num_reads.last()[name] = 0
+		}
+	}
+}
+
 // visit_name_expr handles variable name
-pub fn (mut v VariableRenameVisitor) visit_name_expr(expr NameExpr) {
+pub fn (mut v VariableRenameVisitor) visit_name_expr(mut expr NameExpr) {
 	if v.var_blocks.len == 0 {
 		return
 	}
 
-	mut current := v.var_blocks.last()
 	name := expr.name
-
-	if name !in current {
-		current[name] = v.current_block()
+	if name !in v.var_blocks.last() {
+		v.var_blocks.last()[name] = v.current_block()
 	} else {
-		// Check if definition is in the same block
-		def_block := current[name]
+		def_block := v.var_blocks.last()[name]
 		if def_block != v.current_block() {
-			// Redefinition in another block
 			if name !in v.refs.last() {
 				v.refs.last()[name] = [][]NameExpr{}
 			}
@@ -211,178 +205,199 @@ pub fn (mut v VariableRenameVisitor) visit_name_expr(expr NameExpr) {
 }
 
 // visit_assignment_stmt handles assignment
-pub fn (mut v VariableRenameVisitor) visit_assignment_stmt(stmt AssignmentStmt) {
+pub fn (mut v VariableRenameVisitor) visit_assignment_stmt(mut stmt AssignmentStmt) {
 	for lval in stmt.lvalues {
-		v.visit_lvalue(lval)
+		if lval is NameExpr { v.visit_lvalue(Lvalue(lval as NameExpr)) }
+		else if lval is MemberExpr { v.visit_lvalue(Lvalue(lval as MemberExpr)) }
+		else if lval is TupleExpr { v.visit_lvalue(Lvalue(lval as TupleExpr)) }
+		else if lval is ListExpr { v.visit_lvalue(Lvalue(lval as ListExpr)) }
+		else if lval is StarExpr { v.visit_lvalue(Lvalue(lval as StarExpr)) }
 	}
-	if stmt.rvalue != none {
-		v.visit_expression(stmt.rvalue)
-	}
+	v.visit_expression(mut stmt.rvalue)
 }
 
 // visit_lvalue handles lvalue
 fn (mut v VariableRenameVisitor) visit_lvalue(lval Lvalue) {
-	if lval is NameExpr {
-		if v.var_blocks.len > 0 {
-			mut current := v.var_blocks.last()
-			name := lval.name
-
-			if name in current {
-				// Redefinition
-				if v.disallow_redef_depth == 0 {
-					current[name] = v.current_block()
-				}
-			} else {
-				current[name] = v.current_block()
-			}
-
-			// Reset read counter
-			if v.num_reads.len > 0 {
-				v.num_reads.last()[name] = 0
+	match lval {
+		NameExpr {
+			v.record_definition_helper(lval.name)
+		}
+		TupleExpr {
+			for item in lval.items {
+				if item is NameExpr { v.visit_lvalue(Lvalue(item as NameExpr)) }
+				else if item is MemberExpr { v.visit_lvalue(Lvalue(item as MemberExpr)) }
+				else if item is TupleExpr { v.visit_lvalue(Lvalue(item as TupleExpr)) }
+				else if item is ListExpr { v.visit_lvalue(Lvalue(item as ListExpr)) }
+				else if item is StarExpr { v.visit_lvalue(Lvalue(item as StarExpr)) }
 			}
 		}
-	} else if lval is TupleExpr || lval is ListExpr {
-		for item in lval.items {
-			v.visit_lvalue(item)
+		ListExpr {
+			for item in lval.items {
+				if item is NameExpr { v.visit_lvalue(Lvalue(item as NameExpr)) }
+				else if item is MemberExpr { v.visit_lvalue(Lvalue(item as MemberExpr)) }
+				else if item is TupleExpr { v.visit_lvalue(Lvalue(item as TupleExpr)) }
+				else if item is ListExpr { v.visit_lvalue(Lvalue(item as ListExpr)) }
+				else if item is StarExpr { v.visit_lvalue(Lvalue(item as StarExpr)) }
+			}
 		}
-	} else if lval is MemberExpr {
-		v.visit_expression(lval.expr)
+		MemberExpr {
+			v.visit_expression(mut lval.expr)
+		}
+		StarExpr {
+			if lval.expr is NameExpr { v.visit_lvalue(Lvalue(lval.expr as NameExpr)) }
+			else if lval.expr is MemberExpr { v.visit_lvalue(Lvalue(lval.expr as MemberExpr)) }
+			else if lval.expr is TupleExpr { v.visit_lvalue(Lvalue(lval.expr as TupleExpr)) }
+			else if lval.expr is ListExpr { v.visit_lvalue(Lvalue(lval.expr as ListExpr)) }
+			else if lval.expr is StarExpr { v.visit_lvalue(Lvalue(lval.expr as StarExpr)) }
+		}
 	}
 }
 
 // visit_expression handles expression
-fn (mut v VariableRenameVisitor) visit_expression(expr Expression) {
-	if expr is NameExpr {
-		v.visit_name_expr(expr)
-		// Increment read counter
-		if v.num_reads.len > 0 && v.var_blocks.len > 0 {
-			name := expr.name
-			if name in v.var_blocks.last() {
-				mut reads := v.num_reads.last()[name] or { 0 }
-				reads++
-				v.num_reads.last()[name] = reads
+fn (mut v VariableRenameVisitor) visit_expression(mut expr Expression) {
+	match mut expr {
+		NameExpr {
+			v.visit_name_expr(mut expr)
+			if v.num_reads.len > 0 && v.var_blocks.len > 0 {
+				name := expr.name
+				if name in v.var_blocks.last() {
+					reads := v.num_reads.last()[name] or { 0 }
+					v.num_reads.last()[name] = reads + 1
+				}
 			}
 		}
-	} else if expr is MemberExpr {
-		v.visit_expression(expr.expr)
-	} else if expr is CallExpr {
-		v.visit_expression(expr.callee)
-		for arg in expr.args {
-			v.visit_expression(arg)
+		MemberExpr {
+			v.visit_expression(mut expr.expr)
 		}
-	} else if expr is TupleExpr || expr is ListExpr {
-		for item in expr.items {
-			v.visit_expression(item)
+		CallExpr {
+			v.visit_expression(mut expr.callee)
+			for mut arg in expr.args {
+				v.visit_expression(mut arg)
+			}
 		}
-	} else if expr is DictExpr {
-		for kv in expr.items {
-			v.visit_expression(kv[0])
-			v.visit_expression(kv[1])
+		TupleExpr {
+			for mut item in expr.items {
+				v.visit_expression(mut item)
+			}
 		}
+		ListExpr {
+			for mut item in expr.items {
+				v.visit_expression(mut item)
+			}
+		}
+		DictExpr {
+			for mut kv in expr.items {
+				if mut k := kv.key {
+					v.visit_expression(mut k)
+				}
+				v.visit_expression(mut kv.value)
+			}
+		}
+		else {}
 	}
 }
 
 // visit_func_def handles function definition
-pub fn (mut v VariableRenameVisitor) visit_func_def(defn FuncDef) {
-	_ = v.enter_scope(function_scope)
+pub fn (mut v VariableRenameVisitor) visit_func_def(mut defn FuncDef) {
+	mut sg := v.enter_scope(function_scope)
 	defer {
-		ScopeGuard{
-			v: v
-		}.drop()
+		sg.drop()
 	}
 
 	for arg in defn.arguments {
-		v.visit_lvalue(arg.variable)
+		v.record_definition_helper(arg.variable.name)
 	}
 
-	if defn.body != none {
-		v.visit_block(defn.body)
-	}
+	v.visit_block(mut defn.body)
 }
 
 // visit_class_def handles class definition
-pub fn (mut v VariableRenameVisitor) visit_class_def(defn ClassDef) {
-	_ = v.enter_scope(class_scope)
+pub fn (mut v VariableRenameVisitor) visit_class_def(mut defn ClassDef) {
+	mut sg := v.enter_scope(class_scope)
 	defer {
-		ScopeGuard{
-			v: v
-		}.drop()
+		sg.drop()
 	}
 
-	if defn.defs != none {
-		v.visit_block(defn.defs)
-	}
+	v.visit_block(mut defn.defs)
 }
 
 // visit_block handles block
-pub fn (mut v VariableRenameVisitor) visit_block(block Block) {
-	_ = v.enter_block()
+pub fn (mut v VariableRenameVisitor) visit_block(mut block Block) {
+	mut bg := v.enter_block()
 	defer {
-		BlockGuard{
-			v: v
-		}.drop()
+		bg.drop()
 	}
 
-	for stmt in block.body {
-		v.visit_statement(stmt)
+	for mut stmt in block.body {
+		v.visit_statement(mut stmt)
 	}
 }
 
 // visit_statement handles statement
-fn (mut v VariableRenameVisitor) visit_statement(stmt Statement) {
-	if stmt is AssignmentStmt {
-		v.visit_assignment_stmt(stmt)
-	} else if stmt is ExpressionStmt {
-		v.visit_expression(stmt.expr)
-	} else if stmt is ReturnStmt {
-		if stmt.expr != none {
-			v.visit_expression(stmt.expr)
+fn (mut v VariableRenameVisitor) visit_statement(mut stmt Statement) {
+	match mut stmt {
+		AssignmentStmt {
+			v.visit_assignment_stmt(mut stmt)
 		}
-	} else if stmt is IfStmt {
-		for expr in stmt.expr {
-			v.visit_expression(expr)
+		ExpressionStmt {
+			v.visit_expression(mut stmt.expr)
 		}
-		for body in stmt.body {
-			v.visit_block(body)
+		ReturnStmt {
+			if mut e := stmt.expr {
+				v.visit_expression(mut e)
+			}
 		}
-		if stmt.else_body != none {
-			v.visit_block(stmt.else_body)
+		IfStmt {
+			for mut e in stmt.expr {
+				v.visit_expression(mut e)
+			}
+			for mut b in stmt.body {
+				v.visit_block(mut b)
+			}
+			if mut eb := stmt.else_body {
+				v.visit_block(mut eb)
+			}
 		}
-	} else if stmt is WhileStmt {
-		v.visit_expression(stmt.expr)
-		_ = v.enter_loop()
-		defer {
-			LoopGuard{
-				v: v
-			}.drop()
+		WhileStmt {
+			v.visit_expression(mut stmt.expr)
+			mut lg := v.enter_loop()
+			defer {
+				lg.drop()
+			}
+			v.visit_block(mut stmt.body)
 		}
-		v.visit_block(stmt.body)
-	} else if stmt is ForStmt {
-		v.visit_expression(stmt.iter)
-		v.visit_lvalue(stmt.index)
-		_ = v.enter_loop()
-		defer {
-			LoopGuard{
-				v: v
-			}.drop()
+		ForStmt {
+			v.visit_expression(mut stmt.iter)
+			if stmt.index is NameExpr { v.visit_lvalue(Lvalue(stmt.index as NameExpr)) }
+			else if stmt.index is MemberExpr { v.visit_lvalue(Lvalue(stmt.index as MemberExpr)) }
+			else if stmt.index is TupleExpr { v.visit_lvalue(Lvalue(stmt.index as TupleExpr)) }
+			else if stmt.index is ListExpr { v.visit_lvalue(Lvalue(stmt.index as ListExpr)) }
+			else if stmt.index is StarExpr { v.visit_lvalue(Lvalue(stmt.index as StarExpr)) }
+			mut lg := v.enter_loop()
+			defer {
+				lg.drop()
+			}
+			v.visit_block(mut stmt.body)
 		}
-		v.visit_block(stmt.body)
-	} else if stmt is TryStmt {
-		_ = v.enter_try()
-		defer {
-			TryGuard{
-				v: v
-			}.drop()
+		TryStmt {
+			mut tg := v.enter_try()
+			defer {
+				tg.drop()
+			}
+			v.visit_block(mut stmt.body)
+			for mut h in stmt.handlers {
+				v.visit_block(mut h)
+			}
 		}
-		v.visit_block(stmt.body)
-		for handler in stmt.handlers {
-			v.visit_block(handler)
+		FuncDef {
+			v.visit_func_def(mut stmt)
 		}
-	} else if stmt is FuncDef {
-		v.visit_func_def(stmt)
-	} else if stmt is ClassDef {
-		v.visit_class_def(stmt)
-	} else if stmt is Block {
-		v.visit_block(stmt)
+		ClassDef {
+			v.visit_class_def(mut stmt)
+		}
+		Block {
+			v.visit_block(mut stmt)
+		}
+		else {}
 	}
 }

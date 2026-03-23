@@ -197,17 +197,17 @@ pub mut:
 	undefined_refs map[string][]NameExpr
 }
 
-// new_scope creates a new Scope
-pub fn new_scope(stmts []BranchStatement, scope_type ScopeType) Scope {
-	return Scope{
+// new_scope creates a new PartiallyDefinedScope
+pub fn new_scope(stmts []BranchStatement, scope_type ScopeType) PartiallyDefinedScope {
+	return PartiallyDefinedScope{
 		branch_stmts:   stmts
 		scope_type:     scope_type
 		undefined_refs: map[string][]NameExpr{}
 	}
 }
 
-// copy creates a copy of Scope
-pub fn (s Scope) copy() Scope {
+// copy creates a copy of PartiallyDefinedScope
+pub fn (s PartiallyDefinedScope) copy() PartiallyDefinedScope {
 	mut result := new_scope(s.branch_stmts.map(it.copy()), s.scope_type)
 	for k, v in s.undefined_refs {
 		result.undefined_refs[k] = v.clone()
@@ -216,7 +216,7 @@ pub fn (s Scope) copy() Scope {
 }
 
 // record_undefined_ref records an undefined reference
-pub fn (mut s Scope) record_undefined_ref(o NameExpr) {
+pub fn (mut s PartiallyDefinedScope) record_undefined_ref(o NameExpr) {
 	if o.name !in s.undefined_refs {
 		s.undefined_refs[o.name] = []NameExpr{}
 	}
@@ -224,7 +224,7 @@ pub fn (mut s Scope) record_undefined_ref(o NameExpr) {
 }
 
 // pop_undefined_ref retrieves undefined references for a name
-pub fn (mut s Scope) pop_undefined_ref(name string) []NameExpr {
+pub fn (mut s PartiallyDefinedScope) pop_undefined_ref(name string) []NameExpr {
 	if name in s.undefined_refs {
 		refs := s.undefined_refs[name]
 		s.undefined_refs.delete(name)
@@ -236,7 +236,7 @@ pub fn (mut s Scope) pop_undefined_ref(name string) []NameExpr {
 // DefinedVariableTracker manages state and scope for UndefinedVariablesVisitor
 pub struct DefinedVariableTracker {
 pub mut:
-	scopes              []Scope
+	scopes              []PartiallyDefinedScope
 	disable_branch_skip bool
 	in_finally          bool
 }
@@ -262,7 +262,7 @@ pub fn (dvt DefinedVariableTracker) copy() DefinedVariableTracker {
 }
 
 // _scope returns the current scope
-fn (dvt DefinedVariableTracker) _scope() Scope {
+fn (dvt DefinedVariableTracker) _scope() PartiallyDefinedScope {
 	return dvt.scopes[dvt.scopes.len - 1]
 }
 

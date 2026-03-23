@@ -63,13 +63,20 @@ pub fn (v TypeJoinVisitor) visit_uninhabited_type(t &UninhabitedType) !MypyTypeN
 pub fn (v TypeJoinVisitor) visit_deleted_type(t &DeletedType) !MypyTypeNode { return MypyTypeNode(*t) }
 pub fn (v TypeJoinVisitor) visit_erased_type(t &ErasedType) !MypyTypeNode { return MypyTypeNode(*t) }
 pub fn (v TypeJoinVisitor) visit_type_var(t &TypeVarType) !MypyTypeNode { return MypyTypeNode(*t) }
-pub fn (v TypeJoinVisitor) visit_instance(t &Instance) !MypyTypeNode { mut ij := v.instance_joiner return ij.join_instances(*t, get_proper_type(v.s) as Instance) }
+pub fn (v TypeJoinVisitor) visit_instance(t &Instance) !MypyTypeNode {
+	mut ij := v.instance_joiner
+	s_proper := get_proper_type(v.s)
+	if s_proper is Instance {
+		return ij.join_instances(*t, s_proper as Instance)
+	}
+	return MypyTypeNode(*t)
+}
 pub fn (v TypeJoinVisitor) visit_callable_type(t &CallableType) !MypyTypeNode { return MypyTypeNode(*t) }
 pub fn (v TypeJoinVisitor) visit_tuple_type(t &TupleType) !MypyTypeNode { return MypyTypeNode(*t) }
 pub fn (v TypeJoinVisitor) visit_typeddict_type(t &TypedDictType) !MypyTypeNode { return MypyTypeNode(*t) }
 pub fn (v TypeJoinVisitor) visit_literal_type(t &LiteralType) !MypyTypeNode { return join_types(v.s, t.fallback, v.instance_joiner) }
 pub fn (v TypeJoinVisitor) visit_type_type(t &TypeType) !MypyTypeNode { return MypyTypeNode(*t) }
-pub fn is_better(t ProperType, s ProperType) bool { return t.type_str() == s.type_str() }
+pub fn is_better(t MypyTypeNode, s MypyTypeNode) bool { return t.type_str() == s.type_str() }
 pub fn is_similar_callables(t CallableType, s CallableType) bool { return t.arg_types.len == s.arg_types.len }
 pub fn combine_similar_callables(t CallableType, s CallableType) CallableType { _ = s return t }
 pub fn object_from_instance(instance Instance) Instance { return instance }

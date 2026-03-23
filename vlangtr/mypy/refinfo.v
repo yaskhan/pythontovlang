@@ -32,39 +32,45 @@ pub fn (mut v RefInfoVisitor) visit_member_expr(expr &MemberExpr) {
 
 pub fn (mut v RefInfoVisitor) visit_func_def(func &FuncDef) {
 	// Simple traversal
-	for item in func.expanded {
-		if item is FuncDef {
-			v.visit_func_def(item)
-		}
-	}
 }
 
 pub fn (mut v RefInfoVisitor) record_ref_expr(expr &RefExpr) {
 	mut fullname := ''
 
-	if expr.kind != .ldef && expr.fullname.contains('.') {
-		fullname = expr.fullname
-	} else if expr is MemberExpr {
-		m_expr := expr as MemberExpr
-		typ := v.type_map[voidptr(m_expr.expr)] or { MypyTypeNode(AnyType{}) }
-		// node from SymbolNodeRef is ?SymbolNodeRef
-		sym := if m_expr.expr is RefExpr { (m_expr.expr as RefExpr).node } else { none }
-		if typ !is AnyType {
-			tfn := type_fullname(typ, sym)
-			if tfn != '' {
-				fullname = '${tfn}.${m_expr.name}'
+	// Since RefExpr is a sum type, use a match or is check correctly
+	match expr {
+		NameExpr {
+			if expr.kind != .ldef && expr.fullname.contains('.') {
+				fullname = expr.fullname
 			}
 		}
-		if fullname == '' {
-			fullname = '*.${m_expr.name}'
+		MemberExpr {
+			if expr.kind != .ldef && (expr.fullname or { '' }).contains('.') {
+				fullname = expr.fullname or { '' }
+			} else {
+				m_expr := expr
+				typ := v.type_map[voidptr(m_expr.expr)] or { MypyTypeNode(AnyType{}) }
+				// Extract node if the sub-expression is NameExpr or MemberExpr
+				sym := match m_expr.expr {
+					NameExpr { m_expr.expr.node }
+					MemberExpr { m_expr.expr.node }
+					else { none }
+				}
+				if typ !is AnyType {
+					tfn := type_fullname(typ, sym)
+					if tfn != '' {
+						fullname = '${tfn}.${m_expr.name}'
+					}
+				}
+				if fullname == '' {
+					fullname = '*.${m_expr.name}'
+				}
+			}
 		}
 	}
 
 	if fullname != '' {
 		mut entry := map[string]MypyTypeNode{}
-		// Placeholder for line/column/target info using LiteralType
-		// Actually, in V it might be better to use a specific struct for RefInfoEntry
-		// but we follow Python's map approach for now.
 		v.data << entry
 	}
 }
@@ -86,12 +92,18 @@ pub fn type_fullname(typ MypyTypeNode, node ?SymbolNodeRef) string {
 						return n.fullname
 					}
 				}
-				return type_fullname(MypyTypeNode(typ.fallback), node)
+				if fb := typ.fallback {
+					return type_fullname(MypyTypeNode(*fb), node)
+				}
+				return ''
 			}
 			return ''
 		}
 		TupleType {
-			return type_fullname(MypyTypeNode(typ.partial_fallback), node)
+			if fb := typ.partial_fallback {
+				return type_fullname(MypyTypeNode(*fb), node)
+			}
+			return ''
 		}
 		else {
 			return ''

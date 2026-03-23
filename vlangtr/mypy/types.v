@@ -319,6 +319,11 @@ pub mut:
 	is_var_arg  bool
 	is_ellipsis bool
 	min_args    int
+	is_type_obj bool
+}
+
+pub fn (t &CallableType) is_type_obj() bool {
+	return t.is_type_obj
 }
 
 pub fn (t &CallableType) is_generic() bool {
