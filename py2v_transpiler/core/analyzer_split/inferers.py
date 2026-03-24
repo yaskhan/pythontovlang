@@ -196,7 +196,7 @@ class MixinInferer(ast.NodeVisitor):
                     )
                     # Note: we should check if they are actually empty, but simple check is safer for now
 
-                    if is_inherited: # or not has_concrete: # Removed not has_concrete check as it was causing too many classes to be interfaces
+                    if is_inherited or not has_concrete:
                         explicit_abcs.add(cls_name)
                         changed = True
 

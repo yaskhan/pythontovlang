@@ -110,16 +110,19 @@ class ClassFieldsMixin:
                                         field_name = self.translator._sanitize_name(t.attr)
                                         if field_name not in added_fields:
                                             added_fields.add(field_name)
-                                            # Try fullname first
-                                            prefix = ".".join(self.translator._scope_names)
-                                            f_type = self.translator.type_inference.type_map.get(f"{prefix}.{t.attr}",
-                                                       self.translator.type_inference.type_map.get(t.attr, "Any"))
-                                            if f_type == "Any" and len(sub_node.targets) == 1 and isinstance(sub_node.targets[0], ast.Attribute):
+                                            f_type = "Any"
+                                            if len(sub_node.targets) == 1 and isinstance(sub_node.targets[0], ast.Attribute):
                                                 # Check if assigning from an argument with annotation
                                                 if isinstance(sub_node.value, ast.Name) and sub_node.value.id in arg_type_map:
                                                     f_type = arg_type_map[sub_node.value.id]
                                                 else:
                                                     f_type = self.translator._guess_type(sub_node.value)
+
+                                            if f_type == "Any":
+                                                # Fallback to type_map
+                                                prefix = ".".join(self.translator._scope_names)
+                                                f_type = self.translator.type_inference.type_map.get(f"{prefix}.{t.attr}",
+                                                           self.translator.type_inference.type_map.get(t.attr, "Any"))
 
                                             # Check if it was inferred as None which means it should be optional
                                             is_optional = False
@@ -142,24 +145,25 @@ class ClassFieldsMixin:
                                 field_name = self.translator._sanitize_name(sub_node.target.attr)
                                 if field_name not in added_fields:
                                     added_fields.add(field_name)
-                                    # Try fullname first
-                                    prefix = ".".join(self.translator._scope_names)
-                                    f_type = self.translator.type_inference.type_map.get(f"{prefix}.{sub_node.target.attr}",
-                                               self.translator.type_inference.type_map.get(sub_node.target.attr, "Any"))
-
-                                    # Check if it was inferred as None which means it should be optional
-                                    is_optional = False
-                                    if hasattr(sub_node, "value") and isinstance(sub_node.value, ast.Constant) and sub_node.value.value is None:
-                                        is_optional = True
-
-                                    if f_type == "Any" and sub_node.annotation:
+                                    f_type = "Any"
+                                    if sub_node.annotation:
                                         try:
                                             t_str = ast.unparse(sub_node.annotation)
                                             f_type = self.translator._map_type(t_str, struct_name)
                                         except Exception:
                                             pass
-                                    else:
+
+                                    if f_type == "Any":
+                                        # Fallback to type_map
+                                        prefix = ".".join(self.translator._scope_names)
+                                        f_type = self.translator.type_inference.type_map.get(f"{prefix}.{sub_node.target.attr}",
+                                                   self.translator.type_inference.type_map.get(sub_node.target.attr, "Any"))
                                         f_type = self.translator._map_type(f_type, struct_name)
+
+                                    # Check if it was inferred as None which means it should be optional
+                                    is_optional = False
+                                    if hasattr(sub_node, "value") and isinstance(sub_node.value, ast.Constant) and sub_node.value.value is None:
+                                        is_optional = True
 
                                     if is_optional and not f_type.startswith("?") and f_type != "Any":
                                         f_type = "?" + f_type
