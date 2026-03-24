@@ -13,38 +13,44 @@ class TypeInferenceVisitorMixin(TypeInferenceBase):
         def _guess_node_type(self, node: ast.AST) -> str: ...
         def _infer_collection_type(self, node: ast.AST) -> str: ...
         def _mark_reassigned(self, node: ast.AST) -> None: ...
+        def _get_base_node(self, node: ast.AST) -> ast.AST: ...
         func_param_mutability: Dict[str, List[int]]
         call_signatures: Dict[str, Any]
         type_map: Dict[str, str]
         mutability_map: Dict[str, Dict[str, Any]]
         location_map: Dict[str, str]
+        class_hierarchy: Dict[str, List[str]]
+        _scope_names: List[str]
+
+    def visit_Module(self, node: ast.Module) -> Any:
+        self.generic_visit(node)
 
     def visit_Call(self, node: ast.Call) -> Any:
         if isinstance(node.func, ast.Attribute):
             mutating_methods = {
-                "append", "extend", "insert", "pop", "remove", "clear",
-                "update", "setdefault", "delete", "add", "discard"
+                'append', 'extend', 'insert', 'pop', 'remove', 'clear',
+                'update', 'setdefault', 'delete', 'add', 'discard'
             }
             if node.func.attr in mutating_methods:
                 self._mark_mutated(node.func.value)
 
-            if node.func.attr == "append":
+            if node.func.attr == 'append':
                 if isinstance(node.func.value, ast.Name):
                     var_name = node.func.value.id
                     if len(node.args) == 1:
                         elt_type = self._guess_node_type(node.args[0])
-                        if elt_type != "Any":
-                            new_type = f"[]{elt_type}"
-                            if var_name not in self.type_map or self.type_map[var_name] == "[]Any":
+                        if elt_type != 'Any':
+                            new_type = f'[]{elt_type}'
+                            if var_name not in self.type_map or self.type_map[var_name] == '[]Any':
                                 self.type_map[var_name] = new_type
 
             # Better hashlib recognition
-            if isinstance(node.func.value, ast.Name) and node.func.value.id == "hashlib":
-                loc_key = f"{node.lineno}:{node.col_offset}"
-                if node.func.attr == "sha256":
-                    self.location_map[loc_key] = "PyHashSha256"
-                elif node.func.attr == "md5":
-                    self.location_map[loc_key] = "PyHashMd5"
+            if isinstance(node.func.value, ast.Name) and node.func.value.id == 'hashlib':
+                loc_key = f'{node.lineno}:{node.col_offset}'
+                if node.func.attr == 'sha256':
+                    self.location_map[loc_key] = 'PyHashSha256'
+                elif node.func.attr == 'md5':
+                    self.location_map[loc_key] = 'PyHashMd5'
 
         elif isinstance(node.func, ast.Name):
             func_name = node.func.id
@@ -56,10 +62,9 @@ class TypeInferenceVisitorMixin(TypeInferenceBase):
 
             var_name = node.func.id
             # Don't overwrite if already inferred as something more specific
-            if var_name not in self.type_map or self.type_map[var_name] == "Any":
-                if var_name not in ("list", "set", "dict"):
-                    self.type_map[var_name] = "fn (...Any) Any"
-
+            if var_name not in self.type_map or self.type_map[var_name] == 'Any':
+                if var_name not in ('list', 'set', 'dict'):
+                    self.type_map[var_name] = 'fn (...Any) Any'
         self.generic_visit(node)
 
     def visit_ClassDef(self, node: ast.ClassDef) -> Any:
@@ -69,7 +74,12 @@ class TypeInferenceVisitorMixin(TypeInferenceBase):
             if isinstance(stmt, ast.Assign):
                 for target in stmt.targets:
                     if isinstance(target, ast.Name):
-                        self.type_map[target.id] = self._guess_node_type(stmt.value)
+                        self.type_map[f"{node.name}.{target.id}"] = self._guess_node_type(stmt.value)
+            elif isinstance(stmt, ast.AnnAssign):
+                if isinstance(stmt.target, ast.Name):
+                    py_type = ast.unparse(stmt.annotation) if stmt.annotation else "Any"
+                    v_type = map_python_type_to_v(py_type)
+                    self.type_map[f"{node.name}.{stmt.target.id}"] = v_type
         self.generic_visit(node)
         self._scope_names.pop()
 

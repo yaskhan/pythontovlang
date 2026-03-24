@@ -304,6 +304,12 @@ class TypeGuessingMixin:
 
     def _guess_type_attribute(self, node: ast.Attribute) -> str:
         """Guess type for an Attribute node."""
+        val_type = self._guess_type(node.value)
+        if val_type != "Any":
+            attr_key = f"{val_type}.{node.attr}"
+            if hasattr(self.type_inference, "type_map") and attr_key in self.type_inference.type_map:
+                return self.type_inference.type_map[attr_key]
+
         if isinstance(node.value, ast.Name):
             attr_name = f"{node.value.id}.{node.attr}"
             if hasattr(self.type_inference, "type_map") and attr_name in self.type_inference.type_map:
