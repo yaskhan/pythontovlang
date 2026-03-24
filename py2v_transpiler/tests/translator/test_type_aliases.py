@@ -11,7 +11,7 @@ var_assign = some_var
 """
     expected_fragments = [
         "type MyInt = int",
-        "type UserID = int",
+        "type UserId = int",
         "type MyAlias = OtherClass",
         "var_assign := some_var"
     ]

@@ -310,6 +310,6 @@ class FunctionGenerationMixin:
             self.emitter.add_function(func_code)
             if not is_unittest_method and not is_abstract and annotations_data:
                 anno_map = ", ".join([f"'{k}': '{v}'" for k, v in annotations_data.items()])
-                const_name = f"{struct_name}_{func_name}__annotations__" if is_method and struct_name else f"{func_name}__annotations__"
+                const_name = self._to_snake_case(f"{struct_name}_{func_name}__annotations__" if is_method and struct_name else f"{func_name}__annotations__")
                 self.emitter.add_constant(f"{'pub ' if pub_pfx else ''}{const_name} = {{ {anno_map} }}")
         self.output = old_output; self._indent_level = old_indent
