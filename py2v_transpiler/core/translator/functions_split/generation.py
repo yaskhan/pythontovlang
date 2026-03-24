@@ -34,6 +34,7 @@ class FunctionGenerationMixin:
         name_remap: Dict[str, str]
         current_class_body: List[ast.stmt]
         def _sanitize_name(self, name: str, is_type: bool = False) -> str: ...
+        def _to_snake_case(self, name: str) -> str: ...
         def _map_type(
             self,
             type_str: str,
