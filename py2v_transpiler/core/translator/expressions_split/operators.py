@@ -359,23 +359,23 @@ class OperatorsMixin(TranslatorBase):
                  if is_none_node(node.left):
                      return "true"
                  if self._should_use_is_none_type(left_type, node.left):
-                      return f"(({left}) is NoneType)" if left.endswith("}") else f"({left}) is NoneType"
+                      return f"(({left}) is NoneType)" if str(left).endswith("}") else f"({left}) is NoneType"
                  return f"{left} == none"
             elif isinstance(op, (ast.IsNot, ast.NotEq)) and is_none_node(node.comparators[0]):
                  if is_none_node(node.left):
                      return "false"
                  if self._should_use_is_none_type(left_type, node.left):
-                      return f"(({left}) !is NoneType)" if left.endswith("}") else f"({left}) !is NoneType"
+                      return f"(({left}) !is NoneType)" if str(left).endswith("}") else f"({left}) !is NoneType"
                  return f"{left} != none"
             elif isinstance(op, (ast.Is, ast.Eq)) and is_none_node(node.left):
                  right_type = self._guess_type(node.comparators[0])
                  if self._should_use_is_none_type(right_type, node.comparators[0]):
-                      return f"(({right}) is NoneType)" if right.endswith("}") else f"({right}) is NoneType"
+                      return f"(({right}) is NoneType)" if str(right).endswith("}") else f"({right}) is NoneType"
                  return f"none == {right}"
             elif isinstance(op, (ast.IsNot, ast.NotEq)) and is_none_node(node.left):
                  right_type = self._guess_type(node.comparators[0])
                  if self._should_use_is_none_type(right_type, node.comparators[0]):
-                      return f"(({right}) !is NoneType)" if right.endswith("}") else f"({right}) !is NoneType"
+                      return f"(({right}) !is NoneType)" if str(right).endswith("}") else f"({right}) !is NoneType"
                  return f"none != {right}"
             elif isinstance(op, ast.In) and is_none_node(node.left):
                  right_type = self._guess_type(node.comparators[0])
@@ -426,7 +426,7 @@ class OperatorsMixin(TranslatorBase):
                       parts.append("true")
                       continue
                  if self._should_use_is_none_type(left_type, left_node):
-                      parts.append(f"(({left}) is NoneType)" if left.endswith("}") else f"({left}) is NoneType")
+                      parts.append(f"(({left}) is NoneType)" if str(left).endswith("}") else f"({left}) is NoneType")
                       continue
                  parts.append(f"({left} == none)")
             elif isinstance(op, (ast.IsNot, ast.NotEq)) and is_none_node(right_node):
@@ -434,19 +434,19 @@ class OperatorsMixin(TranslatorBase):
                       parts.append("false")
                       continue
                  if self._should_use_is_none_type(left_type, left_node):
-                      parts.append(f"(({left}) !is NoneType)" if left.endswith("}") else f"({left}) !is NoneType")
+                      parts.append(f"(({left}) !is NoneType)" if str(left).endswith("}") else f"({left}) !is NoneType")
                       continue
                  parts.append(f"({left} != none)")
             elif isinstance(op, (ast.Is, ast.Eq)) and is_none_node(left_node):
                  right_type = self._guess_type(right_node)
                  if self._should_use_is_none_type(right_type, right_node):
-                      parts.append(f"(({right}) is NoneType)" if right.endswith("}") else f"({right}) is NoneType")
+                      parts.append(f"(({right}) is NoneType)" if str(right).endswith("}") else f"({right}) is NoneType")
                       continue
                  parts.append(f"(none == {right})")
             elif isinstance(op, (ast.IsNot, ast.NotEq)) and is_none_node(left_node):
                  right_type = self._guess_type(right_node)
                  if self._should_use_is_none_type(right_type, right_node):
-                      parts.append(f"(({right}) !is NoneType)" if right.endswith("}") else f"({right}) !is NoneType")
+                      parts.append(f"(({right}) !is NoneType)" if str(right).endswith("}") else f"({right}) !is NoneType")
                       continue
                  parts.append(f"(none != {right})")
             elif isinstance(op, ast.In) and is_none_node(left_node):

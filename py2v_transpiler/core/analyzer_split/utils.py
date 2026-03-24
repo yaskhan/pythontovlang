@@ -7,7 +7,7 @@ from py2v_transpiler.models.v_types import map_python_type_to_v
 class TypeInferenceUtilsMixin(TypeInferenceBase):
     def _find_lcs(self, types: list[str]) -> str:
         if not types:
-            return "unknown"
+            return "Any"
         if len(set(types)) == 1:
             return types[0]
         
@@ -27,7 +27,7 @@ class TypeInferenceUtilsMixin(TypeInferenceBase):
             common &= set(other)
             
         if not common:
-            return "unknown"
+            return "Any"
             
         # Return the one that is closest to the original types (least general)
         # We can pick the one that has the shortest average distance, 
@@ -105,16 +105,16 @@ class TypeInferenceUtilsMixin(TypeInferenceBase):
              if isinstance(node.func, ast.Name) and node.func.id == "bool": return "bool"
              if isinstance(node.func, ast.Name) and node.func.id in ("bytearray", "bytes", "memoryview"): return "[]u8"
              if isinstance(node.func, ast.Name) and node.func.id[0].isupper(): return node.func.id
-             return "unknown"
+             return "Any"
         elif isinstance(node, ast.List):
             if not node.elts:
-                return "[]unknown"
+                return "[]Any"
             element_types = [self._guess_node_type(elt) for elt in node.elts]
             lcs = self._find_lcs(element_types)
             return f"[]{lcs}"
         elif isinstance(node, ast.Dict):
             if not node.keys:
-                return "map[string]unknown"
+                return "map[string]Any"
             key_types = set()
             val_types = set()
             for k, v in zip(node.keys, node.values):
@@ -134,7 +134,7 @@ class TypeInferenceUtilsMixin(TypeInferenceBase):
                 v_type = list(val_types)[0]
 
             return f"map[{k_type}]{v_type}"
-        return "unknown"
+        return "Any"
 
     def _infer_collection_type(self, node: ast.AST) -> str:
         return self._guess_node_type(node)
