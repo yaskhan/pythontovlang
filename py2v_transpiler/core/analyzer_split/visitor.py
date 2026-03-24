@@ -21,6 +21,7 @@ class TypeInferenceVisitorMixin(TypeInferenceBase):
         location_map: Dict[str, str]
         class_hierarchy: Dict[str, List[str]]
         _scope_names: List[str]
+        explicit_any_types: set[str]
 
     def visit_Module(self, node: ast.Module) -> Any:
         self.generic_visit(node)
@@ -79,6 +80,8 @@ class TypeInferenceVisitorMixin(TypeInferenceBase):
                 if isinstance(stmt.target, ast.Name):
                     py_type = ast.unparse(stmt.annotation) if stmt.annotation else "Any"
                     v_type = map_python_type_to_v(py_type)
+                    if py_type == "Any":
+                        self.explicit_any_types.add(f"{node.name}.{stmt.target.id}")
                     self.type_map[f"{node.name}.{stmt.target.id}"] = v_type
         self.generic_visit(node)
         self._scope_names.pop()
@@ -176,6 +179,12 @@ class TypeInferenceVisitorMixin(TypeInferenceBase):
                 else:
                      v_type = map_python_type_to_v(type_str)
                 
+                if type_str == "Any":
+                    if isinstance(node.target, ast.Name):
+                        self.explicit_any_types.add(node.target.id)
+                    elif isinstance(node.target, ast.Attribute) and isinstance(node.target.value, ast.Name) and node.target.value.id == "self":
+                        self.explicit_any_types.add(node.target.attr)
+
                 if isinstance(node.target, ast.Name):
                     self.type_map[node.target.id] = v_type
                 elif isinstance(node.target, ast.Attribute) and isinstance(node.target.value, ast.Name) and node.target.value.id == "self":
@@ -202,6 +211,11 @@ class TypeInferenceVisitorMixin(TypeInferenceBase):
                     pass
 
             v_type = map_python_type_to_v(py_type)
+            if py_type == "Any":
+                self.explicit_any_types.add(arg.arg)
+                if hasattr(arg, 'lineno'):
+                    self.explicit_any_types.add(f"{arg.arg}@{arg.lineno}:{arg.col_offset}")
+
             if v_type == "LiteralString": v_type = "string"
 
             self.type_map[arg.arg] = v_type

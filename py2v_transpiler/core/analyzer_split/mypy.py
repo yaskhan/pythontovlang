@@ -100,9 +100,14 @@ class TypeInferenceMypyMixin(TypeInferenceBase):
                 for fullname, types in collected_types.items():
                     for location, typ in types.items():
                         v_type = map_python_type_to_v(typ)
+                        name = fullname.split('.')[-1]
+                        if typ == "typing.Any":
+                            self.explicit_any_types.add(fullname)
+                            self.explicit_any_types.add(name)
+                            self.explicit_any_types.add(f"{fullname}@{location}")
+                            self.explicit_any_types.add(f"{name}@{location}")
                         # Store by fullname@location and name@location for precise lookup
                         self.type_map[f"{fullname}@{location}"] = v_type
-                        name = fullname.split('.')[-1]
                         self.type_map[f"{name}@{location}"] = v_type
 
                         # Store base type if location-less entry is missing

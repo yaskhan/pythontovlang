@@ -112,7 +112,6 @@ class TypeInferenceUtilsMixin(TypeInferenceBase):
             element_types = [self._guess_node_type(elt) for elt in node.elts]
             lcs = self._find_lcs(element_types)
             return f"[]{lcs}"
-            return "[]Any"
         elif isinstance(node, ast.Dict):
             if not node.keys:
                 return "map[string]Any"
