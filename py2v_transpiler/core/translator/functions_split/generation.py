@@ -266,6 +266,8 @@ class FunctionGenerationMixin:
             if self.defined_classes.get(struct_name, {}).get("is_pydantic"):
                  self.output.append(f"{self._indent()}mut self := {alloc_type}{{}}")
             else:
+                 # Ensure we use {..} even for generic types
+                 alloc_type_clean = ret_type.split('[')[0] if '[' in ret_type else ret_type
                  self.output.append(f"{self._indent()}mut self := {ret_type}{{}}")
         prev_ret_type, self.current_function_return_type = getattr(self, "current_function_return_type", None), ret_type
         if is_nested: self._scope_stack[-1].add(func_name)
