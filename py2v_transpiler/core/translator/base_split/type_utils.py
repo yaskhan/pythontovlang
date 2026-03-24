@@ -183,6 +183,22 @@ class TypeUtilsMixin:
         if v_type in basic_v_types:
             return v_type
 
+        # Check if it is a split class (interface vs _Impl)
+        if hasattr(self, 'known_interfaces'):
+            # If we are mapping a type for a field, argument or return,
+            # and it is a split class, we should prefer the interface name.
+            if v_type.endswith('_Impl'):
+                base_v_type = v_type[:-5]
+                if base_v_type in self.known_interfaces:
+                    v_type = base_v_type
+            elif v_type in self.known_interfaces:
+                # Already an interface name
+                pass
+
+            # If we are inside a class definition and the type is the current class,
+            # we might want to keep it as implementation if we are initializing it.
+            # But generally, for fields, interface is better for polymorphism.
+
         # Adjust type for imported symbols (aliasing)
         if v_type in self.imported_symbols:
             v_type = self.imported_symbols[v_type]
