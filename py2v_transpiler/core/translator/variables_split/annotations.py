@@ -139,7 +139,7 @@ class AnnotationsMixin(TranslatorBase):
                                 v_type = "Any"
                             self.emitter.add_global(f"{target} {v_type}")
 
-                    elif base_lhs.isupper() or \
+                    elif (isinstance(node.target, ast.Name) and node.target.id.isupper()) or \
                          (v_type == "Final" or is_literal_string_type or
                           getattr(node, "annotation", None) and
                           (getattr(getattr(node, "annotation", None), "id", "") == "Final" or
@@ -165,7 +165,7 @@ class AnnotationsMixin(TranslatorBase):
 
                 # Regular assignment if it was not handled above
                 if self.in_main and isinstance(node.target, ast.Name) and \
-                   (target in getattr(self, "global_vars", set()) or target.isupper() or is_literal_string_type):
+                   (target in getattr(self, "global_vars", set()) or (isinstance(node.target, ast.Name) and node.target.id.isupper()) or is_literal_string_type):
                     v_target = self._to_snake_case(target)
                     if is_literal_string_type:
                          # Only literal string expressions and compile time evaluables are placed in const
@@ -235,7 +235,7 @@ class AnnotationsMixin(TranslatorBase):
                     if target_name in getattr(self, "global_vars", set()):
                         self.emitter.add_global(f"{target_name} {v_type}")
                         return
-                    elif target_name.isupper():
+                    elif isinstance(node.target, ast.Name) and node.target.id.isupper():
                         # V requires consts to be initialized
                         pub = "pub " if self._is_exported(target) else ""
                         self.emitter.add_constant(f"pub {target_name} = /* uninitialized constant */ 0" if pub else f"{target_name} = /* uninitialized constant */ 0")

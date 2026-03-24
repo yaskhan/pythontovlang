@@ -34,6 +34,7 @@ class FunctionGenerationMixin:
         name_remap: Dict[str, str]
         current_class_body: List[ast.stmt]
         def _sanitize_name(self, name: str, is_type: bool = False) -> str: ...
+        def _to_snake_case(self, name: str) -> str: ...
         def _map_type(
             self,
             type_str: str,
@@ -310,6 +311,6 @@ class FunctionGenerationMixin:
             self.emitter.add_function(func_code)
             if not is_unittest_method and not is_abstract and annotations_data:
                 anno_map = ", ".join([f"'{k}': '{v}'" for k, v in annotations_data.items()])
-                const_name = f"{struct_name}_{func_name}__annotations__" if is_method and struct_name else f"{func_name}__annotations__"
+                const_name = self._to_snake_case(f"{struct_name}_{func_name}__annotations__" if is_method and struct_name else f"{func_name}__annotations__")
                 self.emitter.add_constant(f"{'pub ' if pub_pfx else ''}{const_name} = {{ {anno_map} }}")
         self.output = old_output; self._indent_level = old_indent

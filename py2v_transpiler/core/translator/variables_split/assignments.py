@@ -121,14 +121,13 @@ class AssignmentsMixin(TranslatorBase):
                      self.emitter.add_struct(f"{pub}type {lhs}{gen_str} = {type_alias_val}")
                      return
                 
-                # If it's NOT a type alias but started with a capital letter, 
-                # we should probably re-sanitize it as a regular variable (snake_case)
-                # UNLESS it was already all caps (constant), which V allows.
-                if maybe_type and not target.id.isupper():
+                # If it's NOT a type alias but started with a capital letter,
+                # we should re-sanitize it as a regular variable (snake_case).
+                # V requires snake_case for constants too.
+                if maybe_type:
                     lhs = self._sanitize_name(target.id)
-                elif maybe_type and target.id.isupper():
-                    # V allows UPPER_SNAKE_CASE for constants
-                    lhs = target.id
+                elif isinstance(target, ast.Name) and target.id.isupper():
+                    lhs = self._sanitize_name(target.id)
 
         elif isinstance(target, ast.Attribute):
             lhs = self.visit(target)

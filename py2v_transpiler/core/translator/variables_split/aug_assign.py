@@ -18,7 +18,7 @@ class AugAssignMixin(TranslatorBase):
             emit_fn = self.output.append
             if self.in_main:
                 base_target = new_target.split('.')[0].split('[')[0]
-                if base_target in getattr(self, "global_vars", set()) or base_target.isupper():
+                if base_target in getattr(self, "global_vars", set()) or (isinstance(node.target, ast.Name) and node.target.id.isupper()):
                     emit_fn = lambda stmt: self.emitter.add_init_statement(stmt.strip())
 
             if isinstance(node.op, ast.Pow):
@@ -64,7 +64,7 @@ class AugAssignMixin(TranslatorBase):
         emit_fn = self.output.append
         if self.in_main:
             base_target = target.split('.')[0].split('[')[0]
-            if base_target in getattr(self, "global_vars", set()) or base_target.isupper():
+            if base_target in getattr(self, "global_vars", set()) or (isinstance(node.target, ast.Name) and node.target.id.isupper()):
                 emit_fn = lambda stmt: self.emitter.add_init_statement(stmt.strip())
 
         # V supports +=, -=, *=, /=, %=, |=, &=, ^=, <<=, >>=
