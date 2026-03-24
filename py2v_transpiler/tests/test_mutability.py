@@ -116,3 +116,16 @@ class TestMutability:
         mut_map = {"x": {"is_reassigned": True, "is_final": False}}
         result = self._transpile(code, mut_map)
         assert "mut x := i" in result
+
+    def test_function_argument_reassigned(self):
+        code = """
+        def foo(x: int):
+            x = x + 1
+            return x
+        """
+        # x is reassigned, so it needs a local mutable copy
+        mut_map = {"foo.x": {"is_reassigned": True, "is_final": False}}
+        result = self._transpile(code, mut_map)
+        assert "fn foo(x int) int {" in result
+        assert "mut x := x" in result
+        assert "x = x + 1" in result

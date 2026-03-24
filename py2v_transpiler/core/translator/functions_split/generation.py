@@ -132,7 +132,7 @@ class FunctionGenerationMixin:
         defaults_map = {node.args.args[len(node.args.args)-len(node.args.defaults)+i].arg: d for i, d in enumerate(node.args.defaults)}
         for i, kwarg in enumerate(node.args.kwonlyargs):
              if i < len(node.args.kw_defaults) and node.args.kw_defaults[i]: defaults_map[kwarg.arg] = node.args.kw_defaults[i]
-        local_mut_copies = []
+        local_mut_copies: List[Tuple[str, str]] = []
         for arg in args:
             arg_name = self._sanitize_name(arg.arg)
             try: arg_type = self._map_type(ast.unparse(arg.annotation), struct_name) if arg.annotation else self._map_type(self.type_inference.type_map.get(arg_name, "Any" if node.name == "__exit__" else "int"), struct_name)
@@ -142,10 +142,10 @@ class FunctionGenerationMixin:
             is_mut, is_reassigned = False, False
             if hasattr(self, 'type_inference') and hasattr(self.type_inference, 'mutability_map'):
                 prefix = ".".join(self._scope_names)
-                m_info = self.type_inference.mutability_map.get(f"{prefix}.{node.name}.{arg.arg}") or self.type_inference.mutability_map.get(arg.arg)
+                prefix_full = f"{prefix}.{node.name}.{arg.arg}" if prefix else f"{node.name}.{arg.arg}"; m_info = self.type_inference.mutability_map.get(prefix_full) or ({} if self._scope_names else self.type_inference.mutability_map.get(arg.arg))
                 if m_info: is_reassigned, is_mut = m_info.get("is_reassigned", False), m_info.get("is_reassigned", False) or m_info.get("is_mutated", False)
             if (arg.arg in defaults_map and is_mut) or (arg_type.lstrip('?') in {"int", "string", "bool", "f32", "f64", "i64", "i16", "i8", "u8", "u16", "u32", "u64", "byte", "rune", "void", "any"} and is_reassigned):
-                local_mut_copies.append(arg_name); is_mut = False
+                local_mut_copies.append((arg_name, arg_name)); is_mut = False
             if is_mut and arg_type.lstrip('?') in {"int", "string", "bool", "f32", "f64", "i64", "i16", "i8", "u8", "u16", "u32", "u64", "byte", "rune", "void", "any"}: is_mut = False
             args_str_list.append(f"{'mut ' if is_mut else ''}{arg_name} {arg_type}")
         if node.args.vararg:
@@ -284,7 +284,7 @@ class FunctionGenerationMixin:
                 for line in body[0].value.value.strip().splitlines(): self.output.append(f"{self._indent()}// {line}")
                 body = body[1:]
             if is_generator: self.output.append(f"{self._indent()}_ := <-{self.coroutine_handler.active_in_channel}")
-            for a_copy in local_mut_copies: self.output.append(f"{self._indent()}mut {a_copy} := {a_copy}")
+            for a_name, a_mut in local_mut_copies: self.output.append(f"{self._indent()}mut {a_mut} := {a_name}")
             if self._is_empty_body(body) and ret_type != "void": self.output.append(f"{self._indent()}return {self._get_v_default_value(ret_type)}")
             else:
                 for stmt in body:
