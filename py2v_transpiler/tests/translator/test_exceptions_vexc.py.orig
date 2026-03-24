@@ -126,8 +126,8 @@ def test_bracketless():
     # The `except ValueError, TypeError` should have been transpiled to checking `name == 'ValueError' || name == 'TypeError'`
     assert "name == 'ValueError'" in v_code
     assert "name == 'TypeError'" in v_code
-    assert "name == 'OsError'" in v_code
-    assert "name == 'IoError'" in v_code
+    assert "name == 'OSError'" in v_code
+    assert "name == 'IOError'" in v_code
 
 def test_exceptions_vexc_nested_func_bare_except_else():
     code = """

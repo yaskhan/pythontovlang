@@ -13,8 +13,8 @@ def test_matmul_operator():
     analyzer.analyze(tree)
     visitor = VNodeVisitor(analyzer)
     result = visitor.visit_Module(tree)
-    
-    assert "c = a.matmul(b)" in result
+
+    assert "C = A.matmul(B)" in result
 
 def test_matmul_augassign():
     code = "A = Matrix(); B = Matrix(); A @= B"
@@ -24,5 +24,5 @@ def test_matmul_augassign():
     analyzer.analyze(tree)
     visitor = VNodeVisitor(analyzer)
     result = visitor.visit_Module(tree)
-    
-    assert "a = a.matmul(b)" in result
+
+    assert "A = A.matmul(B)" in result

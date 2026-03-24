@@ -796,6 +796,7 @@ fn (mut ctx PyDecimalContext) close() {
 
         # Helper for dynamic format specifiers
         if "py_format" in self.used_builtins:
+            self.emitter.add_helper_import("strconv")
             self.emitter.add_helper_function("""fn py_format(val Any, spec string) string {
     // Basic implementation of Python-style formatting
     // Supports: [fill][align][sign][#][0][width][grouping][.precision][type]
@@ -853,8 +854,10 @@ fn (mut ctx PyDecimalContext) close() {
     // Simplified formatting
     mut formatted := ''
     if val is f64 {
+        if typ == `g` || typ == `G` { return val.str() }
         prec := if precision >= 0 { precision } else { 6 }
-        formatted = '${val:.${prec}f}'
+        formatted = strconv.format_f64(val, typ.to_lower(), prec, 64)
+        if typ.is_upper() { formatted = formatted.to_upper() }
     } else if val is int {
         formatted = '${val}'
     } else if val is i64 {
@@ -882,6 +885,7 @@ fn (mut ctx PyDecimalContext) close() {
 }""")
 
         if "py_string_format_map" in self.used_builtins:
+            self.emitter.add_helper_import("strconv")
             self.emitter.add_helper_import("strings")
             self.emitter.add_helper_function("""fn py_string_format_map(fmt string, mapping map[string]Any) string {
     mut res := strings.new_builder(fmt.len + 16)
@@ -1046,6 +1050,7 @@ mut:
 }""")
         # String formatting helper
         if self.used_string_format:
+            self.emitter.add_helper_import("strconv")
             self.emitter.add_helper_import("strings")
             self.emitter.add_helper_function("""fn py_string_format(fmt string, args ...Any) string {
     mut res := strings.new_builder(fmt.len + 16)
@@ -1131,28 +1136,22 @@ mut:
                     } else if spec == `f` || spec == `F` {
                         // Float formatting
                         prec := if precision >= 0 { precision } else { 6 }
-                        if arg is f64 {
-                            s_val = '${arg:.${prec}f}'
-                        } else if arg is int {
-                            s_val = '${f64(arg):.${prec}f}'
-                        } else if arg is i64 {
-                            s_val = '${f64(arg):.${prec}f}'
-                        } else {
-                            val_f := '${arg}'.f64()
-                            s_val = '${val_f:.${prec}f}'
-                        }
+                        mut f_val := 0.0
+                        if arg is f64 { f_val = arg }
+                        else if arg is int { f_val = f64(arg) }
+                        else if arg is i64 { f_val = f64(arg) }
+                        else { f_val = '${arg}'.f64() }
+                        s_val = strconv.format_f64(f_val, `f`, prec, 64)
+                        if spec == `F` { s_val = s_val.to_upper() }
                     } else if spec == `e` || spec == `E` {
                         prec := if precision >= 0 { precision } else { 6 }
-                        if arg is f64 {
-                            s_val = '${arg:.${prec}e}'
-                        } else if arg is int {
-                            s_val = '${f64(arg):.${prec}e}'
-                        } else if arg is i64 {
-                            s_val = '${f64(arg):.${prec}e}'
-                        } else {
-                            val_f := '${arg}'.f64()
-                            s_val = '${val_f:.${prec}e}'
-                        }
+                        mut f_val := 0.0
+                        if arg is f64 { f_val = arg }
+                        else if arg is int { f_val = f64(arg) }
+                        else if arg is i64 { f_val = f64(arg) }
+                        else { f_val = '${arg}'.f64() }
+                        s_val = strconv.format_f64(f_val, `e`, prec, 64)
+                        if spec == `E` { s_val = s_val.to_upper() }
                     } else if spec == `g` || spec == `G` {
                         // V doesn't strictly support %g in interpolation same as C, but close enough
                         if arg is f64 {
@@ -1417,6 +1416,18 @@ mut:
             if i >= 0 && i < obj.len { return obj[i].ascii_str() }
         }
     } else if obj is []u8 {
+        if idx is int {
+            mut i := idx
+            if i < 0 { i += obj.len }
+            if i >= 0 && i < obj.len { return obj[i] }
+        }
+    } else if obj is []int {
+        if idx is int {
+            mut i := idx
+            if i < 0 { i += obj.len }
+            if i >= 0 && i < obj.len { return obj[i] }
+        }
+    } else if obj is []i64 {
         if idx is int {
             mut i := idx
             if i < 0 { i += obj.len }

@@ -21,7 +21,7 @@ struct User {
     username string
 }
 
-const User_new_user__annotations__ = { 'username': 'string' }
+const user_new_user_annotations = { 'username': 'string' }
 
 fn (self User) login() {
     self.is_authenticated = true
@@ -58,8 +58,8 @@ struct ServiceB {
     base_id int = 42
 }
 
-const ServiceA_get_id__annotations__ = { 'return': 'int' }
-const ServiceB_get_id__annotations__ = { 'return': 'int' }
+const service_a_get_id_annotations = { 'return': 'int' }
+const service_b_get_id_annotations = { 'return': 'int' }
 
 fn (self ServiceA) get_id() int {
     return self.base_id
@@ -94,7 +94,7 @@ struct SystemUser {
     username string
 }
 
-const SystemUser_log__annotations__ = { 'msg': 'string' }
+const system_user_log_annotations = { 'msg': 'string' }
 
 fn (self SystemUser) login() {
 }

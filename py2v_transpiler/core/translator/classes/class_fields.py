@@ -117,10 +117,28 @@ class ClassFieldsMixin:
                                                     f_type = arg_type_map[sub_node.value.id]
                                                 else:
                                                     f_type = self.translator._guess_type(sub_node.value)
+
+                                            if f_type == "Any":
+                                                # Fallback to type_map
+                                                prefix = ".".join(self.translator._scope_names)
+                                                f_type = self.translator.type_inference.type_map.get(f"{prefix}.{t.attr}",
+                                                           self.translator.type_inference.type_map.get(t.attr, "Any"))
+
+                                            # Check if it was inferred as None which means it should be optional
+                                            is_optional = False
+                                            if isinstance(sub_node.value, ast.Constant) and sub_node.value.value is None:
+                                                is_optional = True
+
                                             f_type = self.translator._map_type(f_type, struct_name)
+                                            if is_optional and not f_type.startswith("?") and f_type != "Any":
+                                                f_type = "?" + f_type
                                             _ft = f_type
                                             if _ft.startswith("fn (") or _ft.startswith("fn("):
                                                 _ft += " = unsafe { nil }"
+                                            elif _ft.startswith("?"):
+                                                _ft += " = none"
+                                            elif _ft == "Any":
+                                                _ft += " = Any(NoneType{})"
                                             fields.append(f"    {field_name} {_ft}")
                         elif isinstance(sub_node, ast.AnnAssign):
                             if isinstance(sub_node.target, ast.Attribute) and isinstance(sub_node.target.value, ast.Name) and sub_node.target.value.id == init_self_name:
@@ -134,9 +152,28 @@ class ClassFieldsMixin:
                                             f_type = self.translator._map_type(t_str, struct_name)
                                         except Exception:
                                             pass
+
+                                    if f_type == "Any":
+                                        # Fallback to type_map
+                                        prefix = ".".join(self.translator._scope_names)
+                                        f_type = self.translator.type_inference.type_map.get(f"{prefix}.{sub_node.target.attr}",
+                                                   self.translator.type_inference.type_map.get(sub_node.target.attr, "Any"))
+                                        f_type = self.translator._map_type(f_type, struct_name)
+
+                                    # Check if it was inferred as None which means it should be optional
+                                    is_optional = False
+                                    if hasattr(sub_node, "value") and isinstance(sub_node.value, ast.Constant) and sub_node.value.value is None:
+                                        is_optional = True
+
+                                    if is_optional and not f_type.startswith("?") and f_type != "Any":
+                                        f_type = "?" + f_type
                                     _ft = f_type
                                     if _ft.startswith("fn (") or _ft.startswith("fn("):
                                         _ft += " = unsafe { nil }"
+                                    elif _ft.startswith("?"):
+                                        _ft += " = none"
+                                    elif _ft == "Any":
+                                        _ft += " = Any(NoneType{})"
                                     fields.append(f"    {field_name} {_ft}")
         return fields
 
@@ -215,6 +252,10 @@ class ClassFieldsMixin:
                         _ft = field_type
                         if _ft.startswith("fn (") or _ft.startswith("fn("):
                             _ft += " = unsafe { nil }"
+                        elif _ft.startswith("?"):
+                            _ft += " = none"
+                        elif _ft == "Any":
+                            _ft += " = Any(NoneType{})"
                         fields.append(f"    {field_name} {_ft}")
 
             elif isinstance(stmt, ast.Assign):
@@ -366,8 +407,13 @@ class ClassFieldsMixin:
 
             dataclass_field_order.append(field_name)
             _ft = field_type
-            if not default_str and (_ft.startswith("fn (") or _ft.startswith("fn(")):
-                _ft += " = unsafe { nil }"
+            if not default_str:
+                if _ft.startswith("fn (") or _ft.startswith("fn("):
+                    _ft += " = unsafe { nil }"
+                elif _ft.startswith("?"):
+                    _ft += " = none"
+                elif _ft == "Any":
+                    _ft += " = Any(NoneType{})"
             fields.append(f"    {field_name} {_ft}{default_str}")
 
         return fields

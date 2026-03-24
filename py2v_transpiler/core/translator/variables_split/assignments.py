@@ -121,14 +121,13 @@ class AssignmentsMixin(TranslatorBase):
                      self.emitter.add_struct(f"{pub}type {lhs}{gen_str} = {type_alias_val}")
                      return
                 
-                # If it's NOT a type alias but started with a capital letter, 
-                # we should probably re-sanitize it as a regular variable (snake_case)
-                # UNLESS it was already all caps (constant), which V allows.
-                if maybe_type and not target.id.isupper():
+                # If it's NOT a type alias but started with a capital letter,
+                # we should re-sanitize it as a regular variable (snake_case).
+                # V requires snake_case for constants too.
+                if maybe_type:
                     lhs = self._sanitize_name(target.id)
-                elif maybe_type and target.id.isupper():
-                    # V allows UPPER_SNAKE_CASE for constants
-                    lhs = target.id
+                elif isinstance(target, ast.Name) and target.id.isupper():
+                    lhs = self._sanitize_name(target.id)
 
         elif isinstance(target, ast.Attribute):
             lhs = self.visit(target)
@@ -380,7 +379,7 @@ class AssignmentsMixin(TranslatorBase):
                     if not (target.id.isupper() and self._is_compile_time_evaluable(node.value)): emit_fn(f"{self._indent()}{v_lhs} = {rhs}")
                 elif rhs == "none":
                     local_v_type, v_lhs = getattr(self, "_guess_type", lambda x: "unknown")(target), lhs
-                    if not self.in_main and v_lhs in self._local_vars_in_scope:
+                    if isinstance(target, (ast.Attribute, ast.Subscript)) or (not self.in_main and v_lhs in self._local_vars_in_scope):
                         if local_v_type == "Any" or (local_v_type.startswith("map[") and local_v_type.endswith("]Any")): emit_fn(f"{self._indent()}{v_lhs} = Any(NoneType{{}})")
                         else: emit_fn(f"{self._indent()}{v_lhs} = none")
                     else:

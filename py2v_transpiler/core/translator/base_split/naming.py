@@ -28,10 +28,6 @@ class NamingMixin:
         if "__py2v_gen" in name:
             return name
 
-        # Handle UPPER_CASE constants
-        if name.isupper():
-            return name
-
         # Handle already separated names
         if '_' in name:
             parts = [self._to_snake_case(p) for p in name.split('_') if p]
@@ -92,7 +88,9 @@ class NamingMixin:
 
         if is_type:
             # PascalCase for types
-            parts = [p[0].upper() + p[1:] if p else "" for p in name.split('_') if p]
+            # Normalize to snake_case then to PascalCase to handle all-caps
+            snaked = self._to_snake_case(name)
+            parts = [p[0].upper() + p[1:].lower() if p else "" for p in snaked.split('_') if p]
             res = "".join(parts) if parts else (name[0].upper() + name[1:])
             # V structs cannot have underscores.
             res = res.replace("_", "")

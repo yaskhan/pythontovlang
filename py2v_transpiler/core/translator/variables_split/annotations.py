@@ -139,7 +139,7 @@ class AnnotationsMixin(TranslatorBase):
                                 v_type = "Any"
                             self.emitter.add_global(f"{target} {v_type}")
 
-                    elif base_lhs.isupper() or \
+                    elif (isinstance(node.target, ast.Name) and node.target.id.isupper()) or \
                          (v_type == "Final" or is_literal_string_type or
                           getattr(node, "annotation", None) and
                           (getattr(getattr(node, "annotation", None), "id", "") == "Final" or
@@ -168,7 +168,7 @@ class AnnotationsMixin(TranslatorBase):
 
                 # Regular assignment if it was not handled above
                 if self.in_main and isinstance(node.target, ast.Name) and \
-                   (target in getattr(self, "global_vars", set()) or target.isupper() or is_literal_string_type):
+                   (target in getattr(self, "global_vars", set()) or (isinstance(node.target, ast.Name) and node.target.id.isupper()) or is_literal_string_type):
                     v_target = self._to_snake_case(target)
                     if is_literal_string_type:
                          # Only literal string expressions and compile time evaluables are placed in const
@@ -182,16 +182,21 @@ class AnnotationsMixin(TranslatorBase):
                     emit_fn(f"{self._indent()}{v_target} = {rhs}")
 
                 elif rhs == "none":
-                    if v_type and v_type != "unknown":
-                        if v_type == "Any" or (v_type.startswith("map[") and v_type.endswith("]Any")):
-                            emit_fn(f"{self._indent()}mut {target} := Any(NoneType{{}})")
+                    if isinstance(node.target, (ast.Attribute, ast.Subscript)) or (not self.in_main and target in self._local_vars_in_scope):
+                        if v_type == "Any" or (v_type and v_type.startswith("map[") and v_type.endswith("]Any")):
+                             emit_fn(f"{self._indent()}{target} = Any(NoneType{{}})")
                         else:
-                            if not v_type.startswith("?"):
-                                v_type = f"?{v_type}"
-                            emit_fn(f"{self._indent()}mut {target} := {v_type}(none)")
+                             emit_fn(f"{self._indent()}{target} = none")
                     else:
-                        emit_fn(f"{self._indent()}mut {target} := Any(NoneType{{}})")
-                    if not self.in_main: self._local_vars_in_scope.add(target)
+                        if v_type and v_type != "unknown":
+                            if v_type == "Any" or (v_type.startswith("map[") and v_type.endswith("]Any")):
+                                emit_fn(f"{self._indent()}mut {target} := Any(NoneType{{}})")
+                            else:
+                                if not v_type.startswith("?"): v_type = f"?{v_type}"
+                                emit_fn(f"{self._indent()}mut {target} := {v_type}(none)")
+                        else:
+                            emit_fn(f"{self._indent()}mut {target} := Any(NoneType{{}})")
+                        if not self.in_main: self._local_vars_in_scope.add(target)
                 else:
                     # Check for UPPER_CASE const (e.g., I_IDLE: Final = 1) when not in_main or other conditions
                     if isinstance(node.target, ast.Name) and target.isupper() and self._is_compile_time_evaluable(node.value):
@@ -241,7 +246,7 @@ class AnnotationsMixin(TranslatorBase):
                     if target_name in getattr(self, "global_vars", set()):
                         self.emitter.add_global(f"{target_name} {v_type}")
                         return
-                    elif target_name.isupper():
+                    elif isinstance(node.target, ast.Name) and node.target.id.isupper():
                         # V requires consts to be initialized
                         pub = "pub " if self._is_exported(target) else ""
                         self.emitter.add_constant(f"pub {target_name} = /* uninitialized constant */ 0" if pub else f"{target_name} = /* uninitialized constant */ 0")

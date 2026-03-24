@@ -20,8 +20,8 @@ DEFAULT_WIDTH = 100
 DEFAULT_HEIGHT: Final = 200
 """
     v_code = translate(source)
-    assert "const DEFAULT_WIDTH = 100" in v_code
-    assert "const DEFAULT_HEIGHT = 200" in v_code
+    assert "const default_width = 100" in v_code
+    assert "const default_height = 200" in v_code
 
 def test_global_constants_runtime():
     source = """
@@ -32,14 +32,14 @@ class Vector:
 VECTOR_ZERO = Vector(0, 0, 0)
 """
     v_code = translate(source)
-    assert "VECTOR_ZERO = new_vector(0, 0, 0)" in v_code
+    assert "vector_zero = new_vector(0, 0, 0)" in v_code
 
 def test_global_constants_assignment():
     source = """
 VECTOR_ONE = Vector(1, 1, 1)
 """
     v_code = translate(source)
-    assert "__global VECTOR_ONE" in v_code
+    assert "__global vector_one" in v_code
 
 def test_global_constants_public():
     source = """
@@ -59,4 +59,4 @@ DEFAULT_HEIGHT: Final = 200
 
     v_code = translator.visit_Module(tree)
     v_code = translator.emitter.emit()
-    assert "pub const DEFAULT_WIDTH = 100" in v_code
+    assert "pub const default_width = 100" in v_code
