@@ -1368,6 +1368,18 @@ mut:
             if i < 0 { i += obj.len }
             if i >= 0 && i < obj.len { return obj[i] }
         }
+    } else if obj is []int {
+        if idx is int {
+            mut i := idx
+            if i < 0 { i += obj.len }
+            if i >= 0 && i < obj.len { return obj[i] }
+        }
+    } else if obj is []i64 {
+        if idx is int {
+            mut i := idx
+            if i < 0 { i += obj.len }
+            if i >= 0 && i < obj.len { return obj[i] }
+        }
     }
     panic('py_subscript: unsupported type or index')
     return false

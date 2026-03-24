@@ -82,9 +82,7 @@ class SubscriptsMixin(TranslatorBase):
 
         # Fast path: Native V indexing if type is known or fallback 'int' (assumed native array in tests).
         # We only use dynamic fallback if type is explicitly 'Any'
-        is_native = True
-        if val_type == "Any":
-            is_native = False
+        is_native = self._is_collection_type(val_type) or val_type != "Any"
 
         if isinstance(node.slice, ast.Slice):
             lower_node = node.slice.lower
