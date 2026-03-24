@@ -2,6 +2,11 @@ import re
 import sys
 from typing import Set, List
 
+_T_STRING_PREFIX_RE = re.compile(r'(^|[\s=([{},:!|&])(rt|tr|t)(["\']{1,3})', re.IGNORECASE)
+_GENERIC_PATTERN_RE = re.compile(r'(\b[\w\.]+)\[([^\[\]]+)\]')
+_CASE_STMT_RE = re.compile(r'^(\s*)case\s+(.*)')
+_EXCEPT_STMT_RE = re.compile(r"^(\s*)(except\*?\s+)(.*)$")
+
 class CompatibilityLayer:
     """
     Handles Python version-specific syntax changes and soft keywords
@@ -46,14 +51,6 @@ class CompatibilityLayer:
         Converts t"..." to f"__py2v_t__..." to be parsed as f-strings but identifiable.
         Supports t, T, rt, tr prefixes and triple quotes.
         """
-        def replace_prefix(match):
-            prefix = match.group(1).lower()
-            quotes = match.group(2)
-            if 'r' in prefix:
-                return f'rf{quotes}__py2v_t__'
-            else:
-                return f'f{quotes}__py2v_t__'
-
         # Matches t, T, rt, tr, etc. followed by ' or " or ''' or """
         # We ensure it's at the start of an expression or preceded by whitespace/delimiters.
         # This avoids matching things like path-t" or filename.tr" inside labels or strings.
@@ -66,7 +63,7 @@ class CompatibilityLayer:
             else:
                 return f'{leading}f{quotes}__py2v_t__'
 
-        return re.sub(r'(^|[\s=([{},:!|&])(rt|tr|t)(["\']{1,3})', replace_t_prefix, source, flags=re.IGNORECASE)
+        return _T_STRING_PREFIX_RE.sub(replace_t_prefix, source)
 
     def _preprocess_generic_match(self, source: str) -> str:
         """
@@ -85,7 +82,7 @@ class CompatibilityLayer:
             new_text = text
             while True:
                 # Matches Word or pkg.Word followed by [Inner] where Inner doesn't contain [ or ]
-                temp = re.sub(r'(\b[\w\.]+)\[([^\[\]]+)\]', mangle_callback, new_text)
+                temp = _GENERIC_PATTERN_RE.sub(mangle_callback, new_text)
                 if temp == new_text:
                     break
                 new_text = temp
@@ -96,7 +93,7 @@ class CompatibilityLayer:
         i = 0
         while i < len(lines):
             line = lines[i]
-            case_match = re.match(r'^(\s*)case\s+(.*)', line)
+            case_match = _CASE_STMT_RE.match(line)
             if case_match:
                 indent = case_match.group(1)
                 content = case_match.group(2)
@@ -138,7 +135,7 @@ class CompatibilityLayer:
 
         while i < len(lines):
             line = lines[i]
-            header_match = re.match(r"^(\s*)(except\*?\s+)(.*)$", line)
+            header_match = _EXCEPT_STMT_RE.match(line)
             if not header_match:
                 result.append(line)
                 i += 1

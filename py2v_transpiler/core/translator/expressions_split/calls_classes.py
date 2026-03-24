@@ -4,6 +4,8 @@ import ast
 import re
 from typing import Any, List, Optional, Dict, TYPE_CHECKING
 
+_GENERICS_RE = re.compile(r'\[.*\]')
+
 
 class ClassCallsMixin:
     if TYPE_CHECKING:
@@ -43,7 +45,7 @@ class ClassCallsMixin:
                     break
         
         # Strip generics for class lookup (e.g. UserDict[T] -> UserDict)
-        base_lookup_name = re.sub(r'\[.*\]', '', lookup_name)
+        base_lookup_name = _GENERICS_RE.sub('', lookup_name)
         
         if not (call_sig and "is_class" in call_sig) and \
            not (hasattr(self, 'defined_classes') and base_lookup_name in self.defined_classes):
@@ -59,7 +61,7 @@ class ClassCallsMixin:
                 if hasattr(self, 'defined_classes') and potential_nested in self.defined_classes:
                     visited_name = potential_nested
 
-            v_base_name = re.sub(r'\[.*\]', '', visited_name)
+            v_base_name = _GENERICS_RE.sub('', visited_name)
             if hasattr(self, 'defined_classes') and v_base_name in self.defined_classes:
                  lookup_name = visited_name
                  base_lookup_name = v_base_name
