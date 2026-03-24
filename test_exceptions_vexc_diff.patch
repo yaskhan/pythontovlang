@@ -1,5 +1,0 @@
---- py2v_transpiler/tests/translator/test_exceptions_vexc.py
-+++ py2v_transpiler/tests/translator/test_exceptions_vexc.py
-@@ -37,1 +37,1 @@
--    assert "name == 'OSError'" in v_code
-+    assert "name == 'OsError'" in v_code
