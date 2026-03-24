@@ -47,6 +47,44 @@ class TypeUtilsMixin:
             "int", "f64", "i64", "u32", "u64", "i8", "i16", "u8", "u16"
         )
 
+    def _is_class_type(self, v_type: str) -> bool:
+        """Checks if a V type is a struct/class that should be passed by reference."""
+        if not v_type or v_type[0].islower():
+            return False
+
+        # Already a reference or complex V type
+        if v_type.startswith(("&", "?", "[]", "map[")):
+            return False
+
+        if "|" in v_type:
+            return False
+
+        # Basic V types (some are uppercase like Any)
+        if v_type in ("Any", "void", "none", "bool", "int", "string", "f64", "f32", "i64", "byte", "rune", "i8", "i16", "i32", "u16", "u32", "u64"):
+            return False
+
+        # Generated types that are already pointers or shouldn't be prepended with &
+        if v_type.startswith(("SumType_", "LiteralEnum_", "TupleStruct_")):
+            return False
+
+        # Check if it is a known interface (interfaces are references in V)
+        if hasattr(self, "known_interfaces") and v_type in self.known_interfaces:
+            return False
+
+        # Check if it is a generic type parameter (TypeVar)
+        if hasattr(self, "_get_all_active_v_generics"):
+            active_generics = self._get_all_active_v_generics()
+            if v_type in active_generics:
+                return False
+
+        # Also check sanitized type_vars if available
+        if hasattr(self, "type_vars") and hasattr(self, "_sanitize_name"):
+            for tv in self.type_vars:
+                if v_type == self._sanitize_name(tv, is_type=True):
+                    return False
+
+        return True
+
     def _wrap_bool(
         self,
         node: ast.expr,

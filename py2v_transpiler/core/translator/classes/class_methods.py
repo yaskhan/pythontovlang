@@ -95,10 +95,9 @@ class ClassMethodsHandler:
                     if m_info:
                         is_mut = m_info.get("is_reassigned", False) or m_info.get("is_mutated", False)
 
-                # Prepend & if it's a struct and not already a reference or optional or Any
-                if a_type and a_type[0].isupper() and a_type not in ("Any", "void", "none", "bool", "int", "string") and not a_type.startswith("&") and not a_type.startswith("?") and "|" not in a_type:
-                     if a_type not in self.translator.known_interfaces:
-                          a_type = f"&{a_type}"
+                # Prepend & if it's a struct
+                if self.translator._is_class_type(a_type):
+                    a_type = f"&{a_type}"
 
                 m_args.append(f"{'mut ' if is_mut else ''}{arg_name} {a_type}")
 
@@ -111,9 +110,8 @@ class ClassMethodsHandler:
                  if ir: m_ret = self.translator._map_type(ir, struct_name, is_return=True)
 
             # Prepend & for return type if it's a struct
-            if m_ret and m_ret != "void" and m_ret[0].isupper() and m_ret not in ("Any", "void", "none", "bool", "int", "string") and not m_ret.startswith("&") and not m_ret.startswith("?") and "|" not in m_ret:
-                 if m_ret not in self.translator.known_interfaces:
-                      m_ret = f"&{m_ret}"
+            if self.translator._is_class_type(m_ret):
+                m_ret = f"&{m_ret}"
 
             if original_node_name == "__next__" or m_name == "next":
                 if m_ret != "void" and not m_ret.startswith("?"):

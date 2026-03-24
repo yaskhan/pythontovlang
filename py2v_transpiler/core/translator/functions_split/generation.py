@@ -139,9 +139,8 @@ class FunctionGenerationMixin:
             except: arg_type = self._map_type(self.type_inference.type_map.get(arg_name, "int"), struct_name)
 
             # Prepend & for non-primitive struct types
-            if arg_type and arg_type[0].isupper() and arg_type not in ("Any", "void", "none", "bool", "int", "string") and not arg_type.startswith("&") and not arg_type.startswith("?") and "|" not in arg_type:
-                 if arg_type not in self.known_interfaces:
-                      arg_type = f"&{arg_type}"
+            if self._is_class_type(arg_type):
+                arg_type = f"&{arg_type}"
 
             annotations_data[arg_name] = arg_type
             args_names.append(arg_name)
@@ -184,9 +183,8 @@ class FunctionGenerationMixin:
                     elif isinstance(node.returns, ast.Constant) and isinstance(node.returns.value, str): ret_type = self._map_type(node.returns.value, struct_name, is_return=True)
 
             # Prepend & for non-primitive struct types
-            if ret_type and ret_type != "void" and ret_type[0].isupper() and ret_type not in ("Any", "void", "none", "bool", "int", "string") and not ret_type.startswith("&") and not ret_type.startswith("?") and "|" not in ret_type:
-                 if ret_type not in self.known_interfaces:
-                      ret_type = f"&{ret_type}"
+            if self._is_class_type(ret_type):
+                ret_type = f"&{ret_type}"
 
             if not node.returns:
                 inferred_ret = self.type_inference.type_map.get(f"{node.name}@return")
