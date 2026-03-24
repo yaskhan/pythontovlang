@@ -1,0 +1,8 @@
+--- test_matmul.py
++++ test_matmul.py
+@@ -23 +23 @@
+-    assert "C = A.matmul(B)" in v_code
++    assert "c = a.matmul(b)" in v_code
+@@ -43 +43 @@
+-    assert "A = A.matmul(B)" in v_code
++    assert "a = a.matmul(b)" in v_code

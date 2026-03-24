@@ -61,10 +61,10 @@ class TestTodoFeatures(TranspilerTest):
                 pass
             """,
             """
-            ctx_mgr_0 := A()
+            ctx_mgr_0 := a()
             defer { ctx_mgr_0.exit(none, none, none) }
             a := ctx_mgr_0.enter()
-            ctx_mgr_1 := B()
+            ctx_mgr_1 := b()
             defer { ctx_mgr_1.exit(none, none, none) }
             b := ctx_mgr_1.enter()
             """
