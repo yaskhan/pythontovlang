@@ -31,3 +31,10 @@ def test_bytes_encoding_call():
     code = "b = bytes('hello', 'utf-8')"
     v_code = transpile(code)
     assert "'hello'.bytes()" in v_code
+
+def test_bytes_percent_format_uses_helper_without_todo_marker():
+    code = "b = b'%s %s' % (b'a', b'b')"
+    v_code = transpile(code)
+    assert "py_bytes_format(" in v_code
+    assert "fn py_bytes_format_arg(arg Any) string" in v_code
+    assert "TODO" not in v_code

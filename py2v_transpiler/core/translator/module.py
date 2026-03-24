@@ -990,7 +990,60 @@ mut:
 }""")
 
         # Helper for bytes formatting
-        self.emitter.add_helper_function("//##LLM@@ String formatting for bytes is stubbed and might be incorrect. Please implement proper bytes formatting or use V string interpolation.\nfn py_bytes_format(fmt []u8, args Any) []u8 {\n    // Simplistic implementation for b'%s' % b'val'\n    // Converts bytes to string, formats, and converts back.\n    // This is not efficient or correct for non-ASCII bytes but works for simple cases.\n    fmt_str := fmt.bytestr()\n    // TODO: handle args properly. V's string interpolation/formatting expects distinct args.\n    // If args is []u8, treat as string.\n    arg_str := if args is []u8 { args.bytestr() } else { '${args}' }\n    \n    // Manual substitution of %s\n    // V does not have sprintf for runtime strings easily available in core without C interop.\n    // Simple replace for %s\n    res := fmt_str.replace('%s', arg_str)\n    return res.bytes()\n}")
+        self.emitter.add_helper_function("""fn py_bytes_format_arg(arg Any) string {
+    if arg is []u8 { return arg.bytestr() }
+    if arg is string { return arg }
+    if arg is int { return arg.str() }
+    if arg is i64 { return arg.str() }
+    if arg is u64 { return arg.str() }
+    if arg is f64 { return arg.str() }
+    if arg is bool { return arg.str() }
+    return '${arg}'
+}""")
+        self.emitter.add_helper_function("""fn py_bytes_format(fmt []u8, args Any) []u8 {
+    fmt_str := fmt.bytestr()
+    mut values := []string{}
+    if args is []Any {
+        for a in args {
+            values << py_bytes_format_arg(a)
+        }
+    } else if args is []string {
+        for a in args {
+            values << a
+        }
+    } else if args is [][]u8 {
+        for a in args {
+            values << a.bytestr()
+        }
+    } else {
+        values << py_bytes_format_arg(args)
+    }
+
+    mut res := ''
+    mut i := 0
+    mut arg_idx := 0
+    for i < fmt_str.len {
+        if fmt_str[i] == `%` {
+            if i + 1 < fmt_str.len && fmt_str[i + 1] == `%` {
+                res += '%'
+                i += 2
+                continue
+            }
+            if i + 1 < fmt_str.len && arg_idx < values.len {
+                spec := fmt_str[i + 1]
+                if spec == `s` || spec == `r` || spec == `a` || spec == `d` || spec == `i` || spec == `u` || spec == `f` || spec == `x` || spec == `X` {
+                    res += values[arg_idx]
+                    arg_idx++
+                    i += 2
+                    continue
+                }
+            }
+        }
+        res += fmt_str[i].ascii_str()
+        i++
+    }
+    return res.bytes()
+}""")
         # String formatting helper
         if self.used_string_format:
             self.emitter.add_helper_import("strings")

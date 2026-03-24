@@ -226,7 +226,7 @@ class FunctionGenerationMixin:
         elif original_node_name == "__init__":
             if self.defined_classes.get(struct_name, {}).get("has_new"): func_name = "init"
             else:
-                is_init, func_name, receiver_str, ret_type = True, self._get_factory_name(struct_name), "", struct_name
+                is_init, func_name, receiver_str, ret_type = True, self._get_factory_name(struct_name), "", f"&{struct_name}"
                 if self.current_class_generics: ret_type += f"[{', '.join(self.current_class_generics)}]"
                 if self.defined_classes.get(struct_name, {}).get("is_pydantic"): ret_type = "!" + ret_type
         pub_pfx = "pub " if (not is_nested and ((not is_method and self._is_exported(node.name)) or (is_method and getattr(self, 'config', None) and not func_name.startswith('_') and not is_init) or (is_init and self._is_exported(struct_name)))) else ""
@@ -261,11 +261,12 @@ class FunctionGenerationMixin:
         prev_in_init = getattr(self, "in_init", False)
         if is_init:
             self.in_init = True
+            # ret_type is already &StructName, so just use it directly
             alloc_type = ret_type[1:] if ret_type.startswith("!") else ret_type
             if self.defined_classes.get(struct_name, {}).get("is_pydantic"):
                  self.output.append(f"{self._indent()}mut self := {alloc_type}{{}}")
             else:
-                 self.output.append(f"{self._indent()}mut self := {ret_type}{{}}")
+                 self.output.append(f"{self._indent()}mut self := {alloc_type}{{}}")
         prev_ret_type, self.current_function_return_type = getattr(self, "current_function_return_type", None), ret_type
         if is_nested: self._scope_stack[-1].add(func_name)
         cur_scope = set(args_names)
@@ -302,7 +303,7 @@ class FunctionGenerationMixin:
         if is_generator: self.output.append(f"{self._indent()}{self.coroutine_handler.active_channel}.close()"); self.coroutine_handler.exit_generator()
         if is_init:
             if self.defined_classes.get(struct_name, {}).get("is_pydantic"): self.output.append(f"{self._indent()}self.validate() or {{ return err }}")
-            self.output.append(f"{self._indent()}return self"); self.in_init = prev_in_init
+            self.output.append(f"{self._indent()}return &self"); self.in_init = prev_in_init
         self._indent_level -= 1; self.output.append(f"{self._indent()}}}")
         func_code = "\n".join(self.output)
         if is_nested: old_output.append(func_code)

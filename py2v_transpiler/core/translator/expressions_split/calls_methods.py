@@ -190,6 +190,7 @@ class MethodCallsMixin:
 
         reverse = False
         key_name = None
+        key_expr = None
         for keyword in node.keywords:
             if keyword.arg == "reverse":
                 if isinstance(keyword.value, ast.Constant) and keyword.value.value is True:
@@ -197,16 +198,20 @@ class MethodCallsMixin:
             elif keyword.arg == "key":
                 if isinstance(keyword.value, ast.Name):
                     key_name = keyword.value.id
+                    key_expr = key_name
+                elif isinstance(keyword.value, ast.Attribute):
+                    key_expr = self.visit(keyword.value)
 
         obj = self.visit(func_node.value)
 
-        if key_name is not None:
+        if key_expr is not None:
             if key_name in _KEY_COMPARISONS:
                 lhs, rhs = _KEY_COMPARISONS[key_name]
                 op = ">" if reverse else "<"
                 return f"{obj}.sort({lhs} {op} {rhs})"
             else:
-                return f"{obj}.sort()  // TODO: unsupported key={key_name}"
+                op = ">" if reverse else "<"
+                return f"{obj}.sort({key_expr}(a) {op} {key_expr}(b))"
 
         if reverse:
             return f"{obj}.sort(a > b)"

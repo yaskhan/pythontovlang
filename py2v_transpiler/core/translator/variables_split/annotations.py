@@ -143,7 +143,8 @@ class AnnotationsMixin(TranslatorBase):
                          (v_type == "Final" or is_literal_string_type or
                           getattr(node, "annotation", None) and
                           (getattr(getattr(node, "annotation", None), "id", "") == "Final" or
-                           getattr(getattr(node, "annotation", None), "attr", "") == "Final")):
+                           getattr(getattr(node, "annotation", None), "attr", "") == "Final")) or \
+                         (type_str and ("Final" in type_str)):
                         emit_fn = lambda stmt: self.emitter.add_init_statement(stmt.strip())
                         if isinstance(node.target, ast.Name):
                             v_target = self._to_snake_case(target)
@@ -157,7 +158,9 @@ class AnnotationsMixin(TranslatorBase):
                             # Use const block only if it evaluates at compile-time (e.g., literal string)
                             if self._is_compile_time_evaluable(node.value) or (is_literal_string_type and self._is_literal_string_expr(node.value)):
                                 pub = "pub " if self._is_exported(target) else ""
-                                self.emitter.add_constant(f"pub {v_target} = {rhs}" if pub else f"{v_target} = {rhs}")
+                                # Convert UPPER_CASE to snake_case for V constants
+                                v_const = self._to_snake_case(v_target) if v_target else self._to_snake_case(target)
+                                self.emitter.add_constant(f"pub {v_const} = {rhs}" if pub else f"{v_const} = {rhs}")
                                 return
                             else:
                                 self.emitter.add_init_statement(f"{v_target} = {rhs}")
@@ -171,7 +174,8 @@ class AnnotationsMixin(TranslatorBase):
                          # Only literal string expressions and compile time evaluables are placed in const
                          if self._is_literal_string_expr(node.value) or self._is_compile_time_evaluable(node.value):
                               pub = "pub " if self._is_exported(target) else ""
-                              self.emitter.add_constant(f"pub {v_target} = {rhs}" if pub else f"{v_target} = {rhs}")
+                              v_const = self._to_snake_case(v_target) if v_target else self._to_snake_case(target)
+                              self.emitter.add_constant(f"pub {v_const} = {rhs}" if pub else f"{v_const} = {rhs}")
                          else:
                               self.emitter.add_init_statement(f"{v_target} = {rhs}")
                          return
@@ -189,6 +193,13 @@ class AnnotationsMixin(TranslatorBase):
                         emit_fn(f"{self._indent()}mut {target} := Any(NoneType{{}})")
                     if not self.in_main: self._local_vars_in_scope.add(target)
                 else:
+                    # Check for UPPER_CASE const (e.g., I_IDLE: Final = 1) when not in_main or other conditions
+                    if isinstance(node.target, ast.Name) and target.isupper() and self._is_compile_time_evaluable(node.value):
+                        v_const = self._to_snake_case(target)
+                        pub = "pub " if self._is_exported(target) else ""
+                        self.emitter.add_constant(f"pub {v_const} = {rhs}" if pub else f"{v_const} = {rhs}")
+                        return
+                    
                     # We ignore the annotation for now and rely on type inference and V's auto-typing
                     # But we could potentially use it to hint types for empty lists/maps
                     if isinstance(node.target, ast.Attribute) or isinstance(node.target, ast.Subscript):

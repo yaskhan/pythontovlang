@@ -80,7 +80,7 @@ class ImportsMixin(TranslatorBase):
             # Since we don't know the full package context, we can't fully resolve it to a V module.
             # But we can try to emit it as a local import or assume it maps to current module.
             # V doesn't have "from . import x" syntax, imports are package-level.
-            # Best effort: ignored or emit TODO.
+            # Best effort: map imported names to local module symbols.
 
             # If we import a submodule: from . import submodule
             # In V: import submodule (if in same folder and submodule is a folder)
@@ -89,6 +89,9 @@ class ImportsMixin(TranslatorBase):
 
             for alias in node.names:
                 name = alias.name
+                if name == "*":
+                    # `from . import *` cannot be safely represented in V.
+                    continue
                 as_name = alias.asname if alias.asname else name
                 # Just mark as imported symbol without prefix, assuming it's in the same scope/package
                 self.imported_symbols[as_name] = name

@@ -430,8 +430,8 @@ class ClassFieldsMixin:
         factory_name = self.translator._get_factory_name(struct_name)
 
         factory_code = [
-            f"{pub}fn {factory_name}{gen_str}({', '.join(factory_args)}) {struct_name}{gen_str} {{",
-            f"    mut self := {struct_name}{gen_str}{{{', '.join(struct_init_args)}}}",
+            f"{pub}fn {factory_name}{gen_str}({', '.join(factory_args)}) &{struct_name}{gen_str} {{",
+            f"    mut self := &{struct_name}{gen_str}{{{', '.join(struct_init_args)}}}",
             f"    self.post_init({', '.join(post_init_args)})",
             f"    return self",
             f"}}"

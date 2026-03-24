@@ -291,7 +291,8 @@ class ClassDefinitionHandler:
                 struct_parts = []
                 if doc_comment:
                     struct_parts.append(doc_comment)
-                
+
+                struct_parts.append(f"@[heap]\n")
                 struct_parts.append(f"pub struct {impl_name}{generics_str} {{\n")
                 if fields:
                     struct_parts.append("\n".join(fields))
@@ -394,6 +395,7 @@ class ClassDefinitionHandler:
             generics_str = self.translator._get_generics_with_variance_str(self.translator.current_class_generics)
             pub = "pub " if self.translator._is_exported(node.name) else ""
 
+            struct_parts.append("@[heap]\n")
             struct_parts.append(f"{pub}struct {struct_name}{generics_str} {{\n")
             if fields:
                 struct_parts.append("\n".join(fields))

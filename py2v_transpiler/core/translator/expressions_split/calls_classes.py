@@ -108,9 +108,10 @@ class ClassCallsMixin:
             return f"{factory_name}{generic_params}({', '.join(args)})"
         else:
             # Use full func_name_str if it already contains generics, or combine base and generic_params
+            # For heap-allocated classes, return a reference (&Struct{...})
             if "[" in func_name_str:
-                return f"{func_name_str}{{{', '.join(args)}}}"
-            return f"{func_name_str}{generic_params}{{{', '.join(args)}}}"
+                return f"&{func_name_str}{{{', '.join(args)}}}"
+            return f"&{func_name_str}{generic_params}{{{', '.join(args)}}}"
 
     def _handle_dataclass_call(self, node: ast.Call, func_name_str: str, args: list,
                                call_sig: dict | None) -> str | None:
@@ -137,7 +138,7 @@ class ClassCallsMixin:
                     kw_val_str = str(self.visit(keyword.value))
                     struct_args.append(f"{self._sanitize_name(keyword.arg)}: {kw_val_str}")
 
-            return f"{func_name_str}{{{', '.join(struct_args)}}}"
+            return f"&{func_name_str}{{{', '.join(struct_args)}}}"
 
         return None
 
@@ -181,7 +182,7 @@ class ClassCallsMixin:
             factory_name = self._get_factory_name(func_name_str)
             return f"{factory_name}({', '.join(final_factory_args)})"
 
-        return f"{func_name_str}{{{', '.join(struct_args)}}}"
+        return f"&{func_name_str}{{{', '.join(struct_args)}}}"
 
     def _build_post_init_args(self, node: ast.Call, args: list, init_fields: list) -> list:
         """Build arguments for post_init."""

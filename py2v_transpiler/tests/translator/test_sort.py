@@ -79,8 +79,12 @@ def test_sort_key_int():
     assert translate_expr("nums.sort(key=int)") == "nums.sort(int(a) < int(b))"
 
 def test_sort_key_unknown():
-    # l.sort(key=my_func) -> l.sort()  // TODO: unsupported key=my_func
-    assert translate_expr("l.sort(key=my_func)") == "l.sort()  // TODO: unsupported key=my_func"
+    # l.sort(key=my_func) -> l.sort(my_func(a) < my_func(b))
+    assert translate_expr("l.sort(key=my_func)") == "l.sort(my_func(a) < my_func(b))"
+
+def test_sort_key_unknown_reverse():
+    # l.sort(key=my_func, reverse=True) -> l.sort(my_func(a) > my_func(b))
+    assert translate_expr("l.sort(key=my_func, reverse=True)") == "l.sort(my_func(a) > my_func(b))"
 
 def test_sort_reverse_keyword_dynamic():
     # l.sort(reverse=x) -> l.sort() (only constant True supported)

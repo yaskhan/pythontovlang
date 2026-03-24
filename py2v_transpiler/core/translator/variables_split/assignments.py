@@ -359,7 +359,7 @@ class AssignmentsMixin(TranslatorBase):
                     elif orig_is_upper:
                         emit_fn = lambda stmt: self.emitter.add_init_statement(stmt.strip())
                         if isinstance(target, ast.Name):
-                            v_lhs = lhs
+                            v_lhs = self._to_snake_case(lhs)
                             if self._is_compile_time_evaluable(node.value):
                                 pub = "pub " if self._is_exported(target.id) else ""
                                 self.emitter.add_constant(f"pub {v_lhs} = {rhs}" if pub else f"{v_lhs} = {rhs}")

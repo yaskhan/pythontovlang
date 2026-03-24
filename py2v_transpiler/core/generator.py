@@ -40,7 +40,23 @@ class VCodeEmitter:
 
     def add_constant(self, const_def: str) -> None:
         """Adds a const definition."""
+        # Convert UPPER_CASE constant names to snake_case for V compliance
+        import re
+        match = re.match(r'^(pub\s+)?const\s+([A-Z_][A-Z0-9_]*)\s*=', const_def)
+        if match:
+            pub_prefix = match.group(1) or ''
+            upper_name = match.group(2)
+            snake_name = self._to_snake_case(upper_name)
+            const_def = const_def.replace(f'{pub_prefix}const {upper_name}', f'{pub_prefix}const {snake_name}', 1)
         self.constants.append(const_def)
+
+    def _to_snake_case(self, name: str) -> str:
+        """Convert UPPER_CASE to snake_case."""
+        import re
+        # Simple conversion: I_IDLE -> i_idle, BUFSIZE -> bufsize
+        s1 = re.sub('(.)([A-Z][a-z]+)', r'\1_\2', name)
+        s2 = re.sub('([a-z0-9])([A-Z])', r'\1_\2', s1)
+        return s2.lower().replace('__', '_')
 
     def add_struct(self, struct_def: str) -> None:
         """Adds a struct definition."""
