@@ -380,7 +380,7 @@ class AssignmentsMixin(TranslatorBase):
                     if not (target.id.isupper() and self._is_compile_time_evaluable(node.value)): emit_fn(f"{self._indent()}{v_lhs} = {rhs}")
                 elif rhs == "none":
                     local_v_type, v_lhs = getattr(self, "_guess_type", lambda x: "unknown")(target), lhs
-                    if not self.in_main and v_lhs in self._local_vars_in_scope:
+                    if isinstance(target, (ast.Attribute, ast.Subscript)) or (not self.in_main and v_lhs in self._local_vars_in_scope):
                         if local_v_type == "Any" or (local_v_type.startswith("map[") and local_v_type.endswith("]Any")): emit_fn(f"{self._indent()}{v_lhs} = Any(NoneType{{}})")
                         else: emit_fn(f"{self._indent()}{v_lhs} = none")
                     else:

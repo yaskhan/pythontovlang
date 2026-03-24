@@ -178,16 +178,21 @@ class AnnotationsMixin(TranslatorBase):
                     emit_fn(f"{self._indent()}{v_target} = {rhs}")
 
                 elif rhs == "none":
-                    if v_type and v_type != "unknown":
-                        if v_type == "Any" or (v_type.startswith("map[") and v_type.endswith("]Any")):
-                            emit_fn(f"{self._indent()}mut {target} := Any(NoneType{{}})")
+                    if isinstance(node.target, (ast.Attribute, ast.Subscript)) or (not self.in_main and target in self._local_vars_in_scope):
+                        if v_type == "Any" or (v_type and v_type.startswith("map[") and v_type.endswith("]Any")):
+                             emit_fn(f"{self._indent()}{target} = Any(NoneType{{}})")
                         else:
-                            if not v_type.startswith("?"):
-                                v_type = f"?{v_type}"
-                            emit_fn(f"{self._indent()}mut {target} := {v_type}(none)")
+                             emit_fn(f"{self._indent()}{target} = none")
                     else:
-                        emit_fn(f"{self._indent()}mut {target} := Any(NoneType{{}})")
-                    if not self.in_main: self._local_vars_in_scope.add(target)
+                        if v_type and v_type != "unknown":
+                            if v_type == "Any" or (v_type.startswith("map[") and v_type.endswith("]Any")):
+                                emit_fn(f"{self._indent()}mut {target} := Any(NoneType{{}})")
+                            else:
+                                if not v_type.startswith("?"): v_type = f"?{v_type}"
+                                emit_fn(f"{self._indent()}mut {target} := {v_type}(none)")
+                        else:
+                            emit_fn(f"{self._indent()}mut {target} := Any(NoneType{{}})")
+                        if not self.in_main: self._local_vars_in_scope.add(target)
                 else:
                     # We ignore the annotation for now and rely on type inference and V's auto-typing
                     # But we could potentially use it to hint types for empty lists/maps
