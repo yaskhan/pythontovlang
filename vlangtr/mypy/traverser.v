@@ -15,549 +15,552 @@ module mypy
 pub struct NodeTraverser {}
 
 // --- top-level ---
-pub fn (mut t NodeTraverser) visit_mypy_file(o &MypyFile) !string {
+pub fn (mut t NodeTraverser) visit_mypy_file(mut o MypyFile) !string {
 	for stmt in o.defs {
-		stmt_accept(stmt, t)!
+		stmt_accept(stmt, mut t)!
 	}
 	return ''
 }
 
-pub fn (mut t NodeTraverser) visit_var(o &Var) !string {
+pub fn (mut t NodeTraverser) visit_var(mut o Var) !string {
 	return ''
 }
 
-pub fn (mut t NodeTraverser) visit_type_alias(o &TypeAlias) !string {
+pub fn (mut t NodeTraverser) visit_type_alias(mut o TypeAlias) !string {
 	return ''
 }
 
-pub fn (mut t NodeTraverser) visit_placeholder_node(o &PlaceholderNode) !string {
+pub fn (mut t NodeTraverser) visit_placeholder_node(mut o PlaceholderNode) !string {
 	return ''
 }
 
 // --- imports ---
-pub fn (mut t NodeTraverser) visit_import(o &Import) !string {
+pub fn (mut t NodeTraverser) visit_import(mut o Import) !string {
 	return ''
 }
 
-pub fn (mut t NodeTraverser) visit_import_from(o &ImportFrom) !string {
+pub fn (mut t NodeTraverser) visit_import_from(mut o ImportFrom) !string {
 	return ''
 }
 
-pub fn (mut t NodeTraverser) visit_import_all(o &ImportAll) !string {
+pub fn (mut t NodeTraverser) visit_import_all(mut o ImportAll) !string {
 	return ''
 }
 
 // --- block & simple statements ---
-pub fn (mut t NodeTraverser) visit_block(o &Block) !string {
+pub fn (mut t NodeTraverser) visit_block(mut o Block) !string {
 	for stmt in o.body {
-		stmt_accept(stmt, t)!
+		stmt_accept(stmt, mut t)!
 	}
 	return ''
 }
 
-pub fn (mut t NodeTraverser) visit_expression_stmt(o &ExpressionStmt) !string {
-	expr_accept(o.expr, t)!
+pub fn (mut t NodeTraverser) visit_expression_stmt(mut o ExpressionStmt) !string {
+	expr_accept(o.expr, mut t)!
 	return ''
 }
 
-pub fn (mut t NodeTraverser) visit_assignment_stmt(o &AssignmentStmt) !string {
+pub fn (mut t NodeTraverser) visit_assignment_stmt(mut o AssignmentStmt) !string {
 	for lv in o.lvalues {
-		expr_accept(lv, t)!
+		expr_accept(lv, mut t)!
 	}
-	expr_accept(o.rvalue, t)!
+	expr_accept(o.rvalue, mut t)!
 	return ''
 }
 
-pub fn (mut t NodeTraverser) visit_operator_assignment_stmt(o &OperatorAssignmentStmt) !string {
-	expr_accept(o.lvalue, t)!
-	expr_accept(o.rvalue, t)!
+pub fn (mut t NodeTraverser) visit_operator_assignment_stmt(mut o OperatorAssignmentStmt) !string {
+	t.visit_lvalue(mut o.lvalue)!
+	expr_accept(o.rvalue, mut t)!
 	return ''
 }
 
-pub fn (mut t NodeTraverser) visit_while_stmt(o &WhileStmt) !string {
-	expr_accept(o.expr, t)!
-	t.visit_block(&o.body)!
+pub fn (mut t NodeTraverser) visit_while_stmt(mut o WhileStmt) !string {
+	expr_accept(o.expr, mut t)!
+	t.visit_block(mut o.body)!
 	if else_b := o.else_body {
-		t.visit_block(&else_b)!
+		t.visit_block(mut else_b)!
 	}
 	return ''
 }
 
-pub fn (mut t NodeTraverser) visit_for_stmt(o &ForStmt) !string {
-	expr_accept(o.index, t)!
-	expr_accept(o.iter, t)!
-	t.visit_block(&o.body)!
+pub fn (mut t NodeTraverser) visit_for_stmt(mut o ForStmt) !string {
+	expr_accept(o.index, mut t)!
+	expr_accept(o.expr, mut t)!
+	t.visit_block(mut o.body)!
 	if else_b := o.else_body {
-		t.visit_block(&else_b)!
+		t.visit_block(mut else_b)!
 	}
 	return ''
 }
 
-pub fn (mut t NodeTraverser) visit_return_stmt(o &ReturnStmt) !string {
+pub fn (mut t NodeTraverser) visit_return_stmt(mut o ReturnStmt) !string {
 	if e := o.expr {
-		expr_accept(e, t)!
+		expr_accept(e, mut t)!
 	}
 	return ''
 }
 
-pub fn (mut t NodeTraverser) visit_assert_stmt(o &AssertStmt) !string {
-	expr_accept(o.expr, t)!
+pub fn (mut t NodeTraverser) visit_assert_stmt(mut o AssertStmt) !string {
+	expr_accept(o.expr, mut t)!
 	if msg := o.msg {
-		expr_accept(msg, t)!
+		expr_accept(msg, mut t)!
 	}
 	return ''
 }
 
-pub fn (mut t NodeTraverser) visit_del_stmt(o &DelStmt) !string {
-	expr_accept(o.expr, t)!
+pub fn (mut t NodeTraverser) visit_del_stmt(mut o DelStmt) !string {
+	expr_accept(o.expr, mut t)!
 	return ''
 }
 
-pub fn (mut t NodeTraverser) visit_break_stmt(o &BreakStmt) !string {
+pub fn (mut t NodeTraverser) visit_break_stmt(mut o BreakStmt) !string {
 	return ''
 }
 
-pub fn (mut t NodeTraverser) visit_continue_stmt(o &ContinueStmt) !string {
+pub fn (mut t NodeTraverser) visit_continue_stmt(mut o ContinueStmt) !string {
 	return ''
 }
 
-pub fn (mut t NodeTraverser) visit_pass_stmt(o &PassStmt) !string {
+pub fn (mut t NodeTraverser) visit_pass_stmt(mut o PassStmt) !string {
 	return ''
 }
 
-pub fn (mut t NodeTraverser) visit_if_stmt(o &IfStmt) !string {
+pub fn (mut t NodeTraverser) visit_if_stmt(mut o IfStmt) !string {
 	for expr in o.expr {
-		expr_accept(expr, t)!
+		expr_accept(expr, mut t)!
 	}
 	for b in o.body {
-		t.visit_block(&b)!
+		t.visit_block(mut b)!
 	}
 	if else_b := o.else_body {
-		t.visit_block(&else_b)!
+		t.visit_block(mut else_b)!
 	}
 	return ''
 }
 
-pub fn (mut t NodeTraverser) visit_raise_stmt(o &RaiseStmt) !string {
+pub fn (mut t NodeTraverser) visit_raise_stmt(mut o RaiseStmt) !string {
 	if e := o.expr {
-		expr_accept(e, t)!
+		expr_accept(e, mut t)!
 	}
-	if e := o.from_expr {
-		expr_accept(e, t)!
+	if e := o.from {
+		expr_accept(e, mut t)!
 	}
 	return ''
 }
 
-pub fn (mut t NodeTraverser) visit_try_stmt(o &TryStmt) !string {
-	t.visit_block(&o.body)!
+pub fn (mut t NodeTraverser) visit_try_stmt(mut o TryStmt) !string {
+	t.visit_block(mut o.body)!
 	for te in o.types {
 		if e := te {
-			expr_accept(e, t)!
+			expr_accept(e, mut t)!
 		}
 	}
 	for v in o.vars {
 		if n := v {
-			t.visit_name_expr(&n)!
+			t.visit_name_expr(mut n)!
 		}
 	}
 	for h in o.handlers {
-		t.visit_block(&h)!
+		t.visit_block(mut h)!
 	}
 	if else_b := o.else_body {
-		t.visit_block(&else_b)!
+		t.visit_block(mut else_b)!
 	}
 	if fin := o.finally_body {
-		t.visit_block(&fin)!
+		t.visit_block(mut fin)!
 	}
 	return ''
 }
 
-pub fn (mut t NodeTraverser) visit_with_stmt(o &WithStmt) !string {
+pub fn (mut t NodeTraverser) visit_with_stmt(mut o WithStmt) !string {
 	for e in o.expr {
-		expr_accept(e, t)!
+		expr_accept(e, mut t)!
 	}
 	for target in o.target {
 		if e := target {
-			expr_accept(e, t)!
+			expr_accept(e, mut t)!
 		}
 	}
-	t.visit_block(&o.body)!
+	t.visit_block(mut o.body)!
 	return ''
 }
 
-pub fn (mut t NodeTraverser) visit_match_stmt(o &MatchStmt) !string {
-	expr_accept(o.subject, t)!
+pub fn (mut t NodeTraverser) visit_match_stmt(mut o MatchStmt) !string {
+	expr_accept(o.subject, mut t)!
 	for guard in o.guards {
 		if g := guard {
-			expr_accept(g, t)!
+			expr_accept(g, mut t)!
 		}
 	}
 	for body in o.bodies {
-		t.visit_block(&body)!
+		t.visit_block(mut body)!
 	}
 	return ''
 }
 
-pub fn (mut t NodeTraverser) visit_global_decl(o &GlobalDecl) !string {
+pub fn (mut t NodeTraverser) visit_global_decl(mut o GlobalDecl) !string {
 	return ''
 }
 
-pub fn (mut t NodeTraverser) visit_nonlocal_decl(o &NonlocalDecl) !string {
+pub fn (mut t NodeTraverser) visit_nonlocal_decl(mut o NonlocalDecl) !string {
 	return ''
 }
 
-pub fn (mut t NodeTraverser) visit_type_alias_stmt(o &TypeAliasStmt) !string {
-	expr_accept(o.value, t)!
+pub fn (mut t NodeTraverser) visit_type_alias_stmt(mut o TypeAliasStmt) !string {
+	expr_accept(o.value, mut t)!
 	return ''
 }
 
 // --- definitions ---
-pub fn (mut t NodeTraverser) visit_func_def(o &FuncDef) !string {
-	t.visit_block(&o.body)!
+pub fn (mut t NodeTraverser) visit_func_def(mut o FuncDef) !string {
+	t.visit_block(mut o.body)!
 	return ''
 }
 
-pub fn (mut t NodeTraverser) visit_overloaded_func_def(o &OverloadedFuncDef) !string {
+pub fn (mut t NodeTraverser) visit_overloaded_func_def(mut o OverloadedFuncDef) !string {
 	for item in o.items {
-		t.visit_func_def(&item)!
+		t.visit_func_def(mut item)!
 	}
 	return ''
 }
 
-pub fn (mut t NodeTraverser) visit_class_def(o &ClassDef) !string {
-	t.visit_block(&o.defs)!
+pub fn (mut t NodeTraverser) visit_class_def(mut o ClassDef) !string {
+	t.visit_block(mut o.defs)!
 	return ''
 }
 
-pub fn (mut t NodeTraverser) visit_decorator(o &Decorator) !string {
-	t.visit_func_def(&o.func)!
+pub fn (mut t NodeTraverser) visit_decorator(mut o Decorator) !string {
+	t.visit_func_def(mut o.func)!
 	for dec in o.decorators {
-		expr_accept(dec, t)!
+		expr_accept(dec, mut t)!
 	}
 	return ''
 }
 
 // --- expressions ---
-pub fn (mut t NodeTraverser) visit_int_expr(o &IntExpr) !string {
+pub fn (mut t NodeTraverser) visit_int_expr(mut o IntExpr) !string {
 	return ''
 }
 
-pub fn (mut t NodeTraverser) visit_str_expr(o &StrExpr) !string {
+pub fn (mut t NodeTraverser) visit_str_expr(mut o StrExpr) !string {
 	return ''
 }
 
-pub fn (mut t NodeTraverser) visit_bytes_expr(o &BytesExpr) !string {
+pub fn (mut t NodeTraverser) visit_bytes_expr(mut o BytesExpr) !string {
 	return ''
 }
 
-pub fn (mut t NodeTraverser) visit_float_expr(o &FloatExpr) !string {
+pub fn (mut t NodeTraverser) visit_float_expr(mut o FloatExpr) !string {
 	return ''
 }
 
-pub fn (mut t NodeTraverser) visit_complex_expr(o &ComplexExpr) !string {
+pub fn (mut t NodeTraverser) visit_complex_expr(mut o ComplexExpr) !string {
 	return ''
 }
 
-pub fn (mut t NodeTraverser) visit_ellipsis(o &EllipsisExpr) !string {
+pub fn (mut t NodeTraverser) visit_ellipsis(mut o EllipsisExpr) !string {
 	return ''
 }
 
-pub fn (mut t NodeTraverser) visit_name_expr(o &NameExpr) !string {
+pub fn (mut t NodeTraverser) visit_name_expr(mut o NameExpr) !string {
 	return ''
 }
 
-pub fn (mut t NodeTraverser) visit_star_expr(o &StarExpr) !string {
-	expr_accept(o.expr, t)!
+pub fn (mut t NodeTraverser) visit_star_expr(mut o StarExpr) !string {
+	expr_accept(o.expr, mut t)!
 	return ''
 }
 
-pub fn (mut t NodeTraverser) visit_member_expr(o &MemberExpr) !string {
-	expr_accept(o.expr, t)!
+pub fn (mut t NodeTraverser) visit_member_expr(mut o MemberExpr) !string {
+	expr_accept(o.expr, mut t)!
 	return ''
 }
 
-pub fn (mut t NodeTraverser) visit_yield_from_expr(o &YieldFromExpr) !string {
-	expr_accept(o.expr, t)!
+pub fn (mut t NodeTraverser) visit_yield_from_expr(mut o YieldFromExpr) !string {
+	expr_accept(o.expr, mut t)!
 	return ''
 }
 
-pub fn (mut t NodeTraverser) visit_yield_expr(o &YieldExpr) !string {
+pub fn (mut t NodeTraverser) visit_yield_expr(mut o YieldExpr) !string {
 	if e := o.expr {
-		expr_accept(e, t)!
+		expr_accept(e, mut t)!
 	}
 	return ''
 }
 
-pub fn (mut t NodeTraverser) visit_call_expr(o &CallExpr) !string {
-	expr_accept(o.callee, t)!
+pub fn (mut t NodeTraverser) visit_call_expr(mut o CallExpr) !string {
+	expr_accept(o.callee, mut t)!
 	for a in o.args {
-		expr_accept(a, t)!
+		expr_accept(a, mut t)!
 	}
 	return ''
 }
 
-pub fn (mut t NodeTraverser) visit_op_expr(o &OpExpr) !string {
-	expr_accept(o.left, t)!
-	expr_accept(o.right, t)!
+pub fn (mut t NodeTraverser) visit_op_expr(mut o OpExpr) !string {
+	expr_accept(o.left, mut t)!
+	expr_accept(o.right, mut t)!
 	return ''
 }
 
-pub fn (mut t NodeTraverser) visit_comparison_expr(o &ComparisonExpr) !string {
+pub fn (mut t NodeTraverser) visit_comparison_expr(mut o ComparisonExpr) !string {
 	for e in o.operands {
-		expr_accept(e, t)!
+		expr_accept(e, mut t)!
 	}
 	return ''
 }
 
-pub fn (mut t NodeTraverser) visit_cast_expr(o &CastExpr) !string {
-	expr_accept(o.expr, t)!
+pub fn (mut t NodeTraverser) visit_cast_expr(mut o CastExpr) !string {
+	expr_accept(o.expr, mut t)!
 	return ''
 }
 
-pub fn (mut t NodeTraverser) visit_assert_type_expr(o &AssertTypeExpr) !string {
-	expr_accept(o.expr, t)!
+pub fn (mut t NodeTraverser) visit_assert_type_expr(mut o AssertTypeExpr) !string {
+	expr_accept(o.expr, mut t)!
 	return ''
 }
 
-pub fn (mut t NodeTraverser) visit_reveal_expr(o &RevealExpr) !string {
-	if e := o.expr {
-		expr_accept(e, t)!
-	}
+pub fn (mut t NodeTraverser) visit_reveal_expr(mut o RevealExpr) !string {
+	expr_accept(o.expr, mut t)!
 	return ''
 }
 
-pub fn (mut t NodeTraverser) visit_super_expr(o &SuperExpr) !string {
+pub fn (mut t NodeTraverser) visit_super_expr(mut o SuperExpr) !string {
 	return ''
 }
 
-pub fn (mut t NodeTraverser) visit_unary_expr(o &UnaryExpr) !string {
-	expr_accept(o.expr, t)!
+pub fn (mut t NodeTraverser) visit_unary_expr(mut o UnaryExpr) !string {
+	expr_accept(o.expr, mut t)!
 	return ''
 }
 
-pub fn (mut t NodeTraverser) visit_assignment_expr(o &AssignmentExpr) !string {
-	t.visit_name_expr(&o.target)!
-	expr_accept(o.value, t)!
+pub fn (mut t NodeTraverser) visit_assignment_expr(mut o AssignmentExpr) !string {
+	expr_accept(o.target, mut t)!
+	expr_accept(o.value, mut t)!
 	return ''
 }
 
-pub fn (mut t NodeTraverser) visit_list_expr(o &ListExpr) !string {
+pub fn (mut t NodeTraverser) visit_list_expr(mut o ListExpr) !string {
 	for i in o.items {
-		expr_accept(i, t)!
+		expr_accept(i, mut t)!
 	}
 	return ''
 }
 
-pub fn (mut t NodeTraverser) visit_dict_expr(o &DictExpr) !string {
+pub fn (mut t NodeTraverser) visit_dict_expr(mut o DictExpr) !string {
 	for item in o.items {
-		if k := item.key {
-			expr_accept(k, t)!
+		if item.len > 0 {
+			expr_accept(item[0], mut t)!
 		}
-		expr_accept(item.value, t)!
+		if item.len > 1 {
+			expr_accept(item[1], mut t)!
+		}
 	}
 	return ''
 }
 
-pub fn (mut t NodeTraverser) visit_template_str_expr(o &TemplateStrExpr) !string {
-	for p in o.parts {
-		expr_accept(p, t)!
-	}
+pub fn (mut t NodeTraverser) visit_template_str_expr(mut o TemplateStrExpr) !string {
+	_ = o
 	return ''
 }
 
-pub fn (mut t NodeTraverser) visit_tuple_expr(o &TupleExpr) !string {
+pub fn (mut t NodeTraverser) visit_tuple_expr(mut o TupleExpr) !string {
 	for i in o.items {
-		expr_accept(i, t)!
+		expr_accept(i, mut t)!
 	}
 	return ''
 }
 
-pub fn (mut t NodeTraverser) visit_set_expr(o &SetExpr) !string {
+pub fn (mut t NodeTraverser) visit_set_expr(mut o SetExpr) !string {
 	for i in o.items {
-		expr_accept(i, t)!
+		expr_accept(i, mut t)!
 	}
 	return ''
 }
 
-pub fn (mut t NodeTraverser) visit_index_expr(o &IndexExpr) !string {
-	expr_accept(o.base_, t)!
-	expr_accept(o.index, t)!
+pub fn (mut t NodeTraverser) visit_index_expr(mut o IndexExpr) !string {
+	expr_accept(o.base_, mut t)!
+	expr_accept(o.index, mut t)!
 	return ''
 }
 
-pub fn (mut t NodeTraverser) visit_type_application(o &TypeApplication) !string {
-	expr_accept(o.expr, t)!
+pub fn (mut t NodeTraverser) visit_type_application(mut o TypeApplication) !string {
+	expr_accept(o.expr, mut t)!
 	return ''
 }
 
-pub fn (mut t NodeTraverser) visit_lambda_expr(o &LambdaExpr) !string {
-	t.visit_block(&o.body)!
+pub fn (mut t NodeTraverser) visit_lambda_expr(mut o LambdaExpr) !string {
+	expr_accept(o.body, mut t)!
 	return ''
 }
 
-pub fn (mut t NodeTraverser) visit_list_comprehension(o &ListComprehension) !string {
-	t.visit_generator_expr(&o.generator)!
+pub fn (mut t NodeTraverser) visit_list_comprehension(mut o ListComprehension) !string {
+	t.visit_generator_expr(mut o.generator)!
 	return ''
 }
 
-pub fn (mut t NodeTraverser) visit_set_comprehension(o &SetComprehension) !string {
-	t.visit_generator_expr(&o.generator)!
+pub fn (mut t NodeTraverser) visit_set_comprehension(mut o SetComprehension) !string {
+	t.visit_generator_expr(mut o.generator)!
 	return ''
 }
 
-pub fn (mut t NodeTraverser) visit_dictionary_comprehension(o &DictionaryComprehension) !string {
-	expr_accept(o.key, t)!
-	expr_accept(o.value, t)!
+pub fn (mut t NodeTraverser) visit_dictionary_comprehension(mut o DictionaryComprehension) !string {
+	expr_accept(o.key, mut t)!
+	expr_accept(o.value, mut t)!
 	for seq in o.sequences {
-		expr_accept(seq, t)!
+		expr_accept(seq, mut t)!
 	}
 	for conds in o.condlists {
 		for c in conds {
-			expr_accept(c, t)!
+			expr_accept(c, mut t)!
 		}
 	}
 	return ''
 }
 
-pub fn (mut t NodeTraverser) visit_generator_expr(o &GeneratorExpr) !string {
-	expr_accept(o.left_expr, t)!
+pub fn (mut t NodeTraverser) visit_generator_expr(mut o GeneratorExpr) !string {
+	expr_accept(o.left_expr, mut t)!
 	for seq in o.sequences {
-		expr_accept(seq, t)!
+		expr_accept(seq, mut t)!
 	}
 	for conds in o.condlists {
 		for c in conds {
-			expr_accept(c, t)!
+			expr_accept(c, mut t)!
 		}
 	}
 	return ''
 }
 
-pub fn (mut t NodeTraverser) visit_slice_expr(o &SliceExpr) !string {
-	if b := o.begin_index {
-		expr_accept(b, t)!
+pub fn (mut t NodeTraverser) visit_slice_expr(mut o SliceExpr) !string {
+	if b := o.begin {
+		expr_accept(b, mut t)!
 	}
-	if e := o.end_index {
-		expr_accept(e, t)!
+	if e := o.end {
+		expr_accept(e, mut t)!
 	}
-	if s := o.stride {
-		expr_accept(s, t)!
+	if s := o.step {
+		expr_accept(s, mut t)!
 	}
 	return ''
 }
 
-pub fn (mut t NodeTraverser) visit_conditional_expr(o &ConditionalExpr) !string {
-	expr_accept(o.cond, t)!
-	expr_accept(o.if_expr, t)!
-	expr_accept(o.else_expr, t)!
+pub fn (mut t NodeTraverser) visit_conditional_expr(mut o ConditionalExpr) !string {
+	expr_accept(o.cond, mut t)!
+	expr_accept(o.if_expr, mut t)!
+	expr_accept(o.else_expr, mut t)!
 	return ''
 }
 
-pub fn (mut t NodeTraverser) visit_type_var_expr(o &TypeVarExpr) !string {
+pub fn (mut t NodeTraverser) visit_type_var_expr(mut o TypeVarExpr) !string {
 	return ''
 }
 
-pub fn (mut t NodeTraverser) visit_paramspec_expr(o &ParamSpecExpr) !string {
+pub fn (mut t NodeTraverser) visit_paramspec_expr(mut o ParamSpecExpr) !string {
 	return ''
 }
 
-pub fn (mut t NodeTraverser) visit_type_var_tuple_expr(o &TypeVarTupleExpr) !string {
+pub fn (mut t NodeTraverser) visit_type_var_tuple_expr(mut o TypeVarTupleExpr) !string {
 	return ''
 }
 
-pub fn (mut t NodeTraverser) visit_type_alias_expr(o &TypeAliasExpr) !string {
+pub fn (mut t NodeTraverser) visit_type_alias_expr(mut o TypeAliasExpr) !string {
 	return ''
 }
 
-pub fn (mut t NodeTraverser) visit_namedtuple_expr(o &NamedTupleExpr) !string {
+pub fn (mut t NodeTraverser) visit_namedtuple_expr(mut o NamedTupleExpr) !string {
 	return ''
 }
 
-pub fn (mut t NodeTraverser) visit_enum_call_expr(o &EnumCallExpr) !string {
+pub fn (mut t NodeTraverser) visit_enum_call_expr(mut o EnumCallExpr) !string {
 	return ''
 }
 
-pub fn (mut t NodeTraverser) visit_typeddict_expr(o &TypedDictExpr) !string {
+pub fn (mut t NodeTraverser) visit_typeddict_expr(mut o TypedDictExpr) !string {
 	return ''
 }
 
-pub fn (mut t NodeTraverser) visit_newtype_expr(o &NewTypeExpr) !string {
+pub fn (mut t NodeTraverser) visit_newtype_expr(mut o NewTypeExpr) !string {
 	return ''
 }
 
-pub fn (mut t NodeTraverser) visit_promote_expr(o &PromoteExpr) !string {
+pub fn (mut t NodeTraverser) visit_promote_expr(mut o PromoteExpr) !string {
 	return ''
 }
 
-pub fn (mut t NodeTraverser) visit_await_expr(o &AwaitExpr) !string {
-	expr_accept(o.expr, t)!
+pub fn (mut t NodeTraverser) visit_await_expr(mut o AwaitExpr) !string {
+	expr_accept(o.expr, mut t)!
 	return ''
 }
 
-pub fn (mut t NodeTraverser) visit_temp_node(o &TempNode) !string {
+pub fn (mut t NodeTraverser) visit_temp_node(mut o TempNode) !string {
 	return ''
 }
 
 // --- patterns ---
-pub fn (mut t NodeTraverser) visit_as_pattern(o &AsPattern) !string {
-	if p := o.pattern {
-		pattern_accept(p, t)!
+pub fn (mut t NodeTraverser) visit_as_pattern(mut o AsPattern) !string {
+	if mut p := o.pattern {
+		pattern_accept(mut p, mut t)!
 	}
 	if n := o.name {
-		t.visit_name_expr(&n)!
+		t.visit_name_expr(mut n)!
 	}
 	return ''
 }
 
-pub fn (mut t NodeTraverser) visit_or_pattern(o &OrPattern) !string {
+pub fn (mut t NodeTraverser) visit_or_pattern(mut o OrPattern) !string {
 	for p in o.patterns {
-		pattern_accept(p, t)!
+		mut p_mut := p
+		pattern_accept(mut p_mut, mut t)!
 	}
 	return ''
 }
 
-pub fn (mut t NodeTraverser) visit_value_pattern(o &ValuePattern) !string {
-	expr_accept(o.expr, t)!
+pub fn (mut t NodeTraverser) visit_value_pattern(mut o ValuePattern) !string {
+	expr_accept(o.expr, mut t)!
 	return ''
 }
 
-pub fn (mut t NodeTraverser) visit_singleton_pattern(o &SingletonPattern) !string {
+pub fn (mut t NodeTraverser) visit_singleton_pattern(mut o SingletonPattern) !string {
 	return ''
 }
 
-pub fn (mut t NodeTraverser) visit_sequence_pattern(o &SequencePattern) !string {
+pub fn (mut t NodeTraverser) visit_sequence_pattern(mut o SequencePattern) !string {
 	for p in o.patterns {
-		pattern_accept(p, t)!
+		mut p_mut := p
+		pattern_accept(mut p_mut, mut t)!
 	}
 	return ''
 }
 
-pub fn (mut t NodeTraverser) visit_starred_pattern(o &StarredPattern) !string {
+pub fn (mut t NodeTraverser) visit_starred_pattern(mut o StarredPattern) !string {
 	if c := o.capture {
-		t.visit_name_expr(&c)!
+		t.visit_name_expr(mut c)!
 	}
 	return ''
 }
 
-pub fn (mut t NodeTraverser) visit_mapping_pattern(o &MappingPattern) !string {
+pub fn (mut t NodeTraverser) visit_mapping_pattern(mut o MappingPattern) !string {
 	for k in o.keys {
-		expr_accept(k, t)!
+		expr_accept(k, mut t)!
 	}
 	for p in o.values {
-		pattern_accept(p, t)!
+		mut p_mut := p
+		pattern_accept(mut p_mut, mut t)!
 	}
 	if r := o.rest {
-		t.visit_name_expr(&r)!
+		t.visit_name_expr(mut r)!
 	}
 	return ''
 }
 
-pub fn (mut t NodeTraverser) visit_class_pattern(o &ClassPattern) !string {
-	expr_accept(o.class_ref, t)!
+pub fn (mut t NodeTraverser) visit_class_pattern(mut o ClassPattern) !string {
+	expr_accept(o.class_ref, mut t)!
 	for p in o.positionals {
-		pattern_accept(p, t)!
+		mut p_mut := p
+		pattern_accept(mut p_mut, mut t)!
 	}
 	for p in o.keyword_values {
-		pattern_accept(p, t)!
+		mut p_mut := p
+		pattern_accept(mut p_mut, mut t)!
 	}
 	return ''
 }
@@ -568,84 +571,93 @@ pub fn (mut t NodeTraverser) visit_class_pattern(o &ClassPattern) !string {
 // ---------------------------------------------------------------------------
 
 pub fn stmt_accept(s Statement, mut v NodeVisitor) !string {
-	return match s {
-		AssignmentStmt { v.visit_assignment_stmt(&s)! }
-		Block { v.visit_block(&s)! }
-		BreakStmt { v.visit_break_stmt(&s)! }
-		ClassDef { v.visit_class_def(&s)! }
-		ContinueStmt { v.visit_continue_stmt(&s)! }
-		Decorator { v.visit_decorator(&s)! }
-		DelStmt { v.visit_del_stmt(&s)! }
-		ExpressionStmt { v.visit_expression_stmt(&s)! }
-		ForStmt { v.visit_for_stmt(&s)! }
-		FuncDef { v.visit_func_def(&s)! }
-		GlobalDecl { v.visit_global_decl(&s)! }
-		IfStmt { v.visit_if_stmt(&s)! }
-		Import { v.visit_import(&s)! }
-		ImportAll { v.visit_import_all(&s)! }
-		ImportFrom { v.visit_import_from(&s)! }
-		MatchStmt { v.visit_match_stmt(&s)! }
-		NonlocalDecl { v.visit_nonlocal_decl(&s)! }
-		OperatorAssignmentStmt { v.visit_operator_assignment_stmt(&s)! }
-		OverloadedFuncDef { v.visit_overloaded_func_def(&s)! }
-		PassStmt { v.visit_pass_stmt(&s)! }
-		RaiseStmt { v.visit_raise_stmt(&s)! }
-		ReturnStmt { v.visit_return_stmt(&s)! }
-		TryStmt { v.visit_try_stmt(&s)! }
-		TypeAliasStmt { v.visit_type_alias_stmt(&s)! }
-		WhileStmt { v.visit_while_stmt(&s)! }
-		WithStmt { v.visit_with_stmt(&s)! }
+	mut ss := s
+	match mut ss {
+		AssignmentStmt { v.visit_assignment_stmt(mut ss)! }
+		AssertStmt { v.visit_assert_stmt(mut ss)! }
+		Block { v.visit_block(mut ss)! }
+		BreakStmt { v.visit_break_stmt(mut ss)! }
+		ClassDef { v.visit_class_def(mut ss)! }
+		ContinueStmt { v.visit_continue_stmt(mut ss)! }
+		Decorator { v.visit_decorator(mut ss)! }
+		DelStmt { v.visit_del_stmt(mut ss)! }
+		ExpressionStmt { v.visit_expression_stmt(mut ss)! }
+		ForStmt { v.visit_for_stmt(mut ss)! }
+		FuncDef { v.visit_func_def(mut ss)! }
+		GlobalDecl { v.visit_global_decl(mut ss)! }
+		IfStmt { v.visit_if_stmt(mut ss)! }
+		Import { v.visit_import(mut ss)! }
+		ImportAll { v.visit_import_all(mut ss)! }
+		ImportFrom { v.visit_import_from(mut ss)! }
+		MatchStmt { v.visit_match_stmt(mut ss)! }
+		NonlocalDecl { v.visit_nonlocal_decl(mut ss)! }
+		OperatorAssignmentStmt { v.visit_operator_assignment_stmt(mut ss)! }
+		OverloadedFuncDef { v.visit_overloaded_func_def(mut ss)! }
+		PassStmt { v.visit_pass_stmt(mut ss)! }
+		RaiseStmt { v.visit_raise_stmt(mut ss)! }
+		ReturnStmt { v.visit_return_stmt(mut ss)! }
+		TryStmt { v.visit_try_stmt(mut ss)! }
+		TypeAliasStmt { v.visit_type_alias_stmt(mut ss)! }
+		WhileStmt { v.visit_while_stmt(mut ss)! }
+		WithStmt { v.visit_with_stmt(mut ss)! }
 	}
+	return ''
 }
 
 pub fn expr_accept(e Expression, mut v NodeVisitor) !string {
-	return match e {
-		AssignmentExpr { v.visit_assignment_expr(&e)! }
-		AwaitExpr { v.visit_await_expr(&e)! }
-		BytesExpr { v.visit_bytes_expr(&e)! }
-		CallExpr { v.visit_call_expr(&e)! }
-		CastExpr { v.visit_cast_expr(&e)! }
-		ComparisonExpr { v.visit_comparison_expr(&e)! }
-		ComplexExpr { v.visit_complex_expr(&e)! }
-		ConditionalExpr { v.visit_conditional_expr(&e)! }
-		DictExpr { v.visit_dict_expr(&e)! }
-		DictionaryComprehension { v.visit_dictionary_comprehension(&e)! }
-		EllipsisExpr { v.visit_ellipsis(&e)! }
-		EnumCallExpr { v.visit_enum_call_expr(&e)! }
-		FloatExpr { v.visit_float_expr(&e)! }
-		GeneratorExpr { v.visit_generator_expr(&e)! }
-		IndexExpr { v.visit_index_expr(&e)! }
-		IntExpr { v.visit_int_expr(&e)! }
-		LambdaExpr { v.visit_lambda_expr(&e)! }
-		ListComprehension { v.visit_list_comprehension(&e)! }
-		ListExpr { v.visit_list_expr(&e)! }
-		MemberExpr { v.visit_member_expr(&e)! }
-		NameExpr { v.visit_name_expr(&e)! }
-		NamedTupleExpr { v.visit_namedtuple_expr(&e)! }
-		NewTypeExpr { v.visit_newtype_expr(&e)! }
-		OpExpr { v.visit_op_expr(&e)! }
-		ParamSpecExpr { v.visit_paramspec_expr(&e)! }
-		PromoteExpr { v.visit_promote_expr(&e)! }
-		RevealExpr { v.visit_reveal_expr(&e)! }
-		SetComprehension { v.visit_set_comprehension(&e)! }
-		SetExpr { v.visit_set_expr(&e)! }
-		SliceExpr { v.visit_slice_expr(&e)! }
-		StarExpr { v.visit_star_expr(&e)! }
-		StrExpr { v.visit_str_expr(&e)! }
-		SuperExpr { v.visit_super_expr(&e)! }
-		TempNode { v.visit_temp_node(&e)! }
-		TemplateStrExpr { v.visit_template_str_expr(&e)! }
-		TupleExpr { v.visit_tuple_expr(&e)! }
-		TypeAliasExpr { v.visit_type_alias_expr(&e)! }
-		TypeApplication { v.visit_type_application(&e)! }
-		TypeVarExpr { v.visit_type_var_expr(&e)! }
-		TypeVarTupleExpr { v.visit_type_var_tuple_expr(&e)! }
-		TypedDictExpr { v.visit_typeddict_expr(&e)! }
-		UnaryExpr { v.visit_unary_expr(&e)! }
-		AssertTypeExpr { v.visit_assert_type_expr(&e)! }
-		YieldExpr { v.visit_yield_expr(&e)! }
-		YieldFromExpr { v.visit_yield_from_expr(&e)! }
+	mut ee := e
+	match mut ee {
+		AssignmentExpr { v.visit_assignment_expr(mut ee)! }
+		AwaitExpr { v.visit_await_expr(mut ee)! }
+		BytesExpr { v.visit_bytes_expr(mut ee)! }
+		CallExpr { v.visit_call_expr(mut ee)! }
+		CastExpr { v.visit_cast_expr(mut ee)! }
+		ComparisonExpr { v.visit_comparison_expr(mut ee)! }
+		ComplexExpr { v.visit_complex_expr(mut ee)! }
+		ConditionalExpr { v.visit_conditional_expr(mut ee)! }
+		DictExpr { v.visit_dict_expr(mut ee)! }
+		DictionaryComprehension { v.visit_dictionary_comprehension(mut ee)! }
+		EllipsisExpr { v.visit_ellipsis(mut ee)! }
+		EnumCallExpr { v.visit_enum_call_expr(mut ee)! }
+		FloatExpr { v.visit_float_expr(mut ee)! }
+		GeneratorExpr { v.visit_generator_expr(mut ee)! }
+		IndexExpr { v.visit_index_expr(mut ee)! }
+		IntExpr { v.visit_int_expr(mut ee)! }
+		LambdaExpr { v.visit_lambda_expr(mut ee)! }
+		ListComprehension { v.visit_list_comprehension(mut ee)! }
+		ListExpr { v.visit_list_expr(mut ee)! }
+		MemberExpr { v.visit_member_expr(mut ee)! }
+		NameExpr { v.visit_name_expr(mut ee)! }
+		NamedTupleExpr { v.visit_namedtuple_expr(mut ee)! }
+		NewTypeExpr { v.visit_newtype_expr(mut ee)! }
+		OpExpr { v.visit_op_expr(mut ee)! }
+		ParamSpecExpr { v.visit_paramspec_expr(mut ee)! }
+		PromoteExpr { v.visit_promote_expr(mut ee)! }
+		RevealExpr { v.visit_reveal_expr(mut ee)! }
+		SetComprehension { v.visit_set_comprehension(mut ee)! }
+		SetExpr { v.visit_set_expr(mut ee)! }
+		SliceExpr { v.visit_slice_expr(mut ee)! }
+		StarExpr { v.visit_star_expr(mut ee)! }
+		StrExpr { v.visit_str_expr(mut ee)! }
+		SuperExpr { v.visit_super_expr(mut ee)! }
+		TempNode { v.visit_temp_node(mut ee)! }
+		TemplateStrExpr { v.visit_template_str_expr(mut ee)! }
+		TupleExpr { v.visit_tuple_expr(mut ee)! }
+		TypeAliasExpr { v.visit_type_alias_expr(mut ee)! }
+		TypeApplication { v.visit_type_application(mut ee)! }
+		TypeVarExpr { v.visit_type_var_expr(mut ee)! }
+		TypeVarTupleExpr { v.visit_type_var_tuple_expr(mut ee)! }
+		TypedDictExpr { v.visit_typeddict_expr(mut ee)! }
+		UnaryExpr { v.visit_unary_expr(mut ee)! }
+		AssertTypeExpr { v.visit_assert_type_expr(mut ee)! }
+		FormatStringExpr {
+			mut te := TemplateStrExpr{base: ee.base, parts: [ee.value]}
+			v.visit_template_str_expr(mut te)!
+		}
+		YieldExpr { v.visit_yield_expr(mut ee)! }
+		YieldFromExpr { v.visit_yield_from_expr(mut ee)! }
 	}
+	return ''
 }
 
 pub fn (mut t NodeTraverser) visit_argument(mut o Argument) !string {
@@ -656,12 +668,7 @@ pub fn (mut t NodeTraverser) visit_argument(mut o Argument) !string {
 }
 
 pub fn (mut t NodeTraverser) visit_type_param(mut o TypeParam) !string {
-	if mut bound := o.upper_bound {
-		bound.accept(mut t)!
-	}
-	if mut def := o.default_ {
-		def.accept(mut t)!
-	}
+	_ = o
 	return ''
 }
 
@@ -670,12 +677,16 @@ pub fn (mut t NodeTraverser) visit_type_info(mut o TypeInfo) !string {
 }
 
 pub fn (mut t NodeTraverser) visit_lvalue(mut o Lvalue) !string {
-	match mut o {
-		ListExpr { t.visit_list_expr(mut o)! }
-		MemberExpr { t.visit_member_expr(mut o)! }
-		NameExpr { t.visit_name_expr(mut o)! }
-		StarExpr { t.visit_star_expr(mut o)! }
-		TupleExpr { t.visit_tuple_expr(mut o)! }
+	mut it_o := o
+	match mut it_o {
+		ListExpr { t.visit_list_expr(mut it_o)! }
+		MemberExpr { t.visit_member_expr(mut it_o)! }
+		NameExpr { t.visit_name_expr(mut it_o)! }
+		StarExpr { t.visit_star_expr(mut it_o)! }
+		TupleExpr { t.visit_tuple_expr(mut it_o)! }
 	}
 	return ''
 }
+
+
+

@@ -246,6 +246,7 @@ pub:
 	id          int
 	values      []MypyTypeNode
 	upper_bound MypyTypeNode
+	variance    int
 	line        int = -1
 }
 
@@ -370,10 +371,12 @@ pub fn (t &TupleType) copy_modified(items []MypyTypeNode, partial_fallback ?&Ins
 }
 
 pub struct TypedDictType {
-pub:
-	items    map[string]MypyTypeNode
-	line     int = -1
-	fallback ?&Instance
+pub mut:
+	items         map[string]MypyTypeNode
+	required_keys map[string]bool
+	readonly_keys map[string]bool
+	fallback      ?&Instance
+	line          int = -1
 }
 
 pub struct LiteralType {
@@ -424,8 +427,9 @@ pub mut:
 }
 
 pub struct UnpackType {
-pub:
-	type MypyTypeNode
+pub mut:
+	base_ctx NodeBase
+	@type    MypyTypeNode
 }
 
 pub struct CallableArgument {}

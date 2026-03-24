@@ -59,7 +59,9 @@ pub fn (mut a NewTypeAnalyzer) analyze_newtype_declaration(s &AssignmentStmt) (s
 			callee := r.callee
 			if callee is NameExpr {
 				if callee.fullname in ['typing.NewType', 'typing_extensions.NewType'] {
-					return (s.lvalues[0] as NameExpr).name, &CallExpr(s.rvalue as CallExpr)
+					if s.rvalue is CallExpr {
+						return (s.lvalues[0] as NameExpr).name, (&s.rvalue as &CallExpr)
+					}
 				}
 			}
 		}

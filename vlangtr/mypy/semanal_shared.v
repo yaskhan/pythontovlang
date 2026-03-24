@@ -84,7 +84,7 @@ pub fn set_callable_name(sig MypyTypeNode, fdef &FuncDef) MypyTypeNode {
 }
 
 pub fn calculate_tuple_fallback(mut typ TupleType) {
-	mut fallback := typ.partial_fallback
+	mut fallback := typ.partial_fallback or { return }
 	if info := fallback.typ {
 		assert info.fullname == 'builtins.tuple'
 	}
@@ -92,7 +92,7 @@ pub fn calculate_tuple_fallback(mut typ TupleType) {
 	flat_items := flatten_nested_tuples(typ.items)
 	for item in flat_items {
 		if item is UnpackType {
-			mut unpacked_type_node := get_proper_type(item.type_)
+			mut unpacked_type_node := get_proper_type(item.@type)
 			unpacked_type := get_proper_type(MypyTypeNode(unpacked_type_node))
 			if unpacked_type is TypeVarTupleType {
 				//
@@ -108,12 +108,24 @@ pub fn calculate_tuple_fallback(mut typ TupleType) {
 			items << item
 		}
 	}
-	fallback.args = [make_simplified_union(items)]
+	fallback.args = [make_simplified_union(items, false)]
+}
+
+fn flatten_nested_tuples(items []MypyTypeNode) []MypyTypeNode {
+	mut res := []MypyTypeNode{}
+	for item in items {
+		if item is TupleType {
+			res << flatten_nested_tuples((item as TupleType).items)
+		} else {
+			res << item
+		}
+	}
+	return res
 }
 
 pub fn has_placeholder(typ MypyTypeNode) bool {
 	mut query := HasPlaceholders{}
-	return typ.accept(mut query)
+	return query.query_type(typ)
 }
 
 pub struct HasPlaceholders {
@@ -127,39 +139,43 @@ pub fn (mut q HasPlaceholders) visit_placeholder_type(t &PlaceholderType) bool {
 pub fn find_dataclass_transform_spec(node ?Node) ?&DataclassTransformSpec {
 	mut n := node or { return none }
 
-	if n is CallExpr {
-		n = n.callee
+	match mut n {
+		CallExpr { n = n.callee }
+		else {}
 	}
 
-	if n is RefExpr {
-		// match n { NameExpr { ... } MemberExpr { ... } }
+	match mut n {
+		RefExpr {
+			// match n { NameExpr { ... } MemberExpr { ... } }
+		}
+		else {}
 	}
 
-	if n is Decorator {
-		n = n.func
+	match mut n {
+		Decorator { n = n.func }
+		else {}
 	}
 
-	if n is OverloadedFuncDef {
-		for candidate in n.items {
-			if spec := find_dataclass_transform_spec(candidate) {
-				return spec
+	match mut n {
+		OverloadedFuncDef {
+			for candidate in n.items {
+				if spec := find_dataclass_transform_spec(candidate) {
+					return spec
+				}
 			}
 		}
-		// return find_dataclass_transform_spec(n.impl)
-	}
-
-	if n is FuncDef {
-		// return n.dataclass_transform_spec
-	}
-
-	if n is ClassDef {
-		if info := n.info {
-			return find_dataclass_transform_spec_from_info(info)
+		FuncDef {
+			return n.dataclass_transform_spec
 		}
-	}
-
-	if n is TypeInfo {
-		return find_dataclass_transform_spec_from_info(n)
+		ClassDef {
+			if info := n.info {
+				return find_dataclass_transform_spec_from_info(info)
+			}
+		}
+		TypeInfo {
+			return find_dataclass_transform_spec_from_info(n)
+		}
+		else {}
 	}
 
 	return none
@@ -172,8 +188,10 @@ fn find_dataclass_transform_spec_from_info(info &TypeInfo) ?&DataclassTransformS
 		}
 	}
 	if mtype := info.metaclass_type {
-		if spec := mtype.typ.dataclass_transform_spec {
-			return spec
+		if ti := mtype.typ {
+			if spec := ti.dataclass_transform_spec {
+				return spec
+			}
 		}
 	}
 	return none
@@ -182,7 +200,7 @@ fn find_dataclass_transform_spec_from_info(info &TypeInfo) ?&DataclassTransformS
 pub fn require_bool_literal_argument(api SemanticAnalyzerInterface, expr Expression, name string, default ?bool) ?bool {
 	val := api.parse_bool(expr)
 	if val == none {
-		api.fail('"${name}" argument must be a True or False literal', expr, false, false,
+		api.fail('"${name}" argument must be a True or False literal', expr.get_context(), false, false,
 			literal_req)
 		return default
 	}

@@ -421,7 +421,7 @@ pub fn (mut sa SemanticAnalyzer) visit_if_stmt(mut s IfStmt) !string {
 		s.expr[i].accept(mut sa)!
 		sa.visit_block(mut s.body[i])!
 	}
-	sa.visit_block_maybe(mut s.else_body)!
+	sa.visit_block_maybe(s.else_body)!
 	return ''
 }
 
@@ -432,14 +432,14 @@ pub fn (mut sa SemanticAnalyzer) visit_block(mut b Block) !string {
 	}
 	sa.block_depth[sa.block_depth.len - 1]++
 	for mut s in b.body {
-		sa.accept(mut s)!
+		sa.accept(mut s)
 	}
 	sa.block_depth[sa.block_depth.len - 1]--
 	return ''
 }
 
 // visit_block_maybe handles optional block
-pub fn (mut sa SemanticAnalyzer) visit_block_maybe(mut b ?Block) !string {
+pub fn (mut sa SemanticAnalyzer) visit_block_maybe(b ?Block) !string {
 	if mut it_b := b {
 		sa.visit_block(mut it_b)!
 	}
@@ -452,7 +452,7 @@ pub fn (mut sa SemanticAnalyzer) visit_while_stmt(mut s WhileStmt) !string {
 	s.expr.accept(mut sa)!
 	sa.loop_depth[sa.loop_depth.len - 1]++
 	sa.visit_block(mut s.body)!
-	sa.visit_block_maybe(mut s.else_body)!
+	sa.visit_block_maybe(s.else_body)!
 	sa.loop_depth[sa.loop_depth.len - 1]--
 	return ''
 }
@@ -464,11 +464,13 @@ pub fn (mut sa SemanticAnalyzer) visit_for_stmt(mut s ForStmt) !string {
 	}
 	sa.statement = Statement(s)
 	s.expr.accept(mut sa)!
-	sa.analyze_lvalue(mut s.index, false, s.index_type != none)
+	if mut lval := s.index.as_lvalue() {
+		sa.analyze_lvalue(mut lval, false, s.index_type != none)!
+	}
 	sa.loop_depth[sa.loop_depth.len - 1]++
 	sa.visit_block(mut s.body)!
 	sa.loop_depth[sa.loop_depth.len - 1]--
-	sa.visit_block_maybe(mut s.else_body)!
+	sa.visit_block_maybe(s.else_body)!
 	return ''
 }
 

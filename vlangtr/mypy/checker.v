@@ -322,7 +322,7 @@ pub fn (mut tc TypeChecker) visit_while_stmt(mut s WhileStmt) !string {
 
 // visit_for_stmt checks for
 pub fn (mut tc TypeChecker) visit_for_stmt(mut s ForStmt) !string {
-	tc.expr_checker.accept(s.iter)
+	tc.expr_checker.accept(s.expr)
 	s.body.accept(mut tc) or {}
 	if mut eb := s.else_body {
 		eb.accept(mut tc) or {}
@@ -526,7 +526,7 @@ pub fn (tc TypeChecker) function_type(func FuncDef) MypyTypeNode {
 }
 
 // Helper stub functions
-fn is_subtype(left MypyTypeNode, right MypyTypeNode) bool {
+fn is_subtype_stub(left MypyTypeNode, right MypyTypeNode) bool {
 	return true
 }
 

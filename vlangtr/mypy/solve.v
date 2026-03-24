@@ -7,8 +7,8 @@ module mypy
 // Bounds — mapping TypeVarId -> set of types
 pub type Bounds = map[TypeVarId]map[string]bool
 
-// Graph — set of edges between type variables
-pub type Graph = map[string]bool
+// ConstraintGraph — set of edges between type variables
+pub type ConstraintGraph = map[string]bool
 
 // Solutions — mapping TypeVarId -> solution
 pub type Solutions = map[TypeVarId]?MypyTypeNode
@@ -43,11 +43,16 @@ pub fn solve_constraints(original_vars []TypeVarLikeType, constraints []Constrai
 	}
 
 	mut cmap := map[TypeVarId][]Constraint{}
-	for tv in vars + extra_vars {
+	for tv in vars {
+		cmap[tv] = []Constraint{}
+	}
+	for tv in extra_vars {
 		cmap[tv] = []Constraint{}
 	}
 	for con in constraints {
-		if con.type_var in vars + extra_vars {
+		if con.type_var in vars {
+			cmap[con.type_var] << con
+		} else if con.type_var in extra_vars {
 			cmap[con.type_var] << con
 		}
 	}
@@ -57,16 +62,16 @@ pub fn solve_constraints(original_vars []TypeVarLikeType, constraints []Constrai
 		if cs.len == 0 {
 			continue
 		}
-		mut lowers := []MypyTypeNode{}
-		mut uppers := []MypyTypeNode{}
+		mut lowers_t := []MypyTypeNode{}
+		mut uppers_t := []MypyTypeNode{}
 		for c in cs {
-			if c.op == supertype_of {
-				lowers << c.target
+			if c.op == ConstraintOp.supertype_of {
+				lowers_t << c.target
 			} else {
-				uppers << c.target
+				uppers_t << c.target
 			}
 		}
-		solution := solve_one(lowers, uppers)
+		solution := solve_one(lowers_t, uppers_t)
 		solutions[tv] = solution
 	}
 
@@ -76,12 +81,11 @@ pub fn solve_constraints(original_vars []TypeVarLikeType, constraints []Constrai
 			res << solutions[v]
 		} else {
 			if strict {
-				mut candidate := UninhabitedTypeNode{}
-				res << candidate
+				res << ?MypyTypeNode(UninhabitedType{})
 			} else {
-				res << AnyTypeNode{
-					reason: TypeOfAny.special_form
-				}
+				res << ?MypyTypeNode(AnyType{
+					type_of_any: .special_form
+				})
 			}
 		}
 	}
@@ -91,72 +95,68 @@ pub fn solve_constraints(original_vars []TypeVarLikeType, constraints []Constrai
 
 // solve_one solves constraints using meet of upper bounds and join of lower bounds
 pub fn solve_one(lowers []MypyTypeNode, uppers []MypyTypeNode) ?MypyTypeNode {
-	mut candidate := ?MypyTypeNode(none)
-
 	mut new_uppers := []MypyTypeNode{}
 	for u in uppers {
 		pu := get_proper_type(u)
-		if pu !is UninhabitedTypeNode {
+		if pu !is UninhabitedType {
 			new_uppers << u
 		}
 	}
 
-	lowers_list := lowers
-	if new_uppers.len == 0 && lowers_list.len == 0 {
+	if new_uppers.len == 0 && lowers.len == 0 {
 		return none
 	}
 
 	mut bottom := ?MypyTypeNode(none)
 	mut top := ?MypyTypeNode(none)
 
-	if lowers_list.len > 0 {
-		bottom = join_type_list(lowers_list)
+	if lowers.len > 0 {
+		bottom = ?MypyTypeNode(join_type_list(lowers))
 	}
 
 	for target in new_uppers {
-		if top == none {
-			top = target
+		if t_ := top {
+			top = ?MypyTypeNode(meet_types(t_, target))
 		} else {
-			top = meet_types(top or { target }, target)
+			top = ?MypyTypeNode(target)
 		}
 	}
 
-	p_top := if t := top { get_proper_type(t) } else { MypyTypeNode(none) }
-	p_bottom := if b := bottom { get_proper_type(b) } else { MypyTypeNode(none) }
+	p_top := if t := top { get_proper_type(t) } else { MypyTypeNode(NoneType{}) }
+	p_bottom := if b := bottom { get_proper_type(b) } else { MypyTypeNode(NoneType{}) }
 
-	if p_top is AnyTypeNode || p_bottom is AnyTypeNode {
-		source_any := if p_top is AnyTypeNode { top } else { bottom }
+	if p_top is AnyType || p_bottom is AnyType {
+		source_any := if p_top is AnyType { top } else { bottom }
 		if sa := source_any {
-			if sa is AnyTypeNode {
-				return AnyTypeNode{
-					reason:     TypeOfAny.from_another_any
-					source_any: sa
+			if sa is AnyType {
+				return AnyType{
+					type_of_any: .from_another_any
+					// source_any: sa
 				}
 			}
 		}
 		return source_any
 	} else if bottom == none {
 		if top != none {
-			candidate = top
+			return top
 		} else {
 			return none
 		}
 	} else if top == none {
-		candidate = bottom
+		return bottom
 	} else {
 		b := bottom or { return none }
 		t := top or { return none }
 		if is_subtype(b, t) {
-			candidate = b
+			return b
 		} else {
-			candidate = none
+			return none
 		}
 	}
-	return candidate
 }
 
 // transitive_closure finds transitive closure for constraints
-pub fn transitive_closure(tvars []TypeVarId, constraints []Constraint) (Graph, Bounds, Bounds) {
+pub fn transitive_closure(tvars []TypeVarId, constraints []Constraint) (ConstraintGraph, Bounds, Bounds) {
 	mut uppers := map[TypeVarId]map[string]bool{}
 	mut lowers := map[TypeVarId]map[string]bool{}
 	mut graph := map[string]bool{}
@@ -174,13 +174,11 @@ pub fn transitive_closure(tvars []TypeVarId, constraints []Constraint) (Graph, B
 
 		if is_linear {
 			tid := target_id or { continue }
-			if tid !in tvars {
-				continue
-			}
+			// true as TypeVarId check removed
 
 			mut lower := c.type_var
 			mut upper := tid
-			if c.op == supertype_of {
+			if c.op == ConstraintOp.supertype_of {
 				lower, upper = upper, lower
 			}
 
@@ -196,7 +194,7 @@ pub fn transitive_closure(tvars []TypeVarId, constraints []Constraint) (Graph, B
 					}
 				}
 			}
-		} else if c.op == subtype_of {
+		} else if c.op == ConstraintOp.subtype_of {
 			for l in tvars {
 				if '${l}:${c.type_var}' in graph {
 					target_key := c.target.str()
@@ -217,21 +215,22 @@ pub fn transitive_closure(tvars []TypeVarId, constraints []Constraint) (Graph, B
 
 // find_linear checks if a constraint is linear
 pub fn find_linear(c Constraint) (bool, ?TypeVarId) {
-	if c.target is TypeVarTypeNode {
-		return true, c.target.id
+	target := get_proper_type(c.target)
+	if target is TypeVarType {
+		return true, target.id
 	}
 	return false, none
 }
 
 // compute_dependencies computes dependencies between type variables
-pub fn compute_dependencies(tvars []TypeVarId, graph Graph, lowers Bounds, uppers Bounds) map[TypeVarId][]TypeVarId {
+pub fn compute_dependencies(tvars []TypeVarId, graph ConstraintGraph, lowers Bounds, uppers Bounds) map[TypeVarId][]TypeVarId {
 	mut res := map[TypeVarId][]TypeVarId{}
 	for tv in tvars {
 		mut deps := []TypeVarId{}
-		for lt in lowers[tv].keys() {
+		for lt, _ in lowers[tv] {
 			deps << get_vars_from_str(lt, tvars)
 		}
-		for ut in uppers[tv].keys() {
+		for ut, _ in uppers[tv] {
 			deps << get_vars_from_str(ut, tvars)
 		}
 		for other in tvars {
@@ -250,13 +249,13 @@ pub fn compute_dependencies(tvars []TypeVarId, graph Graph, lowers Bounds, upper
 // check_linear checks that SCC contains only linear constraints
 pub fn check_linear(scc []TypeVarId, lowers Bounds, uppers Bounds) bool {
 	for tv in scc {
-		for lt in lowers[tv].keys() {
+		for lt, _ in lowers[tv] {
 			vars := get_vars_from_str(lt, scc)
 			if vars.len > 0 {
 				return false
 			}
 		}
-		for ut in uppers[tv].keys() {
+		for ut, _ in uppers[tv] {
 			vars := get_vars_from_str(ut, scc)
 			if vars.len > 0 {
 				return false
@@ -269,29 +268,35 @@ pub fn check_linear(scc []TypeVarId, lowers Bounds, uppers Bounds) bool {
 // get_vars finds type variables in a target type
 pub fn get_vars(target MypyTypeNode, vars []TypeVarId) []TypeVarId {
 	mut result := []TypeVarId{}
-	if target is TypeVarTypeNode {
-		if target.id in vars {
-			result << target.id
+	it_target := get_proper_type(target)
+	match it_target {
+		TypeVarType {
+			if it_target.id in vars {
+				result << it_target.id
+			}
 		}
-	} else if target is InstanceNode {
-		for arg in target.args {
-			result << get_vars(arg, vars)
+		Instance {
+			for arg in it_target.args {
+				result << get_vars(arg, vars)
+			}
 		}
-	} else if target is CallableTypeNode {
-		for arg_type in target.arg_types {
-			result << get_vars(arg_type, vars)
+		CallableType {
+			for at in it_target.arg_types {
+				result << get_vars(at, vars)
+			}
+			result << get_vars(it_target.ret_type, vars)
 		}
-		result << get_vars(target.ret_type, vars)
-	} else if target is TupleTypeNode {
-		for item in target.items {
-			result << get_vars(item, vars)
+		TupleType {
+			for item in it_target.items {
+				result << get_vars(item, vars)
+			}
 		}
-	} else if target is UnionTypeNode {
-		for item in target.items {
-			result << get_vars(item, vars)
+		UnionType {
+			for item in it_target.items {
+				result << get_vars(item, vars)
+			}
 		}
-	} else if target is OptionalTypeNode {
-		result << get_vars(target.typ, vars)
+		else {}
 	}
 	return result
 }
@@ -301,13 +306,13 @@ fn get_proper_type(t MypyTypeNode) MypyTypeNode {
 	return t
 }
 
-fn is_subtype(left MypyTypeNode, right MypyTypeNode) bool {
+fn is_subtype_stub(left MypyTypeNode, right MypyTypeNode) bool {
 	return true
 }
 
 fn join_type_list(types []MypyTypeNode) MypyTypeNode {
 	if types.len == 0 {
-		return UninhabitedTypeNode{}
+		return MypyTypeNode(UninhabitedType{})
 	}
 	return types[0]
 }

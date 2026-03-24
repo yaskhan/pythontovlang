@@ -103,7 +103,29 @@ pub fn (mut ec ExpressionChecker) accept(node Expression) MypyTypeNode {
 		TemplateStrExpr { ec.visit_template_str_expr(node) }
 		TupleExpr { ec.visit_tuple_expr(node) }
 		TypeAliasExpr { ec.visit_type_alias_expr(node) }
+		TypeApplication {
+			AnyType{
+				type_of_any: .special_form
+			}
+		}
+		TypeVarExpr {
+			AnyType{
+				type_of_any: .special_form
+			}
+		}
+		TypeVarTupleExpr {
+			AnyType{
+				type_of_any: .special_form
+			}
+		}
+		TypedDictExpr {
+			AnyType{
+				type_of_any: .special_form
+			}
+		}
 		UnaryExpr { ec.visit_unary_expr(node) }
+		AssertTypeExpr { ec.visit_assert_type_expr(node) }
+		YieldExpr { ec.visit_yield_expr(node) }
 		YieldFromExpr { ec.visit_yield_from_expr(node) }
 		FormatStringExpr {
 			AnyType{
@@ -287,9 +309,6 @@ pub fn (mut ec ExpressionChecker) analyze_ordinary_member_access(e MemberExpr, i
 }
 
 pub fn (mut ec ExpressionChecker) visit_index_expr(e IndexExpr) MypyTypeNode {
-	if analyzed := e.analyzed {
-		return ec.accept(analyzed)
-	}
 	left_type := ec.accept(e.base_)
 	return ec.visit_index_with_type(left_type, e)
 }
@@ -383,7 +402,9 @@ pub fn (mut ec ExpressionChecker) visit_comparison_expr(e ComparisonExpr) MypyTy
 
 pub fn (mut ec ExpressionChecker) visit_assignment_expr(e AssignmentExpr) MypyTypeNode {
 	value := ec.accept(e.value)
-	ec.chk.check_assignment(e.target, e.value)
+	if lval := e.target.as_lvalue() {
+		ec.chk.check_assignment(lval, e.value)
+	}
 	ec.chk.store_type(e.target, value)
 	return value
 }
@@ -419,10 +440,12 @@ pub fn (mut ec ExpressionChecker) visit_dict_expr(e DictExpr) MypyTypeNode {
 	mut key_types := []MypyTypeNode{}
 	mut value_types := []MypyTypeNode{}
 	for item in e.items {
-		if key := item.key {
-			key_types << ec.accept(key)
+		if item.len > 0 {
+			key_types << ec.accept(item[0])
 		}
-		value_types << ec.accept(item.value)
+		if item.len > 1 {
+			value_types << ec.accept(item[1])
+		}
 	}
 	key_type := if key_types.len > 0 {
 		expr_union(key_types)
@@ -533,7 +556,12 @@ pub fn (mut ec ExpressionChecker) visit_dictionary_comprehension(e DictionaryCom
 
 pub fn (mut ec ExpressionChecker) visit_cast_expr(e CastExpr) MypyTypeNode {
 	ec.accept(e.expr)
-	return e.type_
+	if t := e.type {
+		return t
+	}
+	return AnyType{
+		type_of_any: .from_error
+	}
 }
 
 pub fn (mut ec ExpressionChecker) visit_assert_type_expr(e AssertTypeExpr) MypyTypeNode {
@@ -541,10 +569,7 @@ pub fn (mut ec ExpressionChecker) visit_assert_type_expr(e AssertTypeExpr) MypyT
 }
 
 pub fn (mut ec ExpressionChecker) visit_reveal_expr(e RevealExpr) MypyTypeNode {
-	if expr := e.expr {
-		return ec.accept(expr)
-	}
-	return NoneType{}
+	return ec.accept(e.expr)
 }
 
 pub fn (mut ec ExpressionChecker) visit_yield_expr(e YieldExpr) MypyTypeNode {
@@ -578,13 +603,13 @@ pub fn (mut ec ExpressionChecker) visit_star_expr(e StarExpr) MypyTypeNode {
 }
 
 pub fn (mut ec ExpressionChecker) visit_slice_expr(e SliceExpr) MypyTypeNode {
-	if b := e.begin_index {
+	if b := e.begin {
 		ec.accept(b)
 	}
-	if end := e.end_index {
+	if end := e.end {
 		ec.accept(end)
 	}
-	if stride := e.stride {
+	if stride := e.step {
 		ec.accept(stride)
 	}
 	return ec.named_type('builtins.slice')
@@ -596,9 +621,6 @@ pub fn (mut ec ExpressionChecker) visit_super_expr(e SuperExpr) MypyTypeNode {
 }
 
 pub fn (mut ec ExpressionChecker) visit_template_str_expr(e TemplateStrExpr) MypyTypeNode {
-	for part in e.parts {
-		ec.accept(part)
-	}
 	return ec.named_type('builtins.str')
 }
 

@@ -104,34 +104,45 @@ pub fn (mut v StatisticsVisitor) process_import(imp ImportStmt) {
 	// import_id, ok := correct_relative_import(...)
 	// Simplified version:
 	mut kind := type_precise
-	if imp.id !in v.modules {
-		kind = type_any
+
+	match imp {
+		ImportFrom {
+			if imp.id !in v.modules {
+				kind = type_any
+			}
+			v.record_line(imp.base.ctx.line, kind)
+		}
+		ImportAll {
+			if imp.id !in v.modules {
+				kind = type_any
+			}
+			v.record_line(imp.base.ctx.line, kind)
+		}
 	}
-	v.record_line(imp.line, kind)
 }
 
 // visit_import processes an ordinary import
 pub fn (mut v StatisticsVisitor) visit_import(imp Import) {
 	mut all_in_modules := true
-	for id, _ in imp.ids {
-		if id !in v.modules {
+	for alias in imp.ids {
+		if alias.name !in v.modules {
 			all_in_modules = false
 			break
 		}
 	}
-	kind := type_precise
+	mut kind := type_precise
 	if !all_in_modules {
 		kind = type_any
 	}
-	v.record_line(imp.line, kind)
+	v.record_line(imp.base.ctx.line, kind)
 }
 
 // visit_func_def visits a function definition
 pub fn (mut v StatisticsVisitor) visit_func_def(o FuncDef) {
 	v.enter_scope(o)
-	v.line = o.line
+	v.line = o.base.ctx.line
 
-	if o.type != none {
+	if o.type_ != none {
 		// if o.type {
 		//     assert isinstance(o.type, CallableType)
 		//     sig = o.type
@@ -155,7 +166,7 @@ pub fn (mut v StatisticsVisitor) visit_func_def(o FuncDef) {
 
 // enter_scope enters a function scope
 pub fn (mut v StatisticsVisitor) enter_scope(o FuncDef) {
-	checked := o.type != none && v.checked_scopes.last() or { true }
+	checked := o.type_ != none && v.checked_scopes.last()
 	v.checked_scopes << checked
 }
 
@@ -168,12 +179,12 @@ pub fn (mut v StatisticsVisitor) exit_scope() {
 
 // is_checked_scope returns true if the current scope is typed
 pub fn (v StatisticsVisitor) is_checked_scope() bool {
-	return v.checked_scopes.last() or { true }
+	return v.checked_scopes.last()
 }
 
 // visit_class_def visits a class definition
 pub fn (mut v StatisticsVisitor) visit_class_def(o ClassDef) {
-	v.record_line(o.line, type_precise) // TODO: Look at base classes
+	v.record_line(o.base.ctx.line, type_precise) // TODO: Look at base classes
 	// While base_type_exprs are technically expressions, type analyzer does not visit them
 	for d in o.decorators {
 		// d.accept(self)
@@ -183,7 +194,7 @@ pub fn (mut v StatisticsVisitor) visit_class_def(o ClassDef) {
 
 // visit_type_application visits a type application
 pub fn (mut v StatisticsVisitor) visit_type_application(o TypeApplication) {
-	v.line = o.line
+	v.line = o.base.ctx.line
 	for t in o.types {
 		v.type_node(t)
 	}
@@ -191,15 +202,10 @@ pub fn (mut v StatisticsVisitor) visit_type_application(o TypeApplication) {
 
 // visit_assignment_stmt visits an assignment statement
 pub fn (mut v StatisticsVisitor) visit_assignment_stmt(o AssignmentStmt) {
-	v.line = o.line
-	// if isinstance(o.rvalue, nodes.CallExpr) and isinstance(
-	//     o.rvalue.analyzed, nodes.TypeVarExpr
-	// ):
-	//     # Type variable definition -- not a real assignment.
-	//     return
-	if o.type != none {
+	v.line = o.base.ctx.line
+	if o.type_annotation != none {
 		// If there is an explicit type, don't visit the l.h.s. as an expression
-		v.type_node(o.type or { MypyTypeNode(none) })
+		v.type_node(o.type_annotation)
 		// o.rvalue.accept(self)
 		return
 	} else if v.inferred && !v.all_nodes {
@@ -252,9 +258,7 @@ pub fn (mut v StatisticsVisitor) visit_name_expr(o NameExpr) {
 
 // visit_yield_from_expr visits yield from
 pub fn (mut v StatisticsVisitor) visit_yield_from_expr(o YieldFromExpr) {
-	if o.expr != none {
-		// o.expr.accept(self)
-	}
+	// o.expr.accept(self)
 }
 
 // visit_call_expr visits a function call
@@ -349,7 +353,54 @@ pub fn (mut v StatisticsVisitor) visit_ellipsis(o EllipsisExpr) {
 pub fn (mut v StatisticsVisitor) process_node(node Expression) {
 	if v.all_nodes {
 		if v.typemap != none {
-			v.line = node.line
+			match node {
+				AssignmentExpr { v.line = node.base.ctx.line }
+				AwaitExpr { v.line = node.base.ctx.line }
+				BytesExpr { v.line = node.base.ctx.line }
+				CallExpr { v.line = node.base.ctx.line }
+				CastExpr { v.line = node.base.ctx.line }
+				ComparisonExpr { v.line = node.base.ctx.line }
+				ComplexExpr { v.line = node.base.ctx.line }
+				ConditionalExpr { v.line = node.base.ctx.line }
+				DictExpr { v.line = node.base.ctx.line }
+				DictionaryComprehension { v.line = node.base.ctx.line }
+				EllipsisExpr { v.line = node.base.ctx.line }
+				EnumCallExpr { v.line = node.base.ctx.line }
+				FloatExpr { v.line = node.base.ctx.line }
+				FormatStringExpr { v.line = node.base.ctx.line }
+				GeneratorExpr { v.line = node.base.ctx.line }
+				IndexExpr { v.line = node.base.ctx.line }
+				IntExpr { v.line = node.base.ctx.line }
+				LambdaExpr { v.line = node.base.ctx.line }
+				ListComprehension { v.line = node.base.ctx.line }
+				ListExpr { v.line = node.base.ctx.line }
+				MemberExpr { v.line = node.base.ctx.line }
+				NameExpr { v.line = node.base.ctx.line }
+				NamedTupleExpr { v.line = node.base.ctx.line }
+				NewTypeExpr { v.line = node.base.ctx.line }
+				OpExpr { v.line = node.base.ctx.line }
+				ParamSpecExpr { v.line = node.base.ctx.line }
+				PromoteExpr { v.line = node.base.ctx.line }
+				RevealExpr { v.line = node.base.ctx.line }
+				SetComprehension { v.line = node.base.ctx.line }
+				SetExpr { v.line = node.base.ctx.line }
+				SliceExpr { v.line = node.base.ctx.line }
+				StarExpr { v.line = node.base.ctx.line }
+				StrExpr { v.line = node.base.ctx.line }
+				SuperExpr { v.line = node.base.ctx.line }
+				TempNode { v.line = node.base.ctx.line }
+				TemplateStrExpr { v.line = node.base.ctx.line }
+				TupleExpr { v.line = node.base.ctx.line }
+				TypeAliasExpr { v.line = node.base.ctx.line }
+				TypeApplication { v.line = node.base.ctx.line }
+				TypeVarExpr { v.line = node.base.ctx.line }
+				TypeVarTupleExpr { v.line = node.base.ctx.line }
+				UnaryExpr { v.line = node.base.ctx.line }
+				YieldExpr { v.line = node.base.ctx.line }
+				YieldFromExpr { v.line = node.base.ctx.line }
+				TypedDictExpr { v.line = node.base.ctx.line }
+				AssertTypeExpr { v.line = node.base.ctx.line }
+			}
 			// self.type(self.typemap.get(node))
 		}
 	}
@@ -363,12 +414,12 @@ pub fn (mut v StatisticsVisitor) record_precise_if_checked_scope(node Node) {
 	} else {
 		kind = type_any
 	}
-	v.record_line(node.line, kind)
+	v.record_line(node.get_context().line, kind)
 }
 
 // type_node analyzes a type and records statistics
-pub fn (mut v StatisticsVisitor) type_node(t MypyTypeNode) {
-	if t == MypyTypeNode(none) {
+pub fn (mut v StatisticsVisitor) type_node(t ?MypyTypeNode) {
+	node_t := t or {
 		// If an expression does not have a type, it is often due to dead code.
 		v.record_line(v.line, type_unanalyzed)
 		return
@@ -379,7 +430,7 @@ pub fn (mut v StatisticsVisitor) type_node(t MypyTypeNode) {
 	//     self.record_line(self.line, TYPE_PRECISE)
 	//     return
 
-	match t {
+	match node_t {
 		AnyType {
 			// self.log("  !! Any type around line %d" % self.line)
 			v.num_any_exprs++
@@ -387,9 +438,9 @@ pub fn (mut v StatisticsVisitor) type_node(t MypyTypeNode) {
 			v.num_any_types++
 		}
 		Instance {
-			if t.args.len > 0 {
+			if node_t.args.len > 0 {
 				mut is_complex := false
-				for arg in t.args {
+				for arg in node_t.args {
 					if v.is_complex_type(arg) {
 						is_complex = true
 						break
@@ -409,7 +460,7 @@ pub fn (mut v StatisticsVisitor) type_node(t MypyTypeNode) {
 		}
 		TupleType {
 			mut is_complex := false
-			for item in t.items {
+			for item in node_t.items {
 				if v.is_complex_type(item) {
 					is_complex = true
 					break
@@ -450,7 +501,7 @@ pub fn (mut v StatisticsVisitor) log(msg string) {
 // record_line records precision for a line
 pub fn (mut v StatisticsVisitor) record_line(line int, precision int) {
 	existing := v.line_map[line] or { type_empty }
-	v.line_map[line] = max(precision, existing)
+	v.line_map[line] = if precision > existing { precision } else { existing }
 }
 
 // dump_type_stats outputs tree statistics
@@ -527,5 +578,5 @@ pub fn is_complex(t MypyTypeNode) bool {
 
 // is_special_form_any checks if Any is a special_form
 pub fn is_special_form_any(t AnyType) bool {
-	return t.type_of_any == int(TypeOfAny.special_form)
+	return t.type_of_any == TypeOfAny.special_form
 }

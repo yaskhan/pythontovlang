@@ -5,17 +5,19 @@
 
 module mypy
 
+pub type AttributeValue = bool | int | string
+
 // SplitNamespace allows separating options by prefix.
 // In V, we use a struct with two namespaces and a prefix.
 pub struct SplitNamespace {
 pub mut:
-	standard_namespace map[string]any
-	alt_namespace      map[string]any
+	standard_namespace map[string]AttributeValue
+	alt_namespace      map[string]AttributeValue
 	alt_prefix         string
 }
 
 // new_split_namespace creates a new SplitNamespace.
-pub fn new_split_namespace(standard_namespace map[string]any, alt_namespace map[string]any, alt_prefix string) SplitNamespace {
+pub fn new_split_namespace(standard_namespace map[string]AttributeValue, alt_namespace map[string]AttributeValue, alt_prefix string) SplitNamespace {
 	return SplitNamespace{
 		standard_namespace: standard_namespace
 		alt_namespace:      alt_namespace
@@ -24,12 +26,12 @@ pub fn new_split_namespace(standard_namespace map[string]any, alt_namespace map[
 }
 
 // get returns both namespaces.
-pub fn (mut s SplitNamespace) get() (map[string]any, map[string]any) {
+pub fn (mut s SplitNamespace) get() (map[string]AttributeValue, map[string]AttributeValue) {
 	return s.standard_namespace, s.alt_namespace
 }
 
 // set_attr sets an attribute in the appropriate namespace based on prefix.
-pub fn (mut s SplitNamespace) set_attr(name string, value any) {
+pub fn (mut s SplitNamespace) set_attr(name string, value AttributeValue) {
 	if name.starts_with(s.alt_prefix) {
 		// Remove prefix and set in alt namespace
 		alt_name := name[s.alt_prefix.len..]
@@ -40,7 +42,7 @@ pub fn (mut s SplitNamespace) set_attr(name string, value any) {
 }
 
 // get_attr gets an attribute from the appropriate namespace based on prefix.
-pub fn (mut s SplitNamespace) get_attr(name string) ?any {
+pub fn (mut s SplitNamespace) get_attr(name string) ?AttributeValue {
 	if name.starts_with(s.alt_prefix) {
 		// Remove prefix and get from alt namespace
 		alt_name := name[s.alt_prefix.len..]

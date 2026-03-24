@@ -23,6 +23,12 @@ pub fn (e ErrorCode) repr() string {
 	return '<ErrorCode ${e.category}: ${e.code}>'
 }
 
+pub const literal_req = &ErrorCode{
+	code:        'literal-required'
+	description: 'Argument must be a literal'
+	category:    'General'
+}
+
 // Global maps for error codes
 pub const error_codes = map[string]&ErrorCode{}
 pub const sub_code_map = map[string][]string{}

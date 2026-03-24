@@ -338,7 +338,9 @@ pub fn get_stub_path(mod_name string) ?string {
 		return path
 	}
 	// Check for package __init__.pyi
-	path = os.join_path(typeshed_stdlib, ...parts, '__init__.pyi')
+	mut init_parts := parts.clone()
+	init_parts << '__init__.pyi'
+	path = os.join_path(typeshed_stdlib, ...init_parts)
 	if os.is_file(path) {
 		return path
 	}
@@ -350,7 +352,9 @@ pub fn get_stub_path(mod_name string) ?string {
 	if os.is_file(path) {
 		return path
 	}
-	path = os.join_path(stub_dir, ...parts, '__init__.pyi')
+	mut stub_init_parts := parts.clone()
+	stub_init_parts << '__init__.pyi'
+	path = os.join_path(stub_dir, ...stub_init_parts)
 	if os.is_file(path) {
 		return path
 	}

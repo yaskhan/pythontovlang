@@ -94,10 +94,7 @@ pub fn (mut e NodeEvaluator) visit_assert_type_expr(mut o AssertTypeExpr) !strin
 
 // visit_reveal_expr evaluates RevealExpr
 pub fn (mut e NodeEvaluator) visit_reveal_expr(mut o RevealExpr) !string {
-	if mut expr := o.expr {
-		return 'reveal_type(${expr.accept(mut e)!})'
-	}
-	return 'reveal_type()'
+	return 'reveal_type(${o.expr.accept(mut e)!})'
 }
 
 // visit_super_expr evaluates SuperExpr
@@ -397,6 +394,28 @@ pub fn (mut e NodeEvaluator) visit_mapping_pattern(mut o MappingPattern) !string
 
 pub fn (mut e NodeEvaluator) visit_class_pattern(mut o ClassPattern) !string {
 	return ''
+}
+
+pub fn (mut e NodeEvaluator) visit_argument(mut o Argument) !string {
+	return ''
+}
+
+pub fn (mut e NodeEvaluator) visit_type_param(mut o TypeParam) !string {
+	return ''
+}
+
+pub fn (mut e NodeEvaluator) visit_type_info(mut o TypeInfo) !string {
+	return ''
+}
+
+pub fn (mut e NodeEvaluator) visit_lvalue(mut o Lvalue) !string {
+	match mut o {
+		ListExpr { return e.visit_list_expr(mut o) }
+		MemberExpr { return e.visit_member_expr(mut o) }
+		NameExpr { return e.visit_name_expr(mut o) }
+		StarExpr { return e.visit_star_expr(mut o) }
+		TupleExpr { return e.visit_tuple_expr(mut o) }
+	}
 }
 
 // evaluate_expression evaluates expression at runtime (simplified to string for debugging)

@@ -119,7 +119,6 @@ mut:
 	visit_type_param(mut o TypeParam) !string
 	visit_type_info(mut o TypeInfo) !string
 
-	// From ExpressionVisitor
 	visit_int_expr(mut o IntExpr) !string
 	visit_str_expr(mut o StrExpr) !string
 	visit_bytes_expr(mut o BytesExpr) !string
@@ -166,7 +165,6 @@ mut:
 	visit_await_expr(mut o AwaitExpr) !string
 	visit_temp_node(mut o TempNode) !string
 
-	// From StatementVisitor
 	visit_assignment_stmt(mut o AssignmentStmt) !string
 	visit_for_stmt(mut o ForStmt) !string
 	visit_with_stmt(mut o WithStmt) !string
@@ -195,7 +193,6 @@ mut:
 	visit_type_alias_stmt(mut o TypeAliasStmt) !string
 	visit_match_stmt(mut o MatchStmt) !string
 
-	// From PatternVisitor
 	visit_as_pattern(mut o AsPattern) !string
 	visit_or_pattern(mut o OrPattern) !string
 	visit_value_pattern(mut o ValuePattern) !string
@@ -206,3 +203,6 @@ mut:
 	visit_class_pattern(mut o ClassPattern) !string
 	visit_lvalue(mut o Lvalue) !string
 }
+
+
+

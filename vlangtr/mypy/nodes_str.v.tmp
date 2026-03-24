@@ -1,0 +1,4 @@
+
+pub fn (e Expression) str() string {
+	return 'Expression(...)'
+}

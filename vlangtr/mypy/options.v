@@ -269,8 +269,6 @@ pub mut:
 	base_dir string
 }
 
-pub type BuildResult = []BuildSource | string
-
 pub fn Options.new() &Options {
 	mut o := &Options{}
 	o.initialize()
@@ -1062,9 +1060,9 @@ pub fn (mut o Options) build_per_module_cache() {
 }
 
 pub fn (o &Options) clone_for_module(mod_name string) &Options {
-	cache := o.per_module_cache or {
+	cache := (o.per_module_cache or {
 		map[string]&Options{}
-	}
+	}).clone()
 	if cache.len == 0 {
 		return o
 	}

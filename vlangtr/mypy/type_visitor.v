@@ -395,8 +395,15 @@ pub fn (mut q BoolTypeQuery) query_type(t MypyTypeNode) bool {
 		TypeList {
 			q.query_types(t.items)
 		}
+		PlaceholderType {
+			q.visit_placeholder_type(&t)
+		}
 		else {
 			q.default
 		}
 	}
+}
+
+pub fn (mut q BoolTypeQuery) visit_placeholder_type(t &PlaceholderType) bool {
+	return q.default
 }

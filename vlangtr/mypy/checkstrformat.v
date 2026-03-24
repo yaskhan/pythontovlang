@@ -360,15 +360,16 @@ fn (mut sfc StringFormatterChecker) check_mapping_str_interpolation(specifiers [
 	if replacements is DictExpr {
 		for spec in specifiers {
 			if key := spec.key {
-				found := replacements.items.any(if dict_key := it.key {
-					if dict_key is StrExpr {
-						dict_key.value == key
-					} else {
-						false
+				mut found := false
+				for item in replacements.items {
+					if item.len > 0 && item[0] is StrExpr {
+						dict_key := item[0] as StrExpr
+						if dict_key.value == key {
+							found = true
+							break
+						}
 					}
-				} else {
-					false
-				})
+				}
 				if !found {
 					sfc.msg.fail('Key "${key}" not found in format arguments', expr_ctx,
 						false, false, none)

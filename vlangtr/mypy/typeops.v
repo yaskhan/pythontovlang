@@ -312,18 +312,17 @@ pub fn get_instance_type_args(t MypyTypeNode) []MypyTypeNode {
 
 // is_same_type checks if types are the same
 pub fn is_same_type(t1 MypyTypeNode, t2 MypyTypeNode) bool {
-	return t1.type_str() == t2.type_str()
+	return is_same_type_ctx(t1, t2, SubtypeContext{})
 }
 
 // is_subtype checks if t1 is a subtype of t2
 pub fn is_subtype(t1 MypyTypeNode, t2 MypyTypeNode) bool {
-	// Simplified version
-	return is_same_type(t1, t2)
+	return is_subtype_ctx(t1, t2, SubtypeContext{})
 }
 
 // is_equivalent checks type equivalence
 pub fn is_equivalent(t1 MypyTypeNode, t2 MypyTypeNode) bool {
-	return is_subtype(t1, t2) && is_subtype(t2, t1)
+	return is_equivalent_ctx(t1, t2, SubtypeContext{})
 }
 
 // get_union_items gets the items of a Union type

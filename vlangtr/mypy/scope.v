@@ -25,8 +25,10 @@ pub fn new_scope() Scope {
 }
 
 // enter_module enters a module scope
-pub fn (mut s Scope) enter_module(fullname string) {
+pub fn (mut s Scope) enter_module(fullname string) Scope {
+	prev := s.save()
 	s.module = fullname
+	return prev
 }
 
 // class_scope enters a class scope
@@ -133,17 +135,37 @@ pub fn (s &Scope) outer_functions() []FuncItem {
 }
 
 // save returns a scope snapshot
-pub struct SavedScope {
-pub:
-	module   ?string
-	class    ?TypeInfo
-	function ?FuncItem
+pub fn (s &Scope) save() Scope {
+	return Scope{
+		module:    s.module
+		classes:   s.classes.clone()
+		function:  s.function
+		functions: s.functions.clone()
+		ignored:   s.ignored
+	}
 }
 
-pub fn (s &Scope) save() SavedScope {
-	return SavedScope{
-		module:   s.module
-		class:    if s.classes.len > 0 { s.classes.last() } else { none }
-		function: s.function
-	}
+pub fn (mut s Scope) restore(prev Scope) {
+	s.module = prev.module
+	s.classes = prev.classes
+	s.function = prev.function
+	s.functions = prev.functions
+	s.ignored = prev.ignored
+}
+
+pub fn (mut s Scope) enter_function(func FuncItem) Scope {
+	prev := s.save()
+	s.function = func
+	s.functions << func
+	return prev
+}
+
+pub fn (mut s Scope) enter_class(info &TypeInfo) Scope {
+	prev := s.save()
+	s.classes << *info
+	return prev
+}
+
+pub fn (mut s Scope) leave(prev Scope) {
+	s.restore(prev)
 }

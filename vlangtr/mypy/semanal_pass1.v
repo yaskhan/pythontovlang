@@ -195,12 +195,8 @@ pub fn (mut spa SemanticAnalyzerPreAnalysis) accept(mut node Node) {
 // assert_will_always_fail checks if assert will always fail
 fn assert_will_always_fail(node AssertStmt, options Options) bool {
 	if node.expr is NameExpr {
-		if node.expr.name == 'False' || node.expr.name == 'false' {
-			return true
-		}
-	}
-	if node.expr is LiteralExpr {
-		if node.expr.value == 'False' || node.expr.value == 'false' {
+		ne := node.expr as NameExpr
+		if ne.name == 'False' || ne.name == 'false' {
 			return true
 		}
 	}
@@ -211,21 +207,12 @@ fn assert_will_always_fail(node AssertStmt, options Options) bool {
 fn infer_reachability_of_if_statement(mut s IfStmt, options Options) {
 	for i, mut expr in s.expr {
 		if expr is NameExpr {
-			if expr.name == 'False' || expr.name == 'false' {
+			ne := expr as NameExpr
+			if ne.name == 'False' || ne.name == 'false' {
 				if i < s.body.len {
 					s.body[i].is_unreachable = true
 				}
-			} else if expr.name == 'True' || expr.name == 'true' {
-				if s.else_body != none {
-					s.else_body.is_unreachable = true
-				}
-			}
-		} else if expr is LiteralExpr {
-			if expr.value == 'False' || expr.value == 'false' {
-				if i < s.body.len {
-					s.body[i].is_unreachable = true
-				}
-			} else if expr.value == 'True' || expr.value == 'true' {
+			} else if ne.name == 'True' || ne.name == 'true' {
 				if s.else_body != none {
 					s.else_body.is_unreachable = true
 				}
@@ -234,19 +221,20 @@ fn infer_reachability_of_if_statement(mut s IfStmt, options Options) {
 	}
 	// Check sys.platform
 	if options.platform != '' {
-		for i, expr in s.expr {
+		for i, mut expr in s.expr {
 			if expr is ComparisonExpr {
-				if expr.operands.len == 2 {
-					left := expr.operands[0]
-					right := expr.operands[1]
-					if left is NameExpr && left.name == 'sys.platform' {
+				ce := expr as ComparisonExpr
+				if ce.operands.len == 2 {
+					left := ce.operands[0]
+					right := ce.operands[1]
+					if left is NameExpr && (left as NameExpr).name == 'sys.platform' {
 						if right is StrExpr {
-							match_platform := right.value == options.platform
-							if expr.operators[0] == '==' {
+							match_platform := (right as StrExpr).value == options.platform
+							if ce.operators[0] == '==' {
 								if !match_platform && i < s.body.len {
 									s.body[i].is_unreachable = true
 								}
-							} else if expr.operators[0] == '!=' {
+							} else if ce.operators[0] == '!=' {
 								if match_platform && i < s.body.len {
 									s.body[i].is_unreachable = true
 								}
@@ -263,9 +251,10 @@ fn infer_reachability_of_if_statement(mut s IfStmt, options Options) {
 fn infer_reachability_of_match_statement(mut s MatchStmt, options Options) {
 	// Basic implementation - mark guards that are always false
 	for i, mut guard in s.guards {
-		if guard != none {
-			if guard is NameExpr {
-				if guard.name == 'False' || guard.name == 'false' {
+		if mut g := guard {
+			if g is NameExpr {
+				ne := g as NameExpr
+				if ne.name == 'False' || ne.name == 'false' {
 					if i < s.bodies.len {
 						s.bodies[i].is_unreachable = true
 					}

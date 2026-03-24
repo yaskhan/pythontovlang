@@ -81,7 +81,7 @@ pub fn parse(source string, fnam string, mod_name ?string, mut errors Errors, op
 
 pub fn load_from_raw(fnam string, mod_name ?string, raw_data FileRawData, mut errors Errors, options Options) MypyFile {
 	mut tree := empty_tree(fnam, mod_name)
-	tree.ignored_lines = raw_data.ignored_lines
+	tree.ignored_lines = raw_data.ignored_lines.keys()
 	tree.is_partial_stub_package = raw_data.is_partial_stub_package
 	tree.is_stub = fnam.ends_with('.pyi')
 	errors.set_file(fnam, mod_name)

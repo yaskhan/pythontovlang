@@ -16,14 +16,14 @@ pub mut:
 }
 
 pub fn (mut v TypeArgumentAnalyzer) visit_mypy_file(o &MypyFile) !string {
-	v.errors.set_file(o.path, o.fullname, v.scope, v.options)
+	v.errors.set_file(o.path, o.fullname)
 	// scope.module_scope contextual block
 	prev_scope := v.scope.enter_module(o.fullname)
 	defer { v.scope.leave(prev_scope) }
 
 	// parent call (but NodeTraverser.visit_mypy_file)
 	for stmt in o.defs {
-		stmt_accept(stmt, v)!
+		stmt_accept(stmt, mut v)!
 	}
 	return ''
 }
@@ -52,23 +52,22 @@ pub fn (mut v TypeArgumentAnalyzer) visit_class_def(o &ClassDef) !string {
 
 pub fn (mut v TypeArgumentAnalyzer) visit_block(o &Block) !string {
 	if !o.is_unreachable {
-		v.NodeTraverser.visit_block(o)!
+		v.MixedTraverserVisitor.visit_block(o)!
 	}
 	return ''
 }
 
 pub fn (mut v TypeArgumentAnalyzer) visit_type_alias_type(t &TypeAliasType) !string {
-	v.TypeTraverserVisitor.visit_type_alias_type(t)!
+	v.MixedTraverserVisitor.visit_type_alias_type(t)!
 	// In V: t.alias is ?&TypeAlias
-	alias := t.alias or { return error('TypeArgumentAnalyzer: Unfixed type alias ${t.alias_name}') }
-
-	if t in v.seen_aliases { // Need a way to check identity or use fullname
+	alias := t.alias or { return error('TypeArgumentAnalyzer: Unfixed type alias') }
+	if alias.fullname in v.seen_aliases {
 		return ''
 	}
-	v.seen_aliases[t.alias_name] = true
-	defer { v.seen_aliases.delete(t.alias_name) }
+	v.seen_aliases[alias.fullname] = true
+	defer { v.seen_aliases.delete(alias.fullname) }
 
-	is_error, is_invalid := v.validate_args(alias.name, t.args, alias.alias_tvars, t.base.ctx)
+	is_error, is_invalid := v.validate_args(alias.name, t.args, alias.alias_tvars, Context{line: t.line})
 
 	if is_invalid {
 		// Erase args
@@ -85,16 +84,16 @@ pub fn (mut v TypeArgumentAnalyzer) visit_type_alias_type(t &TypeAliasType) !str
 pub fn (mut v TypeArgumentAnalyzer) visit_tuple_type(t &TupleType) !string {
 	// t.items = flatten_nested_tuples(t.items)
 	for i, it in t.items {
-		if v.check_non_paramspec(it, 'tuple', t.base.ctx) {
+		if v.check_non_paramspec(it, 'tuple', Context{line: t.line}) {
 			// t.items[i] = ...
 		}
 	}
-	v.TypeTraverserVisitor.visit_tuple_type(t)!
+	v.MixedTraverserVisitor.visit_tuple_type(t)!
 	return ''
 }
 
 pub fn (mut v TypeArgumentAnalyzer) visit_instance(t &Instance) !string {
-	v.TypeTraverserVisitor.visit_instance(t)!
+	v.MixedTraverserVisitor.visit_instance(t)!
 	info := t.typ // In Instance it is TypeInfo
 	// if info is FakeInfo ...
 
@@ -126,7 +125,7 @@ pub fn (mut v TypeArgumentAnalyzer) validate_args(name string, args []MypyTypeNo
 		}
 		tvar := type_vars[i]
 
-		context := if arg.base_ctx().line < 0 { ctx } else { arg.base_ctx() }
+		context := ctx
 
 		if tvar is TypeVarType {
 			if v.check_non_paramspec(arg, 'regular type variable', context) {
@@ -140,10 +139,10 @@ pub fn (mut v TypeArgumentAnalyzer) validate_args(name string, args []MypyTypeNo
 					if arg.values.len == 0 {
 						is_error = true
 						v.fail('Invalid TypeVar "${arg.name}" as type argument for "${name}"',
-							context, code_type_var)
+							context, type_var)
 						continue
 					}
-					arg_values = arg.values
+					arg_values = arg.values.clone()
 				} else {
 					arg_values = [arg]
 				}
@@ -173,19 +172,19 @@ pub fn (mut v TypeArgumentAnalyzer) validate_args(name string, args []MypyTypeNo
 }
 
 pub fn (mut v TypeArgumentAnalyzer) visit_unpack_type(typ &UnpackType) !string {
-	v.TypeTraverserVisitor.visit_unpack_type(typ)!
-	p_type := get_proper_type(typ.type_)
+	v.MixedTraverserVisitor.visit_unpack_type(typ)!
+	p_type := get_proper_type(typ.@type)
 
 	if p_type is TupleType || p_type is TypeVarTupleType {
 		return ''
 	}
 
-	if p_type is Instance && p_type.typ.fullname == 'builtins.tuple' {
+	if p_type is Instance && (p_type.typ or { return '' }).fullname == 'builtins.tuple' {
 		return ''
 	}
 
 	if p_type !is UnboundType && p_type !is AnyType {
-		v.fail('Invalid location for Unpack', p_type.base_ctx(), valid_type)
+		v.fail('Invalid location for Unpack', typ.base_ctx.ctx, valid_type)
 	}
 	// typ.type_ = v.named_type_func('builtins.tuple', [AnyType{kind: .from_error}])
 	return ''
@@ -210,16 +209,16 @@ pub fn (mut v TypeArgumentAnalyzer) check_type_var_values(name string, actuals [
 		if !found {
 			is_err = true
 			v.fail('Incompatible value for TypeVar "${arg_name}" in "${name}"', context,
-				code_type_var)
+				type_var)
 		}
 	}
 	return is_err
 }
 
 pub fn (mut v TypeArgumentAnalyzer) fail(msg string, context Context, code ?&ErrorCode) {
-	v.errors.report(context.line, context.column, msg, code)
+	v.errors.report(context.line, context.column, msg, if c := code { c.code } else { none }, 'error', false, false)
 }
 
 pub fn (mut v TypeArgumentAnalyzer) note(msg string, context Context, code ?&ErrorCode) {
-	v.errors.report(context.line, context.column, msg, .note, code)
+	v.errors.report(context.line, context.column, msg, if c := code { c.code } else { none }, 'note', false, false)
 }

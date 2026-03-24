@@ -18,26 +18,25 @@ pub fn (mut a TypedDictAnalyzer) analyze_typeddict_classdef(defn &ClassDef) (boo
 	for base_expr in defn.base_type_exprs {
 		mut e := base_expr
 		if e is CallExpr {
-			e = e.callee
+			call := e as CallExpr
+			e = call.callee
 		}
 		// if e is IndexExpr { e = e.base_ }
 		if e is NameExpr {
-			a.api.accept(e)
-			if e.fullname in tpdict_names || a.is_typeddict(e) {
+			a.api.accept(mut (e as NameExpr))
+			if (e as NameExpr).fullname in tpdict_names || a.is_typeddict(e) {
 				possible = true
-				if node := e.node {
-					if n := node {
-						if n is TypeInfo && n.is_final {
-							a.fail('Cannot inherit from final class "${n.name}"', defn.get_context(),
-								none)
-						}
+				if node := (e as NameExpr).node {
+					if node is TypeInfo && (node as TypeInfo).is_final {
+						a.fail('Cannot inherit from final class "${(node as TypeInfo).name}"', defn.get_context(),
+							none)
 					}
 				}
 			}
 		}
 	}
 	if !possible {
-		return false, none
+		return false, ?&TypeInfo(none)
 	}
 
 	if defn.base_type_exprs.len == 1 {
@@ -53,14 +52,14 @@ pub fn (mut a TypedDictAnalyzer) analyze_typeddict_classdef(defn &ClassDef) (boo
 			}
 
 			info := a.build_typeddict_typeinfo(name, field_types, required_keys, readonly_keys,
-				defn.base.ctx.line, none)
+				defn.base.ctx.line, ?&TypeInfo(none))
 			mut mut_defn := unsafe { &ClassDef(defn) }
 			mut_defn.defs.body = statements
 			return true, info
 		}
 	}
 
-	return true, none
+	return true, ?&TypeInfo(none)
 }
 
 pub fn (mut a TypedDictAnalyzer) analyze_typeddict_classdef_fields(defn &ClassDef, oldfields []string) (map[string]MypyTypeNode, []Statement, []string, []string) {
@@ -80,7 +79,7 @@ pub fn (mut a TypedDictAnalyzer) analyze_typeddict_classdef_fields(defn &ClassDe
 				mut field_type := MypyTypeNode(AnyType{
 					type_of_any: .unannotated
 				})
-				if ut := stmt.unanalyzed_type {
+				if ut := stmt.type_annotation {
 					if analyzed := a.api.anal_type(ut, none, true, false, true, false,
 						true, 'TypedDict item type', 'TypedDict')
 					{
@@ -130,8 +129,7 @@ pub fn (mut a TypedDictAnalyzer) build_typeddict_typeinfo(name string, item_type
 		])
 	}
 
-	info := or_existing_info(existing_info, a.api.api.basic_new_typeinfo(name, fallback,
-		line))
+	info := existing_info or { a.api.basic_new_typeinfo(name, fallback, line) }
 	mut mut_info := unsafe { &TypeInfo(info) }
 
 	mut req_keys_map := map[string]bool{}
@@ -145,15 +143,11 @@ pub fn (mut a TypedDictAnalyzer) build_typeddict_typeinfo(name string, item_type
 	}
 
 	td_type := &TypedDictType{
-		base:          TypeBase{
-			ctx: Context{
-				line: line
-			}
-		}
 		items:         item_types
 		required_keys: req_keys_map
 		readonly_keys: ro_keys_map
 		fallback:      fallback
+		line:          line
 	}
 
 	mut_info.typeddict_type = td_type
@@ -163,10 +157,8 @@ pub fn (mut a TypedDictAnalyzer) build_typeddict_typeinfo(name string, item_type
 pub fn (mut a TypedDictAnalyzer) is_typeddict(expr Expression) bool {
 	if expr is NameExpr {
 		if node := expr.node {
-			if n := node {
-				if n is TypeInfo {
-					return n.typeddict_type != none
-				}
+			if node is TypeInfo {
+				return (node as TypeInfo).typeddict_type != none
 			}
 		}
 	}

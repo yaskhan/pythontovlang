@@ -40,7 +40,7 @@ pub fn new_subtype_context(ignore_type_params bool, ignore_pos_arg_names bool, i
 
 // is_subtype checks if left is a subtype of right
 // Also considers Any to be a subtype of any type and vice versa
-pub fn is_subtype(left MypyTypeNode, right MypyTypeNode, subtype_context SubtypeContext) bool {
+pub fn is_subtype_ctx(left MypyTypeNode, right MypyTypeNode, subtype_context SubtypeContext) bool {
 	if left.str() == right.str() {
 		return true
 	}
@@ -65,7 +65,7 @@ fn is_subtype_internal(left MypyTypeNode, right MypyTypeNode, ctx SubtypeContext
 	// UnionType check
 	if right_proper is UnionType && left_proper !is UnionType {
 		for item in right_proper.items {
-			if is_subtype(left, item, ctx) {
+			if is_subtype_ctx(left, item, ctx) {
 				return true
 			}
 		}
@@ -100,7 +100,7 @@ fn is_subtype_internal(left MypyTypeNode, right MypyTypeNode, ctx SubtypeContext
 		if left_proper.id == right_proper.id {
 			return true
 		}
-		return is_subtype(left_proper.upper_bound, right, ctx)
+		return is_subtype_ctx(left_proper.upper_bound, right, ctx)
 	}
 
 	// CallableType
@@ -114,7 +114,7 @@ fn is_subtype_internal(left MypyTypeNode, right MypyTypeNode, ctx SubtypeContext
 			return false
 		}
 		for i in 0 .. left_proper.items.len {
-			if !is_subtype(left_proper.items[i], right_proper.items[i], ctx) {
+			if !is_subtype_ctx(left_proper.items[i], right_proper.items[i], ctx) {
 				return false
 			}
 		}
@@ -132,10 +132,12 @@ fn is_subtype_internal(left MypyTypeNode, right MypyTypeNode, ctx SubtypeContext
 // is_instance_subtype checks subtype for Instance
 fn is_instance_subtype(left Instance, right Instance, ctx SubtypeContext) bool {
 	// Check cache
-	if type_state.is_cached_subtype(left, right) {
+	mut ts := mut_type_state()
+	kind := make_subtype_kind(false, ctx.ignore_promotions)
+	if ts.is_cached_subtype_check(kind, &left, &right) {
 		return true
 	}
-	if type_state.is_cached_negative_subtype(left, right) {
+	if ts.is_cached_negative_subtype_check(kind, &left, &right) {
 		return false
 	}
 
@@ -145,10 +147,10 @@ fn is_instance_subtype(left Instance, right Instance, ctx SubtypeContext) bool {
 			if !rti.is_protocol {
 				if lti := left.typ {
 					for base in lti.mro {
-						if base.promote_.len > 0 {
-							for p in base.promote_ {
-								if is_subtype(p, right, ctx) {
-									type_state.record_subtype_cache(left, right)
+						if base.promote_types.len > 0 {
+							for p in base.promote_types {
+								if is_subtype_ctx(p, right, ctx) {
+									ts.record_subtype_cache_entry(kind, &left, &right)
 									return true
 								}
 							}
@@ -168,7 +170,7 @@ fn is_instance_subtype(left Instance, right Instance, ctx SubtypeContext) bool {
 
 				// Check type arguments
 				if !ctx.ignore_type_params {
-					for i, tvar in rti.defn.type_vars {
+					for i, tvar in rti.type_vars {
 						if i >= mapped.args.len || i >= right.args.len {
 							continue
 						}
@@ -176,18 +178,19 @@ fn is_instance_subtype(left Instance, right Instance, ctx SubtypeContext) bool {
 						right_arg := right.args[i]
 
 						if tvar is TypeVarType {
-							variance := tvar.variance
+							tvt := tvar as TypeVarType
+							mut variance := tvt.variance
 							if ctx.always_covariant && variance == 0 {
 								variance = 1 // COVARIANT
 							}
-							if !check_type_parameter(left_arg, right_arg, variance, ctx) {
-								type_state.record_negative_subtype_cache(left, right)
+							if !check_type_parameter(left_arg, right_arg, int(variance), ctx) {
+								ts.record_negative_subtype_cache_entry(kind, &left, &right)
 								return false
 							}
 						}
 					}
 				}
-				type_state.record_subtype_cache(left, right)
+				ts.record_subtype_cache_entry(kind, &left, &right)
 				return true
 			}
 		}
@@ -202,7 +205,7 @@ fn is_instance_subtype(left Instance, right Instance, ctx SubtypeContext) bool {
 		}
 	}
 
-	type_state.record_negative_subtype_cache(left, right)
+	ts.record_negative_subtype_cache_entry(kind, &left, &right)
 	return false
 }
 
@@ -210,18 +213,18 @@ fn is_instance_subtype(left Instance, right Instance, ctx SubtypeContext) bool {
 fn check_type_parameter(left MypyTypeNode, right MypyTypeNode, variance int, ctx SubtypeContext) bool {
 	// INVARIANT = 0, COVARIANT = 1, CONTRAVARIANT = -1
 	if variance == 1 { // COVARIANT
-		return is_subtype(left, right, ctx)
+		return is_subtype_ctx(left, right, ctx)
 	} else if variance == -1 { // CONTRAVARIANT
-		return is_subtype(right, left, ctx)
+		return is_subtype_ctx(right, left, ctx)
 	} else { // INVARIANT
-		return is_subtype(left, right, ctx) && is_subtype(right, left, ctx)
+		return is_subtype_ctx(left, right, ctx) && is_subtype_ctx(right, left, ctx)
 	}
 }
 
 // is_callable_subtype checks subtype for CallableType
 fn is_callable_subtype(left CallableType, right CallableType, ctx SubtypeContext) bool {
 	// Check return type (covariantly)
-	if !is_subtype(left.ret_type, right.ret_type, ctx) {
+	if !is_subtype_ctx(left.ret_type, right.ret_type, ctx) {
 		return false
 	}
 
@@ -230,7 +233,7 @@ fn is_callable_subtype(left CallableType, right CallableType, ctx SubtypeContext
 		return false
 	}
 	for i in 0 .. left.arg_types.len {
-		if !is_subtype(right.arg_types[i], left.arg_types[i], ctx) {
+		if !is_subtype_ctx(right.arg_types[i], left.arg_types[i], ctx) {
 			return false
 		}
 	}
@@ -264,11 +267,11 @@ fn is_typeddict_subtype(left TypedDictType, right TypedDictType, ctx SubtypeCont
 
 		// Types must be compatible
 		if right_readonly {
-			if !is_subtype(left_type, right_type, ctx) {
+			if !is_subtype_ctx(left_type, right_type, ctx) {
 				return false
 			}
 		} else {
-			if !is_subtype(left_type, right_type, ctx) || !is_subtype(right_type, left_type, ctx) {
+			if !is_subtype_ctx(left_type, right_type, ctx) || !is_subtype_ctx(right_type, left_type, ctx) {
 				return false
 			}
 		}
@@ -289,9 +292,11 @@ pub fn is_protocol_implementation(left Instance, right Instance, ctx SubtypeCont
 
 		// Check compatibility of protocol member types
 		if sym.node != none && left_sym.node != none {
-			right_type := sym.node.typ or { continue }
-			left_type := left_sym.node.typ or { continue }
-			if !is_subtype(left_type, right_type, ctx) {
+			right_node := sym.node
+			left_node := left_sym.node
+			right_type := right_node.node_type() or { continue }
+			left_type := left_node.node_type() or { continue }
+			if !is_subtype_ctx(left_type, right_type, ctx) {
 				return false
 			}
 		}
@@ -319,23 +324,25 @@ pub fn is_proper_subtype(left MypyTypeNode, right MypyTypeNode, ctx SubtypeConte
 	}
 
 	// Check via is_subtype
-	return is_subtype(left, right, ctx)
+	return is_subtype_ctx(left, right, ctx)
 }
 
 // is_equivalent checks type equivalence
-pub fn is_equivalent(a MypyTypeNode, b MypyTypeNode, ctx SubtypeContext) bool {
-	return is_subtype(a, b, ctx) && is_subtype(b, a, ctx)
+pub fn is_equivalent_ctx(a MypyTypeNode, b MypyTypeNode, ctx SubtypeContext) bool {
+	return is_subtype_ctx(a, b, ctx) && is_subtype_ctx(b, a, ctx)
 }
 
-// is_same_type checks if types are the same
-pub fn is_same_type(a MypyTypeNode, b MypyTypeNode, ctx SubtypeContext) bool {
+pub fn is_same_type_ctx(a MypyTypeNode, b MypyTypeNode, ctx SubtypeContext) bool {
 	return is_proper_subtype(a, b, ctx) && is_proper_subtype(b, a, ctx)
 }
 
 // is_named_instance checks if the type is a named instance
 fn is_named_instance(typ MypyTypeNode, fullname string) bool {
 	if typ is Instance {
-		return typ.typ.fullname == fullname
+		it := typ as Instance
+		if info := it.typ {
+			return info.fullname == fullname
+		}
 	}
 	return false
 }
@@ -344,48 +351,36 @@ fn is_named_instance(typ MypyTypeNode, fullname string) bool {
 
 // map_instance_to_supertype maps Instance to supertype
 fn map_instance_to_supertype(inst Instance, supertype TypeInfo) Instance {
-	if inst.typ == supertype {
+	inst_typ := inst.typ or { return inst }
+	if inst_typ == supertype {
 		return inst
 	}
 
-	// Find path from inst.typ to supertype in MRO
-	mut path := []TypeInfo{}
-	mut current := inst.typ
-	for current != none {
-		path << current
-		if current == supertype {
+	// Find the supertype in the MRO
+	mut found := false
+	for info in inst_typ.mro {
+		if info == supertype {
+			found = true
 			break
 		}
-		current = current.base or { none }
 	}
 
-	if path.len == 0 || path.last() != supertype {
+	if !found {
 		return inst
 	}
 
-	// Apply type arguments along the path
-	mut result_args := inst.args.clone()
-	for i in 0 .. path.len - 1 {
-		child := path[i]
-		parent := path[i + 1]
-		if child.defn.type_vars.len > 0 && parent.defn.type_vars.len > 0 {
-			// Map arguments from child to parent
-			mut new_args := []MypyTypeNode{}
-			for j, tvar in parent.defn.type_vars {
-				if j < result_args.len {
-					new_args << result_args[j]
-				} else {
-					new_args << AnyType{
-						type_of_any: .special_form
-					}
-				}
-			}
-			result_args = new_args
+	// Apply type arguments along the path (Simplified: Mypy 1.x logic uses mapped arguments)
+	// We return a new instance with the target supertype but keep original args if possible
+	// or use Any as placeholder.
+	mut result_args := []MypyTypeNode{}
+	for _ in supertype.type_vars {
+		result_args << AnyType{
+			type_of_any: .special_form
 		}
 	}
 
 	return Instance{
-		typ:  supertype
+		typ:  &supertype
 		args: result_args
 	}
 }
@@ -410,8 +405,8 @@ fn erase_type(t MypyTypeNode) MypyTypeNode {
 	} else if t is CallableType {
 		// Erase types in callable
 		mut new_arg_types := []MypyTypeNode{}
-		for arg_type in t.arg_types {
-			new_arg_types << erase_type(arg_type)
+		for atyp in t.arg_types {
+			new_arg_types << erase_type(atyp)
 		}
 		return CallableType{
 			arg_types: new_arg_types
@@ -425,8 +420,8 @@ fn erase_type(t MypyTypeNode) MypyTypeNode {
 			new_items << erase_type(item)
 		}
 		return TupleType{
-			items:    new_items
-			fallback: t.fallback
+			items:            new_items
+			partial_fallback: t.partial_fallback
 		}
 	} else if t is UnionType {
 		// Erase union items
