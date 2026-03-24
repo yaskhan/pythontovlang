@@ -26,7 +26,7 @@ class UserDict(Generic[T]):
 
     print(result)
 
-    assert "fn UserDict_fromkeys[T](iterable Any, value Any) UserDict[T] {" in result
+    assert "fn UserDict_fromkeys[T](iterable Any, value Any) &UserDict[T] {" in result
     assert "cls int" not in result
     assert "return &UserDict[T]{}" in result
 
@@ -82,7 +82,7 @@ class UserDict(Generic[T], ABC):
     print(result)
 
     # Interface should not have cls in its methods
-    assert "fromkeys(iterable T, value Any) UserDict[T]" in result
+    assert "fromkeys(iterable T, value Any) &UserDict[T]" in result
     assert "cls int" not in result
 
 def test_classmethod_name_mangling_generic_mismatch():

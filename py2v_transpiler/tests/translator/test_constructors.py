@@ -24,8 +24,8 @@ class Decimal:
         return object.__new__(cls)
 """
         result = self.transpile(source)
-        self.assertIn("fn new_decimal(value string) Decimal {", result)
-        self.assertIn("return Decimal{}", result)
+        self.assertIn("fn new_decimal(value string) &Decimal {", result)
+        self.assertIn("return &Decimal{}", result)
         # Should NOT have __new__ method
         self.assertNotIn("__new__", result)
 
@@ -50,7 +50,7 @@ class Decimal:
         self.value = value
 """
         result = self.transpile(source)
-        self.assertIn("fn new_decimal(value string) Decimal {", result)
+        self.assertIn("fn new_decimal(value string) &Decimal {", result)
         self.assertIn("return new_decimal()", result)
         self.assertIn("fn (self Decimal) init(value string) {", result)
 

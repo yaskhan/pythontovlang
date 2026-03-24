@@ -55,8 +55,8 @@ def wrapper(obj: Data) -> None:
     modify(obj)
 """
     v_code = translate(source)
-    assert "fn modify(mut obj Data)" in v_code
-    assert "fn wrapper(mut obj Data)" in v_code
+    assert "fn modify(mut obj &Data)" in v_code
+    assert "fn wrapper(mut obj &Data)" in v_code
     assert "modify(mut obj)" in v_code
 
 def test_collection_methods_mutability():
