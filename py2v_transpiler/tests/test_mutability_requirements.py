@@ -137,3 +137,13 @@ class TestMutabilityRequirements:
         """
         result = self._transpile(code)
         assert "mut total := 0" in result
+
+    def test_reassigned_function_argument(self):
+        code = """
+        def test(i: int):
+            i = i + 1
+            return i
+        """
+        result = self._transpile(code)
+        assert "fn test(i int) int {" in result
+        assert "mut i := i" in result
