@@ -55,30 +55,70 @@ class ClassMethodsHandler:
     def process_interface_methods(self, methods: List[ast.FunctionDef | ast.AsyncFunctionDef]) -> List[str]:
         interface_methods = []
         has_str = self.has_method(methods, "__str__")
+        struct_name = self.translator.current_class or ""
         for method in methods:
             if method.name == "__init__": continue
             m_name = self.translator._sanitize_name(method.name)
+            original_node_name = getattr(method, "original_name", method.name)
             if m_name == "__next__": m_name = "next"
             elif m_name == "__post_init__": m_name = "post_init"
             elif m_name == "__await__": m_name = "await_"
             elif m_name == "__iter__": m_name = "iter"
             elif m_name == "__str__": m_name = "str"
             elif m_name == "__repr__": m_name = "repr" if has_str else "str"
+
             is_m_classmethod = any(self.translator.decorator_processor.get_decorator_name(dec) in ("classmethod", "abstractclassmethod") for dec in method.decorator_list)
             m_args = []
+
+            # Use same qualified name logic as generation.py
+            prefix = ".".join(self.translator._scope_names)
+            # When processing interface methods, we are inside the class scope
+            # but _scope_names might already contain the class name.
+
             for arg in (getattr(method.args, 'posonlyargs', []) + method.args.args):
                 if arg.arg == "self" or (is_m_classmethod and arg.arg == "cls"): continue
+
+                arg_name = self.translator._sanitize_name(arg.arg)
                 a_type = "int"
-                try: a_type = self.translator._map_type(ast.unparse(arg.annotation)) if arg.annotation else self.translator._map_type(self.translator.type_inference.type_map.get(arg.arg, "int"))
+                try:
+                    a_type = self.translator._map_type(ast.unparse(arg.annotation), struct_name) if arg.annotation else self.translator._map_type(self.translator.type_inference.type_map.get(arg_name, "int"), struct_name)
                 except: pass
-                m_args.append(f"{self.translator._sanitize_name(arg.arg)} {a_type}")
+
+                # Check mutability
+                is_mut = False
+                if hasattr(self.translator, 'type_inference') and hasattr(self.translator.type_inference, 'mutability_map'):
+                    # Match generation.py logic: prefix.method.arg
+                    # In generation.py: prefix = ".".join(self._scope_names)
+                    # For interface methods, we should build it based on struct_name
+                    prefix_full = f"{struct_name}.{method.name}.{arg.arg}" if struct_name else f"{method.name}.{arg.arg}"
+                    m_info = self.translator.type_inference.mutability_map.get(prefix_full)
+                    if m_info:
+                        is_mut = m_info.get("is_reassigned", False) or m_info.get("is_mutated", False)
+
+                # Prepend & if it's a struct and not already a reference or optional or Any
+                if a_type and a_type[0].isupper() and a_type not in ("Any", "void", "none", "bool", "int", "string") and not a_type.startswith("&") and not a_type.startswith("?") and "|" not in a_type:
+                     if a_type not in self.translator.known_interfaces:
+                          a_type = f"&{a_type}"
+
+                m_args.append(f"{'mut ' if is_mut else ''}{arg_name} {a_type}")
+
             m_ret = "void"
             if method.returns:
-                try: m_ret = self.translator._map_type(ast.unparse(method.returns))
+                try: m_ret = self.translator._map_type(ast.unparse(method.returns), struct_name, is_return=True)
                 except: pass
             else:
                  ir = self.translator.type_inference.type_map.get(f"{method.name}@return")
-                 if ir: m_ret = self.translator._map_type(ir)
+                 if ir: m_ret = self.translator._map_type(ir, struct_name, is_return=True)
+
+            # Prepend & for return type if it's a struct
+            if m_ret and m_ret != "void" and m_ret[0].isupper() and m_ret not in ("Any", "void", "none", "bool", "int", "string") and not m_ret.startswith("&") and not m_ret.startswith("?") and "|" not in m_ret:
+                 if m_ret not in self.translator.known_interfaces:
+                      m_ret = f"&{m_ret}"
+
+            if original_node_name == "__next__" or m_name == "next":
+                if m_ret != "void" and not m_ret.startswith("?"):
+                    m_ret = f"?{m_ret}"
+
             interface_methods.append(f"    {m_name}({', '.join(m_args)}){'' if m_ret == 'void' else ' ' + m_ret}")
         return interface_methods
 
