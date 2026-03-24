@@ -41,7 +41,7 @@ class TypeGuessingMixin:
             if isinstance(node.value, complex):
                 return "PyComplex"
             if node.value is None:
-                return "none"
+                return "Any"
             return "int"
 
         elif isinstance(node, ast.Lambda):
