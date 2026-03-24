@@ -36,9 +36,50 @@ class ModuleMixin(TranslatorBase):
 
         self.emitter.module_name = self.current_module_name
         self.global_vars = set()
+        def find_top_level(n):
+            names = set()
+            for stmt in getattr(n, "body", []):
+                if isinstance(stmt, (ast.Assign, ast.AnnAssign)):
+                    t_list = stmt.targets if isinstance(stmt, ast.Assign) else [stmt.target]
+                    for t in t_list:
+                        for sub in ast.walk(t):
+                            if isinstance(sub, ast.Name): names.add(sub.id)
+                elif isinstance(stmt, (ast.If, ast.With, ast.Try, ast.For, ast.While)):
+                    names.update(find_top_level(stmt))
+                    if hasattr(stmt, "orelse"): names.update(find_top_level(stmt.orelse))
+                    if hasattr(stmt, "finalbody"): names.update(find_top_level(stmt.finalbody))
+            return names
+        top_level_names = find_top_level(node)
+
         for subnode in ast.walk(node):
             if isinstance(subnode, ast.Global):
                 self.global_vars.update(subnode.names)
+            elif isinstance(subnode, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
+                assigned_locally = set()
+                if isinstance(subnode, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                    for a in subnode.args.args + getattr(subnode.args, "posonlyargs", []) + subnode.args.kwonlyargs:
+                        assigned_locally.add(a.arg)
+                    if subnode.args.vararg: assigned_locally.add(subnode.args.vararg.arg)
+                    if subnode.args.kwarg: assigned_locally.add(subnode.args.kwarg.arg)
+
+                for inner in ast.walk(subnode):
+                    if isinstance(inner, (ast.Assign, ast.AnnAssign)) and not isinstance(inner, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
+                         t_list = inner.targets if isinstance(inner, ast.Assign) else [inner.target]
+                         for t in t_list:
+                             for sub_t in ast.walk(t):
+                                 if isinstance(sub_t, ast.Name): assigned_locally.add(sub_t.id)
+
+                for inner in ast.walk(subnode):
+                    target_id = ""
+                    if isinstance(inner, ast.Name) and isinstance(inner.ctx, ast.Load):
+                        target_id = inner.id
+                    elif isinstance(inner, ast.Attribute):
+                        curr = inner.value
+                        while isinstance(curr, ast.Attribute): curr = curr.value
+                        if isinstance(curr, ast.Name): target_id = curr.id
+
+                    if target_id and target_id in top_level_names and target_id not in assigned_locally:
+                        self.global_vars.add(target_id)
 
         self.coroutine_handler.scan_module(node)
 
