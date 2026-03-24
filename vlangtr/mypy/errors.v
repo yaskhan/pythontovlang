@@ -6,7 +6,7 @@
 
 module mypy
 
-import os
+import os as _
 
 // ImportContext — import context for tracking import chain
 pub struct ImportContext {
@@ -109,6 +109,11 @@ pub fn (mut e Errors) reset() {
 	e.import_ctx.clear()
 	e.recorded.clear()
 	e.seen_import_error = false
+}
+
+// is_errors returns true if there are any errors
+pub fn (e &Errors) is_errors() bool {
+	return e.error_info_map.len > 0
 }
 
 pub fn new_errors(options Options) Errors {

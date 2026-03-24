@@ -28,13 +28,12 @@ pub mut:
 	api     &SemanticAnalyzerInterface
 }
 
-pub fn (mut a NamedTupleAnalyzer) analyze_namedtuple_classdef(defn &ClassDef, is_stub_file bool, is_func_scope bool) (bool, ?&TypeInfo) {
-	for base_expr in defn.base_type_exprs {
+pub fn (mut a NamedTupleAnalyzer) analyze_namedtuple_classdef(mut defn ClassDef, is_stub_file bool, is_func_scope bool) (bool, ?&TypeInfo) {
+	for mut base_expr in defn.base_type_exprs {
 		if base_expr is NameExpr {
-			a.api.accept(base_expr)
-			if base_expr.fullname in typed_namedtuple_names {
-				result := a.check_namedtuple_classdef(defn, is_stub_file) or { return true, none }
-				items, types, default_items, statements := result
+			a.api.accept(mut Node(base_expr))
+			if (base_expr as NameExpr).fullname in typed_namedtuple_names {
+				items, types, default_items, statements := a.check_namedtuple_classdef(mut defn, is_stub_file) or { return true, ?&TypeInfo(none) }
 
 				mut name := defn.name
 				if is_func_scope && !name.contains('@') {
@@ -43,17 +42,15 @@ pub fn (mut a NamedTupleAnalyzer) analyze_namedtuple_classdef(defn &ClassDef, is
 
 				info := a.build_namedtuple_typeinfo(name, items, types, default_items,
 					defn.base.ctx.line, none)
-				// defn.analyzed = NamedTupleExpr(info, is_typed: true)
-				mut mut_defn := unsafe { &ClassDef(defn) }
-				mut_defn.defs.body = statements
+				defn.defs.body = statements
 				return true, info
 			}
 		}
 	}
-	return false, none
+	return false, ?&TypeInfo(none)
 }
 
-pub fn (mut a NamedTupleAnalyzer) check_namedtuple_classdef(defn &ClassDef, is_stub_file bool) ?([]string, []MypyTypeNode, map[string]Expression, []Statement) {
+pub fn (mut a NamedTupleAnalyzer) check_namedtuple_classdef(mut defn ClassDef, is_stub_file bool) ?([]string, []MypyTypeNode, map[string]Expression, []Statement) {
 	if defn.base_type_exprs.len > 1 {
 		a.fail('NamedTuple should be a single base', defn.get_context())
 	}
@@ -75,7 +72,7 @@ pub fn (mut a NamedTupleAnalyzer) check_namedtuple_classdef(defn &ClassDef, is_s
 				})
 				// u_type is Type?
 				// stmt.unanalyzed_type is ?MypyType
-				if ut := stmt.unanalyzed_type {
+				if ut := stmt.type_annotation {
 					if analyzed := a.api.anal_type(ut, none, true, false, true, false,
 						true, 'NamedTuple item type', 'NamedTuple')
 					{
@@ -112,7 +109,7 @@ pub fn (mut a NamedTupleAnalyzer) check_namedtuple_classdef(defn &ClassDef, is_s
 }
 
 pub fn (mut a NamedTupleAnalyzer) build_namedtuple_typeinfo(name string, items []string, types []MypyTypeNode, default_items map[string]Expression, line int, existing_info ?&TypeInfo) &TypeInfo {
-	fallback := Instance{
+	fallback := &Instance{
 		typ:  &TypeInfo{
 			name:     'tuple'
 			fullname: 'builtins.tuple'
@@ -128,11 +125,7 @@ pub fn (mut a NamedTupleAnalyzer) build_namedtuple_typeinfo(name string, items [
 	mut_info.is_named_tuple = true
 
 	tuple_base := &TupleType{
-		base:             TypeBase{
-			ctx: Context{
-				line: line
-			}
-		}
+		line:             line
 		items:            types
 		partial_fallback: fallback
 	}
@@ -146,8 +139,8 @@ pub fn (mut a NamedTupleAnalyzer) build_namedtuple_typeinfo(name string, items [
 			is_property: true
 		}
 		v.fullname = '${info.fullname}.${item}'
-		mut_info.names.symbols[item] = SymbolTableNode{
-			kind: .mdef
+		mut_info.names.symbols[item] = &SymbolTableNode{
+			kind: mdef
 			node: SymbolNodeRef(v)
 		}
 	}

@@ -647,3 +647,35 @@ pub fn expr_accept(e Expression, mut v NodeVisitor) !string {
 		YieldFromExpr { v.visit_yield_from_expr(&e)! }
 	}
 }
+
+pub fn (mut t NodeTraverser) visit_argument(mut o Argument) !string {
+	if mut initializer := o.initializer {
+		initializer.accept(mut t)!
+	}
+	return ''
+}
+
+pub fn (mut t NodeTraverser) visit_type_param(mut o TypeParam) !string {
+	if mut bound := o.upper_bound {
+		bound.accept(mut t)!
+	}
+	if mut def := o.default_ {
+		def.accept(mut t)!
+	}
+	return ''
+}
+
+pub fn (mut t NodeTraverser) visit_type_info(mut o TypeInfo) !string {
+	return ''
+}
+
+pub fn (mut t NodeTraverser) visit_lvalue(mut o Lvalue) !string {
+	match mut o {
+		ListExpr { t.visit_list_expr(mut o)! }
+		MemberExpr { t.visit_member_expr(mut o)! }
+		NameExpr { t.visit_name_expr(mut o)! }
+		StarExpr { t.visit_star_expr(mut o)! }
+		TupleExpr { t.visit_tuple_expr(mut o)! }
+	}
+	return ''
+}

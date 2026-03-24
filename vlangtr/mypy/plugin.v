@@ -96,7 +96,7 @@ pub:
 pub struct Plugin {
 pub mut:
 	options        Options
-	python_version (int, int)
+	python_version []int
 	modules        ?map[string]MypyFile
 }
 

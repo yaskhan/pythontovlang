@@ -36,15 +36,15 @@ pub fn (mut a NewTypeAnalyzer) process_newtype_declaration(s &AssignmentStmt) bo
 	// Build TypeInfo
 	mut base_type := a.api.named_type('builtins.object', [])
 	if actual_old_type is Instance {
-		base_type = actual_old_type
+		base_type = &(actual_old_type as Instance)
 	} else if actual_old_type is TupleType {
-		base_type = actual_old_type.partial_fallback
+		base_type = (actual_old_type as TupleType).partial_fallback or { base_type }
 	}
 
 	info := a.build_newtype_typeinfo(nt_name, actual_old_type, base_type, s.base.ctx.line,
 		none)
 
-	a.api.add_symbol(name, SymbolNodeRef(info), s, true, false, true)
+	a.api.add_symbol(name, SymbolNodeRef(info), s.get_context(), true, false, true)
 	if a.api.is_func_scope() {
 		a.api.add_symbol_skip_local(nt_name, SymbolNodeRef(info))
 	}
@@ -59,12 +59,12 @@ pub fn (mut a NewTypeAnalyzer) analyze_newtype_declaration(s &AssignmentStmt) (s
 			callee := r.callee
 			if callee is NameExpr {
 				if callee.fullname in ['typing.NewType', 'typing_extensions.NewType'] {
-					return (s.lvalues[0] as NameExpr).name, r
+					return (s.lvalues[0] as NameExpr).name, &CallExpr(s.rvalue as CallExpr)
 				}
 			}
 		}
 	}
-	return '', none
+	return '', ?&CallExpr(none)
 }
 
 pub fn (mut a NewTypeAnalyzer) check_newtype_args(name string, call &CallExpr, ctx Context) (?MypyTypeNode, bool) {
@@ -123,16 +123,12 @@ pub fn (mut a NewTypeAnalyzer) build_newtype_typeinfo(name string, old_type Mypy
 	]
 
 	mut signature := &CallableType{
-		base:      TypeBase{
-			ctx: Context{
-				line: line
-			}
-		}
+		line:      line
 		arg_types: [MypyTypeNode(Instance{
 			typ: info
 		}), old_type]
 		arg_kinds: [.arg_pos, .arg_pos]
-		arg_names: ['self', 'item']
+		arg_names: ['self', 'item'].map(?string(it))
 		ret_type:  MypyTypeNode(NoneType{})
 		fallback:  a.api.named_type('builtins.function', [])
 		name:      name
@@ -148,7 +144,7 @@ pub fn (mut a NewTypeAnalyzer) build_newtype_typeinfo(name string, old_type Mypy
 	init_func.fullname = '${info.fullname}.__init__'
 
 	mut_info.names.symbols['__init__'] = SymbolTableNode{
-		kind: .mdef
+		kind: mdef
 		node: SymbolNodeRef(init_func)
 	}
 

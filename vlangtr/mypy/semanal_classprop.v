@@ -87,8 +87,10 @@ pub fn calculate_class_abstract_status(typ &TypeInfo, is_stub_file bool, mut err
 
 	if is_stub_file {
 		if m := typ.declared_metaclass {
-			if m.typ != none && m.typ.fullname == 'abc.ABCMeta' {
-				return
+			if t := m.typ {
+				if t.fullname == 'abc.ABCMeta' {
+					return
+				}
 			}
 		}
 		if typ.is_protocol {
@@ -123,17 +125,15 @@ pub fn check_protocol_status(info &TypeInfo, mut errors Errors) {
 	}
 }
 
-pub fn calculate_class_vars(info &TypeInfo) {
-	for name, sym in info.names.symbols {
-		node := sym.node or { continue }
-		if node is Var && node.is_inferred && !node.is_classvar {
-			for base in info.mro[1..] {
-				member := base.names.symbols[name] or { continue }
-				if member_node := member.node {
-					if member_node is Var && member_node.is_classvar {
-						unsafe {
-							mut mut_node := &Var(node)
-							mut_node.is_classvar = true
+pub fn calculate_class_vars(mut info TypeInfo) {
+	for name, mut sym in info.names.symbols {
+		if mut node := sym.node {
+			if mut node is Var && node.is_inferred && !node.is_classvar {
+				for base in info.mro[1..] {
+					member := base.names.symbols[name] or { continue }
+					if member_node := member.node {
+						if member_node is Var && member_node.is_classvar {
+							node.is_classvar = true
 						}
 					}
 				}
@@ -152,7 +152,7 @@ pub fn add_type_promotion(info &TypeInfo, module_names map[string]&SymbolTableNo
 			if target_info := target_sym.node {
 				if target_info is TypeInfo {
 					mut_info.bases << Instance{
-						typ: target_info
+						typ: &target_info
 					}
 				}
 			}

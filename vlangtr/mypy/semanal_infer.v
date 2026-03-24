@@ -18,7 +18,7 @@ pub fn infer_decorator_signature_if_simple(mut dec Decorator, analyzer SemanticA
 				ret_type:  MypyTypeNode(AnyType{
 					type_of_any: .special_form
 				})
-				fallback:  *fallback
+				fallback:  fallback
 				name:      dec.var_.name
 			}
 		} else if fn_typ := dec.func.type_ {
@@ -36,7 +36,6 @@ pub fn infer_decorator_signature_if_simple(mut dec Decorator, analyzer SemanticA
 		if return_type is AnyType {
 			dec.var_.type_ = AnyType{
 				type_of_any: .from_another_any
-				source_any:  return_type
 			}
 		}
 	}
@@ -48,11 +47,11 @@ pub fn infer_decorator_signature_if_simple(mut dec Decorator, analyzer SemanticA
 	}
 }
 
-pub fn is_identity_signature(sig MypyType) bool {
+pub fn is_identity_signature(sig MypyTypeNode) bool {
 	if sig is CallableType {
 		if sig.arg_kinds.len == 1 && sig.arg_kinds[0] == .arg_pos && sig.arg_types.len == 1 {
 			if sig.arg_types[0] is TypeVarType && sig.ret_type is TypeVarType {
-				return sig.arg_types[0].id.raw_id == sig.ret_type.id.raw_id
+				return (sig.arg_types[0] as TypeVarType).id == (sig.ret_type as TypeVarType).id
 			}
 		}
 	}
@@ -76,9 +75,7 @@ pub fn calculate_return_type(expr Expression) ?MypyTypeNode {
 				}
 				if ref_node is Var {
 					if v_typ := ref_node.type_ {
-						if v_typ is MypyTypeNode {
-							return get_proper_type(v_typ)
-						}
+						return get_proper_type(v_typ)
 					}
 				}
 			}
@@ -98,9 +95,7 @@ pub fn calculate_return_type(expr Expression) ?MypyTypeNode {
 				}
 				if ref_node is Var {
 					if v_typ := ref_node.type_ {
-						if v_typ is MypyTypeNode {
-							return get_proper_type(v_typ)
-						}
+						return get_proper_type(v_typ)
 					}
 				}
 			}
@@ -170,7 +165,7 @@ fn function_type_of_func(f FuncDef, analyzer SemanticAnalyzerInterface) ?Callabl
 		ret_type:  MypyTypeNode(AnyType{
 			type_of_any: .special_form
 		})
-		fallback:  *fallback
+		fallback:  fallback
 		name:      f.name
 	}
 }

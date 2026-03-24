@@ -5,7 +5,7 @@
 
 module mypy
 
-import os
+import os as _
 
 // ============================================================================
 // Constants
@@ -271,8 +271,8 @@ pub mut:
 
 pub type BuildResult = []BuildSource | string
 
-pub fn Options.new() Options {
-	mut o := Options{}
+pub fn Options.new() &Options {
+	mut o := &Options{}
 	o.initialize()
 	return o
 }
@@ -427,8 +427,8 @@ pub fn (mut o Options) initialize() {
 	o.mypyc_skip_c_generation = false
 
 	// Internal cache
-	o._per_module_cache = none
-	o._glob_options = []
+	o.per_module_cache = none
+	o.glob_options = []GlobOption{}
 }
 
 pub fn (o &Options) use_star_unpack() bool {
@@ -583,7 +583,7 @@ pub fn (mut o Options) process_strict_bytes() {
 	}
 }
 
-pub fn (o &Options) apply_changes(changes map[string]string) Options {
+pub fn (o &Options) apply_changes(changes map[string]string) &Options {
 	// Note: effects of this method *must* be idempotent.
 	mut new_options := Options.new()
 	// Copy current state
@@ -1006,7 +1006,7 @@ fn (mut o Options) set_field(key string, value string) {
 }
 
 pub fn (mut o Options) build_per_module_cache() {
-	mut cache := map[string]Options{}
+	mut cache := map[string]&Options{}
 	mut unstructured_glob_keys := []string{}
 	mut structured_keys := []string{}
 	mut wildcards := []string{}
@@ -1062,11 +1062,11 @@ pub fn (mut o Options) build_per_module_cache() {
 }
 
 pub fn (o &Options) clone_for_module(mod_name string) &Options {
-	if o.per_module_cache == none {
-		return o
-	}
 	cache := o.per_module_cache or {
 		map[string]&Options{}
+	}
+	if cache.len == 0 {
+		return o
 	}
 
 	if mod_name in cache {

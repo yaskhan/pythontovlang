@@ -294,13 +294,49 @@ fn (mut b ASTReadBuffer) read_list_import_alias() []ImportAlias {
 	}
 	return res
 }
-
 fn (mut b ASTReadBuffer) read_list_type_param() []TypeParam {
 	tag := b.read_tag()
 	if tag != list_gen { return []TypeParam{} }
 	len := b.read_int_bare()
 	mut res := []TypeParam{cap: len}
-	for _ in 0 .. len { res << b.read_type_param() }
+	for _ in 0 .. len {
+		res << b.read_type_param()
+	}
+	return res
+}
+
+fn (mut b ASTReadBuffer) read_list_argument() []Argument {
+	tag := b.read_tag()
+	if tag != list_gen { return []Argument{} }
+	len := b.read_int_bare()
+	mut res := []Argument{cap: len}
+	for _ in 0 .. len {
+		res << b.read_argument()
+		b.expect_end_tag()
+	}
+	return res
+}
+
+fn (mut b ASTReadBuffer) read_list_name_expr_opt() []?NameExpr {
+	tag := b.read_tag()
+	if tag != list_gen { return []?NameExpr{} }
+	len := b.read_int_bare()
+	mut res := []?NameExpr{cap: len}
+	for _ in 0 .. len {
+		if b.read_bool() {
+			if node := b.read_expression() {
+				if node is NameExpr {
+					res << node
+				} else {
+					res << none
+				}
+			} else {
+				res << none
+			}
+		} else {
+			res << none
+		}
+	}
 	return res
 }
 
@@ -956,8 +992,17 @@ fn (mut b ASTReadBuffer) read_as_pattern() AsPattern {
 
 fn (mut b ASTReadBuffer) read_pattern_node() ?PatternNode {
 	p := b.read_pattern() or { return none }
-	if p is PatternNode { return p }
-	return none
+	match p {
+		AsPattern { return PatternNode(p) }
+		ClassPattern { return PatternNode(p) }
+		MappingPattern { return PatternNode(p) }
+		OrPattern { return PatternNode(p) }
+		SequencePattern { return PatternNode(p) }
+		SingletonPattern { return PatternNode(p) }
+		StarredPattern { return PatternNode(p) }
+		ValuePattern { return PatternNode(p) }
+		else { return none }
+	}
 }
 
 fn (mut b ASTReadBuffer) read_or_pattern() OrPattern {
@@ -1133,8 +1178,14 @@ fn (mut b ASTReadBuffer) read_operator_assignment_stmt() OperatorAssignmentStmt 
 fn (mut b ASTReadBuffer) read_lvalue() ?Lvalue {
 	tag := b.read_tag()
 	node := b.read_node_tagged(tag) or { return none }
-	if node is Lvalue { return node }
-	return none
+	match node {
+		ListExpr { return Lvalue(node) }
+		MemberExpr { return Lvalue(node) }
+		NameExpr { return Lvalue(node) }
+		StarExpr { return Lvalue(node) }
+		TupleExpr { return Lvalue(node) }
+		else { return none }
+	}
 }
 
 fn (mut b ASTReadBuffer) read_cast_expr() CastExpr {
@@ -1188,7 +1239,7 @@ fn (mut b ASTReadBuffer) read_symbol_table() SymbolTable {
 
 fn (mut b ASTReadBuffer) read_symbol_table_node() SymbolTableNode {
 	mut node := SymbolTableNode{}
-	node.kind = SymbolKind(b.read_int())
+	node.kind = b.read_int()
 	node.module_public = b.read_bool()
 	node.module_hidden = b.read_bool()
 	node.implicit = b.read_bool()

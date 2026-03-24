@@ -194,7 +194,6 @@ mut:
 	visit_try_stmt(mut o TryStmt) !string
 	visit_type_alias_stmt(mut o TypeAliasStmt) !string
 	visit_match_stmt(mut o MatchStmt) !string
-	visit_type_info(mut o TypeInfo) !string
 
 	// From PatternVisitor
 	visit_as_pattern(mut o AsPattern) !string
@@ -205,4 +204,5 @@ mut:
 	visit_starred_pattern(mut o StarredPattern) !string
 	visit_mapping_pattern(mut o MappingPattern) !string
 	visit_class_pattern(mut o ClassPattern) !string
+	visit_lvalue(mut o Lvalue) !string
 }

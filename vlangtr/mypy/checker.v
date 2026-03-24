@@ -831,3 +831,26 @@ pub fn (mut tc TypeChecker) visit_mapping_pattern(mut o MappingPattern) !string 
 pub fn (mut tc TypeChecker) visit_class_pattern(mut o ClassPattern) !string {
 	return ''
 }
+
+pub fn (mut tc TypeChecker) visit_argument(mut o Argument) !string {
+	return ''
+}
+
+pub fn (mut tc TypeChecker) visit_type_param(mut o TypeParam) !string {
+	return ''
+}
+
+pub fn (mut tc TypeChecker) visit_type_info(mut o TypeInfo) !string {
+	return ''
+}
+
+pub fn (mut tc TypeChecker) visit_lvalue(mut o Lvalue) !string {
+	match mut o {
+		ListExpr { tc.visit_list_expr(mut o)! }
+		MemberExpr { tc.visit_member_expr(mut o)! }
+		NameExpr { tc.visit_name_expr(mut o)! }
+		StarExpr { tc.visit_star_expr(mut o)! }
+		TupleExpr { tc.visit_tuple_expr(mut o)! }
+	}
+	return ''
+}

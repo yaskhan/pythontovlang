@@ -283,7 +283,7 @@ fn (mut sa SemanticAnalyzer) analyze_func_def(mut defn FuncDef) !string {
 	}
 
 	// TODO: function signature analysis
-	sa.analyze_function_body(mut defn)
+	sa.analyze_function_body(mut defn)!
 	sa.pop_type_args(defn.type_params)
 	return ''
 }
@@ -305,11 +305,11 @@ fn (mut sa SemanticAnalyzer) analyze_class(mut defn ClassDef) !string {
 			node:             SymbolNodeRef(*defn)
 			becomes_typeinfo: true
 		}
-		sa.add_symbol(defn.name, placeholder, defn.base)
+		sa.add_symbol(defn.name, placeholder, defn.get_context(), true, false, true)
 	}
 
 	// TODO: full class analysis implementation
-	sa.prepare_class_def(mut defn)
+	sa.prepare_class_def(mut defn)!
 	sa.setup_type_vars(defn, [])
 
 	sa.enter_class(defn.info or { return '' })
@@ -404,9 +404,9 @@ pub fn (mut sa SemanticAnalyzer) visit_assignment_stmt(mut s AssignmentStmt) !st
 
 	// TODO: check special forms (type alias, TypeVar, etc.)
 	s.is_final_def = sa.unwrap_final(s)
-	for mut lv in s.lvalues {
-		if mut lv is Lvalue {
-			sa.analyze_lvalue(mut lv, false, false)
+	for mut lv_expr in s.lvalues {
+		if mut lv := lv_expr.as_lvalue() {
+			sa.analyze_lvalue(mut lv, false, false)!
 		}
 	}
 	// TODO: additional checks
@@ -475,7 +475,7 @@ pub fn (mut sa SemanticAnalyzer) visit_for_stmt(mut s ForStmt) !string {
 // visit_return_stmt handles return
 pub fn (mut sa SemanticAnalyzer) visit_return_stmt(mut s ReturnStmt) !string {
 	if !sa.is_func_scope() {
-		sa.fail('"return" outside function', s.base)
+		sa.fail('"return" outside function', s.get_context(), false, false, none)
 	}
 	if s.expr != none {
 		s.expr.accept(mut sa)!
@@ -487,7 +487,7 @@ pub fn (mut sa SemanticAnalyzer) visit_return_stmt(mut s ReturnStmt) !string {
 pub fn (mut sa SemanticAnalyzer) visit_break_stmt(mut s BreakStmt) !string {
 	sa.statement = Statement(s)
 	if sa.loop_depth.last() == 0 {
-		sa.fail('"break" outside loop', s, serious: true, blocker: true)
+		sa.fail('"break" outside loop', s.get_context(), true, true, none)
 	}
 	return ''
 }
@@ -496,7 +496,7 @@ pub fn (mut sa SemanticAnalyzer) visit_break_stmt(mut s BreakStmt) !string {
 pub fn (mut sa SemanticAnalyzer) visit_continue_stmt(mut s ContinueStmt) !string {
 	sa.statement = Statement(s)
 	if sa.loop_depth.last() == 0 {
-		sa.fail('"continue" outside loop', s, serious: true, blocker: true)
+		sa.fail('"continue" outside loop', s.get_context(), true, true, none)
 	}
 	return ''
 }
@@ -506,7 +506,7 @@ pub fn (mut sa SemanticAnalyzer) visit_try_stmt(mut s TryStmt) !string {
 	sa.statement = Statement(s)
 	s.body.accept(mut sa)!
 	for mut handler in s.handlers {
-		sa.visit_block(mut handler.body)!
+		sa.visit_block(mut handler)!
 	}
 	if mut else_body := s.else_body {
 		sa.visit_block(mut else_body)!
@@ -524,7 +524,7 @@ pub fn (mut sa SemanticAnalyzer) visit_decorator(mut dec Decorator) !string {
 	dec.func.is_conditional = sa.block_depth.last() > 0
 
 	if !dec.is_overload {
-		sa.add_symbol(dec.func.name, SymbolNodeRef(*dec), dec.base)
+		sa.add_symbol(dec.func.name, SymbolNodeRef(*dec), dec.get_context(), true, false, true)
 	}
 
 	dec.func.fullname = sa.qualified_name(dec.func.name)
@@ -844,6 +844,25 @@ pub fn (mut sa SemanticAnalyzer) visit_class_pattern(mut o ClassPattern) !string
 	return ''
 }
 
+pub fn (mut sa SemanticAnalyzer) visit_argument(mut o Argument) !string {
+	return ''
+}
+
+pub fn (mut sa SemanticAnalyzer) visit_type_param(mut o TypeParam) !string {
+	return ''
+}
+
+pub fn (mut sa SemanticAnalyzer) visit_lvalue(mut o Lvalue) !string {
+	match mut o {
+		ListExpr { sa.visit_list_expr(mut o)! }
+		MemberExpr { sa.visit_member_expr(mut o)! }
+		NameExpr { sa.visit_name_expr(mut o)! }
+		StarExpr { sa.visit_star_expr(mut o)! }
+		TupleExpr { sa.visit_tuple_expr(mut o)! }
+	}
+	return ''
+}
+
 // visit_pass_stmt handles pass
 pub fn (sa SemanticAnalyzer) visit_pass_stmt(mut s PassStmt) !string {
 	// Do nothing
@@ -851,8 +870,8 @@ pub fn (sa SemanticAnalyzer) visit_pass_stmt(mut s PassStmt) !string {
 }
 
 // accept accepts a node
-pub fn (mut sa SemanticAnalyzer) accept(mut node Node) !string {
-	return node.accept(mut sa)!
+pub fn (mut sa SemanticAnalyzer) accept(mut node Node) {
+	node.accept(mut sa) or {}
 }
 
 // lookup looks up a name
@@ -925,7 +944,7 @@ pub fn (mut sa SemanticAnalyzer) lookup_qualified(name string, ctx NodeBase, sup
 fn (mut sa SemanticAnalyzer) bind_name_expr(mut expr NameExpr, sym SymbolTableNode) {
 	expr.kind = sym.kind
 	if node := sym.node {
-		expr.node = node
+		expr.node = node.as_mypy_node()
 		// expr.fullname = node.fullname() // fullname() is currently removed to avoid panic
 	}
 }
@@ -938,10 +957,8 @@ pub fn (mut sa SemanticAnalyzer) analyze_lvalue(mut lval Lvalue, nested bool, ex
 		lval.accept(mut sa)!
 	} else if mut lval is TupleExpr {
 		for mut item in lval.items {
-			if mut item is NameExpr || mut item is MemberExpr || mut item is TupleExpr
-				|| mut item is ListExpr || mut item is StarExpr {
-				// It matches Lvalue variants
-				sa.analyze_lvalue(mut item, true, explicit_type)!
+			if mut l := item.as_lvalue() {
+				sa.analyze_lvalue(mut l, true, explicit_type)!
 			}
 		}
 	}
@@ -951,9 +968,9 @@ pub fn (mut sa SemanticAnalyzer) analyze_lvalue(mut lval Lvalue, nested bool, ex
 // names_modified_by_assignment returns names modified in assignment
 fn (mut sa SemanticAnalyzer) names_modified_by_assignment(s AssignmentStmt) []NameExpr {
 	mut result := []NameExpr{}
-	for lval in s.lvalues {
-		if lval is NameExpr || lval is MemberExpr || lval is TupleExpr || lval is ListExpr || lval is StarExpr {
-			for name in sa.names_modified_in_lvalue(lval) {
+	for lval_expr in s.lvalues {
+		if l := lval_expr.as_lvalue() {
+			for name in sa.names_modified_in_lvalue(l) {
 				result << name
 			}
 		}
@@ -968,7 +985,9 @@ fn (sa SemanticAnalyzer) names_modified_in_lvalue(lval Lvalue) []NameExpr {
 	} else if lval is TupleExpr {
 		mut result := []NameExpr{}
 		for item in lval.items {
-			result << sa.names_modified_in_lvalue(item)
+			if l := item.as_lvalue() {
+				result << sa.names_modified_in_lvalue(l)
+			}
 		}
 		return result
 	}
@@ -979,7 +998,7 @@ fn (sa SemanticAnalyzer) names_modified_in_lvalue(lval Lvalue) []NameExpr {
 fn (mut sa SemanticAnalyzer) unwrap_final(s AssignmentStmt) bool {
 	// Check if assignment is wrapped in Final[]
 	for lval in s.lvalues {
-		if mut lval is NameExpr {
+		if lval is NameExpr {
 			// Check if type annotation contains Final
 			if ann := s.type_annotation {
 				if ann is UnboundType {
@@ -1083,11 +1102,11 @@ fn (mut sa SemanticAnalyzer) add_function_to_symbol_table(mut func_def FuncDef) 
 		func_def.info = sa.cur_type
 	}
 	func_def.fullname = sa.qualified_name(func_def.name)
-	sa.add_symbol(func_def.name, SymbolNodeRef(*func_def), func_def.base)
+	sa.add_symbol(func_def.name, SymbolNodeRef(*func_def), func_def.get_context(), true, false, true)
 }
 
 // add_symbol adds a symbol
-pub fn (mut sa SemanticAnalyzer) add_symbol(name string, node SymbolNodeRef, context NodeBase) bool {
+pub fn (mut sa SemanticAnalyzer) add_symbol(name string, node SymbolNodeRef, context Context, module_public bool, module_hidden bool, can_defer bool) bool {
 	// Check if symbol already exists in current scope
 	if sa.locals.len > 0 {
 		if mut locals := sa.locals.last() {
@@ -1107,7 +1126,7 @@ pub fn (mut sa SemanticAnalyzer) add_symbol(name string, node SymbolNodeRef, con
 	if name in sa.globals.symbols {
 		existing := sa.globals.symbols[name]
 		if existing.node != none {
-			sa.fail('Name "${name}" already defined', context, false, false)
+			sa.fail('Name "${name}" already defined', context, false, false, none)
 			return false
 		}
 	}
@@ -1172,7 +1191,7 @@ fn (mut sa SemanticAnalyzer) add_unknown_imported_symbol(name string, context No
 
 // report_missing_module_attribute reports a missing module attribute
 fn (mut sa SemanticAnalyzer) report_missing_module_attribute(module_id string, source_id string, imported_id string, context NodeBase) {
-	sa.fail('Module "${module_id}" has no attribute "${source_id}"', context, false, false)
+	sa.fail('Module "${module_id}" has no attribute "${source_id}"', context.get_context(), false, false, none)
 }
 
 // correct_relative_import corrects a relative import
@@ -1263,7 +1282,7 @@ fn (mut sa SemanticAnalyzer) analyze_function_body(mut defn FuncItem) ! {
 					type_: arg.variable.type_
 				}
 				var.fullname = sa.qualified_name(arg.variable.name)
-				sa.add_symbol(arg.variable.name, SymbolNodeRef(var), defn.base)
+				sa.add_symbol(arg.variable.name, SymbolNodeRef(var), arg.variable.get_context(), true, false, true)
 			}
 		}
 		else {}
@@ -1281,7 +1300,7 @@ fn (mut sa SemanticAnalyzer) analyze_function_body(mut defn FuncItem) ! {
 			// No body
 		}
 		LambdaExpr {
-			defn.expr.accept(mut sa)!
+			defn.body.accept(mut sa)!
 		}
 	}
 
@@ -1348,8 +1367,16 @@ fn (sa SemanticAnalyzer) found_incomplete_ref(tag int) bool {
 }
 
 // fail reports an error
-pub fn (mut sa SemanticAnalyzer) fail(msg string, ctx NodeBase, serious bool, blocker bool) {
-	sa.errors.report(ctx.ctx.line, ctx.ctx.column, msg, serious, blocker)
+pub fn (mut sa SemanticAnalyzer) fail(msg string, ctx Context, serious bool, blocker bool, code ?&ErrorCode) {
+	mut severity := 'error'
+	if !serious {
+		severity = 'note'
+	}
+	sa.errors.report(ctx.line, ctx.column, msg, none, severity, blocker, false)
+}
+
+pub fn (mut sa SemanticAnalyzer) report_hang() {
+	// TODO: implement hang reporting
 }
 
 // Helper types

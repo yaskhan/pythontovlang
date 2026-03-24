@@ -209,7 +209,7 @@ pub fn new_partially_defined_scope(stmts []BranchStatement, scope_type ScopeType
 
 // copy creates a copy of PartiallyDefinedScope
 pub fn (s PartiallyDefinedScope) copy() PartiallyDefinedScope {
-	mut result := new_scope(s.branch_stmts.map(it.copy()), s.scope_type)
+	mut result := new_partially_defined_scope(s.branch_stmts.map(it.copy()), s.scope_type)
 	for k, v in s.undefined_refs {
 		result.undefined_refs[k] = v.clone()
 	}
@@ -246,7 +246,7 @@ pub mut:
 pub fn new_defined_variable_tracker() DefinedVariableTracker {
 	return DefinedVariableTracker{
 		scopes:              [
-			new_scope([new_branch_statement(none)], ScopeType.global),
+			new_partially_defined_scope([new_branch_statement(none)], ScopeType.global),
 		]
 		disable_branch_skip: false
 		in_finally:          false
@@ -262,8 +262,8 @@ pub fn (dvt DefinedVariableTracker) copy() DefinedVariableTracker {
 	}
 }
 
-// _scope returns the current scope
-fn (dvt DefinedVariableTracker) _scope() PartiallyDefinedScope {
+// current_scope returns the current scope
+fn (dvt DefinedVariableTracker) current_scope() PartiallyDefinedScope {
 	return dvt.scopes[dvt.scopes.len - 1]
 }
 
@@ -271,7 +271,7 @@ fn (dvt DefinedVariableTracker) _scope() PartiallyDefinedScope {
 pub fn (mut dvt DefinedVariableTracker) enter_scope(scope_type ScopeType) {
 	mut initial_state := ?BranchState(none)
 	if scope_type == ScopeType.generator {
-		initial_state = dvt._scope().branch_stmts[dvt._scope().branch_stmts.len - 1].branches.last()
+		initial_state = dvt.current_scope().branch_stmts[dvt.current_scope().branch_stmts.len - 1].branches.last()
 	}
 	dvt.scopes << new_partially_defined_scope([new_branch_statement(initial_state)], scope_type)
 }
@@ -283,44 +283,44 @@ pub fn (mut dvt DefinedVariableTracker) exit_scope() {
 
 // in_scope checks if we are in the specified scope
 pub fn (dvt DefinedVariableTracker) in_scope(scope_type ScopeType) bool {
-	return dvt._scope().scope_type == scope_type
+	return dvt.current_scope().scope_type == scope_type
 }
 
 // start_branch_statement starts a new branching statement
 pub fn (mut dvt DefinedVariableTracker) start_branch_statement() {
-	dvt.scopes[dvt.scopes.len - 1].branch_stmts << new_branch_statement(dvt._scope().branch_stmts.last().branches.last())
+	dvt.scopes[dvt.scopes.len - 1].branch_stmts << new_branch_statement(dvt.current_scope().branch_stmts.last().branches.last())
 }
 
 // next_branch moves to the next branch
 pub fn (mut dvt DefinedVariableTracker) next_branch() {
-	if dvt._scope().branch_stmts.len > 1 {
-		dvt.scopes[dvt.scopes.len - 1].branch_stmts[dvt._scope().branch_stmts.len - 1].next_branch()
+	if dvt.current_scope().branch_stmts.len > 1 {
+		dvt.scopes[dvt.scopes.len - 1].branch_stmts[dvt.current_scope().branch_stmts.len - 1].next_branch()
 	}
 }
 
 // end_branch_statement completes the branching statement
 pub fn (mut dvt DefinedVariableTracker) end_branch_statement() {
-	if dvt._scope().branch_stmts.len > 1 {
+	if dvt.current_scope().branch_stmts.len > 1 {
 		result := dvt.scopes[dvt.scopes.len - 1].branch_stmts.pop().done()
-		dvt.scopes[dvt.scopes.len - 1].branch_stmts[dvt._scope().branch_stmts.len - 1].record_nested_branch(result)
+		dvt.scopes[dvt.scopes.len - 1].branch_stmts[dvt.current_scope().branch_stmts.len - 1].record_nested_branch(result)
 	}
 }
 
 // skip_branch skips the current branch
 pub fn (mut dvt DefinedVariableTracker) skip_branch() {
-	if dvt._scope().branch_stmts.len > 1 && !dvt.disable_branch_skip {
-		dvt.scopes[dvt.scopes.len - 1].branch_stmts[dvt._scope().branch_stmts.len - 1].skip_branch()
+	if dvt.current_scope().branch_stmts.len > 1 && !dvt.disable_branch_skip {
+		dvt.scopes[dvt.scopes.len - 1].branch_stmts[dvt.current_scope().branch_stmts.len - 1].skip_branch()
 	}
 }
 
 // record_definition records a variable definition
 pub fn (mut dvt DefinedVariableTracker) record_definition(name string) {
-	dvt.scopes[dvt.scopes.len - 1].branch_stmts[dvt._scope().branch_stmts.len - 1].record_definition(name)
+	dvt.scopes[dvt.scopes.len - 1].branch_stmts[dvt.current_scope().branch_stmts.len - 1].record_definition(name)
 }
 
 // delete_var deletes a variable
 pub fn (mut dvt DefinedVariableTracker) delete_var(name string) {
-	dvt.scopes[dvt.scopes.len - 1].branch_stmts[dvt._scope().branch_stmts.len - 1].delete_var(name)
+	dvt.scopes[dvt.scopes.len - 1].branch_stmts[dvt.current_scope().branch_stmts.len - 1].delete_var(name)
 }
 
 // record_undefined_ref records an undefined reference
@@ -335,16 +335,16 @@ pub fn (mut dvt DefinedVariableTracker) pop_undefined_ref(name string) []NameExp
 
 // is_possibly_undefined checks if a variable may be undefined
 pub fn (dvt DefinedVariableTracker) is_possibly_undefined(name string) bool {
-	return dvt._scope().branch_stmts[dvt._scope().branch_stmts.len - 1].is_possibly_undefined(name)
+	return dvt.current_scope().branch_stmts[dvt.current_scope().branch_stmts.len - 1].is_possibly_undefined(name)
 }
 
 // is_defined_in_different_branch checks if a variable is defined in another branch
 pub fn (dvt DefinedVariableTracker) is_defined_in_different_branch(name string) bool {
-	stmt := dvt._scope().branch_stmts[dvt._scope().branch_stmts.len - 1]
+	stmt := dvt.current_scope().branch_stmts[dvt.current_scope().branch_stmts.len - 1]
 	if !stmt.is_undefined(name) {
 		return false
 	}
-	for s in dvt._scope().branch_stmts {
+	for s in dvt.current_scope().branch_stmts {
 		if s.is_defined_in_a_branch(name) {
 			return true
 		}
@@ -354,7 +354,7 @@ pub fn (dvt DefinedVariableTracker) is_defined_in_different_branch(name string) 
 
 // is_undefined checks if a variable is undefined
 pub fn (dvt DefinedVariableTracker) is_undefined(name string) bool {
-	return dvt._scope().branch_stmts[dvt._scope().branch_stmts.len - 1].is_undefined(name)
+	return dvt.current_scope().branch_stmts[dvt.current_scope().branch_stmts.len - 1].is_undefined(name)
 }
 
 // Loop — loop information

@@ -53,7 +53,9 @@ pub fn (s &Scope) current_function_full_name() string {
 	if f := s.function {
 		return match f {
 			FuncDef { f.fullname }
-			OverloadedFuncDef { f.fullname }
+			OverloadedFuncDef {
+				if f.items.len > 0 { f.items[0].fullname } else { '' }
+			}
 			Decorator { f.func.fullname }
 			LambdaExpr { '<lambda>' }
 		}
@@ -67,7 +69,9 @@ pub fn (s &Scope) current_full_name() string {
 	if f := s.function {
 		return match f {
 			FuncDef { f.fullname }
-			OverloadedFuncDef { f.fullname }
+			OverloadedFuncDef {
+				if f.items.len > 0 { f.items[0].fullname } else { '' }
+			}
 			Decorator { f.func.fullname }
 			LambdaExpr { '<lambda>' }
 		}

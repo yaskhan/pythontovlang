@@ -145,8 +145,8 @@ fn is_instance_subtype(left Instance, right Instance, ctx SubtypeContext) bool {
 			if !rti.is_protocol {
 				if lti := left.typ {
 					for base in lti.mro {
-						if base._promote.len > 0 {
-							for p in base._promote {
+						if base.promote_.len > 0 {
+							for p in base.promote_ {
 								if is_subtype(p, right, ctx) {
 									type_state.record_subtype_cache(left, right)
 									return true

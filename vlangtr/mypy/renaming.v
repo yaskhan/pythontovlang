@@ -281,10 +281,15 @@ fn (mut v VariableRenameVisitor) visit_expression(mut expr Expression) {
 		}
 		DictExpr {
 			for mut kv in expr.items {
-				if mut k := kv.key {
+				if kv.len > 0 {
+					// In case of **kwargs, key is empty/Placeholder
+					mut k := kv[0]
 					v.visit_expression(mut k)
 				}
-				v.visit_expression(mut kv.value)
+				if kv.len > 1 {
+					mut val := kv[1]
+					v.visit_expression(mut val)
+				}
 			}
 		}
 		else {}
@@ -361,7 +366,7 @@ fn (mut v VariableRenameVisitor) visit_statement(mut stmt Statement) {
 			v.visit_block(mut stmt.body)
 		}
 		ForStmt {
-			v.visit_expression(mut stmt.iter)
+			v.visit_expression(mut stmt.expr)
 			match mut stmt.index {
 				NameExpr, MemberExpr, ListExpr, TupleExpr, StarExpr {
 					v.visit_lvalue(mut stmt.index)

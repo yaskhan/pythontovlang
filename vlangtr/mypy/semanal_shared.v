@@ -49,7 +49,7 @@ pub interface SemanticAnalyzerInterface {
 	lookup(name string, ctx Context, suppress_errors bool) ?&SymbolTableNode
 	named_type(fullname string, args []MypyTypeNode) &Instance
 	named_type_or_none(fullname string, args []MypyTypeNode) ?&Instance
-	accept(node Node) // Use Node interface from nodes.v
+	accept(mut node Node) // Use Node interface from nodes.v
 	anal_type(typ MypyTypeNode, tvar_scope ?&TypeVarLikeScope, allow_tuple_literal bool, allow_unbound_tvars bool, allow_typed_dict_special_forms bool, allow_placeholder bool, report_invalid_types bool, prohibit_self_type ?string, prohibit_special_class_field_types ?string) ?MypyTypeNode
 	get_and_bind_all_tvars(type_exprs []Expression) []MypyTypeNode
 	basic_new_typeinfo(name string, basetype_or_fallback &Instance, line int) &TypeInfo

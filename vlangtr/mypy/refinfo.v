@@ -45,8 +45,8 @@ pub fn (mut v RefInfoVisitor) record_ref_expr(expr &RefExpr) {
 			}
 		}
 		MemberExpr {
-			if expr.kind != ldef && (expr.fullname or { '' }).contains('.') {
-				fullname = expr.fullname or { '' }
+			if expr.kind != ldef && expr.fullname.contains('.') {
+				fullname = expr.fullname
 			} else {
 				m_expr := expr
 				typ := v.type_map[unsafe { voidptr(&m_expr.expr) }] or { MypyTypeNode(AnyType{}) }
@@ -56,8 +56,23 @@ pub fn (mut v RefInfoVisitor) record_ref_expr(expr &RefExpr) {
 					MemberExpr { m_expr.expr.node }
 					else { none }
 				}
+				mut sym_ref := ?SymbolNodeRef(none)
+				if s := sym {
+					match s {
+						ClassDef { sym_ref = s }
+						Decorator { sym_ref = s }
+						FuncDef { sym_ref = s }
+						MypyFile { sym_ref = s }
+						OverloadedFuncDef { sym_ref = s }
+						PlaceholderNode { sym_ref = s }
+						TypeAlias { sym_ref = s }
+						TypeInfo { sym_ref = s }
+						Var { sym_ref = s }
+						else {}
+					}
+				}
 				if typ !is AnyType {
-					tfn := type_fullname(typ, sym)
+					tfn := type_fullname(typ, sym_ref)
 					if tfn != '' {
 						fullname = '${tfn}.${m_expr.name}'
 					}

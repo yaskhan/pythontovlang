@@ -43,12 +43,12 @@ pub fn (mut a EnumCallAnalyzer) process_enum_call(s &AssignmentStmt, is_func_sco
 	info := a.check_enum_call(s.rvalue, name, is_func_scope) or { return false }
 
 	if lvalue is MemberExpr {
-		a.fail('Enum type as attribute is not supported', lvalue)
+		a.fail('Enum type as attribute is not supported', lvalue.get_context())
 		return false
 	}
 
 	// Add to symbol table
-	a.api.add_symbol(name, SymbolNodeRef(info), s, true, false, true)
+	a.api.add_symbol(name, SymbolNodeRef(info), s.get_context(), true, false, true)
 	return true
 }
 
@@ -58,16 +58,13 @@ pub fn (mut a EnumCallAnalyzer) check_enum_call(node Expression, var_name string
 	}
 	call := node as CallExpr
 
-	callee := call.callee
-	if callee !is RefExpr {
-		return none
-	}
+	ref_callee := call.callee.as_ref_expr() or { return none }
 
 	mut fullname := ''
-	if callee is NameExpr {
-		fullname = callee.fullname
-	} else if callee is MemberExpr {
-		fullname = callee.fullname or { '' }
+	if ref_callee is NameExpr {
+		fullname = ref_callee.fullname
+	} else if ref_callee is MemberExpr {
+		fullname = ref_callee.fullname
 	}
 
 	if fullname !in enum_bases {
@@ -86,7 +83,7 @@ pub fn (mut a EnumCallAnalyzer) check_enum_call(node Expression, var_name string
 	} else {
 		if new_class_name != var_name {
 			msg := 'String argument 1 "${new_class_name}" to ${fullname}(...) does not match variable name "${var_name}"'
-			a.fail(msg, call)
+			a.fail(msg, call.get_context())
 		}
 
 		arg0 := call.args[0]
@@ -127,7 +124,7 @@ pub fn (mut a EnumCallAnalyzer) build_enum_call_typeinfo(name string, items []st
 		}
 		v.fullname = '${info.fullname}.${item}'
 		mut_info.names.symbols[item] = SymbolTableNode{
-			kind: .mdef
+			kind: mdef
 			node: SymbolNodeRef(v)
 		}
 	}
@@ -138,13 +135,13 @@ pub fn (mut a EnumCallAnalyzer) parse_enum_call_args(call &CallExpr, class_name 
 	args := call.args
 
 	if args.len < 2 {
-		return a.fail_enum_call_arg('Too few arguments for ${class_name}()', call)
+		return a.fail_enum_call_arg('Too few arguments for ${class_name}()', call.get_context())
 	}
 
 	arg0 := args[0]
 	if arg0 !is StrExpr {
 		return a.fail_enum_call_arg('${class_name}() expects a string literal as the first argument',
-			call)
+			call.get_context())
 	}
 	new_class_name := (arg0 as StrExpr).value
 
@@ -166,24 +163,25 @@ pub fn (mut a EnumCallAnalyzer) parse_enum_call_args(call &CallExpr, class_name 
 			}
 		}
 	} else if names_arg is DictExpr {
-		for i, key in names_arg.keys {
-			if k := key {
-				if k is StrExpr {
-					items << k.value
-					values << names_arg.values[i]
+		for item in names_arg.items {
+			if item.len == 2 {
+				key := item[0]
+				if key is StrExpr {
+					items << key.value
+					values << item[1]
 				}
 			}
 		}
 	}
 
 	if items.len == 0 {
-		return a.fail_enum_call_arg('${class_name}() needs at least one item', call)
+		return a.fail_enum_call_arg('${class_name}() needs at least one item', call.get_context())
 	}
 
 	if values.len == 0 {
 		// Fill with none
 		for _ in 0 .. items.len {
-			values << none
+			values << ?Expression(none)
 		}
 	}
 
@@ -192,7 +190,7 @@ pub fn (mut a EnumCallAnalyzer) parse_enum_call_args(call &CallExpr, class_name 
 
 pub fn (mut a EnumCallAnalyzer) fail_enum_call_arg(msg string, ctx Context) (string, []string, []?Expression, bool) {
 	a.fail(msg, ctx)
-	return '', [], [], false
+	return '', []string{}, []?Expression{}, false
 }
 
 pub fn (mut a EnumCallAnalyzer) fail(msg string, ctx Context) {
