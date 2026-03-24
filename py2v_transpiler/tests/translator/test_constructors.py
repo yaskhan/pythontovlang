@@ -37,8 +37,8 @@ class Point:
         self.y = y
 """
         result = self.transpile(source)
-        self.assertIn("fn new_point(x int, y int) Point {", result)
-        self.assertIn("mut self := Point{}", result)
+        self.assertIn("fn new_point(x int, y int) &Point {", result)
+        self.assertIn("mut self := &Point{}", result)
 
     def test_new_and_init(self):
         source = """

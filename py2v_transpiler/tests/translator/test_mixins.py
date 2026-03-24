@@ -16,6 +16,7 @@ class User(AuthMixin):
         self.username = username
 """
     expected_v_code = """
+ @[heap]
 struct User {
     is_authenticated bool = false
     username string
@@ -27,10 +28,10 @@ fn (self User) login() {
     self.is_authenticated = true
 }
 
-fn new_user(username string) User {
-    mut self := User{}
+fn new_user(username string) &User {
+    mut self := &User{}
     self.username = username
-    return self
+    return &self
 }
 """
     test.assert_transpilation(source, expected_v_code)
@@ -50,10 +51,12 @@ class ServiceB(BaseMixin):
     pass
 """
     expected_v_code = """
+ @[heap]
 struct ServiceA {
     base_id int = 42
 }
 
+ @[heap]
 struct ServiceB {
     base_id int = 42
 }

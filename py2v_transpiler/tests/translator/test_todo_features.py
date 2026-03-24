@@ -123,9 +123,11 @@ class TestTodoFeatures(TranspilerTest):
                     pass
             """,
             """
-            struct OuterInner {
+             @[heap]
+struct OuterInner {
             }
-            struct Outer {
+             @[heap]
+struct Outer {
             }
             """
         )

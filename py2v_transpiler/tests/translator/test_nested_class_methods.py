@@ -20,10 +20,10 @@ class TestNestedClassMethods(TranspilerTest):
             }
         """)
         self.assert_transpilation(source, """
-            fn new_outer_inner(x int) OuterInner {
-                mut self := OuterInner{}
+            fn new_outer_inner(x int) &OuterInner {
+                mut self := &OuterInner{}
                 self.x = x
-                return self
+                return &self
             }
         """)
         self.assert_transpilation(source, """
@@ -51,10 +51,10 @@ class TestNestedClassMethods(TranspilerTest):
             }
         """)
         self.assert_transpilation(source, """
-            fn new_outer_inner(val int) OuterInner {
-                mut self := OuterInner{}
+            fn new_outer_inner(val int) &OuterInner {
+                mut self := &OuterInner{}
                 self.val = val
-                return self
+                return &self
             }
         """)
         self.assert_transpilation(source, """

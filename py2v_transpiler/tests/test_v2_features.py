@@ -28,10 +28,10 @@ class Child(Base[int]):
 """
     v_code = transpile(code)
     assert "interface Base[T] {" in v_code
-    assert "struct Base_Impl[T] {" in v_code
+    assert "@[heap]\nstruct Base_Impl[T] {" in v_code
     assert "struct Child {" in v_code
     assert "Base_Impl[int]" in v_code
-    assert "fn new_base_impl[T](val T) Base_Impl[T]" in v_code
+    assert "fn new_base_impl[T](val T) &Base_Impl[T]" in v_code
     assert "fn (self Child) method(x U) U" in v_code
 
 def test_comparisons():

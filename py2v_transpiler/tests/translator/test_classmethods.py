@@ -28,7 +28,7 @@ class UserDict(Generic[T]):
 
     assert "fn UserDict_fromkeys[T](iterable Any, value Any) UserDict[T] {" in result
     assert "cls int" not in result
-    assert "return UserDict[T]{}" in result
+    assert "return &UserDict[T]{}" in result
 
 def test_overloaded_classmethod_on_generic_class():
     parser = PyASTParser()
