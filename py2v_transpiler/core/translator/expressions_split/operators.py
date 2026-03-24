@@ -91,13 +91,14 @@ class OperatorsMixin(TranslatorBase):
                 return f"py_repeat_list({self.visit(node.right)}, {self.visit(node.left)})"
 
 
+        # If mypy  # the rest of the file follows unchanged
+        left = self._visit_with_parens(node, node.left, is_right_operand=False)
+        right = self._visit_with_parens(node, node.right, is_right_operand=True)
+
         # If mypy successfully inferred a concrete primitive numeric type (e.g. f64) for the operation,
         # and the operands' inferred types are not correctly matching or they are unknown ('Any'),
         # we can statically type the operator call by casting the operands.
         # This prevents boxing into 'Any' and relies on direct V operator calls.
-        left = self._visit_with_parens(node, node.left, is_right_operand=False)
-        right = self._visit_with_parens(node, node.right, is_right_operand=True)
-
         if op_type in ("int", "f64", "i64"):
              # For 'Any' or SumTypes, we use a sum type assertion `(x as type)`.
              # For other unknown/primitive types, we use functional casting `type(x)`.
@@ -150,6 +151,11 @@ class OperatorsMixin(TranslatorBase):
 
         # Check for bytes formatting: b"%s" % b"a"
         if isinstance(node.op, ast.Mod):
+             # Heuristic: check if left operand is likely bytes
+             # We can check if `left_type` (from _guess_type) starts with `[]u8`?
+             # `_guess_type` returns `int` usually unless constant bytes.
+             # visit_Constant bytes returns `[{...}]`
+             # Let's check `left_type`.
              if left_type == "[]u8" or (isinstance(node.left, ast.Constant) and isinstance(node.left.value, bytes)):
                  return f"py_bytes_format({left}, {right})"
 
@@ -178,10 +184,26 @@ class OperatorsMixin(TranslatorBase):
                   return f"int(math.powi(f64({left}), {right}))"
 
         if isinstance(node.op, ast.FloorDiv):
+             # Floor division //
+             # If float -> math.floor(a/b)
+             # If int -> logic to handle negative operands
              self.emitter.add_import("math")
              if left_type == "int" and right_type == "int":
+                  # Python's // on integers behaves like floor(a/b).
+                  # V's / truncates.
+                  # Formula: i64(math.floor(f64(a) / f64(b)))
+                  # We use i64 to ensure it fits (assuming int is 64-bit or we don't care about 32-bit overflow here for now)
+                  # or just cast to 'int' if V's int is 32-bit? V 'int' is 32-bit. 'i64' is 64-bit.
+                  # Python 3 ints are arbitrary precision.
+                  # Let's cast to `int` if inputs were `int` (as per guessing).
+                  # Or stick to `i64` if we want to be safer?
+                  # Let's use `int(...)` to match V's default int type.
                   return f"int(math.floor(f64({left}) / f64({right})))"
              else:
+                  # Float floor div
+                  # If we have floats, we return float.
+                  # Python: 7.0 // 2 -> 3.0
+                  # V: math.floor(7.0 / 2) -> 3.0
                   return f"math.floor({left} / {right})"
 
         op_map = {
@@ -211,6 +233,8 @@ class OperatorsMixin(TranslatorBase):
              elif isinstance(node.left, ast.Attribute) and self._guess_type(node.left) == "string":
                  is_string_fmt = True
 
+             # Fallback check: if we are still unsure about the left operand but we know the right operand is a string or a tuple
+             # we can reasonably assume the user intended string formatting if the left operand is not definitively a number.
              if not is_string_fmt and left_type not in ("int", "f64", "float", "i64"):
                  if right_type == "string" or isinstance(node.right, ast.Tuple):
                      is_string_fmt = True
@@ -220,6 +244,10 @@ class OperatorsMixin(TranslatorBase):
                  # Flatten arguments if tuple
                  fmt_args = right
                  if isinstance(node.right, ast.Tuple):
+                      # We need individual args from visit(Tuple) which returns "[a, b]"
+                      # This is tricky because visit(Tuple) returns a string representation of an array.
+                      # We need the values.
+                      # Re-visit elements of tuple individually.
                       arg_vals = [str(self.visit(elt)) for elt in node.right.elts]
                       fmt_args = ", ".join(arg_vals)
 
@@ -229,11 +257,16 @@ class OperatorsMixin(TranslatorBase):
         return f"{left} {op_str} {right}"
 
     def visit_BoolOp(self, node: ast.BoolOp) -> str:
+        # Check if all operands are inherently boolean to safely use && and ||
         all_bools = True
         for val in node.values:
             if self._guess_type(val) != "bool":
                 all_bools = False
                 break
+
+        # Also check if the expected return type is definitively boolean (like inside an `if`)
+        # But `_guess_type` is unreliable for sum types assigned to untyped variables,
+        # so relying only on operand types is safer.
 
         if all_bools:
             op_map = {ast.And: "&&", ast.Or: "||"}
@@ -243,14 +276,24 @@ class OperatorsMixin(TranslatorBase):
                 values.append(self._wrap_bool(val, parent=node, is_right_operand=(i > 0)))
             return f" {op_str} ".join(values)
         else:
+            # For non-boolean context, evaluate left to right
+            # Python 'x or y' -> `if bool(x) { x } else { y }`
+            # Since V if expressions can't directly inline assignments of x without re-evaluating,
+            # we rely on V's `or` block if `x` is Optional? No, V `or` is for Option/Result.
+            # We must output `if bool(x) { x } else { y }`.
+            # Note: `bool(x)` uses `self._wrap_bool`.
+
             ret_type = self._guess_type(node)
             if ret_type == "unknown" or getattr(self, "current_assignment_type", None) == "Any":
                 ret_type = "Any"
 
+            # Need to figure out a common return type if branches differ
+            # Since V requires identical types, we check the types of all branches
             branch_types = [self._guess_type(v) for v in node.values]
             if len(set(branch_types)) > 1:
                 ret_type = "Any"
 
+            # Helper to recursively build nested if expressions
             def build_boolop(vals, is_and):
                 if len(vals) == 1:
                     val_str = self.visit(vals[0])
@@ -270,8 +313,10 @@ class OperatorsMixin(TranslatorBase):
                     else: left_val = f"Any({left_val})"
 
                 if is_and:
+                    # x and y -> if x { y } else { x }
                     return f"if {left_cond} {{ {right_expr} }} else {{ {left_val} }}"
                 else:
+                    # x or y -> if x { x } else { y }
                     return f"if {left_cond} {{ {left_val} }} else {{ {right_expr} }}"
 
             is_and = isinstance(node.op, ast.And)
