@@ -41,7 +41,7 @@ class TypeGuessingMixin:
             if isinstance(node.value, complex):
                 return "PyComplex"
             if node.value is None:
-                return "Any"
+                return "none"
             return "int"
 
         elif isinstance(node, ast.Lambda):
@@ -137,14 +137,14 @@ class TypeGuessingMixin:
                         return "map[string][]int" # Best guess
                     elif factory == "set":
                         return "map[string]map[int]bool" # Best guess
-                return "map[string]Any"
+                return "map[string]unknown"
             
             if fid == "py_range":
                 return "[]int"
             if fid in ("py_sorted", "py_reversed"):
                 if node.args:
                     return self._guess_type(node.args[0])
-                return "[]Any"
+                return "[]unknown"
             if fid == "py_zip":
                 return "[]PyZipItem"
             if fid == "py_enumerate":
@@ -152,7 +152,7 @@ class TypeGuessingMixin:
             if fid == "py_divmod":
                 if node.args:
                     return f"[]{self._guess_type(node.args[0])}"
-                return "[]Any"
+                return "[]unknown"
             if fid in ("py_os_path_split", "py_os_path_splitext"):
                 return "[]string"
 
@@ -170,7 +170,7 @@ class TypeGuessingMixin:
                     parts = obj_type.split("]", 1)
                     if len(parts) > 1:
                         return parts[1]
-                return "Any"
+                return "unknown"
             if (
                 node.func.attr == "open" and
                 isinstance(node.func.value, ast.Name) and
@@ -194,13 +194,13 @@ class TypeGuessingMixin:
                 if len(parts) >= 2 and parts[-2] == "path" and parts[-1] in ("exists", "isfile", "isdir"):
                     return "bool"
 
-        return "Any"
+        return "unknown"
 
     def _guess_type_list(self, node: ast.AST) -> str:
         """Guess type for a List or Tuple node."""
         elts = node.elts if isinstance(node, (ast.List, ast.Tuple)) else []
         if not elts:
-            return "[]Any"
+            return "[]unknown"
 
         element_types: List[str] = []
         has_none = False
@@ -248,7 +248,7 @@ class TypeGuessingMixin:
     def _guess_type_dict(self, node: ast.Dict) -> str:
         """Guess type for a Dict node."""
         if not node.keys:
-            return "map[string]Any"
+            return "map[string]unknown"
 
         key_types: Set[str] = set()
         val_types: Set[str] = set()
@@ -314,7 +314,7 @@ class TypeGuessingMixin:
             attr_name = f"{node.value.id}.{node.attr}"
             if hasattr(self.type_inference, "type_map") and attr_name in self.type_inference.type_map:
                 return self.type_inference.type_map[attr_name]
-        return "Any"
+        return "unknown"
 
     def _guess_type_subscript(self, node: ast.Subscript) -> str:
         """Guess type for a Subscript node."""
@@ -324,7 +324,7 @@ class TypeGuessingMixin:
         elif isinstance(node.value, ast.Name):
             if node.value.id == "argv":
                 return "string"
-        return "Any"
+        return "unknown"
 
     def _guess_type_binop(self, node: ast.BinOp) -> str:
         """Guess type for a BinOp node."""
@@ -351,13 +351,13 @@ class TypeGuessingMixin:
             return "f64"
         if left == "int" and right == "int":
             return "int"
-        return "Any"
+        return "unknown"
 
     def _guess_type_listcomp(self, node: Union[ast.ListComp, ast.GeneratorExp]) -> str:
         """Guess type for a ListComp or GeneratorExp node."""
         elt_type = self._guess_type(node.elt)
         if elt_type == "Any" or elt_type == "unknown":
-            return "[]Any"
+            return "[]unknown"
         return f"[]{elt_type}"
 
     def _guess_type_setcomp(self, node: ast.SetComp) -> str:

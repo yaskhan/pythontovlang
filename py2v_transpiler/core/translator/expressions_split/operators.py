@@ -3,6 +3,20 @@ from typing import Any
 from ..base import TranslatorBase
 
 class OperatorsMixin(TranslatorBase):
+    def _should_use_is_none_type(self, typ: str, node: ast.AST) -> bool:
+        if typ.startswith("?"): return False
+        if typ.startswith("SumType_"): return True
+        if typ.startswith("map[") and typ.endswith("]Any"): return True
+        if typ == "Any":
+            # Check if it was explicitly annotated as Any
+            if isinstance(node, ast.Name) and node.id in getattr(self.type_inference, "explicit_any_types", set()):
+                return True
+            # Check if it has a location-based explicit Any
+            loc_key = f"{getattr(node, 'id', '')}@{getattr(node, 'lineno', 0)}:{getattr(node, 'col_offset', 0)}"
+            if loc_key in getattr(self.type_inference, "explicit_any_types", set()):
+                return True
+        return False
+
     def visit_BinOp(self, node: ast.BinOp) -> str:
         left_type = self._guess_type(node.left)
         right_type = self._guess_type(node.right)
@@ -320,6 +334,7 @@ class OperatorsMixin(TranslatorBase):
         op_str = op_map.get(type(node.op), "?")
         return f"{op_str}{operand}"
 
+
     def visit_Compare(self, node: ast.Compare) -> str:
         comparators = [self.visit(node.left)] + [self.visit(c) for c in node.comparators]
         ops_map = {
@@ -343,40 +358,24 @@ class OperatorsMixin(TranslatorBase):
             if isinstance(op, (ast.Is, ast.Eq)) and is_none_node(node.comparators[0]):
                  if is_none_node(node.left):
                      return "true"
-                 if left_type == "Any" or left_type == "unknown" or (left_type.startswith("map[") and left_type.endswith("]Any")):
-                      if not left_type.startswith("?"):
-                          if left_type == "Any" or left_type == "unknown":
-                              return f"(({left}) is NoneType)" if left.endswith("}") else f"({left}) is NoneType"
-                          else:
-                              return f"(Any({left})) is NoneType"
+                 if self._should_use_is_none_type(left_type, node.left):
+                      return f"(({left}) is NoneType)" if left.endswith("}") else f"({left}) is NoneType"
                  return f"{left} == none"
             elif isinstance(op, (ast.IsNot, ast.NotEq)) and is_none_node(node.comparators[0]):
                  if is_none_node(node.left):
                      return "false"
-                 if left_type == "Any" or left_type == "unknown" or (left_type.startswith("map[") and left_type.endswith("]Any")):
-                      if not left_type.startswith("?"):
-                          if left_type == "Any" or left_type == "unknown":
-                              return f"(({left}) !is NoneType)" if left.endswith("}") else f"({left}) !is NoneType"
-                          else:
-                              return f"(Any({left})) !is NoneType"
+                 if self._should_use_is_none_type(left_type, node.left):
+                      return f"(({left}) !is NoneType)" if left.endswith("}") else f"({left}) !is NoneType"
                  return f"{left} != none"
             elif isinstance(op, (ast.Is, ast.Eq)) and is_none_node(node.left):
                  right_type = self._guess_type(node.comparators[0])
-                 if right_type == "Any" or right_type == "unknown" or (right_type.startswith("map[") and right_type.endswith("]Any")):
-                      if not right_type.startswith("?"):
-                           if right_type == "Any" or right_type == "unknown":
-                               return f"(({right}) is NoneType)" if right.endswith("}") else f"({right}) is NoneType"
-                           else:
-                               return f"(Any({right})) is NoneType"
+                 if self._should_use_is_none_type(right_type, node.comparators[0]):
+                      return f"(({right}) is NoneType)" if right.endswith("}") else f"({right}) is NoneType"
                  return f"none == {right}"
             elif isinstance(op, (ast.IsNot, ast.NotEq)) and is_none_node(node.left):
                  right_type = self._guess_type(node.comparators[0])
-                 if right_type == "Any" or right_type == "unknown" or (right_type.startswith("map[") and right_type.endswith("]Any")):
-                      if not right_type.startswith("?"):
-                           if right_type == "Any" or right_type == "unknown":
-                               return f"(({right}) !is NoneType)" if right.endswith("}") else f"({right}) !is NoneType"
-                           else:
-                               return f"(Any({right})) !is NoneType"
+                 if self._should_use_is_none_type(right_type, node.comparators[0]):
+                      return f"(({right}) !is NoneType)" if right.endswith("}") else f"({right}) !is NoneType"
                  return f"none != {right}"
             elif isinstance(op, ast.In) and is_none_node(node.left):
                  right_type = self._guess_type(node.comparators[0])
@@ -426,47 +425,29 @@ class OperatorsMixin(TranslatorBase):
                  if is_none_node(left_node):
                       parts.append("true")
                       continue
-                 if left_type == "Any" or left_type == "unknown" or (left_type.startswith("map[") and left_type.endswith("]Any")):
-                      if not left_type.startswith("?"):
-                          left_str = left
-                          if left_type == "Any" or left_type == "unknown":
-                              parts.append(f"(({left_str}) is NoneType)" if left_str.endswith("}") else f"({left_str}) is NoneType")
-                          else:
-                              parts.append(f"(Any({left_str})) is NoneType")
-                          continue
+                 if self._should_use_is_none_type(left_type, left_node):
+                      parts.append(f"(({left}) is NoneType)" if left.endswith("}") else f"({left}) is NoneType")
+                      continue
                  parts.append(f"({left} == none)")
             elif isinstance(op, (ast.IsNot, ast.NotEq)) and is_none_node(right_node):
                  if is_none_node(left_node):
                       parts.append("false")
                       continue
-                 if left_type == "Any" or left_type == "unknown" or (left_type.startswith("map[") and left_type.endswith("]Any")):
-                      if not left_type.startswith("?"):
-                          left_str = left
-                          if left_type == "Any" or left_type == "unknown":
-                              parts.append(f"(({left_str}) !is NoneType)" if left_str.endswith("}") else f"({left_str}) !is NoneType")
-                          else:
-                              parts.append(f"(Any({left_str})) !is NoneType")
-                          continue
+                 if self._should_use_is_none_type(left_type, left_node):
+                      parts.append(f"(({left}) !is NoneType)" if left.endswith("}") else f"({left}) !is NoneType")
+                      continue
                  parts.append(f"({left} != none)")
             elif isinstance(op, (ast.Is, ast.Eq)) and is_none_node(left_node):
                  right_type = self._guess_type(right_node)
-                 if right_type == "Any" or right_type == "unknown" or (right_type.startswith("map[") and right_type.endswith("]Any")):
-                      if not right_type.startswith("?"):
-                           if right_type == "Any" or right_type == "unknown":
-                               parts.append(f"(({right}) is NoneType)" if right.endswith("}") else f"({right}) is NoneType")
-                           else:
-                               parts.append(f"(Any({right})) is NoneType")
-                           continue
+                 if self._should_use_is_none_type(right_type, right_node):
+                      parts.append(f"(({right}) is NoneType)" if right.endswith("}") else f"({right}) is NoneType")
+                      continue
                  parts.append(f"(none == {right})")
             elif isinstance(op, (ast.IsNot, ast.NotEq)) and is_none_node(left_node):
                  right_type = self._guess_type(right_node)
-                 if right_type == "Any" or right_type == "unknown" or (right_type.startswith("map[") and right_type.endswith("]Any")):
-                      if not right_type.startswith("?"):
-                           if right_type == "Any" or right_type == "unknown":
-                               parts.append(f"(({right}) !is NoneType)" if right.endswith("}") else f"({right}) !is NoneType")
-                           else:
-                               parts.append(f"(Any({right})) !is NoneType")
-                           continue
+                 if self._should_use_is_none_type(right_type, right_node):
+                      parts.append(f"(({right}) !is NoneType)" if right.endswith("}") else f"({right}) !is NoneType")
+                      continue
                  parts.append(f"(none != {right})")
             elif isinstance(op, ast.In) and is_none_node(left_node):
                  right_type = self._guess_type(node.comparators[i])
@@ -490,3 +471,65 @@ class OperatorsMixin(TranslatorBase):
                  parts.append(f"({left} {op_str} {right})")
 
         return " && ".join(parts)
+
+    def visit_BoolOp(self, node: ast.BoolOp) -> str:
+        # Check if all operands are inherently boolean to safely use && and ||
+        all_bools = True
+        for val in node.values:
+            if self._guess_type(val) != "bool":
+                all_bools = False
+                break
+
+        if all_bools:
+            op_map = {ast.And: "&&", ast.Or: "||"}
+            op_str = op_map.get(type(node.op), "and")
+            values = []
+            for i, val in enumerate(node.values):
+                values.append(self._wrap_bool(val, parent=node, is_right_operand=(i > 0)))
+            return f" {op_str} ".join(values)
+        else:
+            ret_type = self._guess_type(node)
+            if ret_type == "unknown" or getattr(self, "current_assignment_type", None) == "Any":
+                ret_type = "Any"
+
+            branch_types = [self._guess_type(v) for v in node.values]
+            if len(set(branch_types)) > 1:
+                ret_type = "Any"
+
+            def build_boolop(vals, is_and):
+                if len(vals) == 1:
+                    val_str = self.visit(vals[0])
+                    v_type = self._guess_type(vals[0])
+                    if ret_type == "Any" and "Any" not in v_type and not val_str.startswith("Any("):
+                        if v_type.startswith("?"): return f"Any({val_str}!)"
+                        return f"Any({val_str})"
+                    return val_str
+                left = vals[0]
+                right_expr = build_boolop(vals[1:], is_and)
+
+                left_cond = self._wrap_bool(left)
+                left_val = self.visit(left)
+                left_type = self._guess_type(left)
+                if ret_type == "Any" and "Any" not in left_type and not left_val.startswith("Any("):
+                    if left_type.startswith("?"): left_val = f"Any({left_val}!)"
+                    else: left_val = f"Any({left_val})"
+
+                if is_and:
+                    return f"if {left_cond} {{ {right_expr} }} else {{ {left_val} }}"
+                else:
+                    return f"if {left_cond} {{ {left_val} }} else {{ {right_expr} }}"
+
+            is_and = isinstance(node.op, ast.And)
+            return build_boolop(node.values, is_and)
+
+    def visit_UnaryOp(self, node: ast.UnaryOp) -> str:
+        if isinstance(node.op, ast.Not):
+             return self._wrap_bool(node.operand, invert=True)
+
+        operand = self._visit_with_parens(node, node.operand, is_right_operand=True)
+        op_map = {
+            ast.UAdd: "+", ast.USub: "-",
+            ast.Invert: "~"
+        }
+        op_str = op_map.get(type(node.op), "?")
+        return f"{op_str}{operand}"
