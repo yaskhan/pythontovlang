@@ -64,9 +64,13 @@ pub fn (mut spa SemanticAnalyzerPreAnalysis) visit_file(mut file MypyFile, fnam 
 
 // visit_func_def handles function definition
 pub fn (mut spa SemanticAnalyzerPreAnalysis) visit_func_def(mut node FuncDef) {
+	for mut arg in node.arguments {
+		spa.visit_argument(mut arg)
+	}
+
 	old_global_scope := spa.is_global_scope
 	spa.is_global_scope = false
-	// TODO: call super().visit_func_def(node)
+	spa.accept(mut Node(node.body))
 	spa.is_global_scope = old_global_scope
 	mut file_node := spa.cur_mod_node or { return }
 	if spa.is_global_scope && file_node.is_stub && node.name == '__getattr__'
@@ -77,10 +81,29 @@ pub fn (mut spa SemanticAnalyzerPreAnalysis) visit_func_def(mut node FuncDef) {
 
 // visit_class_def handles class definition
 pub fn (mut spa SemanticAnalyzerPreAnalysis) visit_class_def(mut node ClassDef) {
+	for mut dec in node.decorators {
+		spa.accept(mut Node(dec))
+	}
+
 	old_global_scope := spa.is_global_scope
 	spa.is_global_scope = false
-	// TODO: call super().visit_class_def(node)
+	spa.accept(mut Node(node.defs))
 	spa.is_global_scope = old_global_scope
+}
+
+// visit_decorator handles decorator
+pub fn (mut spa SemanticAnalyzerPreAnalysis) visit_decorator(mut node Decorator) {
+	for mut dec in node.decorators {
+		spa.accept(mut Node(dec))
+	}
+	spa.visit_func_def(mut node.func)
+}
+
+// visit_argument handles function argument
+pub fn (mut spa SemanticAnalyzerPreAnalysis) visit_argument(mut node Argument) {
+	if mut init := node.initializer {
+		spa.accept(mut Node(init))
+	}
 }
 
 // visit_import_from handles from ... import
@@ -169,6 +192,8 @@ pub fn (mut spa SemanticAnalyzerPreAnalysis) accept(mut node Node) {
 		spa.visit_func_def(mut node)
 	} else if mut node is ClassDef {
 		spa.visit_class_def(mut node)
+	} else if mut node is Decorator {
+		spa.visit_decorator(mut node)
 	} else if mut node is ImportFrom {
 		spa.visit_import_from(mut node)
 	} else if mut node is ImportAll {
