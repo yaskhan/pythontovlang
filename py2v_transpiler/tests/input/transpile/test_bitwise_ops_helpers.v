@@ -106,19 +106,216 @@ fn py_yield[T](ch_out chan T, ch_in chan PyGeneratorInput, val T) Any {
     }
     return inp.val
 }
-//##LLM@@ String formatting for bytes is stubbed and might be incorrect. Please implement proper bytes formatting or use V string interpolation.
-fn py_bytes_format(fmt []u8, args Any) []u8 {
-    // Simplistic implementation for b'%s' % b'val'
-    // Converts bytes to string, formats, and converts back.
-    // This is not efficient or correct for non-ASCII bytes but works for simple cases.
-    fmt_str := fmt.bytestr()
-    // TODO: handle args properly. V's string interpolation/formatting expects distinct args.
-    // If args is []u8, treat as string.
-    arg_str := if args is []u8 { args.bytestr() } else { '${args}' }
+fn py_bytes_format_arg(arg Any) string {
+    if arg is []u8 { return arg.bytestr() }
+    if arg is string { return arg }
+    if arg is int { return arg.str() }
+    if arg is i64 { return arg.str() }
+    if arg is f64 { return arg.str() }
+    if arg is bool { return arg.str() }
+    return '${arg}'
+}
 
-    // Manual substitution of %s
-    // V does not have sprintf for runtime strings easily available in core without C interop.
-    // Simple replace for %s
-    res := fmt_str.replace('%s', arg_str)
+fn py_bytes_format(fmt []u8, args Any) []u8 {
+    fmt_str := fmt.bytestr()
+    mut arg_list := []Any{}
+    if args is []Any {
+        arg_list = args
+    } else {
+        arg_list = [args]
+    }
+
+    mut res := strings.new_builder(fmt_str.len + 16)
+    mut arg_idx := 0
+    mut i := 0
+    for i < fmt_str.len {
+        if fmt_str[i] == `%` {
+            if i + 1 < fmt_str.len {
+                if fmt_str[i+1] == `%` {
+                    res.write_string('%')
+                    i += 2
+                    continue
+                }
+                // Parse flags
+                mut j := i + 1
+                mut flag_zero := false
+                mut flag_minus := false
+                for j < fmt_str.len {
+                    if fmt_str[j] == `0` {
+                        flag_zero = true
+                        j++
+                    } else if fmt_str[j] == `-` {
+                        flag_minus = true
+                        j++
+                    } else {
+                        break
+                    }
+                }
+                // Parse width
+                mut width := 0
+                mut width_str := ''
+                for j < fmt_str.len && fmt_str[j].is_digit() {
+                    width_str += fmt_str[j].ascii_str()
+                    j++
+                }
+                if width_str != '' {
+                    width = width_str.int()
+                }
+                // Parse precision
+                mut precision := -1
+                if j < fmt_str.len && fmt_str[j] == `.` {
+                    j++
+                    mut prec_str := ''
+                    for j < fmt_str.len && fmt_str[j].is_digit() {
+                        prec_str += fmt_str[j].ascii_str()
+                        j++
+                    }
+                    if prec_str != '' {
+                        precision = prec_str.int()
+                    } else {
+                        precision = 0
+                    }
+                }
+                // Parse specifier
+                if j < fmt_str.len {
+                    spec := fmt_str[j]
+                    if arg_idx >= arg_list.len {
+                        res.write_string('%')
+                        i++
+                        continue
+                    }
+                    arg := arg_list[arg_idx]
+                    arg_idx++
+
+                    mut s_val := ''
+                    if spec == `s` || spec == `r` || spec == `a` {
+                        s_val = py_bytes_format_arg(arg)
+                    } else if spec == `d` || spec == `i` || spec == `u` {
+                        // Integer formatting
+                        if arg is int {
+                            s_val = '${arg}'
+                        } else if arg is i64 {
+                            s_val = '${arg}'
+                        } else if arg is f64 {
+                            s_val = '${int(arg)}'
+                        } else {
+                            val_int := '${arg}'.int()
+                            s_val = '${val_int}'
+                        }
+                        if flag_zero && width > s_val.len && !flag_minus {
+                             s_val = '0'.repeat(width - s_val.len) + s_val
+                        }
+                    } else if spec == `f` || spec == `F` {
+                        // Float formatting
+                        prec := if precision >= 0 { precision } else { 6 }
+                        mut f_val := 0.0
+                        if arg is f64 { f_val = arg }
+                        else if arg is int { f_val = f64(arg) }
+                        else if arg is i64 { f_val = f64(arg) }
+                        else { f_val = '${arg}'.f64() }
+                        s_val = strconv.format_f64(f_val, `f`, prec, 64)
+                        if spec == `F` { s_val = s_val.to_upper() }
+                    } else if spec == `x` {
+                        if arg is int {
+                            s_val = '${arg:x}'
+                        } else if arg is i64 {
+                            s_val = '${arg:x}'
+                        } else {
+                            val_int := '${arg}'.int()
+                            s_val = '${val_int:x}'
+                        }
+                    } else if spec == `X` {
+                        if arg is int {
+                            s_val = '${arg:X}'
+                        } else if arg is i64 {
+                            s_val = '${arg:X}'
+                        } else {
+                            val_int := '${arg}'.int()
+                            s_val = '${val_int:X}'
+                        }
+                    } else if spec == `o` {
+                        if arg is int {
+                            s_val = '${arg:o}'
+                        } else if arg is i64 {
+                            s_val = '${arg:o}'
+                        } else {
+                            val_int := '${arg}'.int()
+                            s_val = '${val_int:o}'
+                        }
+                    } else if spec == `c` {
+                        if arg is int {
+                            s_val = u8(arg).ascii_str()
+                        } else if arg is i64 {
+                            s_val = u8(arg).ascii_str()
+                        } else if arg is f64 {
+                            s_val = u8(int(arg)).ascii_str()
+                        } else {
+                            val_int := '${arg}'.int()
+                            s_val = u8(val_int).ascii_str()
+                        }
+                    } else {
+                        s_val = py_bytes_format_arg(arg)
+                    }
+
+                    // Apply width/align
+                    if width > s_val.len {
+                        pad := width - s_val.len
+                        if flag_minus {
+                            s_val = s_val + ' '.repeat(pad)
+                        } else if !flag_zero || spec == `s` {
+                             s_val = ' '.repeat(pad) + s_val
+                        }
+                    }
+                    res.write_string(s_val)
+                    i = j + 1
+                    continue
+                }
+            }
+        }
+        res.write_u8(fmt_str[i])
+        i++
+    }
+    return res.str().bytes()
+}
+
+    if args is []Any {
+        for a in args {
+            values << py_bytes_format_arg(a)
+        }
+    } else if args is []string {
+        for a in args {
+            values << a
+        }
+    } else if args is [][]u8 {
+        for a in args {
+            values << a.bytestr()
+        }
+    } else {
+        values << py_bytes_format_arg(args)
+    }
+
+    mut res := ''
+    mut i := 0
+    mut arg_idx := 0
+    for i < fmt_str.len {
+        if fmt_str[i] == `%` {
+            if i + 1 < fmt_str.len && fmt_str[i + 1] == `%` {
+                res += '%'
+                i += 2
+                continue
+            }
+            if i + 1 < fmt_str.len && arg_idx < values.len {
+                spec := fmt_str[i + 1]
+                if spec == `s` || spec == `r` || spec == `a` || spec == `d` || spec == `i` || spec == `u` || spec == `f` || spec == `x` || spec == `X` {
+                    res += values[arg_idx]
+                    arg_idx++
+                    i += 2
+                    continue
+                }
+            }
+        }
+        res += fmt_str[i].ascii_str()
+        i++
+    }
     return res.bytes()
 }
