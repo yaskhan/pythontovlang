@@ -2,8 +2,8 @@ module analyzer
 
 pub struct MypyResult {
 pub mut:
-	stdout string
-	stderr string
+	stdout    string
+	stderr    string
 	exit_code int
 }
 
@@ -19,8 +19,8 @@ pub fn new_type_inference_mypy_mixin() TypeInferenceMypyMixin {
 
 pub fn new_mypy_result() MypyResult {
 	return MypyResult{
-		stdout: ""
-		stderr: ""
+		stdout:    ''
+		stderr:    ''
 		exit_code: 1
 	}
 }

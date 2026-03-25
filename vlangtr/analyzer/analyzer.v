@@ -4,43 +4,21 @@ module analyzer
 pub struct Analyzer {
 	TypeInferenceVisitorMixin
 pub mut:
-	context   string
-	stack     []string
-	type_map  map[string]string
-	raw_type_map map[string]string
-	mutability_map map[string]MutabilityInfo
+	context               string
+	stack                 []string
 	func_param_mutability map[string]map[string]bool
-	location_map map[string]string
-	call_signatures map[string][]CallSignature
-	
-	// Иерархия классов
-	mixin_to_main map[string]string
-	main_to_mixins map[string][]string
-	mixin_nodes map[string]string
-	static_methods map[string][]string
-	class_methods map[string][]string
-	is_abc map[string]bool
-	class_hierarchy map[string][]string
 }
 
 // new_analyzer создает новый экземпляр Analyzer
 pub fn new_analyzer(type_data map[string]string) Analyzer {
-	return Analyzer{
+	mut a := Analyzer{
 		TypeInferenceVisitorMixin: new_type_inference_visitor_mixin()
-		type_map: type_data
-		raw_type_map: map[string]string{}
-		mutability_map: map[string]MutabilityInfo{}
-		func_param_mutability: map[string]map[string]bool{}
-		location_map: map[string]string{}
-		call_signatures: map[string][]CallSignature{}
-		mixin_to_main: map[string]string{}
-		main_to_mixins: map[string][]string{}
-		mixin_nodes: map[string]string{}
-		static_methods: map[string][]string{}
-		class_methods: map[string][]string{}
-		is_abc: map[string]bool{}
-		class_hierarchy: map[string][]string{}
+		context:                   ''
+		stack:                     []string{}
+		func_param_mutability:     map[string]map[string]bool{}
 	}
+	a.type_map = type_data.clone()
+	return a
 }
 
 // analyze запускает анализ Python кода

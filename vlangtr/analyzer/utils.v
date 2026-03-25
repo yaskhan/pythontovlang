@@ -12,7 +12,7 @@ pub fn new_type_inference_utils_mixin() TypeInferenceUtilsMixin {
 
 pub fn (mut t TypeInferenceUtilsMixin) find_lcs(types []string) string {
 	if types.len == 0 {
-		return "Any"
+		return 'Any'
 	}
 	first := types[0]
 	mut all_same := true
@@ -25,7 +25,7 @@ pub fn (mut t TypeInferenceUtilsMixin) find_lcs(types []string) string {
 	if all_same {
 		return first
 	}
-	return "Any"
+	return 'Any'
 }
 
 pub fn (mut t TypeInferenceUtilsMixin) mark_mutated(name string) {
@@ -42,11 +42,21 @@ pub fn (mut t TypeInferenceUtilsMixin) mark_reassigned(name string) {
 
 pub fn (mut t TypeInferenceUtilsMixin) guess_node_type(node_type string) string {
 	match node_type {
-		"bool" { return "bool" }
-		"int" { return "int" }
-		"float", "float64" { return "f64" }
-		"str", "string" { return "string" }
-		"bytes", "bytearray", "memoryview" { return "[]u8" }
+		'bool' {
+			return 'bool'
+		}
+		'int' {
+			return 'int'
+		}
+		'float', 'float64' {
+			return 'f64'
+		}
+		'str', 'string' {
+			return 'string'
+		}
+		'bytes', 'bytearray', 'memoryview' {
+			return '[]u8'
+		}
 		else {
 			if t.has_type(node_type) {
 				return t.get_type(node_type)
@@ -54,33 +64,51 @@ pub fn (mut t TypeInferenceUtilsMixin) guess_node_type(node_type string) string 
 			if node_type.len > 0 && node_type[0].is_capital() {
 				return node_type
 			}
-			return "Any"
+			return 'Any'
 		}
 	}
 }
 
 pub fn map_python_type_to_v(py_type string) string {
 	match py_type {
-		"int" { return "int" }
-		"float" { return "f64" }
-		"str" { return "string" }
-		"bool" { return "bool" }
-		"bytes" { return "[]u8" }
-		"bytearray" { return "[]u8" }
-		"None" { return "void" }
-		"Any" { return "Any" }
-		"object" { return "Any" }
+		'int' {
+			return 'int'
+		}
+		'float' {
+			return 'f64'
+		}
+		'str' {
+			return 'string'
+		}
+		'bool' {
+			return 'bool'
+		}
+		'bytes' {
+			return '[]u8'
+		}
+		'bytearray' {
+			return '[]u8'
+		}
+		'None' {
+			return 'void'
+		}
+		'Any' {
+			return 'Any'
+		}
+		'object' {
+			return 'Any'
+		}
 		else {
-			if py_type.starts_with("List[") || py_type.starts_with("list[") {
+			if py_type.starts_with('List[') || py_type.starts_with('list[') {
 				inner := py_type[5..py_type.len - 1]
-				return "[]" + map_python_type_to_v(inner)
+				return '[]' + map_python_type_to_v(inner)
 			}
-			if py_type.starts_with("Dict[") || py_type.starts_with("dict[") {
-				return "map[string]Any"
+			if py_type.starts_with('Dict[') || py_type.starts_with('dict[') {
+				return 'map[string]Any'
 			}
-			if py_type.starts_with("Optional[") {
+			if py_type.starts_with('Optional[') {
 				inner := py_type[9..py_type.len - 1]
-				return "?" + map_python_type_to_v(inner)
+				return '?' + map_python_type_to_v(inner)
 			}
 			return py_type
 		}
