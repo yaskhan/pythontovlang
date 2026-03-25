@@ -2,6 +2,7 @@ module classes
 
 import ast
 import base
+import pydantic_support
 
 pub struct ClassDefinitionHandler {
 pub mut:
@@ -33,6 +34,23 @@ pub fn (mut h ClassDefinitionHandler) visit_class_def(node ast.ClassDef, mut env
 	env.state.current_class_bases = []string{}
 	env.state.current_class_generic_bases = map[string]string{}
 	env.state.current_class_is_unittest = false
+
+	if classes.pydantic_handler.is_pydantic_model(node) {
+		mut p_env := pydantic_support.new_pydantic_visit_env(
+			env.state,
+			env.analyzer,
+			env.visit_stmt_fn,
+			env.visit_expr_fn,
+			env.emit_struct_fn,
+			env.emit_function_fn,
+			env.emit_constant_fn,
+			env.source_mapping,
+		)
+		processor := pydantic_support.new_pydantic_model_processor()
+		processor.process_model(node, mut p_env)
+		env.state.defined_classes[struct_name]['is_pydantic'] = true
+		return
+	}
 
 	decorators_raw, is_dataclass, is_deprecated, is_disjoint_base, deprecated_message := classes.class_decorator_handler.process_decorators(node, mut env)
 	mut decorators := decorators_raw.clone()
