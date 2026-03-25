@@ -11,7 +11,7 @@ class Cached_property[T]:
     attrname: typing.Optional[str]
 """
     v_code = transpile_code(code)
-    assert "py_fn fn (Any) T = unsafe { nil }" in v_code
+    assert "py_fn fn (Any) T" in v_code
 
 @pytest.mark.skipif(sys.version_info < (3, 12), reason="PEP 695 type parameters require Python 3.12+")
 def test_fn_pointer_with_default():

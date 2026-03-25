@@ -37,19 +37,52 @@ class ClassFieldsMixin:
         if "unsafe { nil }" in default_val: return True
         return False
 
-    def _get_field_def(self, name: str, field_type: str, default_val: str = "") -> str:
+    def _is_field_mutated(self, struct_name: str, field_name: str, orig_name: str = "") -> bool:
+        if not hasattr(self.translator, 'type_inference') or not hasattr(self.translator.type_inference, 'mutability_map'):
+            return False
+
+        # We need the original Python class name for the map lookup if possible
+        # But struct_name is already sanitized.
+        # However, the analyzer uses the original name in the map.
+        # We might need to track original class names too.
+        # For now, let's try to match with what we have.
+
+        base_struct_name = struct_name.replace("_Impl", "")
+
+        # Check both the name provided (usually sanitized) and the original name
+        names_to_check = [field_name]
+        if orig_name and orig_name != field_name:
+            names_to_check.append(orig_name)
+
+        for name in names_to_check:
+            qualified = f"{base_struct_name}.{name}"
+            m_info = self.translator.type_inference.mutability_map.get(qualified)
+            if m_info and m_info.get("is_mutated"):
+                return True
+
+            # Also check unqualified (for fields that might not be qualified in map)
+            m_info = self.translator.type_inference.mutability_map.get(name)
+            if m_info and m_info.get("is_mutated"):
+                return True
+
+        return False
+
+    def _get_field_def_info(self, name: str, field_type: str, struct_name: str, default_val: str = "", orig_name: str = "") -> Dict[str, Any]:
+        is_mutated = self._is_field_mutated(struct_name, name, orig_name=orig_name)
         if default_val and not self._should_strip_init(field_type, default_val):
-            return f"    {name} {field_type} = {default_val}"
-        return f"    {name} {field_type}"
+            field_def = f"    {name} {field_type} = {default_val}"
+        else:
+            field_def = f"    {name} {field_type}"
+        return {"name": name, "orig_name": orig_name or name, "def": field_def, "is_mutated": is_mutated}
 
     def collect_mixin_fields(
             self,
             struct_name: str,
             added_fields: Set[str],
             is_main_struct: bool
-        ) -> List[str]:
+        ) -> List[Dict[str, Any]]:
         """Collect fields from mixin classes."""
-        fields: List[str] = []
+        fields: List[Dict[str, Any]] = []
         if not is_main_struct:
             return fields
 
@@ -64,7 +97,8 @@ class ClassFieldsMixin:
                     if isinstance(stmt, ast.AnnAssign) and isinstance(
                         stmt.target, ast.Name
                     ):
-                        field_name = self.translator._sanitize_name(stmt.target.id)
+                        orig_name = stmt.target.id
+                        field_name = self.translator._sanitize_name(orig_name)
                         if field_name not in added_fields:
                             added_fields.add(field_name)
                             field_type = "int"
@@ -75,19 +109,21 @@ class ClassFieldsMixin:
                                 except Exception:
                                     if isinstance(stmt.annotation, ast.Name):
                                         field_type = stmt.annotation.id
+                            default_val = ""
                             if getattr(stmt, "value", None) is not None:
                                 default_val = self.translator.visit(stmt.value)
-                                fields.append(self._get_field_def(field_name, field_type, default_val))
+                            fields.append(self._get_field_def_info(field_name, field_type, struct_name, default_val, orig_name))
                     elif isinstance(stmt, ast.Assign):
                         for target in stmt.targets:
                             if isinstance(target, ast.Name):
-                                field_name = self.translator._sanitize_name(target.id)
+                                orig_name = target.id
+                                field_name = self.translator._sanitize_name(orig_name)
                                 if field_name not in added_fields:
                                     added_fields.add(field_name)
                                     field_type = self.translator._guess_type(stmt.value)
                                     field_type = self.translator._map_type(field_type, struct_name)
                                     default_val = self.translator.visit(stmt.value)
-                                    fields.append(self._get_field_def(field_name, field_type, default_val))
+                                    fields.append(self._get_field_def_info(field_name, field_type, struct_name, default_val, orig_name))
         return fields
 
     def collect_init_fields(
@@ -95,9 +131,9 @@ class ClassFieldsMixin:
         node: ast.ClassDef,
         added_fields: Set[str],
         struct_name: str
-    ) -> List[str]:
+    ) -> List[Dict[str, Any]]:
         """Collect fields from __init__ method."""
-        fields: List[str] = []
+        fields: List[Dict[str, Any]] = []
         for stmt in node.body:
             if isinstance(stmt, (ast.FunctionDef, ast.AsyncFunctionDef)) and stmt.name == "__init__":
                 if stmt.args.args:
@@ -116,7 +152,8 @@ class ClassFieldsMixin:
                             for target in sub_node.targets:
                                 for t in ast.walk(target):
                                     if isinstance(t, ast.Attribute) and isinstance(t.value, ast.Name) and t.value.id == init_self_name:
-                                        field_name = self.translator._sanitize_name(t.attr)
+                                        orig_name = t.attr
+                                        field_name = self.translator._sanitize_name(orig_name)
                                         if field_name not in added_fields:
                                             added_fields.add(field_name)
                                             f_type = "Any"
@@ -138,10 +175,11 @@ class ClassFieldsMixin:
                                             if is_optional and not f_type.startswith("?") and f_type != "Any":
                                                 f_type = "?" + f_type
                                             _ft = f_type
-                                            fields.append(self._get_field_def(field_name, _ft))
+                                            fields.append(self._get_field_def_info(field_name, _ft, struct_name, orig_name=orig_name))
                         elif isinstance(sub_node, ast.AnnAssign):
                             if isinstance(sub_node.target, ast.Attribute) and isinstance(sub_node.target.value, ast.Name) and sub_node.target.value.id == init_self_name:
-                                field_name = self.translator._sanitize_name(sub_node.target.attr)
+                                orig_name = sub_node.target.attr
+                                field_name = self.translator._sanitize_name(orig_name)
                                 if field_name not in added_fields:
                                     added_fields.add(field_name)
                                     f_type = "Any"
@@ -165,7 +203,7 @@ class ClassFieldsMixin:
                                     if is_optional and not f_type.startswith("?") and f_type != "Any":
                                         f_type = "?" + f_type
                                     _ft = f_type
-                                    fields.append(self._get_field_def(field_name, _ft))
+                                    fields.append(self._get_field_def_info(field_name, _ft, struct_name, orig_name=orig_name))
         return fields
 
     def process_class_attributes(
@@ -177,15 +215,16 @@ class ClassFieldsMixin:
         is_typed_dict: bool,
         dataclass_metadata: Optional[Dict[str, Any]],
         dataclass_field_order: List[str]
-    ) -> List[str]:
+    ) -> List[Dict[str, Any]]:
         """Process class attribute declarations (AnnAssign and Assign)."""
-        fields: List[str] = []
+        fields: List[Dict[str, Any]] = []
         readonly_fields = self.translator.readonly_fields if hasattr(self.translator, "readonly_fields") else {}
         current_access = None
 
         for stmt in body:
             if isinstance(stmt, ast.AnnAssign) and isinstance(stmt.target, ast.Name):
-                field_name = self.translator._sanitize_name(stmt.target.id)
+                orig_name = stmt.target.id
+                field_name = self.translator._sanitize_name(orig_name)
 
                 if field_name in added_fields:
                     continue
@@ -204,7 +243,9 @@ class ClassFieldsMixin:
                             field_type = self.translator._map_type(raw_type, struct_name)
 
                             if is_typed_dict:
-                                if "ReadOnly[" in raw_type or raw_type.startswith("ReadOnly") or                                    "typing.ReadOnly[" in raw_type or raw_type.startswith("typing.ReadOnly") or                                    "typing_extensions.ReadOnly[" in raw_type or raw_type.startswith("typing_extensions.ReadOnly"):
+                                if "ReadOnly[" in raw_type or raw_type.startswith("ReadOnly") or \
+                                   "typing.ReadOnly[" in raw_type or raw_type.startswith("typing.ReadOnly") or \
+                                   "typing_extensions.ReadOnly[" in raw_type or raw_type.startswith("typing_extensions.ReadOnly"):
                                     is_readonly = True
                                     readonly_fields.setdefault(struct_name, set()).add(field_name)
                         except Exception:
@@ -217,7 +258,7 @@ class ClassFieldsMixin:
                     if is_typed_dict:
                         required_access = "pub:" if is_readonly else "pub mut:"
                         if current_access != required_access:
-                            fields.append(required_access)
+                            fields.append({"name": "", "def": required_access, "is_mutated": False})
                             current_access = required_access
 
                     default_val = ""
@@ -225,7 +266,8 @@ class ClassFieldsMixin:
                         default_val = self.translator.visit(stmt.value)
 
                     # Establish the rule: move to Meta struct ONLY if explicitly annotated with typing.ClassVar
-                    is_class_var = "ClassVar[" in raw_type or raw_type.startswith("ClassVar") or                                   "typing.ClassVar[" in raw_type or raw_type.startswith("typing.ClassVar")
+                    is_class_var = "ClassVar[" in raw_type or raw_type.startswith("ClassVar") or \
+                                   "typing.ClassVar[" in raw_type or raw_type.startswith("typing.ClassVar")
 
                     if is_class_var:
                         # Store for Meta struct generation
@@ -247,7 +289,7 @@ class ClassFieldsMixin:
                         })
                     else:
                         # Instance field
-                        fields.append(self._get_field_def(field_name, field_type, default_val))
+                        fields.append(self._get_field_def_info(field_name, field_type, struct_name, default_val, orig_name=orig_name))
 
             elif isinstance(stmt, ast.Assign):
                 for target in stmt.targets:
@@ -263,7 +305,7 @@ class ClassFieldsMixin:
 
                             for slot in slots_list:
                                 if slot not in added_fields:
-                                    fields.append(self._get_field_def(slot, "int"))
+                                    fields.append(self._get_field_def_info(slot, "int", struct_name))
                                     added_fields.add(slot)
                         elif (
                             not isinstance(stmt.value, ast.Call)
@@ -271,7 +313,8 @@ class ClassFieldsMixin:
                             or stmt.value.func.id not in ("TypeVar", "ParamSpec", "TypeVarTuple")
                             and target.id != "__slots__"
                         ):
-                            field_name = self.translator._sanitize_name(target.id)
+                            orig_name = target.id
+                            field_name = self.translator._sanitize_name(orig_name)
                             if field_name in added_fields:
                                 continue
 
@@ -307,10 +350,11 @@ class ClassFieldsMixin:
         dataclass_metadata: Dict[str, Any],
         added_fields: Set[str],
         dataclass_field_order: List[str]
-    ) -> List[str]:
-        fields: List[str] = []
+    ) -> List[Dict[str, Any]]:
+        fields: List[Dict[str, Any]] = []
         for attr in dataclass_metadata.get("attributes") or []:
-            field_name = self.translator._sanitize_name(attr["name"])
+            orig_name = attr["name"]
+            field_name = self.translator._sanitize_name(orig_name)
             raw_type = attr.get("type", "Any")
             norm_typ = raw_type.replace("builtins.", "")
             try:
@@ -340,7 +384,9 @@ class ClassFieldsMixin:
                             default_val = self.translator.visit(stmt.value)
                             break
 
-            is_classvar = attr.get("is_classvar", False) or                           "ClassVar[" in raw_type or raw_type.startswith("ClassVar") or                           "typing.ClassVar[" in raw_type or raw_type.startswith("typing.ClassVar")
+            is_classvar = attr.get("is_classvar", False) or \
+                          "ClassVar[" in raw_type or raw_type.startswith("ClassVar") or \
+                          "typing.ClassVar[" in raw_type or raw_type.startswith("typing.ClassVar")
 
             if is_classvar:
                 if not hasattr(self.translator, "defined_classes"):
@@ -369,7 +415,7 @@ class ClassFieldsMixin:
             added_fields.add(field_name)
 
             dataclass_field_order.append(field_name)
-            fields.append(self._get_field_def(field_name, field_type, default_val))
+            fields.append(self._get_field_def_info(field_name, field_type, struct_name, default_val, orig_name=orig_name))
         return fields
 
     def generate_dataclass_factory(
@@ -467,14 +513,15 @@ class ClassFieldsMixin:
             struct_name: str,
         namedtuple_metadata: Dict[str, Any],
         added_fields: Set[str]
-    ) -> List[str]:
+    ) -> List[Dict[str, Any]]:
         """Process fields from namedtuple metadata."""
-        fields: List[str] = []
+        fields: List[Dict[str, Any]] = []
         nt_fields = namedtuple_metadata.get("fields", [])
         nt_types = namedtuple_metadata.get("types", [])
 
         for i, field_name in enumerate(nt_fields):
-            f_name = self.translator._sanitize_name(field_name)
+            orig_name = field_name
+            f_name = self.translator._sanitize_name(orig_name)
             if f_name in added_fields:
                 continue
             added_fields.add(f_name)
@@ -496,58 +543,10 @@ class ClassFieldsMixin:
                 field_type = "bool"
 
             _ft = field_type
-            fields.append(self._get_field_def(f_name, _ft))
+            fields.append(self._get_field_def_info(f_name, _ft, struct_name, orig_name=orig_name))
 
         return fields
 
 class ClassFieldsHandler(ClassFieldsMixin):
     def __init__(self, translator):
         self.translator = translator
-
-    def collect_mixin_fields(
-            self,
-            struct_name: str,
-            added_fields: Set[str],
-            is_main_struct: bool
-        ) -> List[str]:
-        """Collect fields from mixin classes."""
-        fields: List[str] = []
-        if not is_main_struct:
-            return fields
-
-        mixin_nodes = getattr(self.translator.type_inference, "mixin_nodes", {})
-        if not hasattr(self.translator.type_inference, "main_to_mixins"):
-            return fields
-
-        for mixin_name in self.translator.type_inference.main_to_mixins.get(struct_name, []):
-            if mixin_name in mixin_nodes:
-                mixin_node = mixin_nodes[mixin_name]
-                for stmt in mixin_node.body:
-                    if isinstance(stmt, ast.AnnAssign) and isinstance(
-                        stmt.target, ast.Name
-                    ):
-                        field_name = self.translator._sanitize_name(stmt.target.id)
-                        if field_name not in added_fields:
-                            added_fields.add(field_name)
-                            field_type = "int"
-                            if stmt.annotation:
-                                try:
-                                    type_str = ast.unparse(stmt.annotation)
-                                    field_type = self.translator._map_type(type_str, struct_name)
-                                except Exception:
-                                    if isinstance(stmt.annotation, ast.Name):
-                                        field_type = stmt.annotation.id
-                            if getattr(stmt, "value", None) is not None:
-                                default_val = self.translator.visit(stmt.value)
-                                fields.append(self._get_field_def(field_name, field_type, default_val))
-                    elif isinstance(stmt, ast.Assign):
-                        for target in stmt.targets:
-                            if isinstance(target, ast.Name):
-                                field_name = self.translator._sanitize_name(target.id)
-                                if field_name not in added_fields:
-                                    added_fields.add(field_name)
-                                    field_type = self.translator._guess_type(stmt.value)
-                                    field_type = self.translator._map_type(field_type, struct_name)
-                                    default_val = self.translator.visit(stmt.value)
-                                    fields.append(self._get_field_def(field_name, field_type, default_val))
-        return fields

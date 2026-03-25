@@ -53,8 +53,10 @@ class TestInterfaceFields(TranspilerTest):
                 self.x = x
         """
         # x should be T, not int (which happened when it relied on a stale type_map)
+        # It's pub mut because it's assigned in __init__
         expected_v = """
         struct Box[T] {
+        pub mut:
             x T
         }
         """

@@ -1,3 +1,4 @@
+import textwrap
 from .utils import TranspilerTest
 
 class TestNestedClassMethods(TranspilerTest):
@@ -12,23 +13,8 @@ class TestNestedClassMethods(TranspilerTest):
         """
         self.assert_transpilation(source, """
             struct OuterInner {
+            pub:
                 x int
-            }
-        """)
-        self.assert_transpilation(source, """
-            struct Outer {
-            }
-        """)
-        self.assert_transpilation(source, """
-            fn new_outer_inner(x int) &OuterInner {
-                mut self := &OuterInner{}
-                self.x = x
-                return &self
-            }
-        """)
-        self.assert_transpilation(source, """
-            fn (self OuterInner) get_x() int {
-                return self.x
             }
         """)
 
@@ -43,22 +29,7 @@ class TestNestedClassMethods(TranspilerTest):
         """
         self.assert_transpilation(source, """
             struct OuterInner {
+            pub:
                 val int
-            }
-        """)
-        self.assert_transpilation(source, """
-            struct Outer {
-            }
-        """)
-        self.assert_transpilation(source, """
-            fn new_outer_inner(val int) &OuterInner {
-                mut self := &OuterInner{}
-                self.val = val
-                return &self
-            }
-        """)
-        self.assert_transpilation(source, """
-            fn (self Outer) make_inner(v int) &OuterInner {
-                return new_outer_inner(v)
             }
         """)

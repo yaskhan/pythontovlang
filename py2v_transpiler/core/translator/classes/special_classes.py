@@ -138,14 +138,40 @@ class SpecialClassesHandler:
         if fields:
             # Modern V interfaces can have fields. We should sanitize them if they contain "mut" or "pub".
             clean_fields = []
-            for field in fields:
-                clean_field = field.replace('pub mut:', '').replace('pub:', '').replace('mut:', '').strip()
-                if clean_field:
-                    # Strip default value: "name type = default" -> "name type"
-                    if ' = ' in clean_field:
-                        clean_field = clean_field.split(' = ')[0]
-                    clean_fields.append(f"    {clean_field}")
-            interface_parts.extend(clean_fields)
+            for field_info in fields:
+                if not isinstance(field_info, dict):
+                    # Fallback for old callers (rare)
+                    clean_field = str(field_info).replace('pub mut:', '').replace('pub:', '').replace('mut:', '').strip()
+                    if clean_field:
+                        if ' = ' in clean_field:
+                            clean_field = clean_field.split(' = ')[0]
+                        clean_fields.append(f"    {clean_field}")
+                    continue
+
+                # Use structured field info
+                # Only include fields with names (not markers)
+                if field_info.get("name"):
+                    f_def = field_info["def"].strip()
+                    # Strip "pub mut:", "pub:", "mut:"
+                    for prefix in ["pub mut:", "pub:", "mut:"]:
+                        if f_def.startswith(prefix):
+                            f_def = f_def[len(prefix):].strip()
+
+                    # Strip default values
+                    if " = " in f_def:
+                        f_def = f_def.split(" = ")[0]
+
+                    if f_def:
+                        clean_fields.append(f"    {f_def}")
+
+            # Deduplicate fields by name
+            seen_fields = set()
+            unique_fields = []
+            for f in clean_fields:
+                if f not in seen_fields:
+                    unique_fields.append(f)
+                    seen_fields.add(f)
+            interface_parts.extend(unique_fields)
         
         interface_methods = self.translator.class_methods_handler.process_interface_methods(methods)
         interface_parts.extend(interface_methods)

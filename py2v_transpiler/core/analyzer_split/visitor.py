@@ -88,8 +88,10 @@ class TypeInferenceVisitorMixin(TypeInferenceBase):
 
     def visit_Assign(self, node: ast.Assign) -> Any:
         for target in node.targets:
-            if isinstance(target, ast.Attribute) and isinstance(target.value, ast.Name) and target.value.id == "self":
-                 self.type_map[target.attr] = self._guess_node_type(node.value)
+            if isinstance(target, ast.Attribute):
+                self._mark_mutated(target)
+                if isinstance(target.value, ast.Name) and target.value.id == "self":
+                     self.type_map[target.attr] = self._guess_node_type(node.value)
 
             if isinstance(target, ast.Name):
                 if target.id in self.mutability_map:
@@ -160,6 +162,8 @@ class TypeInferenceVisitorMixin(TypeInferenceBase):
     def visit_AugAssign(self, node: ast.AugAssign) -> Any:
         if isinstance(node.target, (ast.Name, ast.Attribute)):
             self._mark_reassigned(node.target)
+            if isinstance(node.target, ast.Attribute) and isinstance(node.target.value, ast.Name) and node.target.value.id == "self":
+                 self.type_map[node.target.attr] = self._guess_node_type(node.target)
         elif isinstance(node.target, ast.Subscript):
             self._mark_mutated(self._get_base_node(node.target.value))
         self.generic_visit(node)

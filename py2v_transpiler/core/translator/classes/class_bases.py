@@ -1,7 +1,7 @@
 """Handler for class base types and inheritance."""
 
 import ast
-from typing import TYPE_CHECKING, List, Tuple
+from typing import TYPE_CHECKING, List, Tuple, Dict, Any
 
 if TYPE_CHECKING:
     pass
@@ -52,7 +52,7 @@ class ClassBasesHandler:
         self,
         node: ast.ClassDef,
         struct_name: str
-    ) -> Tuple[List[str], List[str], bool, bool, bool, bool, bool, bool, bool]:
+    ) -> Tuple[List[Dict[str, Any]], List[str], bool, bool, bool, bool, bool, bool, bool]:
         """
         Process class base types.
 
@@ -60,7 +60,7 @@ class ClassBasesHandler:
             Tuple of (fields, current_class_bases, is_enum, is_int_enum, is_flag,
                      is_unittest, is_protocol, is_named_tuple, is_typed_dict)
         """
-        fields = []
+        fields: List[Dict[str, Any]] = []
         current_class_bases = []
         is_enum = False
         is_int_enum = False
@@ -141,18 +141,20 @@ class ClassBasesHandler:
                                 # Check if base_name is a split class
                                 if (base_name in self.translator.known_interfaces or 
                                     any(base_name in bases for bases in getattr(self.translator.type_inference, 'class_hierarchy', {}).values())):
-                                    fields.append(f"pub mut:\n    {field_name} {v_type.replace(base_name, base_name + '_Impl', 1)}")
+                                    v_def = f"    {field_name} {v_type.replace(base_name, base_name + '_Impl', 1)}"
+                                    fields.append({"name": field_name, "def": v_def, "is_mutated": True})
                                     self.translator.current_class_generic_bases[base_name + "_Impl"] = field_name
                                 else:
-                                    fields.append(f"pub mut:\n    {field_name} {v_type}")
+                                    v_def = f"    {field_name} {v_type}"
+                                    fields.append({"name": field_name, "def": v_def, "is_mutated": True})
                                     self.translator.current_class_generic_bases[base_name] = field_name
                             else:
                                 # Check if base_name is a split class
                                 if (base_name in self.translator.known_interfaces or 
                                     any(base_name in bases for bases in getattr(self.translator.type_inference, 'class_hierarchy', {}).values())):
-                                    fields.append(f"    {v_type.replace(base_name, base_name + '_Impl', 1)}")
+                                    fields.append({"name": base_name + "_Impl", "def": f"    {v_type.replace(base_name, base_name + '_Impl', 1)}", "is_mutated": False})
                                 else:
-                                    fields.append(f"    {v_type}")
+                                    fields.append({"name": base_name, "def": f"    {v_type}", "is_mutated": False})
 
                     self.translator.current_class_generic_bases.setdefault(base_name, None)
                     current_class_bases.append(base_name)
@@ -182,9 +184,9 @@ class ClassBasesHandler:
                         
                         sanitized_base = self.translator._sanitize_name(base.id, is_type=True)
                         if is_split_base:
-                            fields.append(f"    {sanitized_base}_Impl")
+                            fields.append({"name": sanitized_base + "_Impl", "def": f"    {sanitized_base}_Impl", "is_mutated": False})
                         elif base.id not in getattr(self.translator.type_inference, "mixin_to_main", {}):
-                             fields.append(f"    {sanitized_base}")
+                             fields.append({"name": sanitized_base, "def": f"    {sanitized_base}", "is_mutated": False})
                     current_class_bases.append(base.id)
                 direct_bases.append(base.id)
             elif isinstance(base, ast.Attribute):
@@ -211,9 +213,9 @@ class ClassBasesHandler:
                                     break
                         
                         if is_split_base:
-                            fields.append(f"    {val}_Impl")
+                            fields.append({"name": val + "_Impl", "def": f"    {val}_Impl", "is_mutated": False})
                         else:
-                            fields.append(f"    {val}")
+                            fields.append({"name": val, "def": f"    {val}", "is_mutated": False})
                 if val != "builtins.object":
                     current_class_bases.append(base.attr)
                 direct_bases.append(base.attr)
