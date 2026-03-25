@@ -221,6 +221,11 @@ pub fn (ec ExpressionChecker) analyze_static_reference(node SymbolNodeRef) MypyT
 				type_of_any: .special_form
 			}
 		}
+		else {
+			AnyType{
+				type_of_any: .special_form
+			}
+		}
 	}
 }
 
@@ -440,12 +445,10 @@ pub fn (mut ec ExpressionChecker) visit_dict_expr(e DictExpr) MypyTypeNode {
 	mut key_types := []MypyTypeNode{}
 	mut value_types := []MypyTypeNode{}
 	for item in e.items {
-		if item.len > 0 {
-			key_types << ec.accept(item[0])
+		if k := item.key {
+			key_types << ec.accept(k)
 		}
-		if item.len > 1 {
-			value_types << ec.accept(item[1])
-		}
+		value_types << ec.accept(item.value)
 	}
 	key_type := if key_types.len > 0 {
 		expr_union(key_types)

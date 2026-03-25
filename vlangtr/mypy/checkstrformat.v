@@ -362,11 +362,13 @@ fn (mut sfc StringFormatterChecker) check_mapping_str_interpolation(specifiers [
 			if key := spec.key {
 				mut found := false
 				for item in replacements.items {
-					if item.len > 0 && item[0] is StrExpr {
-						dict_key := item[0] as StrExpr
-						if dict_key.value == key {
-							found = true
-							break
+					if k := item.key {
+						if k is StrExpr {
+							dict_key := k as StrExpr
+							if dict_key.value == key {
+								found = true
+								break
+							}
 						}
 					}
 				}

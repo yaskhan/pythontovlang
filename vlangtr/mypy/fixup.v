@@ -120,7 +120,7 @@ pub fn (mut tf TypeFixer) visit_deleted_type(t &DeletedType) !MypyTypeNode {
 pub fn (mut tf TypeFixer) visit_instance(t &Instance) !MypyTypeNode {
 	mut res := *t
 	for mut a in res.args {
-		a = a.accept_translator(mut tf) or { MypyTypeNode(a) }
+		a = a.accept_translator(mut tf) or { *a }
 	}
 	return MypyTypeNode(res)
 }

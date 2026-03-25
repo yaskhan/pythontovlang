@@ -29,17 +29,17 @@ pub:
 pub struct TypeState {
 pub mut:
 	// key is TypeInfo fullname, value is map of kind bitmask to pairs
-	_subtype_caches          map[string]map[u32][]SubtypePair
-	_negative_subtype_caches map[string]map[u32][]SubtypePair
+	subtype_caches          map[string]map[u32][]SubtypePair
+	negative_subtype_caches map[string]map[u32][]SubtypePair
 
-	proto_deps               map[string]map[string]bool
-	_attempted_protocols     map[string]map[string]bool
-	_checked_against_members map[string]map[string]bool
-	_rechecked_types         map[string]bool // fullname as key
+	proto_deps              map[string]map[string]bool
+	attempted_protocols     map[string]map[string]bool
+	checked_against_members map[string]map[string]bool
+	rechecked_types         map[string]bool // fullname as key
 
-	_assuming        []TypePair
-	_assuming_proper []TypePair
-	inferring        []TypePair
+	assuming        []TypePair
+	assuming_proper []TypePair
+	inferring       []TypePair
 
 	infer_unions      bool
 	infer_polymorphic bool
@@ -48,17 +48,17 @@ pub mut:
 // new_type_state creates a new TypeState instance.
 pub fn new_type_state() TypeState {
 	return TypeState{
-		_subtype_caches:          map[string]map[u32][]SubtypePair{}
-		_negative_subtype_caches: map[string]map[u32][]SubtypePair{}
-		proto_deps:               map[string]map[string]bool{}
-		_attempted_protocols:     map[string]map[string]bool{}
-		_checked_against_members: map[string]map[string]bool{}
-		_rechecked_types:         map[string]bool{}
-		_assuming:                []TypePair{}
-		_assuming_proper:         []TypePair{}
-		inferring:                []TypePair{}
-		infer_unions:             false
-		infer_polymorphic:        false
+		subtype_caches:          map[string]map[u32][]SubtypePair{}
+		negative_subtype_caches: map[string]map[u32][]SubtypePair{}
+		proto_deps:              map[string]map[string]bool{}
+		attempted_protocols:     map[string]map[string]bool{}
+		checked_against_members: map[string]map[string]bool{}
+		rechecked_types:         map[string]bool{}
+		assuming:                []TypePair{}
+		assuming_proper:         []TypePair{}
+		inferring:               []TypePair{}
+		infer_unions:            false
+		infer_polymorphic:       false
 	}
 }
 
@@ -88,10 +88,9 @@ pub fn make_subtype_kind(proper bool, ignore_promotions bool) SubtypeKind {
 
 // is_assumed_subtype checks if left is assumed to be a subtype of right.
 pub fn (mut ts TypeState) is_assumed_subtype(left MypyTypeNode, right MypyTypeNode) bool {
-	for i := ts._assuming.len - 1; i >= 0; i-- {
-		pair := ts._assuming[i]
-		if is_same_type(get_proper_type(pair.left), get_proper_type(left))
-			&& is_same_type(get_proper_type(pair.right), get_proper_type(right)) {
+	for i := ts.assuming.len - 1; i >= 0; i-- {
+		pair := ts.assuming[i]
+		if is_same_instance_node(pair.left, left) && is_same_instance_node(pair.right, right) {
 			return true
 		}
 	}
@@ -100,10 +99,9 @@ pub fn (mut ts TypeState) is_assumed_subtype(left MypyTypeNode, right MypyTypeNo
 
 // is_assumed_proper_subtype checks if left is assumed to be a proper subtype of right.
 pub fn (mut ts TypeState) is_assumed_proper_subtype(left MypyTypeNode, right MypyTypeNode) bool {
-	for i := ts._assuming_proper.len - 1; i >= 0; i-- {
-		pair := ts._assuming_proper[i]
-		if is_same_type(get_proper_type(pair.left), get_proper_type(left))
-			&& is_same_type(get_proper_type(pair.right), get_proper_type(right)) {
+	for i := ts.assuming_proper.len - 1; i >= 0; i-- {
+		pair := ts.assuming_proper[i]
+		if is_same_instance_node(pair.left, left) && is_same_instance_node(pair.right, right) {
 			return true
 		}
 	}
@@ -112,17 +110,17 @@ pub fn (mut ts TypeState) is_assumed_proper_subtype(left MypyTypeNode, right Myp
 
 // reset_all_subtype_caches completely resets all known subtype caches.
 pub fn (mut ts TypeState) reset_all_subtype_caches() {
-	ts._subtype_caches = map[string]map[u32][]SubtypePair{}
-	ts._negative_subtype_caches = map[string]map[u32][]SubtypePair{}
+	ts.subtype_caches = map[string]map[u32][]SubtypePair{}
+	ts.negative_subtype_caches = map[string]map[u32][]SubtypePair{}
 }
 
 // reset_subtype_caches_for resets subtype caches for a given supertype TypeInfo.
 pub fn (mut ts TypeState) reset_subtype_caches_for(info &TypeInfo) {
-	if info.fullname in ts._subtype_caches {
-		ts._subtype_caches[info.fullname] = map[u32][]SubtypePair{}
+	if info.fullname in ts.subtype_caches {
+		ts.subtype_caches[info.fullname] = map[u32][]SubtypePair{}
 	}
-	if info.fullname in ts._negative_subtype_caches {
-		ts._negative_subtype_caches[info.fullname] = map[u32][]SubtypePair{}
+	if info.fullname in ts.negative_subtype_caches {
+		ts.negative_subtype_caches[info.fullname] = map[u32][]SubtypePair{}
 	}
 }
 
@@ -138,9 +136,16 @@ pub fn (mut ts TypeState) is_cached_subtype_check(kind SubtypeKind, left &Instan
 	if left.last_known_value != none || right.last_known_value != none {
 		return false
 	}
-	info_name := right.typ?.fullname or { return false }
-	cache := ts._subtype_caches[info_name] or { return false }
-	subcache := cache[kind] or { return false }
+	info := right.typ or { return false }
+	info_name := info.fullname
+	if info_name !in ts.subtype_caches {
+		return false
+	}
+	cache := ts.subtype_caches[info_name].clone()
+	if kind !in cache {
+		return false
+	}
+	subcache := cache[kind].clone()
 	for pair in subcache {
 		if is_same_instance(pair.left, *left) && is_same_instance(pair.right, *right) {
 			return true
@@ -154,9 +159,16 @@ pub fn (mut ts TypeState) is_cached_negative_subtype_check(kind SubtypeKind, lef
 	if left.last_known_value != none || right.last_known_value != none {
 		return false
 	}
-	info_name := right.typ?.fullname or { return false }
-	cache := ts._negative_subtype_caches[info_name] or { return false }
-	subcache := cache[kind] or { return false }
+	info := right.typ or { return false }
+	info_name := info.fullname
+	if info_name !in ts.negative_subtype_caches {
+		return false
+	}
+	cache := ts.negative_subtype_caches[info_name].clone()
+	if kind !in cache {
+		return false
+	}
+	subcache := cache[kind].clone()
 	for pair in subcache {
 		if is_same_instance(pair.left, *left) && is_same_instance(pair.right, *right) {
 			return true
@@ -173,22 +185,25 @@ pub fn (mut ts TypeState) record_subtype_cache_entry(kind SubtypeKind, left &Ins
 	r_info := right.typ or { return }
 	for tv in r_info.type_vars {
 		if tv is TypeVarType {
-			if tv.variance == .variance_not_ready {
+			if (tv as TypeVarType).variance == -1 {
 				return
 			}
 		}
 	}
-	if r_info.fullname !in ts._subtype_caches {
-		ts._subtype_caches[r_info.fullname] = map[u32][]SubtypePair{}
+	if r_info.fullname !in ts.subtype_caches {
+		ts.subtype_caches[r_info.fullname] = map[u32][]SubtypePair{}
 	}
-	mut cache := ts._subtype_caches[r_info.fullname]
+	mut cache := ts.subtype_caches[r_info.fullname].clone()
 	if kind !in cache {
 		cache[kind] = []SubtypePair{}
 	}
-	cache[kind] << SubtypePair{
+	mut pairs := cache[kind].clone()
+	pairs << SubtypePair{
 		left:  *left
 		right: *right
 	}
+	cache[kind] = pairs
+	ts.subtype_caches[r_info.fullname] = cache.clone()
 }
 
 // record_negative_subtype_cache_entry records a negative subtype cache entry.
@@ -196,48 +211,51 @@ pub fn (mut ts TypeState) record_negative_subtype_cache_entry(kind SubtypeKind, 
 	if left.last_known_value != none || right.last_known_value != none {
 		return
 	}
-	if ts._negative_subtype_caches.len > max_negative_cache_types {
+	if ts.negative_subtype_caches.len > max_negative_cache_types {
 		ts.reset_all_subtype_caches()
 	}
 	r_info := right.typ or { return }
-	if r_info.fullname !in ts._negative_subtype_caches {
-		ts._negative_subtype_caches[r_info.fullname] = map[u32][]SubtypePair{}
+	if r_info.fullname !in ts.negative_subtype_caches {
+		ts.negative_subtype_caches[r_info.fullname] = map[u32][]SubtypePair{}
 	}
-	mut cache := ts._negative_subtype_caches[r_info.fullname]
+	mut cache := ts.negative_subtype_caches[r_info.fullname].clone()
 	if kind !in cache {
 		cache[kind] = []SubtypePair{}
 	}
-	if cache[kind].len > max_negative_cache_entries {
+	if (cache[kind] or { []SubtypePair{} }).len > max_negative_cache_entries {
 		cache[kind] = []SubtypePair{}
 	}
-	cache[kind] << SubtypePair{
+	mut pairs := cache[kind] or { []SubtypePair{} }
+	pairs << SubtypePair{
 		left:  *left
 		right: *right
 	}
+	cache[kind] = pairs
+	ts.negative_subtype_caches[r_info.fullname] = cache.clone()
 }
 
 // reset_protocol_deps resets dependencies after a full run or before a daemon shutdown.
 pub fn (mut ts TypeState) reset_protocol_deps() {
 	ts.proto_deps = map[string]map[string]bool{}
-	ts._attempted_protocols = map[string]map[string]bool{}
-	ts._checked_against_members = map[string]map[string]bool{}
-	ts._rechecked_types = map[string]bool{}
+	ts.attempted_protocols = map[string]map[string]bool{}
+	ts.checked_against_members = map[string]map[string]bool{}
+	ts.rechecked_types = map[string]bool{}
 }
 
 // record_protocol_subtype_check records a protocol subtype check.
 pub fn (mut ts TypeState) record_protocol_subtype_check(left_type &TypeInfo, right_type &TypeInfo) {
 	assert right_type.is_protocol
-	ts._rechecked_types[left_type.fullname] = true
-	if left_type.fullname !in ts._attempted_protocols {
-		ts._attempted_protocols[left_type.fullname] = map[string]bool{}
+	ts.rechecked_types[left_type.fullname] = true
+	if left_type.fullname !in ts.attempted_protocols {
+		ts.attempted_protocols[left_type.fullname] = map[string]bool{}
 	}
-	ts._attempted_protocols[left_type.fullname][right_type.fullname] = true
+	ts.attempted_protocols[left_type.fullname][right_type.fullname] = true
 
-	if left_type.fullname !in ts._checked_against_members {
-		ts._checked_against_members[left_type.fullname] = map[string]bool{}
+	if left_type.fullname !in ts.checked_against_members {
+		ts.checked_against_members[left_type.fullname] = map[string]bool{}
 	}
-	for member in right_type.protocol_members {
-		ts._checked_against_members[left_type.fullname][member] = true
+	for member, _ in right_type.names.symbols {
+		ts.checked_against_members[left_type.fullname][member] = true
 	}
 }
 
@@ -253,21 +271,19 @@ pub fn (mut ts TypeState) update_protocol_deps(second_map ?map[string]map[string
 		}
 	}
 
-	if sm := second_map {
-		for trigger, targets in new_deps {
+	if _ := second_map {
+		for _, _ in new_deps {
 			// update sm
-			// ... (implementation omitted for brevity or added if needed)
 		}
 	}
 
-	ts._rechecked_types = map[string]bool{}
-	ts._attempted_protocols = map[string]map[string]bool{}
-	ts._checked_against_members = map[string]map[string]bool{}
+	ts.rechecked_types = map[string]bool{}
+	ts.attempted_protocols = map[string]map[string]bool{}
+	ts.checked_against_members = map[string]map[string]bool{}
 }
 
 // snapshot_protocol_deps collects protocol attribute dependencies.
 pub fn (mut ts TypeState) snapshot_protocol_deps() map[string]map[string]bool {
-	// ... (implementation requires complex MRO traversal and make_trigger)
 	return map[string]map[string]bool{}
 }
 
@@ -281,17 +297,23 @@ pub fn reset_global_state() {
 	mut ts := mut_type_state()
 	ts.reset_all_subtype_caches()
 	ts.reset_protocol_deps()
-	// TypeVarId.next_raw_id = 1 // Handled elsewhere or via __global if needed
 }
 
 // Helper to check if two instances are same (based on type info and args)
 fn is_same_instance(a Instance, b Instance) bool {
-	if a.typ?.fullname != b.typ?.fullname {
+	if a.type_fullname != '' && b.type_fullname != '' && a.type_fullname != b.type_fullname {
 		return false
 	}
 	if a.args.len != b.args.len {
 		return false
 	}
-	// Further checks could be added here
 	return true
+}
+
+// is_same_instance_node compares two nodes if they are both instances
+fn is_same_instance_node(a MypyTypeNode, b MypyTypeNode) bool {
+	if a is Instance && b is Instance {
+		return is_same_instance(a as Instance, b as Instance)
+	}
+	return false
 }

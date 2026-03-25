@@ -204,7 +204,7 @@ pub fn (mut tc TypeChecker) accept(stmt Statement) {
 }
 
 // visit_func_def checks function definition
-pub fn (mut tc TypeChecker) visit_func_def(mut defn FuncDef) !string {
+pub fn (mut tc TypeChecker) visit_func_def(mut defn FuncDef) !AnyNode {
 	if !tc.recurse_into_functions {
 		return ''
 	}
@@ -243,7 +243,7 @@ fn (mut tc TypeChecker) check_func_def(mut defn FuncDef, name string) {
 }
 
 // visit_class_def checks class definition
-pub fn (mut tc TypeChecker) visit_class_def(mut defn ClassDef) !string {
+pub fn (mut tc TypeChecker) visit_class_def(mut defn ClassDef) !AnyNode {
 	typ := defn.info or { return '' }
 
 	// Check that base classes are not final
@@ -260,7 +260,7 @@ pub fn (mut tc TypeChecker) visit_class_def(mut defn ClassDef) !string {
 }
 
 // visit_assignment_stmt checks assignment
-pub fn (mut tc TypeChecker) visit_assignment_stmt(mut s AssignmentStmt) !string {
+pub fn (mut tc TypeChecker) visit_assignment_stmt(mut s AssignmentStmt) !AnyNode {
 	_ = s
 	return ''
 }
@@ -281,7 +281,7 @@ fn (mut tc TypeChecker) check_simple_assignment(lvalue Lvalue, rvalue Expression
 }
 
 // visit_return_stmt checks return
-pub fn (mut tc TypeChecker) visit_return_stmt(mut s ReturnStmt) !string {
+pub fn (mut tc TypeChecker) visit_return_stmt(mut s ReturnStmt) !AnyNode {
 	if expr := s.expr {
 		tc.expr_checker.accept(expr)
 		if tc.return_types.len > 0 {
@@ -297,7 +297,7 @@ pub fn (mut tc TypeChecker) visit_return_stmt(mut s ReturnStmt) !string {
 }
 
 // visit_if_stmt checks if
-pub fn (mut tc TypeChecker) visit_if_stmt(mut s IfStmt) !string {
+pub fn (mut tc TypeChecker) visit_if_stmt(mut s IfStmt) !AnyNode {
 	for expr in s.expr {
 		tc.expr_checker.accept(expr)
 	}
@@ -311,7 +311,7 @@ pub fn (mut tc TypeChecker) visit_if_stmt(mut s IfStmt) !string {
 }
 
 // visit_while_stmt checks while
-pub fn (mut tc TypeChecker) visit_while_stmt(mut s WhileStmt) !string {
+pub fn (mut tc TypeChecker) visit_while_stmt(mut s WhileStmt) !AnyNode {
 	tc.expr_checker.accept(s.expr)
 	s.body.accept(mut tc) or {}
 	if mut eb := s.else_body {
@@ -321,7 +321,7 @@ pub fn (mut tc TypeChecker) visit_while_stmt(mut s WhileStmt) !string {
 }
 
 // visit_for_stmt checks for
-pub fn (mut tc TypeChecker) visit_for_stmt(mut s ForStmt) !string {
+pub fn (mut tc TypeChecker) visit_for_stmt(mut s ForStmt) !AnyNode {
 	tc.expr_checker.accept(s.expr)
 	s.body.accept(mut tc) or {}
 	if mut eb := s.else_body {
@@ -331,7 +331,7 @@ pub fn (mut tc TypeChecker) visit_for_stmt(mut s ForStmt) !string {
 }
 
 // visit_try_stmt checks try
-pub fn (mut tc TypeChecker) visit_try_stmt(mut s TryStmt) !string {
+pub fn (mut tc TypeChecker) visit_try_stmt(mut s TryStmt) !AnyNode {
 	s.body.accept(mut tc) or {}
 	for i in 0 .. s.types.len {
 		if t := s.types[i] {
@@ -349,7 +349,7 @@ pub fn (mut tc TypeChecker) visit_try_stmt(mut s TryStmt) !string {
 }
 
 // visit_block checks block
-pub fn (mut tc TypeChecker) visit_block(mut b Block) !string {
+pub fn (mut tc TypeChecker) visit_block(mut b Block) !AnyNode {
 	if b.is_unreachable {
 		tc.binder.unreachable()
 		return ''
@@ -361,31 +361,31 @@ pub fn (mut tc TypeChecker) visit_block(mut b Block) !string {
 }
 
 // visit_decorator checks decorator
-pub fn (mut tc TypeChecker) visit_decorator(mut e Decorator) !string {
+pub fn (mut tc TypeChecker) visit_decorator(mut e Decorator) !AnyNode {
 	tc.visit_func_def(mut e.func) or {}
 	return ''
 }
 
 // visit_expression_stmt checks expression statement
-pub fn (mut tc TypeChecker) visit_expression_stmt(mut s ExpressionStmt) !string {
+pub fn (mut tc TypeChecker) visit_expression_stmt(mut s ExpressionStmt) !AnyNode {
 	tc.expr_checker.accept(s.expr)
 	return ''
 }
 
 // visit_break_stmt checks break
-pub fn (mut tc TypeChecker) visit_break_stmt(mut s BreakStmt) !string {
+pub fn (mut tc TypeChecker) visit_break_stmt(mut s BreakStmt) !AnyNode {
 	tc.binder.handle_break()
 	return ''
 }
 
 // visit_continue_stmt checks continue
-pub fn (mut tc TypeChecker) visit_continue_stmt(mut s ContinueStmt) !string {
+pub fn (mut tc TypeChecker) visit_continue_stmt(mut s ContinueStmt) !AnyNode {
 	tc.binder.handle_continue()
 	return ''
 }
 
 // visit_pass_stmt checks pass
-pub fn (mut tc TypeChecker) visit_pass_stmt(mut s PassStmt) !string {
+pub fn (mut tc TypeChecker) visit_pass_stmt(mut s PassStmt) !AnyNode {
 	// Do nothing
 	return ''
 }
@@ -552,299 +552,299 @@ fn function_type(func FuncDef, fallback Instance) MypyTypeNode {
 // ---------------------------------------------------------------------------
 // Missing ExpressionVisitor methods for NodeVisitor interface
 // ---------------------------------------------------------------------------
-pub fn (mut tc TypeChecker) visit_int_expr(mut o IntExpr) !string {
+pub fn (mut tc TypeChecker) visit_int_expr(mut o IntExpr) !AnyNode {
 	return ''
 }
 
-pub fn (mut tc TypeChecker) visit_str_expr(mut o StrExpr) !string {
+pub fn (mut tc TypeChecker) visit_str_expr(mut o StrExpr) !AnyNode {
 	return ''
 }
 
-pub fn (mut tc TypeChecker) visit_bytes_expr(mut o BytesExpr) !string {
+pub fn (mut tc TypeChecker) visit_bytes_expr(mut o BytesExpr) !AnyNode {
 	return ''
 }
 
-pub fn (mut tc TypeChecker) visit_float_expr(mut o FloatExpr) !string {
+pub fn (mut tc TypeChecker) visit_float_expr(mut o FloatExpr) !AnyNode {
 	return ''
 }
 
-pub fn (mut tc TypeChecker) visit_complex_expr(mut o ComplexExpr) !string {
+pub fn (mut tc TypeChecker) visit_complex_expr(mut o ComplexExpr) !AnyNode {
 	return ''
 }
 
-pub fn (mut tc TypeChecker) visit_ellipsis(mut o EllipsisExpr) !string {
+pub fn (mut tc TypeChecker) visit_ellipsis(mut o EllipsisExpr) !AnyNode {
 	return ''
 }
 
-pub fn (mut tc TypeChecker) visit_star_expr(mut o StarExpr) !string {
+pub fn (mut tc TypeChecker) visit_star_expr(mut o StarExpr) !AnyNode {
 	return ''
 }
 
-pub fn (mut tc TypeChecker) visit_name_expr(mut o NameExpr) !string {
+pub fn (mut tc TypeChecker) visit_name_expr(mut o NameExpr) !AnyNode {
 	return ''
 }
 
-pub fn (mut tc TypeChecker) visit_member_expr(mut o MemberExpr) !string {
+pub fn (mut tc TypeChecker) visit_member_expr(mut o MemberExpr) !AnyNode {
 	return ''
 }
 
-pub fn (mut tc TypeChecker) visit_yield_from_expr(mut o YieldFromExpr) !string {
+pub fn (mut tc TypeChecker) visit_yield_from_expr(mut o YieldFromExpr) !AnyNode {
 	return ''
 }
 
-pub fn (mut tc TypeChecker) visit_yield_expr(mut o YieldExpr) !string {
+pub fn (mut tc TypeChecker) visit_yield_expr(mut o YieldExpr) !AnyNode {
 	return ''
 }
 
-pub fn (mut tc TypeChecker) visit_call_expr(mut o CallExpr) !string {
+pub fn (mut tc TypeChecker) visit_call_expr(mut o CallExpr) !AnyNode {
 	return ''
 }
 
-pub fn (mut tc TypeChecker) visit_op_expr(mut o OpExpr) !string {
+pub fn (mut tc TypeChecker) visit_op_expr(mut o OpExpr) !AnyNode {
 	return ''
 }
 
-pub fn (mut tc TypeChecker) visit_comparison_expr(mut o ComparisonExpr) !string {
+pub fn (mut tc TypeChecker) visit_comparison_expr(mut o ComparisonExpr) !AnyNode {
 	return ''
 }
 
-pub fn (mut tc TypeChecker) visit_cast_expr(mut o CastExpr) !string {
+pub fn (mut tc TypeChecker) visit_cast_expr(mut o CastExpr) !AnyNode {
 	return ''
 }
 
-pub fn (mut tc TypeChecker) visit_assert_type_expr(mut o AssertTypeExpr) !string {
+pub fn (mut tc TypeChecker) visit_assert_type_expr(mut o AssertTypeExpr) !AnyNode {
 	return ''
 }
 
-pub fn (mut tc TypeChecker) visit_reveal_expr(mut o RevealExpr) !string {
+pub fn (mut tc TypeChecker) visit_reveal_expr(mut o RevealExpr) !AnyNode {
 	return ''
 }
 
-pub fn (mut tc TypeChecker) visit_super_expr(mut o SuperExpr) !string {
+pub fn (mut tc TypeChecker) visit_super_expr(mut o SuperExpr) !AnyNode {
 	return ''
 }
 
-pub fn (mut tc TypeChecker) visit_unary_expr(mut o UnaryExpr) !string {
+pub fn (mut tc TypeChecker) visit_unary_expr(mut o UnaryExpr) !AnyNode {
 	return ''
 }
 
-pub fn (mut tc TypeChecker) visit_assignment_expr(mut o AssignmentExpr) !string {
+pub fn (mut tc TypeChecker) visit_assignment_expr(mut o AssignmentExpr) !AnyNode {
 	return ''
 }
 
-pub fn (mut tc TypeChecker) visit_list_expr(mut o ListExpr) !string {
+pub fn (mut tc TypeChecker) visit_list_expr(mut o ListExpr) !AnyNode {
 	return ''
 }
 
-pub fn (mut tc TypeChecker) visit_dict_expr(mut o DictExpr) !string {
+pub fn (mut tc TypeChecker) visit_dict_expr(mut o DictExpr) !AnyNode {
 	return ''
 }
 
-pub fn (mut tc TypeChecker) visit_template_str_expr(mut o TemplateStrExpr) !string {
+pub fn (mut tc TypeChecker) visit_template_str_expr(mut o TemplateStrExpr) !AnyNode {
 	return ''
 }
 
-pub fn (mut tc TypeChecker) visit_tuple_expr(mut o TupleExpr) !string {
+pub fn (mut tc TypeChecker) visit_tuple_expr(mut o TupleExpr) !AnyNode {
 	return ''
 }
 
-pub fn (mut tc TypeChecker) visit_set_expr(mut o SetExpr) !string {
+pub fn (mut tc TypeChecker) visit_set_expr(mut o SetExpr) !AnyNode {
 	return ''
 }
 
-pub fn (mut tc TypeChecker) visit_index_expr(mut o IndexExpr) !string {
+pub fn (mut tc TypeChecker) visit_index_expr(mut o IndexExpr) !AnyNode {
 	return ''
 }
 
-pub fn (mut tc TypeChecker) visit_type_application(mut o TypeApplication) !string {
+pub fn (mut tc TypeChecker) visit_type_application(mut o TypeApplication) !AnyNode {
 	return ''
 }
 
-pub fn (mut tc TypeChecker) visit_lambda_expr(mut o LambdaExpr) !string {
+pub fn (mut tc TypeChecker) visit_lambda_expr(mut o LambdaExpr) !AnyNode {
 	return ''
 }
 
-pub fn (mut tc TypeChecker) visit_list_comprehension(mut o ListComprehension) !string {
+pub fn (mut tc TypeChecker) visit_list_comprehension(mut o ListComprehension) !AnyNode {
 	return ''
 }
 
-pub fn (mut tc TypeChecker) visit_set_comprehension(mut o SetComprehension) !string {
+pub fn (mut tc TypeChecker) visit_set_comprehension(mut o SetComprehension) !AnyNode {
 	return ''
 }
 
-pub fn (mut tc TypeChecker) visit_dictionary_comprehension(mut o DictionaryComprehension) !string {
+pub fn (mut tc TypeChecker) visit_dictionary_comprehension(mut o DictionaryComprehension) !AnyNode {
 	return ''
 }
 
-pub fn (mut tc TypeChecker) visit_generator_expr(mut o GeneratorExpr) !string {
+pub fn (mut tc TypeChecker) visit_generator_expr(mut o GeneratorExpr) !AnyNode {
 	return ''
 }
 
-pub fn (mut tc TypeChecker) visit_slice_expr(mut o SliceExpr) !string {
+pub fn (mut tc TypeChecker) visit_slice_expr(mut o SliceExpr) !AnyNode {
 	return ''
 }
 
-pub fn (mut tc TypeChecker) visit_conditional_expr(mut o ConditionalExpr) !string {
+pub fn (mut tc TypeChecker) visit_conditional_expr(mut o ConditionalExpr) !AnyNode {
 	return ''
 }
 
-pub fn (mut tc TypeChecker) visit_type_var_expr(mut o TypeVarExpr) !string {
+pub fn (mut tc TypeChecker) visit_type_var_expr(mut o TypeVarExpr) !AnyNode {
 	return ''
 }
 
-pub fn (mut tc TypeChecker) visit_paramspec_expr(mut o ParamSpecExpr) !string {
+pub fn (mut tc TypeChecker) visit_paramspec_expr(mut o ParamSpecExpr) !AnyNode {
 	return ''
 }
 
-pub fn (mut tc TypeChecker) visit_type_var_tuple_expr(mut o TypeVarTupleExpr) !string {
+pub fn (mut tc TypeChecker) visit_type_var_tuple_expr(mut o TypeVarTupleExpr) !AnyNode {
 	return ''
 }
 
-pub fn (mut tc TypeChecker) visit_type_alias_expr(mut o TypeAliasExpr) !string {
+pub fn (mut tc TypeChecker) visit_type_alias_expr(mut o TypeAliasExpr) !AnyNode {
 	return ''
 }
 
-pub fn (mut tc TypeChecker) visit_namedtuple_expr(mut o NamedTupleExpr) !string {
+pub fn (mut tc TypeChecker) visit_namedtuple_expr(mut o NamedTupleExpr) !AnyNode {
 	return ''
 }
 
-pub fn (mut tc TypeChecker) visit_enum_call_expr(mut o EnumCallExpr) !string {
+pub fn (mut tc TypeChecker) visit_enum_call_expr(mut o EnumCallExpr) !AnyNode {
 	return ''
 }
 
-pub fn (mut tc TypeChecker) visit_typeddict_expr(mut o TypedDictExpr) !string {
+pub fn (mut tc TypeChecker) visit_typeddict_expr(mut o TypedDictExpr) !AnyNode {
 	return ''
 }
 
-pub fn (mut tc TypeChecker) visit_newtype_expr(mut o NewTypeExpr) !string {
+pub fn (mut tc TypeChecker) visit_newtype_expr(mut o NewTypeExpr) !AnyNode {
 	return ''
 }
 
-pub fn (mut tc TypeChecker) visit_promote_expr(mut o PromoteExpr) !string {
+pub fn (mut tc TypeChecker) visit_promote_expr(mut o PromoteExpr) !AnyNode {
 	return ''
 }
 
-pub fn (mut tc TypeChecker) visit_await_expr(mut o AwaitExpr) !string {
+pub fn (mut tc TypeChecker) visit_await_expr(mut o AwaitExpr) !AnyNode {
 	return ''
 }
 
-pub fn (mut tc TypeChecker) visit_temp_node(mut o TempNode) !string {
+pub fn (mut tc TypeChecker) visit_temp_node(mut o TempNode) !AnyNode {
 	return ''
 }
 
-pub fn (mut tc TypeChecker) visit_with_stmt(mut o WithStmt) !string {
+pub fn (mut tc TypeChecker) visit_with_stmt(mut o WithStmt) !AnyNode {
 	return ''
 }
 
-pub fn (mut tc TypeChecker) visit_del_stmt(mut o DelStmt) !string {
+pub fn (mut tc TypeChecker) visit_del_stmt(mut o DelStmt) !AnyNode {
 	return ''
 }
 
-pub fn (mut tc TypeChecker) visit_overloaded_func_def(mut o OverloadedFuncDef) !string {
+pub fn (mut tc TypeChecker) visit_overloaded_func_def(mut o OverloadedFuncDef) !AnyNode {
 	return ''
 }
 
-pub fn (mut tc TypeChecker) visit_global_decl(mut o GlobalDecl) !string {
+pub fn (mut tc TypeChecker) visit_global_decl(mut o GlobalDecl) !AnyNode {
 	return ''
 }
 
-pub fn (mut tc TypeChecker) visit_nonlocal_decl(mut o NonlocalDecl) !string {
+pub fn (mut tc TypeChecker) visit_nonlocal_decl(mut o NonlocalDecl) !AnyNode {
 	return ''
 }
 
-pub fn (mut tc TypeChecker) visit_import(mut o Import) !string {
+pub fn (mut tc TypeChecker) visit_import(mut o Import) !AnyNode {
 	return ''
 }
 
-pub fn (mut tc TypeChecker) visit_import_from(mut o ImportFrom) !string {
+pub fn (mut tc TypeChecker) visit_import_from(mut o ImportFrom) !AnyNode {
 	return ''
 }
 
-pub fn (mut tc TypeChecker) visit_import_all(mut o ImportAll) !string {
+pub fn (mut tc TypeChecker) visit_import_all(mut o ImportAll) !AnyNode {
 	return ''
 }
 
-pub fn (mut tc TypeChecker) visit_operator_assignment_stmt(mut o OperatorAssignmentStmt) !string {
+pub fn (mut tc TypeChecker) visit_operator_assignment_stmt(mut o OperatorAssignmentStmt) !AnyNode {
 	return ''
 }
 
-pub fn (mut tc TypeChecker) visit_assert_stmt(mut o AssertStmt) !string {
+pub fn (mut tc TypeChecker) visit_assert_stmt(mut o AssertStmt) !AnyNode {
 	return ''
 }
 
-pub fn (mut tc TypeChecker) visit_raise_stmt(mut o RaiseStmt) !string {
+pub fn (mut tc TypeChecker) visit_raise_stmt(mut o RaiseStmt) !AnyNode {
 	return ''
 }
 
-pub fn (mut tc TypeChecker) visit_type_alias_stmt(mut o TypeAliasStmt) !string {
+pub fn (mut tc TypeChecker) visit_type_alias_stmt(mut o TypeAliasStmt) !AnyNode {
 	return ''
 }
 
-pub fn (mut tc TypeChecker) visit_match_stmt(mut o MatchStmt) !string {
+pub fn (mut tc TypeChecker) visit_match_stmt(mut o MatchStmt) !AnyNode {
 	return ''
 }
 
-pub fn (mut tc TypeChecker) visit_mypy_file(mut o MypyFile) !string {
+pub fn (mut tc TypeChecker) visit_mypy_file(mut o MypyFile) !AnyNode {
 	return ''
 }
 
-pub fn (mut tc TypeChecker) visit_var(mut o Var) !string {
+pub fn (mut tc TypeChecker) visit_var(mut o Var) !AnyNode {
 	return ''
 }
 
-pub fn (mut tc TypeChecker) visit_type_alias(mut o TypeAlias) !string {
+pub fn (mut tc TypeChecker) visit_type_alias(mut o TypeAlias) !AnyNode {
 	return ''
 }
 
-pub fn (mut tc TypeChecker) visit_placeholder_node(mut o PlaceholderNode) !string {
+pub fn (mut tc TypeChecker) visit_placeholder_node(mut o PlaceholderNode) !AnyNode {
 	return ''
 }
 
-pub fn (mut tc TypeChecker) visit_as_pattern(mut o AsPattern) !string {
+pub fn (mut tc TypeChecker) visit_as_pattern(mut o AsPattern) !AnyNode {
 	return ''
 }
 
-pub fn (mut tc TypeChecker) visit_or_pattern(mut o OrPattern) !string {
+pub fn (mut tc TypeChecker) visit_or_pattern(mut o OrPattern) !AnyNode {
 	return ''
 }
 
-pub fn (mut tc TypeChecker) visit_value_pattern(mut o ValuePattern) !string {
+pub fn (mut tc TypeChecker) visit_value_pattern(mut o ValuePattern) !AnyNode {
 	return ''
 }
 
-pub fn (mut tc TypeChecker) visit_singleton_pattern(mut o SingletonPattern) !string {
+pub fn (mut tc TypeChecker) visit_singleton_pattern(mut o SingletonPattern) !AnyNode {
 	return ''
 }
 
-pub fn (mut tc TypeChecker) visit_sequence_pattern(mut o SequencePattern) !string {
+pub fn (mut tc TypeChecker) visit_sequence_pattern(mut o SequencePattern) !AnyNode {
 	return ''
 }
 
-pub fn (mut tc TypeChecker) visit_starred_pattern(mut o StarredPattern) !string {
+pub fn (mut tc TypeChecker) visit_starred_pattern(mut o StarredPattern) !AnyNode {
 	return ''
 }
 
-pub fn (mut tc TypeChecker) visit_mapping_pattern(mut o MappingPattern) !string {
+pub fn (mut tc TypeChecker) visit_mapping_pattern(mut o MappingPattern) !AnyNode {
 	return ''
 }
 
-pub fn (mut tc TypeChecker) visit_class_pattern(mut o ClassPattern) !string {
+pub fn (mut tc TypeChecker) visit_class_pattern(mut o ClassPattern) !AnyNode {
 	return ''
 }
 
-pub fn (mut tc TypeChecker) visit_argument(mut o Argument) !string {
+pub fn (mut tc TypeChecker) visit_argument(mut o Argument) !AnyNode {
 	return ''
 }
 
-pub fn (mut tc TypeChecker) visit_type_param(mut o TypeParam) !string {
+pub fn (mut tc TypeChecker) visit_type_param(mut o TypeParam) !AnyNode {
 	return ''
 }
 
-pub fn (mut tc TypeChecker) visit_type_info(mut o TypeInfo) !string {
+pub fn (mut tc TypeChecker) visit_type_info(mut o TypeInfo) !AnyNode {
 	return ''
 }
 
-pub fn (mut tc TypeChecker) visit_lvalue(mut o Lvalue) !string {
+pub fn (mut tc TypeChecker) visit_lvalue(mut o Lvalue) !AnyNode {
 	match mut o {
 		ListExpr { tc.visit_list_expr(mut o)! }
 		MemberExpr { tc.visit_member_expr(mut o)! }

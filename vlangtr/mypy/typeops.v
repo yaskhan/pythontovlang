@@ -33,16 +33,16 @@ pub fn is_recursive_pair(s MypyTypeNode, t MypyTypeNode) bool {
 // tuple_fallback returns the fallback type for a tuple
 pub fn tuple_fallback(typ TupleType) Instance {
 	pf := typ.partial_fallback or { return Instance{} }
-	info := pf.typ or { return pf }
+	info := pf.typ or { return *pf }
 	if info.fullname != 'builtins.tuple' {
-		return pf
+		return *pf
 	}
 
 	mut items := []MypyTypeNode{}
 	for item in typ.items {
 		if item is UnpackType {
 			ut := item as UnpackType
-			unpacked_type := get_proper_type(ut.type)
+			mut unpacked_type := get_proper_type(ut.type)
 
 			if unpacked_type is TypeVarTupleType {
 				tvt := unpacked_type as TypeVarTupleType
@@ -58,7 +58,7 @@ pub fn tuple_fallback(typ TupleType) Instance {
 			}
 
 			// Not implemented for complex cases
-			return pf
+			return *pf
 		} else {
 			items << item
 		}
@@ -80,11 +80,11 @@ pub fn get_self_type(func CallableType, def_info TypeInfo) ?MypyTypeNode {
 		return func.ret_type
 	}
 
-	if func.arg_types.len > 0 && func.arg_types[0] != default_self && func.arg_kinds[0] == 'ARG_POS' {
+	if func.arg_types.len > 0 && func.arg_types[0] is Instance && (func.arg_types[0] as Instance) == (default_self as Instance) && func.arg_kinds[0] == .arg_pos {
 		return func.arg_types[0]
 	}
 
-	return default_self
+	return MypyTypeNode(default_self as Instance)
 }
 
 // make_simplified_union creates a simplified union type
@@ -168,13 +168,16 @@ pub fn is_union(t MypyTypeNode) bool {
 }
 
 // flatten_nested_unions flattens nested union types
-pub fn flatten_nested_unions(t MypyTypeNode) []MypyTypeNode {
+pub fn flatten_union_nodes(t MypyTypeNode) []MypyTypeNode {
 	mut result := []MypyTypeNode{}
 
 	if t is UnionType {
 		ut := t as UnionType
 		for item in ut.items {
-			result << flatten_nested_unions(item)
+			flat := flatten_union_nodes(item)
+			for i in flat {
+				result << i
+			}
 		}
 	} else {
 		result << t
@@ -196,7 +199,7 @@ pub fn is_instance_type(t MypyTypeNode) bool {
 // get_type_object_type returns the type object type
 pub fn get_type_object_type(info TypeInfo) ProperType {
 	// Simplified version
-	return ProperType{}
+	return MypyTypeNode(AnyType{})
 }
 
 // ProperType — proper type alias (expanded type)
@@ -261,14 +264,14 @@ pub fn has_type_var(t MypyTypeNode) bool {
 pub fn replace_type_vars(t MypyTypeNode, replacements map[string]MypyTypeNode) MypyTypeNode {
 	return match t {
 		TypeVarType {
-			tvt := t as TypeVarType
+			mut tvt := t as TypeVarType
 			if tvt.id.str() in replacements {
 				return replacements[tvt.id.str()]
 			}
 			t
 		}
 		CallableType {
-			ct := t as CallableType
+			mut ct := t as CallableType
 			mut new_args := []MypyTypeNode{}
 			for arg in ct.arg_types {
 				new_args << replace_type_vars(arg, replacements)
@@ -278,7 +281,7 @@ pub fn replace_type_vars(t MypyTypeNode, replacements map[string]MypyTypeNode) M
 			ct
 		}
 		Instance {
-			inst := t as Instance
+			mut inst := t as Instance
 			mut new_args := []MypyTypeNode{}
 			for arg in inst.args {
 				new_args << replace_type_vars(arg, replacements)
@@ -350,12 +353,12 @@ pub fn is_overloaded(t MypyTypeNode) bool {
 }
 
 // get_overloaded_items gets items of Overloaded
-pub fn get_overloaded_items(t MypyTypeNode) []CallableType {
+pub fn get_overloaded_items(t MypyTypeNode) []&CallableType {
 	if t is Overloaded {
 		ot := t as Overloaded
 		return ot.items
 	}
-	return []CallableType{}
+	return []&CallableType{}
 }
 
 // is_paramspec_type checks if the type is ParamSpec
@@ -375,12 +378,12 @@ pub fn is_unpack_type(t MypyTypeNode) bool {
 
 // is_parameters_type checks if the type is Parameters
 pub fn is_parameters_type(t MypyTypeNode) bool {
-	return t is Parameters
+	return t is ParametersType
 }
 
 // is_partial_type checks if the type is PartialType
 pub fn is_partial_type(t MypyTypeNode) bool {
-	return t is PartialType
+	return t is PartialTypeT
 }
 
 // is_type_type checks if the type is Type[...]
@@ -449,7 +452,8 @@ pub fn copy_type(t MypyTypeNode) MypyTypeNode {
 			Instance{
 				type_name: inst.type_name
 				args:      inst.args.clone()
-				type:      inst.type
+				typ:       inst.typ
+				type_:     inst.type_
 				line:      inst.line
 				column:    inst.column
 			}
@@ -461,7 +465,6 @@ pub fn copy_type(t MypyTypeNode) MypyTypeNode {
 				ret_type:  ct.ret_type
 				variables: ct.variables.clone()
 				line:      ct.line
-				column:    ct.column
 			}
 		}
 		else {

@@ -14,16 +14,24 @@ pub mut:
 
 pub fn (mut m MessageBuilder) report(msg string, context Context, severity string, code ?ErrorCode) {
 	// Main function for errors/notes
-	mut err_info := &ErrorInfo{
+	mut c := ?string(none)
+	if cod := code {
+		c = cod.code
+	}
+	info := &ErrorInfo{
+		file:       m.errors.file
 		line:       context.line
 		column:     context.column
 		end_line:   context.end_line
 		end_column: context.end_column
 		message:    msg
 		severity:   severity
-		code:       code
+		code:       c
 	}
-	m.errors.add_error_info(err_info, none)
+	if info.file !in m.errors.error_info_map {
+		m.errors.error_info_map[info.file] = []&ErrorInfo{}
+	}
+	m.errors.error_info_map[info.file] << info
 }
 
 pub fn (mut m MessageBuilder) fail(msg string, context Context, serious bool, blocker bool, code ?ErrorCode) {
@@ -60,7 +68,7 @@ pub fn (mut m MessageBuilder) not_callable(typ MypyTypeNode, context Context) My
 
 pub fn (mut m MessageBuilder) untyped_function_call(callee &CallableType, context Context) MypyTypeNode {
 	// Function name is optional
-	name := callee.name or { '(unknown)' }
+	name := if callee.name != '' { callee.name } else { '(unknown)' }
 	m.fail('Call to untyped function ${name} in typed context', context, false, false,
 		none)
 	return MypyTypeNode(AnyType{

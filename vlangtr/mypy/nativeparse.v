@@ -2,21 +2,6 @@ module mypy
 
 import os
 
-// ---------------------------------------------------------------------------
-// Binary tags (Must match Mypy binary format / vlangtr/ast/serialize.v)
-// ---------------------------------------------------------------------------
-pub const literal_false = u8(0)
-pub const literal_true = u8(1)
-pub const literal_none = u8(2)
-pub const literal_int = u8(3)
-pub const literal_str = u8(4)
-pub const literal_bytes = u8(5)
-pub const literal_float = u8(6)
-pub const list_gen = u8(20)
-pub const list_int = u8(21)
-pub const list_str = u8(22)
-pub const location = u8(152)
-pub const end_tag = u8(255)
 
 // Node tags
 pub const tag_func_def = u8(30)
@@ -371,7 +356,7 @@ fn (mut b ASTReadBuffer) read_list_arg_kind() []ArgKind {
 	if tag != list_int { return []ArgKind{} }
 	len := b.read_int_bare()
 	mut res := []ArgKind{cap: len}
-	for _ in 0 .. len { res << ArgKind(b.read_int_bare()) }
+	for _ in 0 .. len { res << unsafe { ArgKind(b.read_int_bare()) } }
 	return res
 }
 
@@ -490,7 +475,7 @@ pub fn (mut b ASTReadBuffer) read_statement() ?Statement {
 	if tag == literal_none || tag == end_tag { return none }
 	node := b.read_node_tagged(tag) or { return none }
 	b.expect_end_tag()
-	if node is Statement { return node }
+	if st := node.as_statement() { return st }
 	return none
 }
 
@@ -499,7 +484,7 @@ pub fn (mut b ASTReadBuffer) read_expression() ?Expression {
 	if tag == literal_none || tag == end_tag { return none }
 	node := b.read_node_tagged(tag) or { return none }
 	b.expect_end_tag()
-	if node is Expression { return node }
+	if ex := node.as_expression() { return ex }
 	return none
 }
 
@@ -618,7 +603,7 @@ fn (mut b ASTReadBuffer) read_argument() Argument {
 	if b.read_bool() {
 		node.initializer = b.read_expression()
 	}
-	node.kind = ArgKind(b.read_int())
+	node.kind = unsafe { ArgKind(b.read_int()) }
 	node.pos_only = b.read_bool()
 	return node
 }
@@ -792,7 +777,7 @@ fn (mut b ASTReadBuffer) read_dict_expr() DictExpr {
 	for _ in 0 .. len {
 		key := b.read_expression() or { NameExpr{name: 'None'} }
 		val := b.read_expression() or { NameExpr{name: 'None'} }
-		node.items << [key, val]
+		node.items << DictEntry{key: key, value: val}
 	}
 	return node
 }

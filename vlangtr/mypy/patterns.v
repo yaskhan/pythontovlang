@@ -32,7 +32,7 @@ pub fn (n &AsPattern) get_context() Context {
 	return n.pbase.base.ctx
 }
 
-pub fn (mut n AsPattern) accept(mut v PatternVisitor) !string {
+pub fn (mut n AsPattern) accept(mut v NodeVisitor) !AnyNode {
 	return v.visit_as_pattern(mut n)!
 }
 
@@ -50,7 +50,7 @@ pub fn (n &OrPattern) get_context() Context {
 	return n.pbase.base.ctx
 }
 
-pub fn (mut n OrPattern) accept(mut v PatternVisitor) !string {
+pub fn (mut n OrPattern) accept(mut v NodeVisitor) !AnyNode {
 	return v.visit_or_pattern(mut n)!
 }
 
@@ -68,7 +68,7 @@ pub fn (n &ValuePattern) get_context() Context {
 	return n.pbase.base.ctx
 }
 
-pub fn (mut n ValuePattern) accept(mut v PatternVisitor) !string {
+pub fn (mut n ValuePattern) accept(mut v NodeVisitor) !AnyNode {
 	return v.visit_value_pattern(mut n)!
 }
 
@@ -94,7 +94,7 @@ pub fn (n &SingletonPattern) get_context() Context {
 	return n.pbase.base.ctx
 }
 
-pub fn (mut n SingletonPattern) accept(mut v PatternVisitor) !string {
+pub fn (mut n SingletonPattern) accept(mut v NodeVisitor) !AnyNode {
 	return v.visit_singleton_pattern(mut n)!
 }
 
@@ -112,7 +112,7 @@ pub fn (n &SequencePattern) get_context() Context {
 	return n.pbase.base.ctx
 }
 
-pub fn (mut n SequencePattern) accept(mut v PatternVisitor) !string {
+pub fn (mut n SequencePattern) accept(mut v NodeVisitor) !AnyNode {
 	return v.visit_sequence_pattern(mut n)!
 }
 
@@ -131,7 +131,7 @@ pub fn (n &StarredPattern) get_context() Context {
 	return n.pbase.base.ctx
 }
 
-pub fn (mut n StarredPattern) accept(mut v PatternVisitor) !string {
+pub fn (mut n StarredPattern) accept(mut v NodeVisitor) !AnyNode {
 	return v.visit_starred_pattern(mut n)!
 }
 
@@ -152,7 +152,7 @@ pub fn (n &MappingPattern) get_context() Context {
 	return n.pbase.base.ctx
 }
 
-pub fn (mut n MappingPattern) accept(mut v PatternVisitor) !string {
+pub fn (mut n MappingPattern) accept(mut v NodeVisitor) !AnyNode {
 	return v.visit_mapping_pattern(mut n)!
 }
 
@@ -175,7 +175,7 @@ pub fn (n &ClassPattern) get_context() Context {
 	return n.pbase.base.ctx
 }
 
-pub fn (mut n ClassPattern) accept(mut v PatternVisitor) !string {
+pub fn (mut n ClassPattern) accept(mut v NodeVisitor) !AnyNode {
 	return v.visit_class_pattern(mut n)!
 }
 
@@ -194,7 +194,7 @@ pub type PatternNode = AsPattern
 	| StarredPattern
 	| ValuePattern
 
-pub fn (mut p PatternNode) accept(mut v PatternVisitor) !string {
+pub fn (mut p PatternNode) accept(mut v NodeVisitor) !AnyNode {
 	return match mut p {
 		AsPattern { p.accept(mut v)! }
 		OrPattern { p.accept(mut v)! }
@@ -207,6 +207,6 @@ pub fn (mut p PatternNode) accept(mut v PatternVisitor) !string {
 	}
 }
 
-pub fn pattern_accept(mut p PatternNode, mut v PatternVisitor) !string {
+pub fn pattern_accept(mut p PatternNode, mut v NodeVisitor) !AnyNode {
 	return p.accept(mut v)!
 }

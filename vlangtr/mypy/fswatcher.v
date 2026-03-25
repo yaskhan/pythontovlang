@@ -78,13 +78,10 @@ fn (mut w FileSystemWatcher) update(path string, st FileStatData) {
 fn (mut w FileSystemWatcher) find_changed_in(paths []string) map[string]bool {
 	mut changed := map[string]bool{}
 	for path in paths {
-		old := if path in w.file_data { w.file_data[path] or { none } } else { none }
+		old_opt := w.file_data[path]
 		st := w.fs.stat_or_none(path)
 		if cur := st {
-			if old == none {
-				changed[path] = true
-				w.update(path, cur)
-			} else if prev := old {
+			if prev := old_opt {
 				if cur.st_size != prev.st_size || int(cur.st_mtime) != int(prev.st_mtime) {
 					new_hash := w.fs.hash_digest(path)
 					w.update(path, cur)
@@ -92,11 +89,14 @@ fn (mut w FileSystemWatcher) find_changed_in(paths []string) map[string]bool {
 						changed[path] = true
 					}
 				}
+			} else {
+				changed[path] = true
+				w.update(path, cur)
 			}
 		} else {
-			if old != none {
+			if _ := old_opt {
 				changed[path] = true
-				w.file_data[path] = none
+				w.file_data.delete(path)
 			}
 		}
 	}

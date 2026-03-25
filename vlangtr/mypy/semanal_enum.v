@@ -164,11 +164,10 @@ pub fn (mut a EnumCallAnalyzer) parse_enum_call_args(call &CallExpr, class_name 
 		}
 	} else if names_arg is DictExpr {
 		for item in names_arg.items {
-			if item.len == 2 {
-				key := item[0]
-				if key is StrExpr {
-					items << key.value
-					values << item[1]
+			if mut k := item.key {
+				if k is StrExpr {
+					items << (k as StrExpr).value
+					values << item.value
 				}
 			}
 		}

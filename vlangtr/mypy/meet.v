@@ -87,7 +87,7 @@ pub fn narrow_declared_type(declared MypyTypeNode, narrowed MypyTypeNode) MypyTy
 				}
 			}
 		}
-		return make_simplified_union(items)
+		return make_simplified_union(items, false)
 	}
 
 	if !is_overlapping_types(declared_proper, narrowed_proper) {
@@ -99,7 +99,7 @@ pub fn narrow_declared_type(declared MypyTypeNode, narrowed MypyTypeNode) MypyTy
 		for n in narrowed_proper.items {
 			items << narrow_declared_type(declared, n)
 		}
-		return make_simplified_union(items)
+		return make_simplified_union(items, false)
 	}
 
 	if narrowed_proper is AnyType {
@@ -200,18 +200,18 @@ pub fn (v TypeMeetVisitor) visit_union_type(t &UnionType) !MypyTypeNode {
 			meets << meet_types(x, v.s)
 		}
 	}
-	return make_simplified_union(meets)
+	return make_simplified_union(meets, false)
 }
 
 // visit_none_type handles NoneType
 pub fn (v TypeMeetVisitor) visit_none_type(t &NoneType) !MypyTypeNode {
 	if v.s is NoneType {
-		return t
+		return *t
 	}
 	if v.s is Instance {
 		if ti := (v.s as Instance).typ {
 			if ti.fullname == 'builtins.object' {
-				return t
+				return *t
 			}
 		}
 	}
@@ -220,7 +220,7 @@ pub fn (v TypeMeetVisitor) visit_none_type(t &NoneType) !MypyTypeNode {
 
 // visit_uninhabited_type handles UninhabitedType
 pub fn (v TypeMeetVisitor) visit_uninhabited_type(t &UninhabitedType) !MypyTypeNode {
-	return t
+	return *t
 }
 
 // visit_deleted_type handles DeletedType
@@ -228,7 +228,7 @@ pub fn (v TypeMeetVisitor) visit_deleted_type(t &DeletedType) !MypyTypeNode {
 	if v.s is NoneType || v.s is UninhabitedType {
 		return v.s
 	}
-	return t
+	return *t
 }
 
 // visit_erased_type handles ErasedType
@@ -268,7 +268,7 @@ pub fn (v TypeMeetVisitor) visit_instance(t &Instance) !MypyTypeNode {
 			return UninhabitedType{}
 		} else {
 			if is_subtype_simple(t, s_inst) {
-				return t
+				return *t
 			} else if is_subtype_simple(s_inst, t) {
 				return s_inst
 			}
@@ -311,7 +311,7 @@ pub fn (v TypeMeetVisitor) visit_tuple_type(t &TupleType) !MypyTypeNode {
 pub fn (v TypeMeetVisitor) visit_typeddict_type(t &TypedDictType) !MypyTypeNode {
 	if v.s is TypedDictType {
 		if is_subtype_simple(t, v.s) {
-			return t
+			return *t
 		}
 	}
 	return object_from_type(v.s)
@@ -385,13 +385,9 @@ pub fn (v TypeMeetVisitor) visit_type_type(t &TypeType) !MypyTypeNode {
 pub fn meet_similar_callables(t CallableType, s CallableType) CallableType {
 	mut arg_types := []MypyTypeNode{}
 	for i in 0 .. t.arg_types.len {
-		arg_types << join_types(t.arg_types[i], s.arg_types[i])
+		arg_types << join_types(t.arg_types[i], s.arg_types[i], new_instance_joiner())
 	}
-	return t.copy_modified(
-		arg_types: arg_types
-		ret_type:  meet_types(t.ret_type, s.ret_type)
-		name:      ''
-	)
+	return t.copy_modified(arg_types, meet_types(t.ret_type, s.ret_type), t.variables)
 }
 
 pub fn meet_type_list(types []MypyTypeNode) MypyTypeNode {
@@ -446,5 +442,5 @@ fn is_similar_callables(t CallableType, s CallableType) bool {
 
 fn is_subtype_simple(left MypyTypeNode, right MypyTypeNode) bool {
 	ctx := new_subtype_context(false, false, false, false, false, false, false, none)
-	return is_subtype(left, right, ctx)
+	return is_subtype_ctx(left, right, ctx)
 }

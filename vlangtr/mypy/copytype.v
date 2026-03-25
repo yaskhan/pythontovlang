@@ -26,12 +26,7 @@ pub fn type_shallow_copy(t MypyTypeNode) !MypyTypeNode {
 			})
 		}
 		Instance {
-			mut info := ?&TypeInfo(none)
-			if ti := t.type_ {
-				info = ti
-			} else if ti := t.typ {
-				info = ti
-			}
+			info := if ti := t.type_ { ti } else if ty := t.typ { ty } else { panic('No type info in Instance') }
 			MypyTypeNode(Instance{
 				typ:       info
 				type_:     info

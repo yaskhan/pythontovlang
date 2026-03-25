@@ -35,12 +35,12 @@ pub fn (mut v TypeTraverserVisitor) visit_deleted_type(t &DeletedType) !string {
 pub fn (mut v TypeTraverserVisitor) visit_type_var(t &TypeVarType) !string {
 	// We do not traverse values and upper bound, as they are bound to the TVar definition
 	// But we can traverse the default value, if it exists.
-	t.default_.accept_synthetic(v)!
+	t.default.accept_synthetic(mut v)!
 	return ''
 }
 
 pub fn (mut v TypeTraverserVisitor) visit_param_spec(t &ParamSpecType) !string {
-	t.default_.accept_synthetic(v)!
+	t.default.accept_synthetic(mut v)!
 	return ''
 }
 
@@ -50,7 +50,7 @@ pub fn (mut v TypeTraverserVisitor) visit_parameters(t &ParametersType) !string 
 }
 
 pub fn (mut v TypeTraverserVisitor) visit_type_var_tuple(t &TypeVarTupleType) !string {
-	t.default_.accept_synthetic(v)!
+	t.default.accept_synthetic(mut v)!
 	return ''
 }
 
@@ -61,7 +61,7 @@ pub fn (mut v TypeTraverserVisitor) visit_instance(t &Instance) !string {
 
 pub fn (mut v TypeTraverserVisitor) visit_callable_type(t &CallableType) !string {
 	v.traverse_type_list(t.arg_types)!
-	t.ret_type.accept_synthetic(v)!
+	t.ret_type.accept_synthetic(mut v)!
 	// Fallback is usually not traversed to avoid cycles,
 	// but if needed, it can be added.
 	return ''
@@ -69,22 +69,26 @@ pub fn (mut v TypeTraverserVisitor) visit_callable_type(t &CallableType) !string
 
 pub fn (mut v TypeTraverserVisitor) visit_overloaded(t &Overloaded) !string {
 	for item in t.items {
-		item.accept_synthetic(v)!
+		MypyTypeNode(*item).accept_synthetic(mut v)!
 	}
 	return ''
 }
 
 pub fn (mut v TypeTraverserVisitor) visit_tuple_type(t &TupleType) !string {
 	v.traverse_type_list(t.items)!
-	t.partial_fallback.accept_synthetic(v)!
+	if fb := t.partial_fallback {
+		MypyTypeNode(*fb).accept_synthetic(mut v)!
+	}
 	return ''
 }
 
 pub fn (mut v TypeTraverserVisitor) visit_typeddict_type(t &TypedDictType) !string {
 	for _, val in t.items {
-		val.accept_synthetic(v)!
+		val.accept_synthetic(mut v)!
 	}
-	t.fallback.accept_synthetic(v)!
+	if fb := t.fallback {
+		MypyTypeNode(*fb).accept_synthetic(mut v)!
+	}
 	return ''
 }
 
@@ -98,7 +102,7 @@ pub fn (mut v TypeTraverserVisitor) visit_partial_type(t &PartialTypeT) !string 
 }
 
 pub fn (mut v TypeTraverserVisitor) visit_type_type(t &TypeType) !string {
-	t.item.accept_synthetic(v)!
+	t.item.accept_synthetic(mut v)!
 	return ''
 }
 
@@ -108,12 +112,12 @@ pub fn (mut v TypeTraverserVisitor) visit_type_alias_type(t &TypeAliasType) !str
 }
 
 pub fn (mut v TypeTraverserVisitor) visit_unpack_type(t &UnpackType) !string {
-	t.type_.accept_synthetic(v)!
+	t.@type.accept_synthetic(mut v)!
 	return ''
 }
 
 pub fn (mut v TypeTraverserVisitor) visit_literal_type(t &LiteralType) !string {
-	t.fallback.accept_synthetic(v)!
+	t.fallback.accept_synthetic(mut v)!
 	return ''
 }
 
@@ -125,7 +129,6 @@ pub fn (mut v TypeTraverserVisitor) visit_type_list(t &TypeList) !string {
 }
 
 pub fn (mut v TypeTraverserVisitor) visit_callable_argument(t &CallableArgument) !string {
-	t.typ.accept_synthetic(v)!
 	return ''
 }
 
@@ -146,6 +149,6 @@ pub fn (mut v TypeTraverserVisitor) visit_placeholder_type(t &PlaceholderType) !
 
 pub fn (mut v TypeTraverserVisitor) traverse_type_list(types []MypyTypeNode) ! {
 	for t in types {
-		t.accept_synthetic(v)!
+		t.accept_synthetic(mut v)!
 	}
 }

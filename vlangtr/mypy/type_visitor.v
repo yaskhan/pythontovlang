@@ -26,7 +26,7 @@ pub fn (mut tt TypeTranslator) set_cached(key string, value MypyTypeNode) {
 	tt.cache[key] = value
 }
 
-pub fn (mut tt TypeTranslator) translate_type(t MypyTypeNode) MypyTypeNode {
+pub fn (mut tt TypeTranslator) translate_type(t MypyTypeNode) !MypyTypeNode {
 	return match t {
 		UnboundType {
 			MypyTypeNode(t)
@@ -93,7 +93,7 @@ pub fn (mut tt TypeTranslator) translate_type(t MypyTypeNode) MypyTypeNode {
 		}
 		TypeList {
 			MypyTypeNode(TypeList{
-				items: tt.translate_type_list(t.items)
+				items: tt.translate_type_list(t.items)!
 			})
 		}
 		CallableArgument {
@@ -111,18 +111,18 @@ pub fn (mut tt TypeTranslator) translate_type(t MypyTypeNode) MypyTypeNode {
 	}
 }
 
-pub fn (mut tt TypeTranslator) translate_type_list(types []MypyTypeNode) []MypyTypeNode {
+pub fn (mut tt TypeTranslator) translate_type_list(types []MypyTypeNode) ![]MypyTypeNode {
 	mut out := []MypyTypeNode{}
 	for typ in types {
-		out << tt.translate_type(typ)
+		out << tt.translate_type(typ)!
 	}
 	return out
 }
 
-pub fn (mut tt TypeTranslator) visit_instance(t Instance) Instance {
+pub fn (mut tt TypeTranslator) visit_instance(t Instance) !Instance {
 	mut last_known_value := t.last_known_value
 	if value := t.last_known_value {
-		translated := tt.translate_type(MypyTypeNode(value))
+		translated := tt.translate_type(MypyTypeNode(value))!
 		last_known_value = match translated {
 			LiteralType { &translated }
 			else { value }
@@ -130,49 +130,49 @@ pub fn (mut tt TypeTranslator) visit_instance(t Instance) Instance {
 	}
 	return Instance{
 		type_:            t.type_
-		args:             tt.translate_type_list(t.args)
+		args:             tt.translate_type_list(t.args)!
 		last_known_value: last_known_value
 		line:             t.line
 		type_ref:         t.type_ref
 	}
 }
 
-pub fn (mut tt TypeTranslator) visit_parameters(t ParametersType) ParametersType {
+pub fn (mut tt TypeTranslator) visit_parameters(t ParametersType) !ParametersType {
 	return ParametersType{
-		arg_types: tt.translate_type_list(t.arg_types)
+		arg_types: tt.translate_type_list(t.arg_types)!
 		arg_kinds: t.arg_kinds.clone()
 		arg_names: t.arg_names.clone()
 	}
 }
 
-pub fn (mut tt TypeTranslator) visit_unpack_type(t UnpackType) UnpackType {
+pub fn (mut tt TypeTranslator) visit_unpack_type(t UnpackType) !UnpackType {
 	return UnpackType{
-		type: tt.translate_type(t.type)
+		type: tt.translate_type(t.type)!
 	}
 }
 
-pub fn (mut tt TypeTranslator) visit_callable_type(t CallableType) CallableType {
-	return t.copy_modified(tt.translate_type_list(t.arg_types), tt.translate_type(t.ret_type),
-		tt.translate_type_list(t.variables))
+pub fn (mut tt TypeTranslator) visit_callable_type(t CallableType) !CallableType {
+	return t.copy_modified(tt.translate_type_list(t.arg_types)!, tt.translate_type(t.ret_type)!,
+		tt.translate_type_list(t.variables)!)
 }
 
-pub fn (mut tt TypeTranslator) visit_tuple_type(t TupleType) TupleType {
-	return t.copy_modified(tt.translate_type_list(t.items), t.partial_fallback)
+pub fn (mut tt TypeTranslator) visit_tuple_type(t TupleType) !TupleType {
+	return t.copy_modified(tt.translate_type_list(t.items)!, t.partial_fallback)
 }
 
-pub fn (mut tt TypeTranslator) visit_typeddict_type(t TypedDictType) TypedDictType {
+pub fn (mut tt TypeTranslator) visit_typeddict_type(t TypedDictType) !TypedDictType {
 	key := 'typeddict:${t.items.len}:${t.line}'
 	if cached := tt.get_cached(key) {
-		if typed := cached {
-			match typed {
-				TypedDictType { return typed }
-				else {}
+		match cached {
+			TypedDictType {
+				return cached
 			}
+			else {}
 		}
 	}
 	mut items := map[string]MypyTypeNode{}
 	for name, item_type in t.items {
-		items[name] = tt.translate_type(item_type)
+		items[name] = tt.translate_type(item_type)!
 	}
 	result := TypedDictType{
 		items:    items
@@ -183,25 +183,25 @@ pub fn (mut tt TypeTranslator) visit_typeddict_type(t TypedDictType) TypedDictTy
 	return result
 }
 
-pub fn (mut tt TypeTranslator) visit_literal_type(t LiteralType) LiteralType {
+pub fn (mut tt TypeTranslator) visit_literal_type(t LiteralType) !LiteralType {
 	return LiteralType{
-		fallback: tt.translate_type(t.fallback)
+		fallback: tt.translate_type(t.fallback)!
 		line:     t.line
 	}
 }
 
-pub fn (mut tt TypeTranslator) visit_union_type(t UnionType) UnionType {
+pub fn (mut tt TypeTranslator) visit_union_type(t UnionType) !UnionType {
 	return UnionType{
-		items:  tt.translate_type_list(t.items)
+		items:  tt.translate_type_list(t.items)!
 		line:   t.line
 		column: t.column
 	}
 }
 
-pub fn (mut tt TypeTranslator) visit_overloaded(t Overloaded) Overloaded {
+pub fn (mut tt TypeTranslator) visit_overloaded(t Overloaded) !Overloaded {
 	mut items := []&CallableType{}
 	for item in t.items {
-		translated := tt.translate_type(MypyTypeNode(*item))
+		translated := tt.translate_type(MypyTypeNode(*item))!
 		match translated {
 			CallableType {
 				copy := translated
@@ -216,18 +216,18 @@ pub fn (mut tt TypeTranslator) visit_overloaded(t Overloaded) Overloaded {
 	}
 }
 
-pub fn (mut tt TypeTranslator) visit_type_type(t TypeType) TypeType {
+pub fn (mut tt TypeTranslator) visit_type_type(t TypeType) !TypeType {
 	return TypeType{
-		item:   tt.translate_type(t.item)
+		item:   tt.translate_type(t.item)!
 		line:   t.line
 		column: t.column
 	}
 }
 
-pub fn (mut tt TypeTranslator) visit_type_alias_type(t TypeAliasType) TypeAliasType {
+pub fn (mut tt TypeTranslator) visit_type_alias_type(t TypeAliasType) !TypeAliasType {
 	return TypeAliasType{
 		alias:    t.alias
-		args:     tt.translate_type_list(t.args)
+		args:     tt.translate_type_list(t.args)!
 		line:     t.line
 		type_ref: t.type_ref
 	}

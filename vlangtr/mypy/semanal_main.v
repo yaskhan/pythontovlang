@@ -18,7 +18,7 @@ pub const core_modules = [
 pub struct PatchEntry {
 pub:
 	priority int
-	callback fn ()
+	callback ?fn () = none
 }
 
 pub type Patches = []PatchEntry
@@ -170,6 +170,8 @@ fn apply_semantic_analyzer_patches(patches Patches) {
 		return a.priority - b.priority
 	})
 	for p in sorted {
-		p.callback()
+		if cb := p.callback {
+			cb()
+		}
 	}
 }

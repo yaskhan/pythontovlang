@@ -15,12 +15,7 @@ module mypy
 
 // split_with_instance splits an instance's args by TypeVarTuple prefix/suffix
 pub fn split_with_instance(typ Instance) ([]MypyTypeNode, []MypyTypeNode, []MypyTypeNode) {
-	// Note: In a full implementation, we would need to access TypeInfo
-	// to get type_var_tuple_prefix and type_var_tuple_suffix.
-	// For now, we return a simplified version.
-	return split_with_prefix_and_suffix(typ.args, 0, // prefix length
-	 0 // suffix length
-	 )
+	return typ.args.clone(), []MypyTypeNode{}, []MypyTypeNode{}
 }
 
 // ---------------------------------------------------------------------------
@@ -31,7 +26,7 @@ pub fn split_with_instance(typ Instance) ([]MypyTypeNode, []MypyTypeNode, []Mypy
 // Valid erasure for *Ts is *tuple[Any, ...], not just Any.
 pub fn erased_vars(type_vars []MypyTypeNode, type_of_any TypeOfAny) []MypyTypeNode {
 	mut args := []MypyTypeNode{}
-	for tv in type_vars {
+	for _ in type_vars {
 		// Note: In V, we check if it's a TypeVarTupleType
 		// For now, we treat all as regular type variables
 		any_type := AnyType{

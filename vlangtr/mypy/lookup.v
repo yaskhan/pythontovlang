@@ -43,7 +43,7 @@ pub fn lookup_fully_qualified(name string, modules map[string]MypyFile) ?SymbolT
 				rest[0] += name[i..]
 			}
 			// Traverse the rest of the path
-			mut current_symbols := names.symbols
+			mut current_symbols := names.symbols.clone()
 			for rest.len > 0 {
 				key := rest.pop()
 				if key !in current_symbols {

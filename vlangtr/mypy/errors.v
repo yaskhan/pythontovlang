@@ -38,8 +38,8 @@ pub mut:
 	function        ?string
 	line            int
 	column          int
-	end_line        int
-	end_column      int
+	end_line        ?int
+	end_column      ?int
 	severity        string
 	message         string
 	code            ?string

@@ -236,13 +236,13 @@ pub fn find_python_encoding(text []u8) (string, int) {
 
 pub const encoding_re_str = r'([ \t\v]*#.*(\r\n?|\n))??[ \t\v]*#.*coding[:=][ \t]*([-\w.]+)'
 
-pub fn decode_python_encoding(source []u8) !string {
-	mut src := source
-	if src.starts_with([u8(0xef), 0xbb, 0xbf]) {
+pub fn decode_python_encoding(source []u8) string {
+	mut src := source.clone()
+	if src.len >= 3 && src[0] == 0xef && src[1] == 0xbb && src[2] == 0xbf {
 		src = src[3..]
 		return src.bytestr()
 	}
-	encoding, _ := find_python_encoding(src)
+	_, _ = find_python_encoding(src)
 	// V's bytestr() assumes UTF-8. For other encodings we might need a library.
 	// Mypy mostly deals with utf8, latin1.
 	return src.bytestr()
@@ -370,8 +370,8 @@ pub fn should_force_color() bool {
 
 pub fn read_py_file(path string, read_fn fn (string) ![]u8) ?[]string {
 	source := read_fn(path) or { return none }
-	decoded := decode_python_encoding(source) or { return none }
-	return decoded.split_into_lines()
+	decoded := decode_python_encoding(source)
+	return decoded.split('\n')
 }
 
 pub fn bytes_to_human_readable_repr(b []u8) string {
@@ -474,9 +474,23 @@ pub fn (mut f FancyFormatter) initialize_colors() {
 		return
 	}
 	// V's os.isatty check
-	if os.isatty(1) != 1 || os.isatty(2) != 1 {
+	if os.is_atty(1) == 0 || os.is_atty(2) == 0 {
 		f.dummy_term = true
 	}
+}
+
+pub fn (f FancyFormatter) format_error(n_errors int, n_files int, total_files int, blockers bool, color bool) string {
+	mut res := ''
+	if blockers {
+		res = 'Found ${n_errors} error${plural_s(n_errors)} in ${n_files} file${plural_s(n_files)} (errors were blocked)'
+	} else {
+		res = 'Found ${n_errors} error${plural_s(n_errors)} in ${n_files} file${plural_s(n_files)} (checked ${total_files} source file${plural_s(total_files)})'
+	}
+	return res
+}
+
+pub fn (f FancyFormatter) format_success(total_files int, color bool) string {
+	return 'Success: no issues found in ${total_files} source file${plural_s(total_files)}'
 }
 
 pub fn plural_s_sized(s []any) string {

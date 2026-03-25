@@ -9,55 +9,55 @@ pub mut:
 	errors                 &Errors
 	options                &Options
 	is_typeshed_file       bool
-	named_type_func        fn (string, []MypyTypeNode) &Instance
+	named_type_func        ?fn (string, []MypyTypeNode) &Instance = none
 	scope                  Scope
 	recurse_into_functions bool = true
 	seen_aliases           map[string]bool
 }
 
-pub fn (mut v TypeArgumentAnalyzer) visit_mypy_file(o &MypyFile) !string {
+pub fn (mut v TypeArgumentAnalyzer) visit_mypy_file(mut o MypyFile) !AnyNode {
 	v.errors.set_file(o.path, o.fullname)
 	// scope.module_scope contextual block
 	prev_scope := v.scope.enter_module(o.fullname)
 	defer { v.scope.leave(prev_scope) }
 
 	// parent call (but NodeTraverser.visit_mypy_file)
-	for stmt in o.defs {
-		stmt_accept(stmt, mut v)!
+	for mut stmt in o.defs {
+		stmt_accept(mut stmt, mut v)!
 	}
 	return ''
 }
 
-pub fn (mut v TypeArgumentAnalyzer) visit_func_def(o &FuncDef) !string {
+pub fn (mut v TypeArgumentAnalyzer) visit_func_def(mut o FuncDef) !AnyNode {
 	if !v.recurse_into_functions {
 		return ''
 	}
 	prev_scope := v.scope.enter_function(o)
 	defer { v.scope.leave(prev_scope) }
 
-	v.MixedTraverserVisitor.visit_func_def(o)!
+	v.MixedTraverserVisitor.visit_func_def(mut o)!
 	return ''
 }
 
-pub fn (mut v TypeArgumentAnalyzer) visit_class_def(o &ClassDef) !string {
+pub fn (mut v TypeArgumentAnalyzer) visit_class_def(mut o ClassDef) !AnyNode {
 	if info := o.info {
 		prev_scope := v.scope.enter_class(info)
 		defer { v.scope.leave(prev_scope) }
-		v.MixedTraverserVisitor.visit_class_def(o)!
+		v.MixedTraverserVisitor.visit_class_def(mut o)!
 	} else {
-		v.MixedTraverserVisitor.visit_class_def(o)!
+		v.MixedTraverserVisitor.visit_class_def(mut o)!
 	}
 	return ''
 }
 
-pub fn (mut v TypeArgumentAnalyzer) visit_block(o &Block) !string {
+pub fn (mut v TypeArgumentAnalyzer) visit_block(mut o Block) !AnyNode {
 	if !o.is_unreachable {
-		v.MixedTraverserVisitor.visit_block(o)!
+		v.MixedTraverserVisitor.visit_block(mut o)!
 	}
 	return ''
 }
 
-pub fn (mut v TypeArgumentAnalyzer) visit_type_alias_type(t &TypeAliasType) !string {
+pub fn (mut v TypeArgumentAnalyzer) visit_type_alias_type(t &TypeAliasType) !AnyNode {
 	v.MixedTraverserVisitor.visit_type_alias_type(t)!
 	// In V: t.alias is ?&TypeAlias
 	alias := t.alias or { return error('TypeArgumentAnalyzer: Unfixed type alias') }
@@ -81,7 +81,7 @@ pub fn (mut v TypeArgumentAnalyzer) visit_type_alias_type(t &TypeAliasType) !str
 	return ''
 }
 
-pub fn (mut v TypeArgumentAnalyzer) visit_tuple_type(t &TupleType) !string {
+pub fn (mut v TypeArgumentAnalyzer) visit_tuple_type(t &TupleType) !AnyNode {
 	// t.items = flatten_nested_tuples(t.items)
 	for i, it in t.items {
 		if v.check_non_paramspec(it, 'tuple', Context{line: t.line}) {
@@ -92,7 +92,7 @@ pub fn (mut v TypeArgumentAnalyzer) visit_tuple_type(t &TupleType) !string {
 	return ''
 }
 
-pub fn (mut v TypeArgumentAnalyzer) visit_instance(t &Instance) !string {
+pub fn (mut v TypeArgumentAnalyzer) visit_instance(t &Instance) !AnyNode {
 	v.MixedTraverserVisitor.visit_instance(t)!
 	info := t.typ // In Instance it is TypeInfo
 	// if info is FakeInfo ...
@@ -171,7 +171,7 @@ pub fn (mut v TypeArgumentAnalyzer) validate_args(name string, args []MypyTypeNo
 	return is_error, is_invalid
 }
 
-pub fn (mut v TypeArgumentAnalyzer) visit_unpack_type(typ &UnpackType) !string {
+pub fn (mut v TypeArgumentAnalyzer) visit_unpack_type(typ &UnpackType) !AnyNode {
 	v.MixedTraverserVisitor.visit_unpack_type(typ)!
 	p_type := get_proper_type(typ.@type)
 

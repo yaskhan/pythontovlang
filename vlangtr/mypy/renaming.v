@@ -280,16 +280,11 @@ fn (mut v VariableRenameVisitor) visit_expression(mut expr Expression) {
 			}
 		}
 		DictExpr {
-			for mut kv in expr.items {
-				if kv.len > 0 {
-					// In case of **kwargs, key is empty/Placeholder
-					mut k := kv[0]
+			for mut entry in expr.items {
+				if mut k := entry.key {
 					v.visit_expression(mut k)
 				}
-				if kv.len > 1 {
-					mut val := kv[1]
-					v.visit_expression(mut val)
-				}
+				v.visit_expression(mut entry.value)
 			}
 		}
 		else {}

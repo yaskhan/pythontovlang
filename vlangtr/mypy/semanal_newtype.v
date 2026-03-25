@@ -21,7 +21,7 @@ pub fn (mut a NewTypeAnalyzer) process_newtype_declaration(s &AssignmentStmt) bo
 		nt_name += '@' + s.base.ctx.line.str()
 	}
 
-	mut c := call or { return false }
+	c := call or { return false }
 	old_type_raw, should_defer := a.check_newtype_args(name, c, s.get_context())
 
 	if should_defer {

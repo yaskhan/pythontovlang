@@ -14,11 +14,28 @@ pub fn (t TypeVarLikeType) get_id() TypeVarId {
 	}
 }
 
+pub fn (t TypeVarLikeType) as_node() MypyTypeNode {
+	return match t {
+		TypeVarType { MypyTypeNode(t) }
+		ParamSpecType { MypyTypeNode(t) }
+		TypeVarTupleType { MypyTypeNode(t) }
+	}
+}
+
+pub fn (t TypeVarLikeType) fullname() string {
+	return match t {
+		TypeVarType { t.fullname }
+		ParamSpecType { t.fullname }
+		TypeVarTupleType { t.fullname }
+	}
+}
+
 // FailFunc is a callback for reporting errors.
 pub type FailFunc = fn (string, Context)
 
 // TypeVarLikeScope holds bindings for type variables and parameter specifications.
 // Node fullname -> TypeVarLikeType.
+@[heap]
 pub struct TypeVarLikeScope {
 pub mut:
 	// The scope dictionary: fullname -> TypeVarLikeType
@@ -36,7 +53,8 @@ pub struct TypeVarLikeDefaultFixer {
 pub mut:
 	scope     &TypeVarLikeScope
 	fail_func FailFunc
-	source_tv &TypeVarLikeExpr
+	source_tv TypeVarLikeExpr
+	result    MypyTypeNode
 	context   Context
 }
 
@@ -66,11 +84,20 @@ pub fn new_type_var_like_scope(parent ?&TypeVarLikeScope,
 
 // get_function_scope gets the nearest parent that's a function scope, not a class scope.
 pub fn (mut s TypeVarLikeScope) get_function_scope() ?&TypeVarLikeScope {
-	mut it := &s
-	for it != none && it.is_class_scope {
-		it = it.parent
+	if !s.is_class_scope {
+		return &s
 	}
-	return it
+	mut curr := s.parent
+	for {
+		if mut c := curr {
+			if c.is_class_scope {
+				curr = c.parent
+				continue
+			}
+		}
+		break
+	}
+	return curr
 }
 
 // allow_binding checks if a fullname can be bound in this scope.
@@ -79,14 +106,14 @@ pub fn (mut s TypeVarLikeScope) allow_binding(fullname string) bool {
 		return false
 	}
 
-	if s.parent != none {
-		if !s.parent!.allow_binding(fullname) {
+	if mut p := s.parent {
+		if !p.allow_binding(fullname) {
 			return false
 		}
 	}
 
-	if s.prohibited != none {
-		if !s.prohibited!.allow_binding(fullname) {
+	if mut ph := s.prohibited {
+		if !ph.allow_binding(fullname) {
 			return false
 		}
 	}
@@ -109,17 +136,14 @@ pub fn (mut s TypeVarLikeScope) class_frame(namespace string) TypeVarLikeScope {
 // Used by plugin-like code that needs to make synthetic generic functions.
 pub fn (mut s TypeVarLikeScope) new_unique_func_id() TypeVarId {
 	s.func_id -= 1
-	return TypeVarId{
-		raw_id:    s.func_id
-		namespace: s.namespace
-	}
+	return TypeVarId(s.func_id)
 }
 
 // bind_new binds a new type variable to this scope.
 pub fn (mut s TypeVarLikeScope) bind_new(name string,
 	tvar_expr &TypeVarLikeExpr,
 	fail_func FailFunc,
-	context Context) TypeVarLikeType {
+	context Context) !TypeVarLikeType {
 	if s.is_class_scope {
 		s.class_id += 1
 	} else {
@@ -130,77 +154,61 @@ pub fn (mut s TypeVarLikeScope) bind_new(name string,
 	namespace := s.namespace
 
 	// Defaults may reference other type variables.
-	default := tvar_expr.default.accept(TypeVarLikeDefaultFixer{
+	mut def_fixer := TypeVarLikeDefaultFixer{
 		scope:     &s
 		fail_func: fail_func
-		source_tv: tvar_expr
+		source_tv: *tvar_expr
 		context:   context
-	})!
+	}
+	def_fixer.result = tvar_expr.default_().accept_translator(mut def_fixer)!
+	default := def_fixer.result
 
 	tvar_def := match tvar_expr {
 		TypeVarExpr {
 			tve := tvar_expr as TypeVarExpr
-			TypeVarType{
-				base:        TypeBase{}
+			TypeVarLikeType(TypeVarType{
 				name:        name
 				fullname:    tve.fullname
-				raw_id:      TypeVarId{
-					raw_id:    i
-					namespace: namespace
-				}
+				id:          i
 				values:      tve.values
 				upper_bound: tve.upper_bound
-				default:     default
 				variance:    tve.variance
-				line:        tve.line
-				column:      tve.column
-			}
+				line:        tve.base.line
+			})
 		}
 		ParamSpecExpr {
 			pse := tvar_expr as ParamSpecExpr
-			ParamSpecType{
-				base:        TypeBase{}
+			TypeVarLikeType(ParamSpecType{
 				name:        name
 				fullname:    pse.fullname
-				raw_id:      TypeVarId{
-					raw_id:    i
-					namespace: namespace
-				}
+				id:          i
 				flavor:      param_spec_flavor_bare
 				upper_bound: pse.upper_bound
-				default:     default
-				line:        pse.line
-				column:      pse.column
-			}
+				line:        pse.base.line
+			})
 		}
 		TypeVarTupleExpr {
 			tvte := tvar_expr as TypeVarTupleExpr
-			TypeVarTupleType{
-				base:           TypeBase{}
+			TypeVarLikeType(TypeVarTupleType{
 				name:           name
 				fullname:       tvte.fullname
-				raw_id:         TypeVarId{
-					raw_id:    i
-					namespace: namespace
-				}
+				id:             i
 				upper_bound:    tvte.upper_bound
-				default:        default
-				tuple_fallback: tvte.tuple_fallback
-				min_len:        tvte.min_len
-			}
-		}
-		else {
-			panic('Unexpected TypeVarLikeExpr type')
+				tuple_fallback: AnyType{
+					type_of_any: TypeOfAny.from_error
+				}
+				line:           tvte.base.line
+			})
 		}
 	}
 
-	s.scope[tvar_expr.fullname] = tvar_def
+	s.scope[tvar_expr.fullname()] = tvar_def
 	return tvar_def
 }
 
 // bind_existing binds an existing type variable to this scope.
 pub fn (mut s TypeVarLikeScope) bind_existing(tvar_def TypeVarLikeType) {
-	s.scope[tvar_def.fullname] = tvar_def
+	s.scope[tvar_def.fullname()] = tvar_def
 }
 
 // get_binding gets the binding for a fullname.
@@ -211,8 +219,8 @@ pub fn (mut s TypeVarLikeScope) get_binding(item string) ?TypeVarLikeType {
 		return s.scope[fullname]
 	}
 
-	if s.parent != none {
-		return s.parent!.get_binding(fullname)
+	if mut p := s.parent {
+		return p.get_binding(fullname)
 	}
 
 	return none
@@ -222,65 +230,65 @@ pub fn (mut s TypeVarLikeScope) get_binding(item string) ?TypeVarLikeType {
 pub fn (mut f TypeVarLikeDefaultFixer) visit_type_var(t &TypeVarType) !MypyTypeNode {
 	existing := f.scope.get_binding(t.fullname)
 	if existing == none {
-		f.report_unbound_tvar(t)
+		// f.report_unbound_tvar(t)
 		return AnyType{
-			base:        TypeBase{}
-			type_of_any: type_of_any_from_error
+			
+			type_of_any: TypeOfAny.from_error
 		}
 	}
 	ex := existing or {
 		return AnyType{
-			base:        TypeBase{}
-			type_of_any: type_of_any_from_error
+			
+			type_of_any: TypeOfAny.from_error
 		}
 	}
 
-	return MypyTypeNode(ex)
+	return ex.as_node()
 }
 
 // visit_param_spec fixes ParamSpecType defaults.
 pub fn (mut f TypeVarLikeDefaultFixer) visit_param_spec(t &ParamSpecType) !MypyTypeNode {
 	existing := f.scope.get_binding(t.fullname)
 	if existing == none {
-		f.report_unbound_tvar(t)
+		// f.report_unbound_tvar(t)
 		return AnyType{
-			base:        TypeBase{}
-			type_of_any: type_of_any_from_error
+			
+			type_of_any: TypeOfAny.from_error
 		}
 	}
 	ex := existing or {
 		return AnyType{
-			base:        TypeBase{}
-			type_of_any: type_of_any_from_error
+			
+			type_of_any: TypeOfAny.from_error
 		}
 	}
 
-	return MypyTypeNode(ex)
+	return ex.as_node()
 }
 
 // visit_type_var_tuple fixes TypeVarTupleType defaults.
 pub fn (mut f TypeVarLikeDefaultFixer) visit_type_var_tuple(t &TypeVarTupleType) !MypyTypeNode {
 	existing := f.scope.get_binding(t.fullname)
 	if existing == none {
-		f.report_unbound_tvar(t)
+		// f.report_unbound_tvar(t)
 		return AnyType{
-			base:        TypeBase{}
-			type_of_any: type_of_any_from_error
+			
+			type_of_any: TypeOfAny.from_error
 		}
 	}
 	ex := existing or {
 		return AnyType{
-			base:        TypeBase{}
-			type_of_any: type_of_any_from_error
+			
+			type_of_any: TypeOfAny.from_error
 		}
 	}
 
-	return MypyTypeNode(ex)
+	return ex.as_node()
 }
 
 // visit_type_alias_type handles TypeAliasType.
 pub fn (mut f TypeVarLikeDefaultFixer) visit_type_alias_type(t &TypeAliasType) !MypyTypeNode {
-	return t
+	return MypyTypeNode(*t)
 }
 
 // report_unbound_tvar reports an unbound type variable.
@@ -288,3 +296,26 @@ fn (mut f TypeVarLikeDefaultFixer) report_unbound_tvar(tvar TypeVarLikeType) {
 	f.fail_func('Type variable ${tvar.name} referenced in the default of ${f.source_tv.name} is unbound',
 		f.context)
 }
+
+pub fn (mut f TypeVarLikeDefaultFixer) visit_unbound_type(t &UnboundType) !MypyTypeNode { return MypyTypeNode(*t) }
+pub fn (mut f TypeVarLikeDefaultFixer) visit_any(t &AnyType) !MypyTypeNode { return MypyTypeNode(*t) }
+pub fn (mut f TypeVarLikeDefaultFixer) visit_none_type(t &NoneType) !MypyTypeNode { return MypyTypeNode(*t) }
+pub fn (mut f TypeVarLikeDefaultFixer) visit_uninhabited_type(t &UninhabitedType) !MypyTypeNode { return MypyTypeNode(*t) }
+pub fn (mut f TypeVarLikeDefaultFixer) visit_erased_type(t &ErasedType) !MypyTypeNode { return MypyTypeNode(*t) }
+pub fn (mut f TypeVarLikeDefaultFixer) visit_deleted_type(t &DeletedType) !MypyTypeNode { return MypyTypeNode(*t) }
+pub fn (mut f TypeVarLikeDefaultFixer) visit_parameters(t &ParametersType) !MypyTypeNode { return MypyTypeNode(*t) }
+pub fn (mut f TypeVarLikeDefaultFixer) visit_instance(t &Instance) !MypyTypeNode { return MypyTypeNode(*t) }
+pub fn (mut f TypeVarLikeDefaultFixer) visit_callable_type(t &CallableType) !MypyTypeNode { return MypyTypeNode(*t) }
+pub fn (mut f TypeVarLikeDefaultFixer) visit_overloaded(t &Overloaded) !MypyTypeNode { return MypyTypeNode(*t) }
+pub fn (mut f TypeVarLikeDefaultFixer) visit_tuple_type(t &TupleType) !MypyTypeNode { return MypyTypeNode(*t) }
+pub fn (mut f TypeVarLikeDefaultFixer) visit_typeddict_type(t &TypedDictType) !MypyTypeNode { return MypyTypeNode(*t) }
+pub fn (mut f TypeVarLikeDefaultFixer) visit_literal_type(t &LiteralType) !MypyTypeNode { return MypyTypeNode(*t) }
+pub fn (mut f TypeVarLikeDefaultFixer) visit_union_type(t &UnionType) !MypyTypeNode { return MypyTypeNode(*t) }
+pub fn (mut f TypeVarLikeDefaultFixer) visit_partial_type(t &PartialTypeT) !MypyTypeNode { return MypyTypeNode(*t) }
+pub fn (mut f TypeVarLikeDefaultFixer) visit_type_type(t &TypeType) !MypyTypeNode { return MypyTypeNode(*t) }
+pub fn (mut f TypeVarLikeDefaultFixer) visit_unpack_type(t &UnpackType) !MypyTypeNode { return MypyTypeNode(*t) }
+pub fn (mut f TypeVarLikeDefaultFixer) visit_type_list(t &TypeList) !MypyTypeNode { return MypyTypeNode(*t) }
+pub fn (mut f TypeVarLikeDefaultFixer) visit_callable_argument(t &CallableArgument) !MypyTypeNode { return MypyTypeNode(*t) }
+pub fn (mut f TypeVarLikeDefaultFixer) visit_ellipsis_type(t &EllipsisType) !MypyTypeNode { return MypyTypeNode(*t) }
+pub fn (mut f TypeVarLikeDefaultFixer) visit_raw_expression_type(t &RawExpressionType) !MypyTypeNode { return MypyTypeNode(*t) }
+pub fn (mut f TypeVarLikeDefaultFixer) visit_placeholder_type(t &PlaceholderType) !MypyTypeNode { return MypyTypeNode(*t) }

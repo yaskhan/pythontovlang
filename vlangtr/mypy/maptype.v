@@ -3,7 +3,7 @@ module mypy
 
 // map_instance_to_supertype produces a supertype of `instance` that is an Instance
 // of `superclass`, mapping type arguments up the chain of bases.
-pub fn map_instance_to_supertype(instance Instance, superclass TypeInfo) Instance {
+pub fn map_instance_to_supertype(instance Instance, superclass &TypeInfo) Instance {
 	// Fast path: `instance` already belongs to `superclass`.
 	if instance.type_name == superclass.fullname {
 		return instance
@@ -14,6 +14,7 @@ pub fn map_instance_to_supertype(instance Instance, superclass TypeInfo) Instanc
 		return Instance{
 			type_name: superclass.fullname
 			args:      []
+			typ:       superclass
 		}
 	}
 
@@ -24,15 +25,16 @@ pub fn map_instance_to_supertype(instance Instance, superclass TypeInfo) Instanc
 	return Instance{
 		type_name: superclass.fullname
 		args:      []
+		typ:       superclass
 	}
 }
 
 // map_instance_to_supertypes maps an instance to all possible supertypes
-pub fn map_instance_to_supertypes(instance Instance, supertype TypeInfo) []Instance {
+pub fn map_instance_to_supertypes(instance Instance, supertype &TypeInfo) []Instance {
 	mut result := []Instance{}
 
 	if info := instance.typ {
-		paths := class_derivation_paths(*info, supertype)
+		paths := class_derivation_paths(info, supertype)
 		for path in paths {
 			mut types := [instance]
 			for sup in path {
@@ -67,16 +69,16 @@ pub fn map_instance_to_supertypes(instance Instance, supertype TypeInfo) []Insta
 	}
 }
 
-pub fn class_derivation_paths(typ TypeInfo, supertype TypeInfo) [][]TypeInfo {
-	mut result := [][]TypeInfo{}
+pub fn class_derivation_paths(typ &TypeInfo, supertype &TypeInfo) [][]&TypeInfo {
+	mut result := [][]&TypeInfo{}
 
 	for b in typ.bases {
 		if b.type_name == supertype.fullname {
-			result << [supertype]
+			result << [&TypeInfo(supertype)]
 		} else {
 			if b_info := b.typ {
-				for path in class_derivation_paths(*b_info, supertype) {
-					mut new_path := [supertype] // Simplified for now
+				for path in class_derivation_paths(b_info, supertype) {
+					mut new_path := [&TypeInfo(supertype)] // Simplified correct logic would be different
 					new_path << path
 					result << new_path
 				}
@@ -87,7 +89,7 @@ pub fn class_derivation_paths(typ TypeInfo, supertype TypeInfo) [][]TypeInfo {
 	return result
 }
 
-pub fn map_instance_to_direct_supertypes(instance Instance, supertype TypeInfo) []Instance {
+pub fn map_instance_to_direct_supertypes(instance Instance, supertype &TypeInfo) []Instance {
 	mut result := []Instance{}
 
 	if typ := instance.typ {
@@ -96,7 +98,7 @@ pub fn map_instance_to_direct_supertypes(instance Instance, supertype TypeInfo) 
 				result << Instance{
 					type_name: supertype.fullname
 					args:      b.args
-					typ:       &supertype
+					typ:       supertype
 				}
 			}
 		}
@@ -116,7 +118,7 @@ pub fn map_instance_to_direct_supertypes(instance Instance, supertype TypeInfo) 
 			Instance{
 				type_name: supertype.fullname
 				args:      args
-				typ:       &supertype
+				typ:       supertype
 			},
 		]
 	}

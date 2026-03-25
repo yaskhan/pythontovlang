@@ -14,15 +14,15 @@ pub:
 
 // main — main entry point for type checking
 pub fn main(args []string, mut stdout os.File, mut stderr os.File) {
-	t1 := time.now()
-
+	t1 := f64(time.now().unix_milli()) / 1000.0
 	mut fscache := FileSystemCache{}
 	res_opt := process_options(args, mut stdout, mut stderr, mut fscache)
 	sources := res_opt.sources
 	options := res_opt.options
 
+	output_present := if out := options.output { out.len > 0 } else { false }
 	mut formatter := new_fancy_formatter(stdout, stderr, options.hide_error_codes,
-		options.output.len > 0)
+		output_present)
 
 	if options.allow_redefinition_new && !options.local_partial_types {
 		fail('error: --local-partial-types must be enabled if using --allow-redefinition-new', mut
@@ -39,10 +39,10 @@ pub fn main(args []string, mut stdout os.File, mut stderr os.File) {
 		return
 	}
 
-	res, messages, blockers := run_build(sources, options, fscache, t1.unix_f(), mut stdout, mut
+	res, messages, blockers := run_build(sources, options, fscache, t1, mut stdout, mut
 		stderr)
 
-	code := 0
+	mut code := 0
 	n_errors, n_notes, n_files := count_stats(messages)
 	if messages.len > 0 && n_notes < messages.len {
 		if blockers {
@@ -83,8 +83,8 @@ pub fn run_build(sources []BuildSource, options Options, fscache FileSystemCache
 	// 	none
 	// }
 
-	maybe_write_junit_xml(time.now().unix_f() - t0, serious, messages, messages_by_file,
-		options)
+	maybe_write_junit_xml(f64(time.now().unix_milli()) / 1000.0 - t0, serious, messages,
+		messages_by_file, options)
 	return res, messages, blockers
 }
 

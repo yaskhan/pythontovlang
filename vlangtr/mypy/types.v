@@ -8,6 +8,31 @@ module mypy
 // TypeVarId — unique identifier for a type variable
 pub type TypeVarId = int
 
+// Tags for types in FF format
+pub const literal_false = u8(0)
+pub const literal_true = u8(1)
+pub const literal_none = u8(2)
+pub const literal_int = u8(3)
+pub const literal_str = u8(4)
+pub const literal_bytes = u8(5)
+pub const literal_float = u8(6)
+pub const literal_complex = u8(7)
+
+// Tags for collections
+pub const list_gen = u8(20)
+pub const list_int = u8(21)
+pub const list_str = u8(22)
+pub const list_bytes = u8(23)
+pub const tuple_gen = u8(24)
+pub const dict_str_gen = u8(30)
+pub const dict_int_gen = u8(31)
+
+// Special tags
+pub const extra_attrs = u8(150)
+pub const dt_spec = u8(151)
+pub const location = u8(152)
+pub const end_tag = u8(255)
+
 // IType — general interface for all types (string representation)
 pub interface IType {
 	accept(mut v TypeVisitor) !string
@@ -74,6 +99,7 @@ pub fn (t MypyTypeNode) accept_translator(mut v ITypeTranslator) !MypyTypeNode {
 
 // MypyTypeSum — alias for backward compatibility
 pub type MypyTypeSum = MypyTypeNode
+pub type Type = MypyTypeNode
 
 // TypeVisitor — interface for traversing types (usually for string representation)
 pub interface TypeVisitor {
@@ -136,7 +162,7 @@ mut:
 	visit_placeholder_type(t &PlaceholderType) !MypyTypeNode
 }
 
-pub fn (t MypyTypeNode) accept(mut v TypeVisitor) !string {
+pub fn (t MypyTypeNode) accept(mut v TypeVisitor) !AnyNode {
 	return match t {
 		AnyType { v.visit_any(&t)! }
 		CallableArgument { v.visit_callable_argument(&t)! }
@@ -167,7 +193,7 @@ pub fn (t MypyTypeNode) accept(mut v TypeVisitor) !string {
 	}
 }
 
-pub fn (t MypyTypeNode) accept_synthetic(mut v TypeTraverserVisitor) !string {
+pub fn (t MypyTypeNode) accept_synthetic(mut v TypeTraverserVisitor) !AnyNode {
 	return match t {
 		AnyType { v.visit_any(&t)! }
 		CallableArgument { v.visit_callable_argument(&t)! }
@@ -220,9 +246,10 @@ pub enum TypeOfAny {
 
 pub struct UnboundType {
 pub mut:
-	name string
-	line int = -1
-	args []MypyTypeNode
+	name              string
+	line              int = -1
+	column            int = -1
+	args              []MypyTypeNode
 	empty_tuple_index bool
 }
 
@@ -240,20 +267,28 @@ pub struct ErasedType {}
 
 pub struct DeletedType {}
 
+pub const param_spec_flavor_bare = 0
+pub const param_spec_flavor_args = 1
+pub const param_spec_flavor_kwargs = 2
+
 pub struct TypeVarType {
 pub:
 	name        string
+	fullname    string
 	id          int
 	values      []MypyTypeNode
 	upper_bound MypyTypeNode
 	variance    int
+	default     MypyTypeNode
 	line        int = -1
 }
 
 pub struct ParamSpecType {
 pub:
 	name        string
+	fullname    string
 	id          int
+	flavor      int
 	line        int = -1
 	upper_bound MypyTypeNode
 	default     MypyTypeNode
@@ -269,6 +304,7 @@ pub:
 pub struct TypeVarTupleType {
 pub:
 	name           string
+	fullname       string
 	id             int
 	line           int = -1
 	tuple_fallback MypyTypeNode
@@ -278,23 +314,23 @@ pub:
 
 pub struct Instance {
 pub mut:
-	typ              ?&TypeInfo = none
-	type_            ?&TypeInfo = none
+	typ              ?&TypeInfo
+	type_            ?&TypeInfo
 	args             []MypyTypeNode
-	last_known_value ?&LiteralType = none
+	last_known_value ?&LiteralType
 	line             int = -1
 	column           int = -1
-	type_ref         ?string = none
+	type_ref         ?string
 	type_name        string // Full name for fast comparison
-	extra_attrs      ?MypyTypeNode = none
+	type_fullname    string
+	extra_attrs      ?MypyTypeNode
 	invalid          bool
 }
 
 pub fn (t &Instance) copy_modified(args []MypyTypeNode, last_known_value ?&LiteralType) Instance {
-	info := t.typ or { t.type_ }
 	return Instance{
-		typ:              info
-		type_:            info
+		typ:              t.typ
+		type_:            t.type_
 		args:             args
 		last_known_value: if last_known_value != none {
 			last_known_value
@@ -317,6 +353,7 @@ pub mut:
 	line        int = -1
 	fallback    ?&Instance
 	name        string
+	fullname    string
 	is_var_arg  bool
 	is_ellipsis bool
 	min_args    int
@@ -387,19 +424,29 @@ pub:
 
 pub struct Interpolation {
 pub:
-    value       Any
-    expression  string
-    conversion  string
-    format_spec string
+	value       Any
+	expression  string
+	conversion  string
+	format_spec string
 }
 
 pub struct Template {
 pub:
-    strings        []string
-    interpolations []Interpolation
+	strings        []string
+	interpolations []Interpolation
 }
 
-pub type Any = Interpolation | NoneType | Template | []Any | []u8 | bool | f64 | i64 | int | map[string]Any | string
+pub type Any = Interpolation
+	| NoneType
+	| Template
+	| []Any
+	| []u8
+	| bool
+	| f64
+	| i64
+	| int
+	| map[string]Any
+	| string
 
 pub struct UnionType {
 pub:
@@ -419,10 +466,11 @@ pub:
 
 pub struct TypeAliasType {
 pub mut:
-	alias    ?&TypeAlias = none
-	args     []MypyTypeNode
-	line     int = -1
-	type_ref ?string
+	alias_name   string
+	alias        ?&TypeAlias
+	args         []MypyTypeNode
+	line         int = -1
+	type_ref     ?string
 	is_recursive bool
 }
 
@@ -443,14 +491,15 @@ pub:
 
 pub struct RawExpressionType {
 pub mut:
-	literal_value Any
+	literal_value  Any
 	base_type_name string
-	line int = -1
+	line           int = -1
 }
 
 pub struct PlaceholderType {
 pub:
 	fullname string
+	args     []MypyTypeNode
 }
 
 // extract_type_var_id returns TypeVarId if the type is a TypeVar-like type
@@ -480,10 +529,9 @@ pub fn new_unification_variable(t MypyTypeNode) MypyTypeNode {
 		}
 		Instance {
 			inst := t as Instance
-			info := inst.typ or { inst.type_ }
 			MypyTypeNode(Instance{
-				typ:       info
-				type_:     info
+				typ:       inst.typ
+				type_:     inst.type_
 				args:      inst.args.clone()
 				line:      inst.line
 				column:    inst.column

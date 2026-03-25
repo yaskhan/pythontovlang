@@ -1,902 +1,320 @@
-// treetransform.v — Base visitor that implements an identity AST transform
+// treetransform.v — AST node transformer.
 // Translated from mypy/treetransform.py to V 0.5.x
-//
-// I, Antigravity, am working on this file. Started: 2026-03-22 19:30
 
 module mypy
 
-// TransformVisitor — transforms AST into an identical copy
 pub struct TransformVisitor {
 pub mut:
-	test_only            bool
-	var_map              map[string]Var
-	func_placeholder_map map[string]FuncDef
+	test_only bool
 }
 
-// new_transform_visitor creates a new TransformVisitor
-pub fn new_transform_visitor() TransformVisitor {
-	return TransformVisitor{
-		test_only:            false
-		var_map:              map[string]Var{}
-		func_placeholder_map: map[string]FuncDef{}
+pub fn (mut t TransformVisitor) node(mut n Node) !AnyNode {
+	return n.accept(mut t)!
+}
+
+pub fn (mut t TransformVisitor) expr(mut e Expression) Expression {
+	res := e.accept(mut t) or { return e }
+	if res is MypyNode {
+		if res.is_expression() {
+			return res.as_expression() or { return e }
+		}
 	}
+	return e
 }
 
-// node transforms an AST node
-pub fn (mut t TransformVisitor) node(n Node) Node {
-	return n.accept(mut t)
-}
-
-// expr transforms an expression
-pub fn (mut t TransformVisitor) expr(e Expression) Expression {
-	return e.accept(mut t)
-}
-
-// optional_expr transforms an optional expression
 pub fn (mut t TransformVisitor) optional_expr(e ?Expression) ?Expression {
-	if e == none {
-		return none
+	if mut ee := e {
+		res := ee.accept(mut t) or { return e }
+		if res is MypyNode {
+			if res.is_expression() {
+				return res.as_expression() or { return e }
+			}
+		}
 	}
-	return e.accept(mut t)
+	return e
 }
 
-// expressions transforms a list of expressions
-pub fn (mut t TransformVisitor) expressions(es []Expression) []Expression {
-	mut result := []Expression{}
-	for e in es {
-		result << e.accept(mut t)
-	}
-	return result
-}
-
-// statements transforms a list of statements
-pub fn (mut t TransformVisitor) statements(ss []Statement) []Statement {
+pub fn (mut t TransformVisitor) statements(mut ss []Statement) []Statement {
 	mut result := []Statement{}
-	for s in ss {
-		result << s.accept(mut t)
+	for i in 0 .. ss.len {
+		mut s := ss[i]
+		node := s.accept(mut t) or {
+			result << ss[i]
+			continue
+		}
+		if mut n := node.as_mypy_node() {
+			if n.is_statement() {
+				result << n.as_statement() or { ss[i] }
+			} else {
+				result << ss[i]
+			}
+		} else {
+			result << ss[i]
+		}
 	}
 	return result
 }
 
-// block transforms a block
-pub fn (mut t TransformVisitor) block(b Block) Block {
-	return t.visit_block(b)
-}
-
-// optional_block transforms an optional block
-pub fn (mut t TransformVisitor) optional_block(b ?Block) ?Block {
-	if b == none {
-		return none
+pub fn (mut t TransformVisitor) block(mut b Block) Block {
+	node := t.visit_block(mut b) or { return b }
+	if mut n := node.as_mypy_node() {
+		match mut n {
+			Block { return n }
+			else {}
+		}
 	}
-	return t.visit_block(b or { Block{} })
+	return b
 }
 
-// blocks transforms a list of blocks
-pub fn (mut t TransformVisitor) blocks(bs []Block) []Block {
-	mut result := []Block{}
-	for b in bs {
-		result << t.visit_block(b)
-	}
-	return result
-}
-
-// typ transforms a type
 pub fn (mut t TransformVisitor) typ(tp MypyTypeNode) MypyTypeNode {
 	return tp
 }
 
-// optional_type transforms an optional type
-pub fn (mut t TransformVisitor) optional_type(tp ?MypyTypeNode) ?MypyTypeNode {
-	if tp == none {
-		return none
+pub fn (mut t TransformVisitor) optional_typ(tp ?MypyTypeNode) ?MypyTypeNode {
+	if _ := tp {
+		return t.typ(tp or { panic('unreachable') })
 	}
-	return t.typ(tp or { MypyTypeNode(none) })
+	return none
 }
 
-// types transforms a list of types
-pub fn (mut t TransformVisitor) types(ts []MypyTypeNode) []MypyTypeNode {
-	mut result := []MypyTypeNode{}
-	for tp in ts {
-		result << t.typ(tp)
+pub fn (mut t TransformVisitor) pattern(mut p PatternNode) PatternNode {
+	res := p.accept(mut t) or { return p }
+	if mut n := res.as_mypy_node() {
+		return n.as_pattern() or { *p }
 	}
-	return result
+	if mut pat := res.as_pattern() {
+		return pat
+	}
+	return *p
 }
 
-// pattern transforms a pattern
-pub fn (mut t TransformVisitor) pattern(p Pattern) Pattern {
-	return p.accept(mut t)
-}
-
-// visit_mypy_file visits MypyFile
-pub fn (mut t TransformVisitor) visit_mypy_file(node MypyFile) MypyFile {
+pub fn (mut t TransformVisitor) visit_mypy_file(mut node MypyFile) !AnyNode {
 	assert t.test_only, 'This visitor should not be used for whole files.'
-
-	mut ignored_lines := map[int][]string{}
-	for line, codes in node.ignored_lines {
-		ignored_lines[line] = codes.clone()
-	}
-
+	mut ignored_lines := node.ignored_lines.clone()
 	mut new := MypyFile{
-		defs:          t.statements(node.defs)
+		base:          node.base
+		defs:          t.statements(mut node.defs)
 		is_bom:        node.is_bom
 		ignored_lines: ignored_lines
 	}
 	new.fullname = node.fullname
 	new.path = node.path
-	new.names = node.names.clone()
-	return new
-}
-
-// visit_import visits Import
-pub fn (mut t TransformVisitor) visit_import(node Import) Import {
-	return Import{
-		ids:    node.ids.clone()
-		line:   node.line
-		column: node.column
+	new.names = SymbolTable{
+		symbols: node.names.symbols.clone()
 	}
+	return AnyNode(MypyNode(new))
 }
 
-// visit_import_from visits ImportFrom
-pub fn (mut t TransformVisitor) visit_import_from(node ImportFrom) ImportFrom {
-	return ImportFrom{
-		id:       node.id
-		relative: node.relative
-		names:    node.names.clone()
-		line:     node.line
-		column:   node.column
+pub fn (mut t TransformVisitor) copy_argument(mut argument Argument) Argument {
+	mut variable_res := t.visit_var(mut argument.variable) or { return argument }
+	mut variable := argument.variable
+	if mut n := variable_res.as_mypy_node() {
+		if n is Var {
+			variable = n as Var
+		}
 	}
-}
-
-// visit_import_all visits ImportAll
-pub fn (mut t TransformVisitor) visit_import_all(node ImportAll) ImportAll {
-	return ImportAll{
-		id:       node.id
-		relative: node.relative
-		line:     node.line
-		column:   node.column
-	}
-}
-
-// copy_argument copies a function argument
-pub fn (mut t TransformVisitor) copy_argument(argument Argument) Argument {
-	mut arg := Argument{
-		variable:        t.visit_var(argument.variable)
+	return Argument{
+		variable:        variable
 		type_annotation: argument.type_annotation
-		initializer:     argument.initializer
+		initializer:     t.optional_expr(argument.initializer)
 		kind:            argument.kind
 	}
-	arg.set_line(argument)
-	return arg
 }
 
-// visit_func_def visits FuncDef
-pub fn (mut t TransformVisitor) visit_func_def(node FuncDef) FuncDef {
-	// Set up placeholder nodes for nested functions
-	init := FuncMapInitializer{
-		transformer: mut t
-	}
-	for stmt in node.body.body {
-		stmt.accept(mut init)
-	}
-
-	mut args := []Argument{}
-	for arg in node.arguments {
-		args << t.copy_argument(arg)
-	}
-
-	mut new := FuncDef{
-		name:      node.name
-		arguments: args
-		body:      t.block(node.body)
-		type:      t.optional_type(node.type)
-		line:      node.line
-		column:    node.column
-	}
-
-	t.copy_function_attributes(mut new, node)
-
-	new.fullname = node.fullname
-	new.is_decorated = node.is_decorated
-	new.is_conditional = node.is_conditional
-	new.abstract_status = node.abstract_status
-	new.is_static = node.is_static
-	new.is_class = node.is_class
-	new.is_property = node.is_property
-	new.is_final = node.is_final
-	new.original_def = node.original_def
-
-	return new
-}
-
-// visit_lambda_expr visits LambdaExpr
-pub fn (mut t TransformVisitor) visit_lambda_expr(node LambdaExpr) LambdaExpr {
-	mut args := []Argument{}
-	for arg in node.arguments {
-		args << t.copy_argument(arg)
-	}
-
-	mut new := LambdaExpr{
-		arguments: args
-		body:      t.block(node.body)
-		type:      t.optional_type(node.type)
-		line:      node.line
-		column:    node.column
-	}
-
-	t.copy_function_attributes(mut new, node)
-	return new
-}
-
-// copy_function_attributes copies function attributes
-pub fn (mut t TransformVisitor) copy_function_attributes(mut new FuncItem, original FuncItem) {
-	new.info = original.info
-	new.min_args = original.min_args
-	new.max_pos = original.max_pos
-	new.is_overload = original.is_overload
-	new.is_generator = original.is_generator
-	new.is_coroutine = original.is_coroutine
-	new.is_async_generator = original.is_async_generator
-	new.is_awaitable_coroutine = original.is_awaitable_coroutine
-	new.line = original.line
-}
-
-// visit_overloaded_func_def visits OverloadedFuncDef
-pub fn (mut t TransformVisitor) visit_overloaded_func_def(node OverloadedFuncDef) OverloadedFuncDef {
-	mut items := []OverloadPart{}
-	for item in node.items {
-		items << item.accept(mut t)
-	}
-
-	mut new := OverloadedFuncDef{
-		items: items
-	}
-	new.fullname = node.fullname
-	new.type = t.optional_type(node.type)
-	new.info = node.info
-	new.is_static = node.is_static
-	new.is_class = node.is_class
-	new.is_property = node.is_property
-	new.is_final = node.is_final
-
-	if node.impl != none {
-		new.impl = node.impl.accept(mut t)
-	}
-
-	return new
-}
-
-// visit_class_def visits ClassDef
-pub fn (mut t TransformVisitor) visit_class_def(node ClassDef) ClassDef {
-	mut keywords := map[string]Expression{}
-	for key, value in node.keywords {
-		keywords[key] = t.expr(value)
-	}
-
-	mut new := ClassDef{
-		name:            node.name
-		defs:            t.block(node.defs)
-		type_vars:       node.type_vars.clone()
-		base_type_exprs: t.expressions(node.base_type_exprs)
-		metaclass:       t.optional_expr(node.metaclass)
-		keywords:        keywords
-	}
-	new.fullname = node.fullname
-	new.info = node.info
-
-	mut decorators := []Expression{}
-	for decorator in node.decorators {
-		decorators << t.expr(decorator)
-	}
-	new.decorators = decorators
-
-	return new
-}
-
-// visit_global_decl visits GlobalDecl
-pub fn (mut t TransformVisitor) visit_global_decl(node GlobalDecl) GlobalDecl {
-	return GlobalDecl{
-		names:  node.names.clone()
-		line:   node.line
-		column: node.column
-	}
-}
-
-// visit_nonlocal_decl visits NonlocalDecl
-pub fn (mut t TransformVisitor) visit_nonlocal_decl(node NonlocalDecl) NonlocalDecl {
-	return NonlocalDecl{
-		names:  node.names.clone()
-		line:   node.line
-		column: node.column
-	}
-}
-
-// visit_block visits Block
-pub fn (mut t TransformVisitor) visit_block(node Block) Block {
-	return Block{
-		body:           t.statements(node.body)
-		is_unreachable: node.is_unreachable
-		line:           node.line
-		column:         node.column
-	}
-}
-
-// visit_decorator visits Decorator
-pub fn (mut t TransformVisitor) visit_decorator(node Decorator) Decorator {
-	func := t.visit_func_def(node.func)
-	func.line = node.func.line
-
-	mut decorators := []Expression{}
-	for decorator in node.decorators {
-		decorators << t.expr(decorator)
-	}
-
-	mut new := Decorator{
-		func:       func
-		decorators: decorators
-		var:        t.visit_var(node.var)
-	}
-	new.is_overload = node.is_overload
-	new.line = node.line
-	column:
-	node.column
-
-	return new
-}
-
-// visit_var visits Var
-pub fn (mut t TransformVisitor) visit_var(node Var) Var {
-	key := '${node.name}:${node.line}'
-	if key in t.var_map {
-		return t.var_map[key]
-	}
-
-	mut new := Var{
-		name:   node.name
-		type:   t.optional_type(node.type)
-		line:   node.line
-		column: node.column
-	}
-	new.fullname = node.fullname
-	new.info = node.info
-	new.is_self = node.is_self
-	new.is_ready = node.is_ready
-	new.is_initialized_in_class = node.is_initialized_in_class
-	new.is_staticmethod = node.is_staticmethod
-	new.is_classmethod = node.is_classmethod
-	new.is_property = node.is_property
-	new.is_final = node.is_final
-	new.final_value = node.final_value
-	new.final_unset_in_class = node.final_unset_in_class
-	new.final_set_in_init = node.final_set_in_init
-	new.set_line(node)
-
-	t.var_map[key] = new
-	return new
-}
-
-// visit_expression_stmt visits ExpressionStmt
-pub fn (mut t TransformVisitor) visit_expression_stmt(node ExpressionStmt) ExpressionStmt {
-	return ExpressionStmt{
-		expr:   t.expr(node.expr)
-		line:   node.line
-		column: node.column
-	}
-}
-
-// visit_assignment_stmt visits AssignmentStmt
-pub fn (mut t TransformVisitor) visit_assignment_stmt(node AssignmentStmt) AssignmentStmt {
-	mut lvalues := []Expression{}
-	for lv in node.lvalues {
-		lvalues << t.expr(lv)
-	}
-
-	mut new := AssignmentStmt{
-		lvalues: lvalues
-		rvalue:  t.expr(node.rvalue)
-		type:    t.optional_type(node.type)
-		line:    node.line
-		column:  node.column
-	}
-	new.is_final_def = node.is_final_def
-	return new
-}
-
-// visit_operator_assignment_stmt visits OperatorAssignmentStmt
-pub fn (mut t TransformVisitor) visit_operator_assignment_stmt(node OperatorAssignmentStmt) OperatorAssignmentStmt {
-	return OperatorAssignmentStmt{
-		op:     node.op
-		lvalue: t.expr(node.lvalue)
-		rvalue: t.expr(node.rvalue)
-		line:   node.line
-		column: node.column
-	}
-}
-
-// visit_while_stmt visits WhileStmt
-pub fn (mut t TransformVisitor) visit_while_stmt(node WhileStmt) WhileStmt {
-	return WhileStmt{
-		expr:      t.expr(node.expr)
-		body:      t.block(node.body)
-		else_body: t.optional_block(node.else_body)
-		line:      node.line
-		column:    node.column
-	}
-}
-
-// visit_for_stmt visits ForStmt
-pub fn (mut t TransformVisitor) visit_for_stmt(node ForStmt) ForStmt {
-	mut new := ForStmt{
-		index:                 t.expr(node.index)
-		expr:                  t.expr(node.expr)
-		body:                  t.block(node.body)
-		else_body:             t.optional_block(node.else_body)
-		unanalyzed_index_type: t.optional_type(node.unanalyzed_index_type)
-		line:                  node.line
-		column:                node.column
-	}
-	new.is_async = node.is_async
-	new.index_type = t.optional_type(node.index_type)
-	return new
-}
-
-// visit_return_stmt visits ReturnStmt
-pub fn (mut t TransformVisitor) visit_return_stmt(node ReturnStmt) ReturnStmt {
-	return ReturnStmt{
-		expr:   t.optional_expr(node.expr)
-		line:   node.line
-		column: node.column
-	}
-}
-
-// visit_assert_stmt visits AssertStmt
-pub fn (mut t TransformVisitor) visit_assert_stmt(node AssertStmt) AssertStmt {
-	return AssertStmt{
-		expr:   t.expr(node.expr)
-		msg:    t.optional_expr(node.msg)
-		line:   node.line
-		column: node.column
-	}
-}
-
-// visit_del_stmt visits DelStmt
-pub fn (mut t TransformVisitor) visit_del_stmt(node DelStmt) DelStmt {
-	return DelStmt{
-		expr:   t.expr(node.expr)
-		line:   node.line
-		column: node.column
-	}
-}
-
-// visit_if_stmt visits IfStmt
-pub fn (mut t TransformVisitor) visit_if_stmt(node IfStmt) IfStmt {
-	return IfStmt{
-		expr:      t.expressions(node.expr)
-		body:      t.blocks(node.body)
-		else_body: t.optional_block(node.else_body)
-		line:      node.line
-		column:    node.column
-	}
-}
-
-// visit_break_stmt visits BreakStmt
-pub fn (mut t TransformVisitor) visit_break_stmt(node BreakStmt) BreakStmt {
-	return BreakStmt{
-		line:   node.line
-		column: node.column
-	}
-}
-
-// visit_continue_stmt visits ContinueStmt
-pub fn (mut t TransformVisitor) visit_continue_stmt(node ContinueStmt) ContinueStmt {
-	return ContinueStmt{
-		line:   node.line
-		column: node.column
-	}
-}
-
-// visit_pass_stmt visits PassStmt
-pub fn (mut t TransformVisitor) visit_pass_stmt(node PassStmt) PassStmt {
-	return PassStmt{
-		line:   node.line
-		column: node.column
-	}
-}
-
-// visit_raise_stmt visits RaiseStmt
-pub fn (mut t TransformVisitor) visit_raise_stmt(node RaiseStmt) RaiseStmt {
-	return RaiseStmt{
-		expr:      t.optional_expr(node.expr)
-		from_expr: t.optional_expr(node.from_expr)
-		line:      node.line
-		column:    node.column
-	}
-}
-
-// visit_try_stmt visits TryStmt
-pub fn (mut t TransformVisitor) visit_try_stmt(node TryStmt) TryStmt {
-	mut vars := []?Expression{}
-	for v in node.vars {
-		vars << t.optional_expr(v)
-	}
-
-	mut types := []?Expression{}
-	for tp in node.types {
-		types << t.optional_expr(tp)
-	}
-
-	mut handlers := []Block{}
-	for h in node.handlers {
-		handlers << t.block(h)
-	}
-
-	mut new := TryStmt{
-		body:         t.block(node.body)
-		vars:         vars
-		types:        types
-		handlers:     handlers
-		else_body:    t.optional_block(node.else_body)
-		finally_body: t.optional_block(node.finally_body)
-		line:         node.line
-		column:       node.column
-	}
-	new.is_star = node.is_star
-	return new
-}
-
-// visit_with_stmt visits WithStmt
-pub fn (mut t TransformVisitor) visit_with_stmt(node WithStmt) WithStmt {
-	mut targets := []?Expression{}
-	for target in node.target {
-		targets << t.optional_expr(target)
-	}
-
-	mut new := WithStmt{
-		expr:            t.expressions(node.expr)
-		target:          targets
-		body:            t.block(node.body)
-		unanalyzed_type: t.optional_type(node.unanalyzed_type)
-		line:            node.line
-		column:          node.column
-	}
-	new.is_async = node.is_async
-
-	mut analyzed_types := []MypyTypeNode{}
-	for typ in node.analyzed_types {
-		analyzed_types << t.typ(typ)
-	}
-	new.analyzed_types = analyzed_types
-
-	return new
-}
-
-// visit_int_expr visits IntExpr
-pub fn (mut t TransformVisitor) visit_int_expr(node IntExpr) IntExpr {
-	return IntExpr{
-		value:  node.value
-		line:   node.line
-		column: node.column
-	}
-}
-
-// visit_str_expr visits StrExpr
-pub fn (mut t TransformVisitor) visit_str_expr(node StrExpr) StrExpr {
-	return StrExpr{
-		value:  node.value
-		line:   node.line
-		column: node.column
-	}
-}
-
-// visit_bytes_expr visits BytesExpr
-pub fn (mut t TransformVisitor) visit_bytes_expr(node BytesExpr) BytesExpr {
-	return BytesExpr{
-		value:  node.value
-		line:   node.line
-		column: node.column
-	}
-}
-
-// visit_float_expr visits FloatExpr
-pub fn (mut t TransformVisitor) visit_float_expr(node FloatExpr) FloatExpr {
-	return FloatExpr{
-		value:  node.value
-		line:   node.line
-		column: node.column
-	}
-}
-
-// visit_complex_expr visits ComplexExpr
-pub fn (mut t TransformVisitor) visit_complex_expr(node ComplexExpr) ComplexExpr {
-	return ComplexExpr{
-		value:  node.value
-		line:   node.line
-		column: node.column
-	}
-}
-
-// visit_ellipsis visits EllipsisExpr
-pub fn (mut t TransformVisitor) visit_ellipsis(node EllipsisExpr) EllipsisExpr {
-	return EllipsisExpr{
-		line:   node.line
-		column: node.column
-	}
-}
-
-// visit_name_expr visits NameExpr
-pub fn (mut t TransformVisitor) visit_name_expr(node NameExpr) NameExpr {
-	return t.duplicate_name(node)
-}
-
-// duplicate_name duplicates NameExpr
-pub fn (mut t TransformVisitor) duplicate_name(node NameExpr) NameExpr {
-	mut new := NameExpr{
-		name:   node.name
-		line:   node.line
-		column: node.column
-	}
-	t.copy_ref(mut new, node)
-	new.is_special_form = node.is_special_form
-	return new
-}
-
-// visit_member_expr visits MemberExpr
-pub fn (mut t TransformVisitor) visit_member_expr(node MemberExpr) MemberExpr {
-	mut member := MemberExpr{
-		expr:   t.expr(node.expr)
-		name:   node.name
-		line:   node.line
-		column: node.column
-	}
-	if node.def_var != none {
-		member.def_var = node.def_var
-	}
-	t.copy_ref(mut member, node)
-	return member
-}
-
-// copy_ref copies references
-pub fn (mut t TransformVisitor) copy_ref(mut new RefExpr, original RefExpr) {
-	new.kind = original.kind
-	new.fullname = original.fullname
-
-	target := original.node
-	if target is Var {
-		if original.kind != 'GDEF' {
-			target = t.visit_var(target)
-		}
-	} else if target is Decorator {
-		// target = t.visit_var((target as Decorator).var)
-	} else if target is FuncDef {
-		// Use placeholder if exists
-		// target = t.func_placeholder_map.get(target, target)
-	}
-	new.node = target
-
-	new.is_new_def = original.is_new_def
-	new.is_inferred_def = original.is_inferred_def
-}
-
-// visit_call_expr visits CallExpr
-pub fn (mut t TransformVisitor) visit_call_expr(node CallExpr) CallExpr {
-	return CallExpr{
-		callee:    t.expr(node.callee)
-		args:      t.expressions(node.args)
-		arg_kinds: node.arg_kinds.clone()
-		arg_names: node.arg_names.clone()
-		analyzed:  t.optional_expr(node.analyzed)
-		line:      node.line
-		column:    node.column
-	}
-}
-
-// visit_op_expr visits OpExpr
-pub fn (mut t TransformVisitor) visit_op_expr(node OpExpr) OpExpr {
-	mut new := OpExpr{
-		op:     node.op
-		left:   t.expr(node.left)
-		right:  t.expr(node.right)
-		line:   node.line
-		column: node.column
-	}
-	new.method_type = t.optional_type(node.method_type)
-	return new
-}
-
-// visit_comparison_expr visits ComparisonExpr
-pub fn (mut t TransformVisitor) visit_comparison_expr(node ComparisonExpr) ComparisonExpr {
-	mut new := ComparisonExpr{
-		operators: node.operators.clone()
-		operands:  t.expressions(node.operands)
-		line:      node.line
-		column:    node.column
-	}
-	mut method_types := []?MypyTypeNode{}
-	for mt in node.method_types {
-		method_types << t.optional_type(mt)
-	}
-	new.method_types = method_types
-	return new
-}
-
-// visit_cast_expr visits CastExpr
-pub fn (mut t TransformVisitor) visit_cast_expr(node CastExpr) CastExpr {
-	return CastExpr{
-		expr:   t.expr(node.expr)
-		type:   t.type(node.type)
-		line:   node.line
-		column: node.column
-	}
-}
-
-// visit_assert_type_expr visits AssertTypeExpr
-pub fn (mut t TransformVisitor) visit_assert_type_expr(node AssertTypeExpr) AssertTypeExpr {
-	return AssertTypeExpr{
-		expr:   t.expr(node.expr)
-		type:   t.type(node.type)
-		line:   node.line
-		column: node.column
-	}
-}
-
-// visit_reveal_expr visits RevealExpr
-pub fn (mut t TransformVisitor) visit_reveal_expr(node RevealExpr) RevealExpr {
-	if node.kind == 'REVEAL_TYPE' {
-		if node.expr != none {
-			return RevealExpr{
-				kind:   node.kind
-				expr:   t.expr(node.expr or { Expression(none) })
-				line:   node.line
-				column: node.column
-			}
-		}
-	}
-	return node
-}
-
-// visit_super_expr visits SuperExpr
-pub fn (mut t TransformVisitor) visit_super_expr(node SuperExpr) SuperExpr {
-	call := t.expr(node.call)
-	mut new := SuperExpr{
-		name:   node.name
-		call:   call
-		line:   node.line
-		column: node.column
-	}
-	new.info = node.info
-	return new
-}
-
-// visit_assignment_expr visits AssignmentExpr
-pub fn (mut t TransformVisitor) visit_assignment_expr(node AssignmentExpr) AssignmentExpr {
-	return AssignmentExpr{
-		target: t.duplicate_name(node.target)
-		value:  t.expr(node.value)
-		line:   node.line
-		column: node.column
-	}
-}
-
-// visit_unary_expr visits UnaryExpr
-pub fn (mut t TransformVisitor) visit_unary_expr(node UnaryExpr) UnaryExpr {
-	mut new := UnaryExpr{
-		op:     node.op
-		expr:   t.expr(node.expr)
-		line:   node.line
-		column: node.column
-	}
-	new.method_type = t.optional_type(node.method_type)
-	return new
-}
-
-// visit_list_expr visits ListExpr
-pub fn (mut t TransformVisitor) visit_list_expr(node ListExpr) ListExpr {
-	return ListExpr{
-		items:  t.expressions(node.items)
-		line:   node.line
-		column: node.column
-	}
-}
-
-// visit_dict_expr visits DictExpr
-pub fn (mut t TransformVisitor) visit_dict_expr(node DictExpr) DictExpr {
-	mut items := []DictItem{}
-	for key, value in node.items {
-		items << DictItem{
-			key:   if key == none { none } else { t.expr(key or { Expression(none) }) }
-			value: t.expr(value)
-		}
-	}
-	return DictExpr{
-		items:  items
-		line:   node.line
-		column: node.column
-	}
-}
-
-// visit_tuple_expr visits TupleExpr
-pub fn (mut t TransformVisitor) visit_tuple_expr(node TupleExpr) TupleExpr {
-	return TupleExpr{
-		items:  t.expressions(node.items)
-		line:   node.line
-		column: node.column
-	}
-}
-
-// visit_set_expr visits SetExpr
-pub fn (mut t TransformVisitor) visit_set_expr(node SetExpr) SetExpr {
-	return SetExpr{
-		items:  t.expressions(node.items)
-		line:   node.line
-		column: node.column
-	}
-}
-
-// visit_index_expr visits IndexExpr
-pub fn (mut t TransformVisitor) visit_index_expr(node IndexExpr) IndexExpr {
-	mut new := IndexExpr{
-		base:   t.expr(node.base)
-		index:  t.expr(node.index)
-		line:   node.line
-		column: node.column
-	}
-	if node.method_type != none {
-		new.method_type = t.type(node.method_type or { MypyTypeNode(none) })
-	}
-	if node.analyzed != none {
-		analyzed := node.analyzed or { Expression(none) }
-		if analyzed is TypeApplication {
-			// new.analyzed = t.visit_type_application(analyzed)
-		} else if analyzed is TypeAliasExpr {
-			// new.analyzed = t.visit_type_alias_expr(analyzed)
-		}
-	}
-	return new
-}
-
-// visit_type_application visits TypeApplication
-pub fn (mut t TransformVisitor) visit_type_application(node TypeApplication) TypeApplication {
-	return TypeApplication{
-		expr:   t.expr(node.expr)
-		types:  t.types(node.types)
-		line:   node.line
-		column: node.column
-	}
-}
-
-// visit_slice_expr visits SliceExpr
-pub fn (mut t TransformVisitor) visit_slice_expr(node SliceExpr) SliceExpr {
-	return SliceExpr{
-		begin_index: t.optional_expr(node.begin_index)
-		end_index:   t.optional_expr(node.end_index)
-		stride:      t.optional_expr(node.stride)
-		line:        node.line
-		column:      node.column
-	}
-}
-
-// visit_conditional_expr visits ConditionalExpr
-pub fn (mut t TransformVisitor) visit_conditional_expr(node ConditionalExpr) ConditionalExpr {
-	return ConditionalExpr{
-		cond:      t.expr(node.cond)
-		if_expr:   t.expr(node.if_expr)
-		else_expr: t.expr(node.else_expr)
-		line:      node.line
-		column:    node.column
-	}
-}
-
-// FuncMapInitializer — placeholder initializer for functions
 pub struct FuncMapInitializer {
-pub mut:
+	NodeTraverser
 	transformer TransformVisitor
 }
 
-pub fn (mut f FuncMapInitializer) visit_func_def(node FuncDef) {
-	// Placeholder initialization
+pub fn (mut f FuncMapInitializer) visit_func_def(mut node FuncDef) !AnyNode {
+	return AnyNode(MypyNode(node))
 }
 
-pub fn (mut f FuncMapInitializer) visit_block(node Block) {
-	for stmt in node.body {
-		stmt.accept(mut f)
+pub fn (mut f FuncMapInitializer) visit_block(mut node Block) !AnyNode {
+	for mut stmt in node.body {
+		stmt.accept(mut f)!
+	}
+	return AnyNode(MypyNode(node))
+}
+
+pub fn (mut t TransformVisitor) visit_int_expr(mut node IntExpr) !AnyNode { return AnyNode(MypyNode(node)) }
+
+pub fn (mut t TransformVisitor) visit_str_expr(mut node StrExpr) !AnyNode { return AnyNode(MypyNode(node)) }
+
+pub fn (mut t TransformVisitor) visit_bytes_expr(mut node BytesExpr) !AnyNode { return AnyNode(MypyNode(node)) }
+
+pub fn (mut t TransformVisitor) visit_float_expr(mut node FloatExpr) !AnyNode { return AnyNode(MypyNode(node)) }
+
+pub fn (mut t TransformVisitor) visit_complex_expr(mut node ComplexExpr) !AnyNode { return AnyNode(MypyNode(node)) }
+
+pub fn (mut t TransformVisitor) visit_ellipsis(mut node EllipsisExpr) !AnyNode { return AnyNode(MypyNode(node)) }
+
+pub fn (mut t TransformVisitor) visit_star_expr(mut node StarExpr) !AnyNode { return AnyNode(MypyNode(node)) }
+
+pub fn (mut t TransformVisitor) visit_name_expr(mut node NameExpr) !AnyNode { return AnyNode(MypyNode(node)) }
+
+pub fn (mut t TransformVisitor) visit_member_expr(mut node MemberExpr) !AnyNode { return AnyNode(MypyNode(node)) }
+
+pub fn (mut t TransformVisitor) visit_yield_from_expr(mut node YieldFromExpr) !AnyNode { return AnyNode(MypyNode(node)) }
+
+pub fn (mut t TransformVisitor) visit_yield_expr(mut node YieldExpr) !AnyNode { return AnyNode(MypyNode(node)) }
+
+pub fn (mut t TransformVisitor) visit_call_expr(mut node CallExpr) !AnyNode { return AnyNode(MypyNode(node)) }
+
+pub fn (mut t TransformVisitor) visit_op_expr(mut node OpExpr) !AnyNode { return AnyNode(MypyNode(node)) }
+
+pub fn (mut t TransformVisitor) visit_comparison_expr(mut node ComparisonExpr) !AnyNode { return AnyNode(MypyNode(node)) }
+
+pub fn (mut t TransformVisitor) visit_cast_expr(mut node CastExpr) !AnyNode { return AnyNode(MypyNode(node)) }
+
+pub fn (mut t TransformVisitor) visit_assert_type_expr(mut node AssertTypeExpr) !AnyNode { return AnyNode(MypyNode(node)) }
+
+pub fn (mut t TransformVisitor) visit_reveal_expr(mut node RevealExpr) !AnyNode { return AnyNode(MypyNode(node)) }
+
+pub fn (mut t TransformVisitor) visit_super_expr(mut node SuperExpr) !AnyNode { return AnyNode(MypyNode(node)) }
+
+pub fn (mut t TransformVisitor) visit_unary_expr(mut node UnaryExpr) !AnyNode { return AnyNode(MypyNode(node)) }
+
+pub fn (mut t TransformVisitor) visit_assignment_expr(mut node AssignmentExpr) !AnyNode { return AnyNode(MypyNode(node)) }
+
+pub fn (mut t TransformVisitor) visit_list_expr(mut node ListExpr) !AnyNode { return AnyNode(MypyNode(node)) }
+
+pub fn (mut t TransformVisitor) visit_dict_expr(mut node DictExpr) !AnyNode { return AnyNode(MypyNode(node)) }
+
+pub fn (mut t TransformVisitor) visit_template_str_expr(mut node TemplateStrExpr) !AnyNode { return AnyNode(MypyNode(node)) }
+
+pub fn (mut t TransformVisitor) visit_tuple_expr(mut node TupleExpr) !AnyNode { return AnyNode(MypyNode(node)) }
+
+pub fn (mut t TransformVisitor) visit_set_expr(mut node SetExpr) !AnyNode { return AnyNode(MypyNode(node)) }
+
+pub fn (mut t TransformVisitor) visit_index_expr(mut node IndexExpr) !AnyNode { return AnyNode(MypyNode(node)) }
+
+pub fn (mut t TransformVisitor) visit_type_application(mut node TypeApplication) !AnyNode { return AnyNode(MypyNode(node)) }
+
+pub fn (mut t TransformVisitor) visit_lambda_expr(mut node LambdaExpr) !AnyNode { return AnyNode(MypyNode(node)) }
+
+pub fn (mut t TransformVisitor) visit_list_comprehension(mut node ListComprehension) !AnyNode { return AnyNode(MypyNode(node)) }
+
+pub fn (mut t TransformVisitor) visit_set_comprehension(mut node SetComprehension) !AnyNode { return AnyNode(MypyNode(node)) }
+
+pub fn (mut t TransformVisitor) visit_dictionary_comprehension(mut node DictionaryComprehension) !AnyNode { return AnyNode(MypyNode(node)) }
+
+pub fn (mut t TransformVisitor) visit_generator_expr(mut node GeneratorExpr) !AnyNode { return AnyNode(MypyNode(node)) }
+
+pub fn (mut t TransformVisitor) visit_slice_expr(mut node SliceExpr) !AnyNode { return AnyNode(MypyNode(node)) }
+
+pub fn (mut t TransformVisitor) visit_conditional_expr(mut node ConditionalExpr) !AnyNode { return AnyNode(MypyNode(node)) }
+
+pub fn (mut t TransformVisitor) visit_type_var_expr(mut node TypeVarExpr) !AnyNode { return AnyNode(MypyNode(node)) }
+
+pub fn (mut t TransformVisitor) visit_paramspec_expr(mut node ParamSpecExpr) !AnyNode { return AnyNode(MypyNode(node)) }
+
+pub fn (mut t TransformVisitor) visit_type_var_tuple_expr(mut node TypeVarTupleExpr) !AnyNode { return AnyNode(MypyNode(node)) }
+
+pub fn (mut t TransformVisitor) visit_type_alias_expr(mut node TypeAliasExpr) !AnyNode { return AnyNode(MypyNode(node)) }
+
+pub fn (mut t TransformVisitor) visit_namedtuple_expr(mut node NamedTupleExpr) !AnyNode { return AnyNode(MypyNode(node)) }
+
+pub fn (mut t TransformVisitor) visit_enum_call_expr(mut node EnumCallExpr) !AnyNode { return AnyNode(MypyNode(node)) }
+
+pub fn (mut t TransformVisitor) visit_typeddict_expr(mut node TypedDictExpr) !AnyNode { return AnyNode(MypyNode(node)) }
+
+pub fn (mut t TransformVisitor) visit_newtype_expr(mut node NewTypeExpr) !AnyNode { return AnyNode(MypyNode(node)) }
+
+pub fn (mut t TransformVisitor) visit_promote_expr(mut node PromoteExpr) !AnyNode { return AnyNode(MypyNode(node)) }
+
+pub fn (mut t TransformVisitor) visit_await_expr(mut node AwaitExpr) !AnyNode { return AnyNode(MypyNode(node)) }
+
+pub fn (mut t TransformVisitor) visit_temp_node(mut node TempNode) !AnyNode { return AnyNode(MypyNode(node)) }
+
+pub fn (mut t TransformVisitor) visit_assignment_stmt(mut node AssignmentStmt) !AnyNode { return AnyNode(MypyNode(node)) }
+
+pub fn (mut t TransformVisitor) visit_for_stmt(mut node ForStmt) !AnyNode { return AnyNode(MypyNode(node)) }
+
+pub fn (mut t TransformVisitor) visit_with_stmt(mut node WithStmt) !AnyNode { return AnyNode(MypyNode(node)) }
+
+pub fn (mut t TransformVisitor) visit_del_stmt(mut node DelStmt) !AnyNode { return AnyNode(MypyNode(node)) }
+
+pub fn (mut t TransformVisitor) visit_func_def(mut node FuncDef) !AnyNode { return AnyNode(MypyNode(node)) }
+
+pub fn (mut t TransformVisitor) visit_overloaded_func_def(mut node OverloadedFuncDef) !AnyNode { return AnyNode(MypyNode(node)) }
+
+pub fn (mut t TransformVisitor) visit_class_def(mut node ClassDef) !AnyNode { return AnyNode(MypyNode(node)) }
+
+pub fn (mut t TransformVisitor) visit_global_decl(mut node GlobalDecl) !AnyNode { return AnyNode(MypyNode(node)) }
+
+pub fn (mut t TransformVisitor) visit_nonlocal_decl(mut node NonlocalDecl) !AnyNode { return AnyNode(MypyNode(node)) }
+
+pub fn (mut t TransformVisitor) visit_decorator(mut node Decorator) !AnyNode { return AnyNode(MypyNode(node)) }
+
+pub fn (mut t TransformVisitor) visit_import(mut node Import) !AnyNode { return AnyNode(MypyNode(node)) }
+
+pub fn (mut t TransformVisitor) visit_import_from(mut node ImportFrom) !AnyNode { return AnyNode(MypyNode(node)) }
+
+pub fn (mut t TransformVisitor) visit_import_all(mut node ImportAll) !AnyNode { return AnyNode(MypyNode(node)) }
+
+pub fn (mut t TransformVisitor) visit_block(mut node Block) !AnyNode { return AnyNode(MypyNode(node)) }
+
+pub fn (mut t TransformVisitor) visit_expression_stmt(mut node ExpressionStmt) !AnyNode { return AnyNode(MypyNode(node)) }
+
+pub fn (mut t TransformVisitor) visit_operator_assignment_stmt(mut node OperatorAssignmentStmt) !AnyNode { return AnyNode(MypyNode(node)) }
+
+pub fn (mut t TransformVisitor) visit_while_stmt(mut node WhileStmt) !AnyNode { return AnyNode(MypyNode(node)) }
+
+pub fn (mut t TransformVisitor) visit_return_stmt(mut node ReturnStmt) !AnyNode { return AnyNode(MypyNode(node)) }
+
+pub fn (mut t TransformVisitor) visit_assert_stmt(mut node AssertStmt) !AnyNode { return AnyNode(MypyNode(node)) }
+
+pub fn (mut t TransformVisitor) visit_if_stmt(mut node IfStmt) !AnyNode { return AnyNode(MypyNode(node)) }
+
+pub fn (mut t TransformVisitor) visit_break_stmt(mut node BreakStmt) !AnyNode { return AnyNode(MypyNode(node)) }
+
+pub fn (mut t TransformVisitor) visit_continue_stmt(mut node ContinueStmt) !AnyNode { return AnyNode(MypyNode(node)) }
+
+pub fn (mut t TransformVisitor) visit_pass_stmt(mut node PassStmt) !AnyNode { return AnyNode(MypyNode(node)) }
+
+pub fn (mut t TransformVisitor) visit_raise_stmt(mut node RaiseStmt) !AnyNode { return AnyNode(MypyNode(node)) }
+
+pub fn (mut t TransformVisitor) visit_try_stmt(mut node TryStmt) !AnyNode { return AnyNode(MypyNode(node)) }
+
+pub fn (mut t TransformVisitor) visit_type_alias_stmt(mut node TypeAliasStmt) !AnyNode { return AnyNode(MypyNode(node)) }
+
+pub fn (mut t TransformVisitor) visit_match_stmt(mut node MatchStmt) !AnyNode { return AnyNode(MypyNode(node)) }
+
+pub fn (mut t TransformVisitor) visit_as_pattern(mut node AsPattern) !AnyNode { return AnyNode(MypyNode(node)) }
+
+pub fn (mut t TransformVisitor) visit_or_pattern(mut node OrPattern) !AnyNode { return AnyNode(MypyNode(node)) }
+
+pub fn (mut t TransformVisitor) visit_value_pattern(mut node ValuePattern) !AnyNode { return AnyNode(MypyNode(node)) }
+
+pub fn (mut t TransformVisitor) visit_singleton_pattern(mut node SingletonPattern) !AnyNode { return AnyNode(MypyNode(node)) }
+
+pub fn (mut t TransformVisitor) visit_sequence_pattern(mut node SequencePattern) !AnyNode { return AnyNode(MypyNode(node)) }
+
+pub fn (mut t TransformVisitor) visit_starred_pattern(mut node StarredPattern) !AnyNode { return AnyNode(MypyNode(node)) }
+
+pub fn (mut t TransformVisitor) visit_mapping_pattern(mut node MappingPattern) !AnyNode { return AnyNode(MypyNode(node)) }
+
+pub fn (mut t TransformVisitor) visit_class_pattern(mut node ClassPattern) !AnyNode { return AnyNode(MypyNode(node)) }
+
+pub fn (mut t TransformVisitor) visit_var(mut node Var) !AnyNode { return AnyNode(MypyNode(node)) }
+
+pub fn (mut t TransformVisitor) visit_type_alias(mut node TypeAlias) !AnyNode { return AnyNode(MypyNode(node)) }
+
+pub fn (mut t TransformVisitor) visit_placeholder_node(mut node PlaceholderNode) !AnyNode { return AnyNode(MypyNode(node)) }
+
+pub fn (mut t TransformVisitor) visit_argument(mut node Argument) !AnyNode { return AnyNode(MypyNode(node)) }
+
+pub fn (mut t TransformVisitor) visit_type_param(mut node TypeParam) !AnyNode { return AnyNode(MypyNode(node)) }
+
+pub fn (mut t TransformVisitor) visit_type_info(mut node TypeInfo) !AnyNode { return AnyNode(MypyNode(node)) }
+
+pub fn (mut t TransformVisitor) visit_lvalue(mut node Lvalue) !AnyNode {
+	match mut node {
+		ListExpr { return AnyNode(MypyNode(node)) }
+		MemberExpr { return AnyNode(MypyNode(node)) }
+		NameExpr { return AnyNode(MypyNode(node)) }
+		StarExpr { return AnyNode(MypyNode(node)) }
+		TupleExpr { return AnyNode(MypyNode(node)) }
 	}
 }

@@ -147,7 +147,7 @@ pub fn (mut b ReadBuffer) read_u32() !u32 {
 	return v
 }
 
-pub fn (mut b ReadBuffer) read_str() !string {
+pub fn (mut b ReadBuffer) read_str() !AnyNode {
 	length := int(b.read_u32()!)
 	if b.pos + length > b.data.len {
 		return error('EOF')

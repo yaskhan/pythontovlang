@@ -144,30 +144,6 @@ pub fn cache_meta_deserialize(meta map[string]CacheValue, data_file string) ?Cac
 	}
 }
 
-// Tags for types in FF format
-pub const literal_false = u8(0)
-pub const literal_true = u8(1)
-pub const literal_none = u8(2)
-pub const literal_int = u8(3)
-pub const literal_str = u8(4)
-pub const literal_bytes = u8(5)
-pub const literal_float = u8(6)
-pub const literal_complex = u8(7)
-
-// Tags for collections
-pub const list_gen = u8(20)
-pub const list_int = u8(21)
-pub const list_str = u8(22)
-pub const list_bytes = u8(23)
-pub const tuple_gen = u8(24)
-pub const dict_str_gen = u8(30)
-pub const dict_int_gen = u8(31)
-
-// Special tags
-pub const extra_attrs = u8(150)
-pub const dt_spec = u8(151)
-pub const location = u8(152)
-pub const end_tag = u8(255)
 
 // read_literal reads a literal from buffer
 pub fn read_literal(data []u8, tag u8) CacheValue {
@@ -357,8 +333,8 @@ pub fn write_errors(mut data []u8, errs []ErrorInfo) {
 		write_str_opt(mut data, if err.file != '' { err.file } else { none })
 		write_int(mut data, err.line)
 		write_int(mut data, err.column)
-		write_int(mut data, err.end_line)
-		write_int(mut data, err.end_column)
+		write_int(mut data, err.end_line or { -1 })
+		write_int(mut data, err.end_column or { -1 })
 		write_str(mut data, err.severity)
 		write_str(mut data, err.message)
 		write_str_opt(mut data, err.code)
@@ -375,8 +351,8 @@ pub fn read_errors(mut data []u8) []ErrorInfo {
 			file:       read_str_opt(mut data) or { '' }
 			line:       read_int(mut data)
 			column:     read_int(mut data)
-			end_line:   read_int(mut data)
-			end_column: read_int(mut data)
+			end_line:   (fn (v int) ?int { if v == -1 { return none } return v }(read_int(mut data)))
+			end_column: (fn (v int) ?int { if v == -1 { return none } return v }(read_int(mut data)))
 			severity:   read_str(mut data)
 			message:    read_str(mut data)
 			code:       read_str_opt(mut data)

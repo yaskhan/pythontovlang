@@ -219,7 +219,7 @@ fn (mut sa SemanticAnalyzer) prepare_builtins_namespace(mut file_node MypyFile) 
 }
 
 // visit_mypy_file handles MypyFile
-pub fn (mut sa SemanticAnalyzer) visit_mypy_file(mut file_node MypyFile) !string {
+pub fn (mut sa SemanticAnalyzer) visit_mypy_file(mut file_node MypyFile) !AnyNode {
 	sa.cur_mod_node = file_node
 	sa.cur_mod_id = file_node.fullname
 
@@ -232,7 +232,7 @@ pub fn (mut sa SemanticAnalyzer) visit_mypy_file(mut file_node MypyFile) !string
 }
 
 // visit_func_def handles function definition
-pub fn (mut sa SemanticAnalyzer) visit_func_def(mut defn FuncDef) !string {
+pub fn (mut sa SemanticAnalyzer) visit_func_def(mut defn FuncDef) !AnyNode {
 	sa.statement = Statement(defn)
 
 	for arg in defn.arguments {
@@ -261,7 +261,7 @@ pub fn (mut sa SemanticAnalyzer) visit_func_def(mut defn FuncDef) !string {
 }
 
 // analyze_func_def analyzes function definition
-fn (mut sa SemanticAnalyzer) analyze_func_def(mut defn FuncDef) !string {
+fn (mut sa SemanticAnalyzer) analyze_func_def(mut defn FuncDef) !AnyNode {
 	if sa.push_type_args(defn.type_params, defn.base) == none {
 		sa.defer(defn.base)
 		return ''
@@ -289,14 +289,14 @@ fn (mut sa SemanticAnalyzer) analyze_func_def(mut defn FuncDef) !string {
 }
 
 // visit_class_def handles class definition
-pub fn (mut sa SemanticAnalyzer) visit_class_def(mut defn ClassDef) !string {
+pub fn (mut sa SemanticAnalyzer) visit_class_def(mut defn ClassDef) !AnyNode {
 	sa.statement = Statement(defn)
 	sa.analyze_class(mut defn)!
 	return ''
 }
 
 // analyze_class analyzes class definition
-fn (mut sa SemanticAnalyzer) analyze_class(mut defn ClassDef) !string {
+fn (mut sa SemanticAnalyzer) analyze_class(mut defn ClassDef) !AnyNode {
 	fullname := sa.qualified_name(defn.name)
 
 	if defn.info == none && !sa.is_core_builtin_class(defn) {
@@ -319,7 +319,7 @@ fn (mut sa SemanticAnalyzer) analyze_class(mut defn ClassDef) !string {
 }
 
 // visit_import handles import
-pub fn (mut sa SemanticAnalyzer) visit_import(mut i Import) !string {
+pub fn (mut sa SemanticAnalyzer) visit_import(mut i Import) !AnyNode {
 	sa.statement = Statement(i)
 	for item in i.ids {
 		id := item.name
@@ -353,7 +353,7 @@ pub fn (mut sa SemanticAnalyzer) visit_import(mut i Import) !string {
 }
 
 // visit_import_from handles from ... import
-pub fn (mut sa SemanticAnalyzer) visit_import_from(mut imp ImportFrom) !string {
+pub fn (mut sa SemanticAnalyzer) visit_import_from(mut imp ImportFrom) !AnyNode {
 	sa.statement = Statement(imp)
 	mod_id := sa.correct_relative_import(imp)
 	mod := sa.modules[mod_id] or { return '' }
@@ -384,7 +384,7 @@ pub fn (mut sa SemanticAnalyzer) visit_import_from(mut imp ImportFrom) !string {
 }
 
 // visit_assignment_stmt handles assignment
-pub fn (mut sa SemanticAnalyzer) visit_assignment_stmt(mut s AssignmentStmt) !string {
+pub fn (mut sa SemanticAnalyzer) visit_assignment_stmt(mut s AssignmentStmt) !AnyNode {
 	sa.statement = Statement(s)
 
 	if sa.analyze_identity_global_assignment(s) {
@@ -414,7 +414,7 @@ pub fn (mut sa SemanticAnalyzer) visit_assignment_stmt(mut s AssignmentStmt) !st
 }
 
 // visit_if_stmt handles if
-pub fn (mut sa SemanticAnalyzer) visit_if_stmt(mut s IfStmt) !string {
+pub fn (mut sa SemanticAnalyzer) visit_if_stmt(mut s IfStmt) !AnyNode {
 	sa.statement = Statement(s)
 	// TODO: infer_reachability_of_if_statement
 	for i in 0 .. s.expr.len {
@@ -426,7 +426,7 @@ pub fn (mut sa SemanticAnalyzer) visit_if_stmt(mut s IfStmt) !string {
 }
 
 // visit_block handles block
-pub fn (mut sa SemanticAnalyzer) visit_block(mut b Block) !string {
+pub fn (mut sa SemanticAnalyzer) visit_block(mut b Block) !AnyNode {
 	if b.is_unreachable {
 		return ''
 	}
@@ -439,7 +439,7 @@ pub fn (mut sa SemanticAnalyzer) visit_block(mut b Block) !string {
 }
 
 // visit_block_maybe handles optional block
-pub fn (mut sa SemanticAnalyzer) visit_block_maybe(b ?Block) !string {
+pub fn (mut sa SemanticAnalyzer) visit_block_maybe(b ?Block) !AnyNode {
 	if mut it_b := b {
 		sa.visit_block(mut it_b)!
 	}
@@ -447,7 +447,7 @@ pub fn (mut sa SemanticAnalyzer) visit_block_maybe(b ?Block) !string {
 }
 
 // visit_while_stmt handles while
-pub fn (mut sa SemanticAnalyzer) visit_while_stmt(mut s WhileStmt) !string {
+pub fn (mut sa SemanticAnalyzer) visit_while_stmt(mut s WhileStmt) !AnyNode {
 	sa.statement = Statement(s)
 	s.expr.accept(mut sa)!
 	sa.loop_depth[sa.loop_depth.len - 1]++
@@ -458,7 +458,7 @@ pub fn (mut sa SemanticAnalyzer) visit_while_stmt(mut s WhileStmt) !string {
 }
 
 // visit_for_stmt handles for
-pub fn (mut sa SemanticAnalyzer) visit_for_stmt(mut s ForStmt) !string {
+pub fn (mut sa SemanticAnalyzer) visit_for_stmt(mut s ForStmt) !AnyNode {
 	if s.is_async {
 		// TODO: async check
 	}
@@ -475,7 +475,7 @@ pub fn (mut sa SemanticAnalyzer) visit_for_stmt(mut s ForStmt) !string {
 }
 
 // visit_return_stmt handles return
-pub fn (mut sa SemanticAnalyzer) visit_return_stmt(mut s ReturnStmt) !string {
+pub fn (mut sa SemanticAnalyzer) visit_return_stmt(mut s ReturnStmt) !AnyNode {
 	if !sa.is_func_scope() {
 		sa.fail('"return" outside function', s.get_context(), false, false, none)
 	}
@@ -486,7 +486,7 @@ pub fn (mut sa SemanticAnalyzer) visit_return_stmt(mut s ReturnStmt) !string {
 }
 
 // visit_break_stmt handles break
-pub fn (mut sa SemanticAnalyzer) visit_break_stmt(mut s BreakStmt) !string {
+pub fn (mut sa SemanticAnalyzer) visit_break_stmt(mut s BreakStmt) !AnyNode {
 	sa.statement = Statement(s)
 	if sa.loop_depth.last() == 0 {
 		sa.fail('"break" outside loop', s.get_context(), true, true, none)
@@ -495,7 +495,7 @@ pub fn (mut sa SemanticAnalyzer) visit_break_stmt(mut s BreakStmt) !string {
 }
 
 // visit_continue_stmt handles continue
-pub fn (mut sa SemanticAnalyzer) visit_continue_stmt(mut s ContinueStmt) !string {
+pub fn (mut sa SemanticAnalyzer) visit_continue_stmt(mut s ContinueStmt) !AnyNode {
 	sa.statement = Statement(s)
 	if sa.loop_depth.last() == 0 {
 		sa.fail('"continue" outside loop', s.get_context(), true, true, none)
@@ -504,7 +504,7 @@ pub fn (mut sa SemanticAnalyzer) visit_continue_stmt(mut s ContinueStmt) !string
 }
 
 // visit_try_stmt handles try
-pub fn (mut sa SemanticAnalyzer) visit_try_stmt(mut s TryStmt) !string {
+pub fn (mut sa SemanticAnalyzer) visit_try_stmt(mut s TryStmt) !AnyNode {
 	sa.statement = Statement(s)
 	s.body.accept(mut sa)!
 	for mut handler in s.handlers {
@@ -520,7 +520,7 @@ pub fn (mut sa SemanticAnalyzer) visit_try_stmt(mut s TryStmt) !string {
 }
 
 // visit_decorator handles decorator
-pub fn (mut sa SemanticAnalyzer) visit_decorator(mut dec Decorator) !string {
+pub fn (mut sa SemanticAnalyzer) visit_decorator(mut dec Decorator) !AnyNode {
 	sa.statement = Statement(dec)
 	// dec.decorators is initialized already
 	dec.func.is_conditional = sa.block_depth.last() > 0
@@ -541,14 +541,14 @@ pub fn (mut sa SemanticAnalyzer) visit_decorator(mut dec Decorator) !string {
 }
 
 // visit_expression_stmt handles expression statement
-pub fn (mut sa SemanticAnalyzer) visit_expression_stmt(mut s ExpressionStmt) !string {
+pub fn (mut sa SemanticAnalyzer) visit_expression_stmt(mut s ExpressionStmt) !AnyNode {
 	sa.statement = Statement(s)
 	s.expr.accept(mut sa)!
 	return ''
 }
 
 // visit_name_expr handles name
-pub fn (mut sa SemanticAnalyzer) visit_name_expr(mut expr NameExpr) !string {
+pub fn (mut sa SemanticAnalyzer) visit_name_expr(mut expr NameExpr) !AnyNode {
 	n := sa.lookup(expr.name, expr.base)
 	if n != none {
 		sa.bind_name_expr(mut expr, n)
@@ -557,14 +557,14 @@ pub fn (mut sa SemanticAnalyzer) visit_name_expr(mut expr NameExpr) !string {
 }
 
 // visit_member_expr handles member access
-pub fn (mut sa SemanticAnalyzer) visit_member_expr(mut expr MemberExpr) !string {
+pub fn (mut sa SemanticAnalyzer) visit_member_expr(mut expr MemberExpr) !AnyNode {
 	expr.expr.accept(mut sa)!
 	// TODO: handle member access
 	return ''
 }
 
 // visit_call_expr handles call
-pub fn (mut sa SemanticAnalyzer) visit_call_expr(mut expr CallExpr) !string {
+pub fn (mut sa SemanticAnalyzer) visit_call_expr(mut expr CallExpr) !AnyNode {
 	expr.callee.accept(mut sa)!
 	// TODO: handle special calls (cast, reveal_type, etc.)
 	for mut a in expr.args {
@@ -574,287 +574,287 @@ pub fn (mut sa SemanticAnalyzer) visit_call_expr(mut expr CallExpr) !string {
 }
 
 // visit_int_expr handles int literal
-pub fn (mut sa SemanticAnalyzer) visit_int_expr(mut expr IntExpr) !string {
+pub fn (mut sa SemanticAnalyzer) visit_int_expr(mut expr IntExpr) !AnyNode {
 	// Do nothing
 	return ''
 }
 
 // visit_str_expr handles string literal
-pub fn (mut sa SemanticAnalyzer) visit_str_expr(mut expr StrExpr) !string {
+pub fn (mut sa SemanticAnalyzer) visit_str_expr(mut expr StrExpr) !AnyNode {
 	// Do nothing
 	return ''
 }
 
 // visit_var handles variable
-pub fn (mut sa SemanticAnalyzer) visit_var(mut o Var) !string {
+pub fn (mut sa SemanticAnalyzer) visit_var(mut o Var) !AnyNode {
 	// TODO: visit_var
 	return ''
 }
 
 // visit_type_alias handles type alias
-pub fn (mut sa SemanticAnalyzer) visit_type_alias(mut o TypeAlias) !string {
+pub fn (mut sa SemanticAnalyzer) visit_type_alias(mut o TypeAlias) !AnyNode {
 	// TODO: visit_type_alias
 	return ''
 }
 
 // visit_placeholder_node handles placeholder node
-pub fn (mut sa SemanticAnalyzer) visit_placeholder_node(mut o PlaceholderNode) !string {
+pub fn (mut sa SemanticAnalyzer) visit_placeholder_node(mut o PlaceholderNode) !AnyNode {
 	// TODO: visit_placeholder_node
 	return ''
 }
 
 // visit_type_info handles type info
-pub fn (mut sa SemanticAnalyzer) visit_type_info(mut o TypeInfo) !string {
+pub fn (mut sa SemanticAnalyzer) visit_type_info(mut o TypeInfo) !AnyNode {
 	// TODO: visit_type_info
 	return ''
 }
 
-pub fn (mut sa SemanticAnalyzer) visit_bytes_expr(mut o BytesExpr) !string {
+pub fn (mut sa SemanticAnalyzer) visit_bytes_expr(mut o BytesExpr) !AnyNode {
 	return ''
 }
 
-pub fn (mut sa SemanticAnalyzer) visit_float_expr(mut o FloatExpr) !string {
+pub fn (mut sa SemanticAnalyzer) visit_float_expr(mut o FloatExpr) !AnyNode {
 	return ''
 }
 
-pub fn (mut sa SemanticAnalyzer) visit_complex_expr(mut o ComplexExpr) !string {
+pub fn (mut sa SemanticAnalyzer) visit_complex_expr(mut o ComplexExpr) !AnyNode {
 	return ''
 }
 
-pub fn (mut sa SemanticAnalyzer) visit_ellipsis(mut o EllipsisExpr) !string {
+pub fn (mut sa SemanticAnalyzer) visit_ellipsis(mut o EllipsisExpr) !AnyNode {
 	return ''
 }
 
-pub fn (mut sa SemanticAnalyzer) visit_star_expr(mut o StarExpr) !string {
+pub fn (mut sa SemanticAnalyzer) visit_star_expr(mut o StarExpr) !AnyNode {
 	return ''
 }
 
-pub fn (mut sa SemanticAnalyzer) visit_yield_from_expr(mut o YieldFromExpr) !string {
+pub fn (mut sa SemanticAnalyzer) visit_yield_from_expr(mut o YieldFromExpr) !AnyNode {
 	return ''
 }
 
-pub fn (mut sa SemanticAnalyzer) visit_yield_expr(mut o YieldExpr) !string {
+pub fn (mut sa SemanticAnalyzer) visit_yield_expr(mut o YieldExpr) !AnyNode {
 	return ''
 }
 
-pub fn (mut sa SemanticAnalyzer) visit_op_expr(mut o OpExpr) !string {
+pub fn (mut sa SemanticAnalyzer) visit_op_expr(mut o OpExpr) !AnyNode {
 	return ''
 }
 
-pub fn (mut sa SemanticAnalyzer) visit_comparison_expr(mut o ComparisonExpr) !string {
+pub fn (mut sa SemanticAnalyzer) visit_comparison_expr(mut o ComparisonExpr) !AnyNode {
 	return ''
 }
 
-pub fn (mut sa SemanticAnalyzer) visit_cast_expr(mut o CastExpr) !string {
+pub fn (mut sa SemanticAnalyzer) visit_cast_expr(mut o CastExpr) !AnyNode {
 	return ''
 }
 
-pub fn (mut sa SemanticAnalyzer) visit_assert_type_expr(mut o AssertTypeExpr) !string {
+pub fn (mut sa SemanticAnalyzer) visit_assert_type_expr(mut o AssertTypeExpr) !AnyNode {
 	return ''
 }
 
-pub fn (mut sa SemanticAnalyzer) visit_reveal_expr(mut o RevealExpr) !string {
+pub fn (mut sa SemanticAnalyzer) visit_reveal_expr(mut o RevealExpr) !AnyNode {
 	return ''
 }
 
-pub fn (mut sa SemanticAnalyzer) visit_super_expr(mut o SuperExpr) !string {
+pub fn (mut sa SemanticAnalyzer) visit_super_expr(mut o SuperExpr) !AnyNode {
 	return ''
 }
 
-pub fn (mut sa SemanticAnalyzer) visit_unary_expr(mut o UnaryExpr) !string {
+pub fn (mut sa SemanticAnalyzer) visit_unary_expr(mut o UnaryExpr) !AnyNode {
 	return ''
 }
 
-pub fn (mut sa SemanticAnalyzer) visit_assignment_expr(mut o AssignmentExpr) !string {
+pub fn (mut sa SemanticAnalyzer) visit_assignment_expr(mut o AssignmentExpr) !AnyNode {
 	return ''
 }
 
-pub fn (mut sa SemanticAnalyzer) visit_index_expr(mut o IndexExpr) !string {
+pub fn (mut sa SemanticAnalyzer) visit_index_expr(mut o IndexExpr) !AnyNode {
 	return ''
 }
 
-pub fn (mut sa SemanticAnalyzer) visit_type_application(mut o TypeApplication) !string {
+pub fn (mut sa SemanticAnalyzer) visit_type_application(mut o TypeApplication) !AnyNode {
 	return ''
 }
 
-pub fn (mut sa SemanticAnalyzer) visit_lambda_expr(mut o LambdaExpr) !string {
+pub fn (mut sa SemanticAnalyzer) visit_lambda_expr(mut o LambdaExpr) !AnyNode {
 	return ''
 }
 
-pub fn (mut sa SemanticAnalyzer) visit_list_comprehension(mut o ListComprehension) !string {
+pub fn (mut sa SemanticAnalyzer) visit_list_comprehension(mut o ListComprehension) !AnyNode {
 	return ''
 }
 
-pub fn (mut sa SemanticAnalyzer) visit_set_comprehension(mut o SetComprehension) !string {
+pub fn (mut sa SemanticAnalyzer) visit_set_comprehension(mut o SetComprehension) !AnyNode {
 	return ''
 }
 
-pub fn (mut sa SemanticAnalyzer) visit_dictionary_comprehension(mut o DictionaryComprehension) !string {
+pub fn (mut sa SemanticAnalyzer) visit_dictionary_comprehension(mut o DictionaryComprehension) !AnyNode {
 	return ''
 }
 
-pub fn (mut sa SemanticAnalyzer) visit_generator_expr(mut o GeneratorExpr) !string {
+pub fn (mut sa SemanticAnalyzer) visit_generator_expr(mut o GeneratorExpr) !AnyNode {
 	return ''
 }
 
-pub fn (mut sa SemanticAnalyzer) visit_list_expr(mut o ListExpr) !string {
+pub fn (mut sa SemanticAnalyzer) visit_list_expr(mut o ListExpr) !AnyNode {
 	return ''
 }
 
-pub fn (mut sa SemanticAnalyzer) visit_dict_expr(mut o DictExpr) !string {
+pub fn (mut sa SemanticAnalyzer) visit_dict_expr(mut o DictExpr) !AnyNode {
 	return ''
 }
 
-pub fn (mut sa SemanticAnalyzer) visit_template_str_expr(mut o TemplateStrExpr) !string {
+pub fn (mut sa SemanticAnalyzer) visit_template_str_expr(mut o TemplateStrExpr) !AnyNode {
 	return ''
 }
 
-pub fn (mut sa SemanticAnalyzer) visit_tuple_expr(mut o TupleExpr) !string {
+pub fn (mut sa SemanticAnalyzer) visit_tuple_expr(mut o TupleExpr) !AnyNode {
 	return ''
 }
 
-pub fn (mut sa SemanticAnalyzer) visit_set_expr(mut o SetExpr) !string {
+pub fn (mut sa SemanticAnalyzer) visit_set_expr(mut o SetExpr) !AnyNode {
 	return ''
 }
 
-pub fn (mut sa SemanticAnalyzer) visit_slice_expr(mut o SliceExpr) !string {
+pub fn (mut sa SemanticAnalyzer) visit_slice_expr(mut o SliceExpr) !AnyNode {
 	return ''
 }
 
-pub fn (mut sa SemanticAnalyzer) visit_conditional_expr(mut o ConditionalExpr) !string {
+pub fn (mut sa SemanticAnalyzer) visit_conditional_expr(mut o ConditionalExpr) !AnyNode {
 	return ''
 }
 
-pub fn (mut sa SemanticAnalyzer) visit_type_var_expr(mut o TypeVarExpr) !string {
+pub fn (mut sa SemanticAnalyzer) visit_type_var_expr(mut o TypeVarExpr) !AnyNode {
 	return ''
 }
 
-pub fn (mut sa SemanticAnalyzer) visit_paramspec_expr(mut o ParamSpecExpr) !string {
+pub fn (mut sa SemanticAnalyzer) visit_paramspec_expr(mut o ParamSpecExpr) !AnyNode {
 	return ''
 }
 
-pub fn (mut sa SemanticAnalyzer) visit_type_var_tuple_expr(mut o TypeVarTupleExpr) !string {
+pub fn (mut sa SemanticAnalyzer) visit_type_var_tuple_expr(mut o TypeVarTupleExpr) !AnyNode {
 	return ''
 }
 
-pub fn (mut sa SemanticAnalyzer) visit_type_alias_expr(mut o TypeAliasExpr) !string {
+pub fn (mut sa SemanticAnalyzer) visit_type_alias_expr(mut o TypeAliasExpr) !AnyNode {
 	return ''
 }
 
-pub fn (mut sa SemanticAnalyzer) visit_namedtuple_expr(mut o NamedTupleExpr) !string {
+pub fn (mut sa SemanticAnalyzer) visit_namedtuple_expr(mut o NamedTupleExpr) !AnyNode {
 	return ''
 }
 
-pub fn (mut sa SemanticAnalyzer) visit_enum_call_expr(mut o EnumCallExpr) !string {
+pub fn (mut sa SemanticAnalyzer) visit_enum_call_expr(mut o EnumCallExpr) !AnyNode {
 	return ''
 }
 
-pub fn (mut sa SemanticAnalyzer) visit_typeddict_expr(mut o TypedDictExpr) !string {
+pub fn (mut sa SemanticAnalyzer) visit_typeddict_expr(mut o TypedDictExpr) !AnyNode {
 	return ''
 }
 
-pub fn (mut sa SemanticAnalyzer) visit_newtype_expr(mut o NewTypeExpr) !string {
+pub fn (mut sa SemanticAnalyzer) visit_newtype_expr(mut o NewTypeExpr) !AnyNode {
 	return ''
 }
 
-pub fn (mut sa SemanticAnalyzer) visit_promote_expr(mut o PromoteExpr) !string {
+pub fn (mut sa SemanticAnalyzer) visit_promote_expr(mut o PromoteExpr) !AnyNode {
 	return ''
 }
 
-pub fn (mut sa SemanticAnalyzer) visit_temp_node(mut o TempNode) !string {
+pub fn (mut sa SemanticAnalyzer) visit_temp_node(mut o TempNode) !AnyNode {
 	return ''
 }
 
-pub fn (mut sa SemanticAnalyzer) visit_await_expr(mut o AwaitExpr) !string {
+pub fn (mut sa SemanticAnalyzer) visit_await_expr(mut o AwaitExpr) !AnyNode {
 	return ''
 }
 
-pub fn (mut sa SemanticAnalyzer) visit_with_stmt(mut o WithStmt) !string {
+pub fn (mut sa SemanticAnalyzer) visit_with_stmt(mut o WithStmt) !AnyNode {
 	return ''
 }
 
-pub fn (mut sa SemanticAnalyzer) visit_del_stmt(mut o DelStmt) !string {
+pub fn (mut sa SemanticAnalyzer) visit_del_stmt(mut o DelStmt) !AnyNode {
 	return ''
 }
 
-pub fn (mut sa SemanticAnalyzer) visit_overloaded_func_def(mut o OverloadedFuncDef) !string {
+pub fn (mut sa SemanticAnalyzer) visit_overloaded_func_def(mut o OverloadedFuncDef) !AnyNode {
 	return ''
 }
 
-pub fn (mut sa SemanticAnalyzer) visit_global_decl(mut o GlobalDecl) !string {
+pub fn (mut sa SemanticAnalyzer) visit_global_decl(mut o GlobalDecl) !AnyNode {
 	return ''
 }
 
-pub fn (mut sa SemanticAnalyzer) visit_nonlocal_decl(mut o NonlocalDecl) !string {
+pub fn (mut sa SemanticAnalyzer) visit_nonlocal_decl(mut o NonlocalDecl) !AnyNode {
 	return ''
 }
 
-pub fn (mut sa SemanticAnalyzer) visit_import_all(mut o ImportAll) !string {
+pub fn (mut sa SemanticAnalyzer) visit_import_all(mut o ImportAll) !AnyNode {
 	return ''
 }
 
-pub fn (mut sa SemanticAnalyzer) visit_operator_assignment_stmt(mut o OperatorAssignmentStmt) !string {
+pub fn (mut sa SemanticAnalyzer) visit_operator_assignment_stmt(mut o OperatorAssignmentStmt) !AnyNode {
 	return ''
 }
 
-pub fn (mut sa SemanticAnalyzer) visit_assert_stmt(mut o AssertStmt) !string {
+pub fn (mut sa SemanticAnalyzer) visit_assert_stmt(mut o AssertStmt) !AnyNode {
 	return ''
 }
 
-pub fn (mut sa SemanticAnalyzer) visit_raise_stmt(mut o RaiseStmt) !string {
+pub fn (mut sa SemanticAnalyzer) visit_raise_stmt(mut o RaiseStmt) !AnyNode {
 	return ''
 }
 
-pub fn (mut sa SemanticAnalyzer) visit_type_alias_stmt(mut o TypeAliasStmt) !string {
+pub fn (mut sa SemanticAnalyzer) visit_type_alias_stmt(mut o TypeAliasStmt) !AnyNode {
 	return ''
 }
 
-pub fn (mut sa SemanticAnalyzer) visit_match_stmt(mut o MatchStmt) !string {
+pub fn (mut sa SemanticAnalyzer) visit_match_stmt(mut o MatchStmt) !AnyNode {
 	return ''
 }
 
 // Patterns
-pub fn (mut sa SemanticAnalyzer) visit_as_pattern(mut o AsPattern) !string {
+pub fn (mut sa SemanticAnalyzer) visit_as_pattern(mut o AsPattern) !AnyNode {
 	return ''
 }
 
-pub fn (mut sa SemanticAnalyzer) visit_or_pattern(mut o OrPattern) !string {
+pub fn (mut sa SemanticAnalyzer) visit_or_pattern(mut o OrPattern) !AnyNode {
 	return ''
 }
 
-pub fn (mut sa SemanticAnalyzer) visit_value_pattern(mut o ValuePattern) !string {
+pub fn (mut sa SemanticAnalyzer) visit_value_pattern(mut o ValuePattern) !AnyNode {
 	return ''
 }
 
-pub fn (mut sa SemanticAnalyzer) visit_singleton_pattern(mut o SingletonPattern) !string {
+pub fn (mut sa SemanticAnalyzer) visit_singleton_pattern(mut o SingletonPattern) !AnyNode {
 	return ''
 }
 
-pub fn (mut sa SemanticAnalyzer) visit_sequence_pattern(mut o SequencePattern) !string {
+pub fn (mut sa SemanticAnalyzer) visit_sequence_pattern(mut o SequencePattern) !AnyNode {
 	return ''
 }
 
-pub fn (mut sa SemanticAnalyzer) visit_starred_pattern(mut o StarredPattern) !string {
+pub fn (mut sa SemanticAnalyzer) visit_starred_pattern(mut o StarredPattern) !AnyNode {
 	return ''
 }
 
-pub fn (mut sa SemanticAnalyzer) visit_mapping_pattern(mut o MappingPattern) !string {
+pub fn (mut sa SemanticAnalyzer) visit_mapping_pattern(mut o MappingPattern) !AnyNode {
 	return ''
 }
 
-pub fn (mut sa SemanticAnalyzer) visit_class_pattern(mut o ClassPattern) !string {
+pub fn (mut sa SemanticAnalyzer) visit_class_pattern(mut o ClassPattern) !AnyNode {
 	return ''
 }
 
-pub fn (mut sa SemanticAnalyzer) visit_argument(mut o Argument) !string {
+pub fn (mut sa SemanticAnalyzer) visit_argument(mut o Argument) !AnyNode {
 	return ''
 }
 
-pub fn (mut sa SemanticAnalyzer) visit_type_param(mut o TypeParam) !string {
+pub fn (mut sa SemanticAnalyzer) visit_type_param(mut o TypeParam) !AnyNode {
 	return ''
 }
 
-pub fn (mut sa SemanticAnalyzer) visit_lvalue(mut o Lvalue) !string {
+pub fn (mut sa SemanticAnalyzer) visit_lvalue(mut o Lvalue) !AnyNode {
 	match mut o {
 		ListExpr { sa.visit_list_expr(mut o)! }
 		MemberExpr { sa.visit_member_expr(mut o)! }
@@ -866,7 +866,7 @@ pub fn (mut sa SemanticAnalyzer) visit_lvalue(mut o Lvalue) !string {
 }
 
 // visit_pass_stmt handles pass
-pub fn (sa SemanticAnalyzer) visit_pass_stmt(mut s PassStmt) !string {
+pub fn (sa SemanticAnalyzer) visit_pass_stmt(mut s PassStmt) !AnyNode {
 	// Do nothing
 	return ''
 }
@@ -952,7 +952,7 @@ fn (mut sa SemanticAnalyzer) bind_name_expr(mut expr NameExpr, sym SymbolTableNo
 }
 
 // analyze_lvalue analyzes lvalue
-pub fn (mut sa SemanticAnalyzer) analyze_lvalue(mut lval Lvalue, nested bool, explicit_type bool) !string {
+pub fn (mut sa SemanticAnalyzer) analyze_lvalue(mut lval Lvalue, nested bool, explicit_type bool) !AnyNode {
 	if mut lval is NameExpr {
 		// TODO: analyze lvalue
 	} else if mut lval is MemberExpr {

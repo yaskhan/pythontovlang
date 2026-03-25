@@ -67,7 +67,7 @@ pub fn merge_mro(seqs [][]&TypeInfo) []&TypeInfo {
 		
 		work_seqs = active_seqs.clone()
 
-		mut head := ?&TypeInfo(none)
+		mut head := voidptr(0)
 		mut found := false
 
 		// Find a valid head element
@@ -95,7 +95,7 @@ pub fn merge_mro(seqs [][]&TypeInfo) []&TypeInfo {
 			}
 
 			if !appears_in_tail {
-				head = candidate
+				head = voidptr(candidate)
 				found = true
 				break
 			}
@@ -106,7 +106,7 @@ pub fn merge_mro(seqs [][]&TypeInfo) []&TypeInfo {
 			panic('MroError: cannot find consistent MRO')
 		}
 
-		h := head or { panic('head is none') }
+		h := unsafe { &TypeInfo(head) }
 		result << h
 
 		// Remove head from all sequences

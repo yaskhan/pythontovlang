@@ -83,7 +83,7 @@ pub fn (mut fs FilesystemMetadataStore) write(name string, data []u8, mtime ?f64
 	os.rename(tmp_filename, path) or { return false }
 
 	if mtime != none {
-		_ = mtime or { 0.0 }
+		// mt := mtime or { 0.0 }
 		// os.utime(path, mt, mt) or { /* ignore */ }
 	}
 
@@ -115,12 +115,12 @@ pub fn (mut fs FilesystemMetadataStore) list_all() []string {
 	}
 
 	prefix := fs.cache_dir_prefix or { '' }
-	for path in os.walk(prefix) {
+	os.walk(prefix, fn [mut result, prefix] (path string) {
 		if os.is_file(path) {
 			rel_path := path.trim_string_left(prefix).trim_left('\\/').replace('\\', '/')
 			result << os.norm_path(rel_path)
 		}
-	}
+	})
 
 	return result
 }
