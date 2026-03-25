@@ -3,6 +3,14 @@ import re
 from typing import List, Tuple, Dict
 from ..base import TranslatorBase
 
+# Pre-compiled regular expressions for performance
+_GEN_L_RE = re.compile(r'__py2v_gen_L__', flags=re.IGNORECASE)
+_GEN_R_RE = re.compile(r'__py2v_gen_R__', flags=re.IGNORECASE)
+_GEN_C_RE = re.compile(r'__py2v_gen_C__', flags=re.IGNORECASE)
+_GEN_L_SHORT_RE = re.compile(r'_py2v_gen_L_', flags=re.IGNORECASE)
+_GEN_R_SHORT_RE = re.compile(r'_py2v_gen_R_', flags=re.IGNORECASE)
+_GEN_C_SHORT_RE = re.compile(r'_py2v_gen_C_', flags=re.IGNORECASE)
+
 class MatchMixin(TranslatorBase):
     """Handling match/case (Python 3.10+)"""
     
@@ -15,14 +23,14 @@ class MatchMixin(TranslatorBase):
 
         # Restore original syntax
         res = name
-        res = re.sub(r'__py2v_gen_L__', '[', res, flags=re.IGNORECASE)
-        res = re.sub(r'__py2v_gen_R__', ']', res, flags=re.IGNORECASE)
-        res = re.sub(r'__py2v_gen_C__', ', ', res, flags=re.IGNORECASE)
+        res = _GEN_L_RE.sub('[', res)
+        res = _GEN_R_RE.sub(']', res)
+        res = _GEN_C_RE.sub(', ', res)
         
         # Handle some cases where underscores might have been changed
-        res = re.sub(r'_py2v_gen_L_', '[', res, flags=re.IGNORECASE)
-        res = re.sub(r'_py2v_gen_R_', ']', res, flags=re.IGNORECASE)
-        res = re.sub(r'_py2v_gen_C_', ', ', res, flags=re.IGNORECASE)
+        res = _GEN_L_SHORT_RE.sub('[', res)
+        res = _GEN_R_SHORT_RE.sub(']', res)
+        res = _GEN_C_SHORT_RE.sub(', ', res)
 
         return map_python_type_to_v(res)
 
