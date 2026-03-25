@@ -141,6 +141,9 @@ class SpecialClassesHandler:
             for field in fields:
                 clean_field = field.replace('pub mut:', '').replace('pub:', '').replace('mut:', '').strip()
                 if clean_field:
+                    # Strip default value: "name type = default" -> "name type"
+                    if ' = ' in clean_field:
+                        clean_field = clean_field.split(' = ')[0]
                     clean_fields.append(f"    {clean_field}")
             interface_parts.extend(clean_fields)
         
