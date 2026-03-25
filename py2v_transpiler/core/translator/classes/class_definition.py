@@ -450,10 +450,31 @@ class ClassDefinitionHandler:
             struct_parts.append("\n")
 
         # Sort remaining fields into blocks
-        pub_immut = [f["def"] for f in fields if f.get("name") and not f.get("is_mutated") and not (f.get("orig_name") or f.get("name")).startswith("_")]
-        pub_mut = [f["def"] for f in fields if f.get("name") and f.get("is_mutated") and not (f.get("orig_name") or f.get("name")).startswith("_")]
-        priv_immut = [f["def"] for f in fields if f.get("name") and not f.get("is_mutated") and (f.get("orig_name") or f.get("name")).startswith("_")]
-        priv_mut = [f["def"] for f in fields if f.get("name") and f.get("is_mutated") and (f.get("orig_name") or f.get("name")).startswith("_")]
+        pub_immut = []
+        pub_mut = []
+        priv_immut = []
+        priv_mut = []
+
+        for f in fields:
+            f_name = f.get('name')
+            if not f_name:
+                continue
+
+            orig_name = f.get('orig_name') or f_name
+            is_mutated = f.get('is_mutated', False)
+            is_private = str(orig_name).startswith('_')
+            f_def = f['def']
+
+            if is_private:
+                if is_mutated:
+                    priv_mut.append(f_def)
+                else:
+                    priv_immut.append(f_def)
+            else:
+                if is_mutated:
+                    pub_mut.append(f_def)
+                else:
+                    pub_immut.append(f_def)
 
         if priv_immut:
             struct_parts.append("\n".join(["    " + d.strip() for d in priv_immut]))
