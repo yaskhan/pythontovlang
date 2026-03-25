@@ -224,19 +224,19 @@ class ClassDefinitionHandler:
                 remaining_body.append(stmt)
         body = remaining_body
 
+        # Process dataclass fields from metadata first
+        if is_dataclass and dataclass_metadata:
+            dc_fields = self.translator.class_fields_handler.process_dataclass_fields(
+                body, struct_name, dataclass_metadata, added_fields, dataclass_field_order
+            )
+            fields.extend(dc_fields)
+
         # Process class attributes
         attr_fields = self.translator.class_fields_handler.process_class_attributes(
             body, struct_name, added_fields, is_dataclass, is_typed_dict,
             dataclass_metadata, dataclass_field_order
         )
         fields.extend(attr_fields)
-
-        # Process dataclass fields from metadata
-        if is_dataclass and dataclass_metadata:
-            dc_fields = self.translator.class_fields_handler.process_dataclass_fields(
-                body, struct_name, dataclass_metadata, added_fields, dataclass_field_order
-            )
-            fields.extend(dc_fields)
 
         # Process namedtuple fields from metadata
         if is_named_tuple and namedtuple_metadata:

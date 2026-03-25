@@ -29,12 +29,25 @@ class ClassFieldsMixin:
         special_classes_handler: Any
         translator: Any
 
+
+    def _should_strip_init(self, field_type: str, default_val: str) -> bool:
+        if not default_val: return False
+        if default_val == "none": return True
+        if "Any(NoneType{})" in default_val: return True
+        if "unsafe { nil }" in default_val: return True
+        return False
+
+    def _get_field_def(self, name: str, field_type: str, default_val: str = "") -> str:
+        if default_val and not self._should_strip_init(field_type, default_val):
+            return f"    {name} {field_type} = {default_val}"
+        return f"    {name} {field_type}"
+
     def collect_mixin_fields(
-        self,
-        struct_name: str,
-        added_fields: Set[str],
-        is_main_struct: bool
-    ) -> List[str]:
+            self,
+            struct_name: str,
+            added_fields: Set[str],
+            is_main_struct: bool
+        ) -> List[str]:
         """Collect fields from mixin classes."""
         fields: List[str] = []
         if not is_main_struct:
@@ -64,9 +77,7 @@ class ClassFieldsMixin:
                                         field_type = stmt.annotation.id
                             if getattr(stmt, "value", None) is not None:
                                 default_val = self.translator.visit(stmt.value)
-                                fields.append(
-                                    f"    {field_name} {field_type} = {default_val}"
-                                )
+                                fields.append(self._get_field_def(field_name, field_type, default_val))
                     elif isinstance(stmt, ast.Assign):
                         for target in stmt.targets:
                             if isinstance(target, ast.Name):
@@ -76,9 +87,7 @@ class ClassFieldsMixin:
                                     field_type = self.translator._guess_type(stmt.value)
                                     field_type = self.translator._map_type(field_type, struct_name)
                                     default_val = self.translator.visit(stmt.value)
-                                    fields.append(
-                                        f"    {field_name} {field_type} = {default_val}"
-                                    )
+                                    fields.append(self._get_field_def(field_name, field_type, default_val))
         return fields
 
     def collect_init_fields(
@@ -133,13 +142,7 @@ class ClassFieldsMixin:
                                             if is_optional and not f_type.startswith("?") and f_type != "Any":
                                                 f_type = "?" + f_type
                                             _ft = f_type
-                                            if _ft.startswith("fn (") or _ft.startswith("fn("):
-                                                _ft += " = unsafe { nil }"
-                                            elif _ft.startswith("?"):
-                                                _ft += " = none"
-                                            elif _ft == "Any":
-                                                _ft += " = Any(NoneType{})"
-                                            fields.append(f"    {field_name} {_ft}")
+                                            fields.append(self._get_field_def(field_name, _ft))
                         elif isinstance(sub_node, ast.AnnAssign):
                             if isinstance(sub_node.target, ast.Attribute) and isinstance(sub_node.target.value, ast.Name) and sub_node.target.value.id == init_self_name:
                                 field_name = self.translator._sanitize_name(sub_node.target.attr)
@@ -168,13 +171,7 @@ class ClassFieldsMixin:
                                     if is_optional and not f_type.startswith("?") and f_type != "Any":
                                         f_type = "?" + f_type
                                     _ft = f_type
-                                    if _ft.startswith("fn (") or _ft.startswith("fn("):
-                                        _ft += " = unsafe { nil }"
-                                    elif _ft.startswith("?"):
-                                        _ft += " = none"
-                                    elif _ft == "Any":
-                                        _ft += " = Any(NoneType{})"
-                                    fields.append(f"    {field_name} {_ft}")
+                                    fields.append(self._get_field_def(field_name, _ft))
         return fields
 
     def process_class_attributes(
@@ -206,13 +203,14 @@ class ClassFieldsMixin:
                     added_fields.add(field_name)
                     field_type = "int"
                     is_readonly = False
+                    raw_type = ""
                     if stmt.annotation:
                         try:
-                            type_str = ast.unparse(stmt.annotation)
-                            field_type = self.translator._map_type(type_str, struct_name)
+                            raw_type = ast.unparse(stmt.annotation)
+                            field_type = self.translator._map_type(raw_type, struct_name)
 
                             if is_typed_dict:
-                                if "ReadOnly[" in type_str or type_str.startswith("ReadOnly") or                                    "typing.ReadOnly[" in type_str or type_str.startswith("typing.ReadOnly") or                                    "typing_extensions.ReadOnly[" in type_str or type_str.startswith("typing_extensions.ReadOnly"):
+                                if "ReadOnly[" in raw_type or raw_type.startswith("ReadOnly") or                                    "typing.ReadOnly[" in raw_type or raw_type.startswith("typing.ReadOnly") or                                    "typing_extensions.ReadOnly[" in raw_type or raw_type.startswith("typing_extensions.ReadOnly"):
                                     is_readonly = True
                                     readonly_fields.setdefault(struct_name, set()).add(field_name)
                         except Exception:
@@ -228,10 +226,15 @@ class ClassFieldsMixin:
                             fields.append(required_access)
                             current_access = required_access
 
+                    default_val = ""
                     if stmt.value:
                         default_val = self.translator.visit(stmt.value)
-                        
-                        # Store for Meta struct generation instead of instance field
+
+                    # Establish the rule: move to Meta struct ONLY if explicitly annotated with typing.ClassVar
+                    is_class_var = "ClassVar[" in raw_type or raw_type.startswith("ClassVar") or                                   "typing.ClassVar[" in raw_type or raw_type.startswith("typing.ClassVar")
+
+                    if is_class_var:
+                        # Store for Meta struct generation
                         if not hasattr(self.translator, 'defined_classes'):
                             self.translator.defined_classes = {}
                         if struct_name not in self.translator.defined_classes:
@@ -246,17 +249,11 @@ class ClassFieldsMixin:
                         self.translator.defined_classes[struct_name]['class_vars'].append({
                             'name': field_name,
                             'type': field_type,
-                            'value': default_val
+                            'value': default_val or "none"
                         })
                     else:
-                        _ft = field_type
-                        if _ft.startswith("fn (") or _ft.startswith("fn("):
-                            _ft += " = unsafe { nil }"
-                        elif _ft.startswith("?"):
-                            _ft += " = none"
-                        elif _ft == "Any":
-                            _ft += " = Any(NoneType{})"
-                        fields.append(f"    {field_name} {_ft}")
+                        # Instance field
+                        fields.append(self._get_field_def(field_name, field_type, default_val))
 
             elif isinstance(stmt, ast.Assign):
                 for target in stmt.targets:
@@ -265,18 +262,14 @@ class ClassFieldsMixin:
                             slots_list = []
                             if isinstance(stmt.value, (ast.List, ast.Tuple)):
                                 for elt in stmt.value.elts:
-                                    if isinstance(elt, ast.Constant) and isinstance(
-                                        elt.value, str
-                                    ):
+                                    if isinstance(elt, ast.Constant) and isinstance(elt.value, str):
                                         slots_list.append(self.translator._sanitize_name(elt.value))
-                            elif isinstance(stmt.value, ast.Constant) and isinstance(
-                                stmt.value.value, str
-                            ):
+                            elif isinstance(stmt.value, ast.Constant) and isinstance(stmt.value.value, str):
                                 slots_list.append(self.translator._sanitize_name(stmt.value.value))
 
                             for slot in slots_list:
                                 if slot not in added_fields:
-                                    fields.append(f"    {slot} int")
+                                    fields.append(self._get_field_def(slot, "int"))
                                     added_fields.add(slot)
                         elif (
                             not isinstance(stmt.value, ast.Call)
@@ -293,7 +286,7 @@ class ClassFieldsMixin:
                             field_type = self.translator._map_type(field_type, struct_name)
                             default_val = self.translator.visit(stmt.value)
 
-                            # Store for Meta struct generation instead of instance field
+                            # Store for Meta struct generation
                             if not hasattr(self.translator, "defined_classes"):
                                 self.translator.defined_classes = {}
                             if struct_name not in self.translator.defined_classes:
@@ -321,61 +314,9 @@ class ClassFieldsMixin:
         added_fields: Set[str],
         dataclass_field_order: List[str]
     ) -> List[str]:
-        """Process fields from dataclass metadata."""
         fields: List[str] = []
-        for attr in dataclass_metadata.get("attributes", []):
-            if attr.get("is_classvar", False):
-                field_name = self.translator._sanitize_name(attr["name"])
-                raw_type = attr.get("type", "Any")
-                norm_typ = raw_type.replace("builtins.", "")
-                try:
-                    field_type = self.translator._map_type(norm_typ, struct_name)
-                except Exception:
-                    field_type = "Any"
-                
-                # Try to find default value
-                default_val = "none"
-                for stmt in body:
-                    if isinstance(stmt, ast.AnnAssign) and isinstance(stmt.target, ast.Name) and stmt.target.id == attr["name"]:
-                        if stmt.value:
-                            default_val = self.translator.visit(stmt.value)
-                        break
-                    elif isinstance(stmt, ast.Assign):
-                        for target in stmt.targets:
-                            if isinstance(target, ast.Name) and target.id == attr["name"]:
-                                default_val = self.translator.visit(stmt.value)
-                                break
-                
-                if not hasattr(self.translator, "defined_classes"):
-                    self.translator.defined_classes = {}
-                if struct_name not in self.translator.defined_classes:
-                    self.translator.defined_classes[struct_name] = {
-                        "has_init": False, "has_new": False,
-                        "static_methods": set(), "class_methods": set(),
-                        "class_vars": []
-                    }
-                if "class_vars" not in self.translator.defined_classes[struct_name]:
-                    self.translator.defined_classes[struct_name]["class_vars"] = []
-
-                self.translator.defined_classes[struct_name]["class_vars"].append({
-                    "name": field_name,
-                    "type": field_type,
-                    "value": default_val
-                })
-                continue
-
-            if attr.get("is_init_var", False):
-                continue
-
-            is_init_var = attr.get("is_init_var", False)
-            if is_init_var:
-                continue
-
+        for attr in dataclass_metadata.get("attributes") or []:
             field_name = self.translator._sanitize_name(attr["name"])
-            if field_name in added_fields:
-                continue
-            added_fields.add(field_name)
-
             raw_type = attr.get("type", "Any")
             norm_typ = raw_type.replace("builtins.", "")
             try:
@@ -392,35 +333,54 @@ class ClassFieldsMixin:
             elif field_type == "bool" or norm_typ == "bool":
                 field_type = "bool"
 
-            has_default = attr.get("has_default", False)
-            default_str = ""
-            if has_default:
-                for stmt in body:
-                    if (
-                        isinstance(stmt, ast.AnnAssign)
-                        and isinstance(stmt.target, ast.Name)
-                        and stmt.target.id == attr["name"]
-                    ):
-                        if stmt.value:
-                            default_str = f" = {self.translator.visit(stmt.value)}"
-                        break
+            # Try to find default value
+            default_val = ""
+            for stmt in body:
+                if isinstance(stmt, ast.AnnAssign) and isinstance(stmt.target, ast.Name) and stmt.target.id == attr["name"]:
+                    if stmt.value:
+                        default_val = self.translator.visit(stmt.value)
+                    break
+                elif isinstance(stmt, ast.Assign):
+                    for target in stmt.targets:
+                        if isinstance(target, ast.Name) and target.id == attr["name"]:
+                            default_val = self.translator.visit(stmt.value)
+                            break
+
+            is_classvar = attr.get("is_classvar", False) or                           "ClassVar[" in raw_type or raw_type.startswith("ClassVar") or                           "typing.ClassVar[" in raw_type or raw_type.startswith("typing.ClassVar")
+
+            if is_classvar:
+                if not hasattr(self.translator, "defined_classes"):
+                    self.translator.defined_classes = {}
+                if struct_name not in self.translator.defined_classes:
+                    self.translator.defined_classes[struct_name] = {
+                        "has_init": False, "has_new": False,
+                        "static_methods": set(), "class_methods": set(),
+                        "class_vars": []
+                    }
+                if "class_vars" not in self.translator.defined_classes[struct_name]:
+                    self.translator.defined_classes[struct_name]["class_vars"] = []
+
+                self.translator.defined_classes[struct_name]["class_vars"].append({
+                    "name": field_name,
+                    "type": field_type,
+                    "value": default_val or "none"
+                })
+                continue
+
+            if attr.get("is_init_var", False):
+                continue
+
+            if field_name in added_fields:
+                continue
+            added_fields.add(field_name)
 
             dataclass_field_order.append(field_name)
-            _ft = field_type
-            if not default_str:
-                if _ft.startswith("fn (") or _ft.startswith("fn("):
-                    _ft += " = unsafe { nil }"
-                elif _ft.startswith("?"):
-                    _ft += " = none"
-                elif _ft == "Any":
-                    _ft += " = Any(NoneType{})"
-            fields.append(f"    {field_name} {_ft}{default_str}")
-
+            fields.append(self._get_field_def(field_name, field_type, default_val))
         return fields
 
     def generate_dataclass_factory(
         self,
-        struct_name: str,
+            struct_name: str,
         dataclass_metadata: Dict[str, Any],
         body: List[ast.stmt],
         has_post_init: bool
@@ -510,7 +470,7 @@ class ClassFieldsMixin:
 
     def process_namedtuple_fields(
         self,
-        struct_name: str,
+            struct_name: str,
         namedtuple_metadata: Dict[str, Any],
         added_fields: Set[str]
     ) -> List[str]:
@@ -542,9 +502,7 @@ class ClassFieldsMixin:
                 field_type = "bool"
 
             _ft = field_type
-            if _ft.startswith("fn (") or _ft.startswith("fn("):
-                 _ft += " = unsafe { nil }"
-            fields.append(f"    {f_name} {_ft}")
+            fields.append(self._get_field_def(f_name, _ft))
 
         return fields
 
@@ -553,11 +511,11 @@ class ClassFieldsHandler(ClassFieldsMixin):
         self.translator = translator
 
     def collect_mixin_fields(
-        self,
-        struct_name: str,
-        added_fields: Set[str],
-        is_main_struct: bool
-    ) -> List[str]:
+            self,
+            struct_name: str,
+            added_fields: Set[str],
+            is_main_struct: bool
+        ) -> List[str]:
         """Collect fields from mixin classes."""
         fields: List[str] = []
         if not is_main_struct:
@@ -587,9 +545,7 @@ class ClassFieldsHandler(ClassFieldsMixin):
                                         field_type = stmt.annotation.id
                             if getattr(stmt, "value", None) is not None:
                                 default_val = self.translator.visit(stmt.value)
-                                fields.append(
-                                    f"    {field_name} {field_type} = {default_val}"
-                                )
+                                fields.append(self._get_field_def(field_name, field_type, default_val))
                     elif isinstance(stmt, ast.Assign):
                         for target in stmt.targets:
                             if isinstance(target, ast.Name):
@@ -599,7 +555,5 @@ class ClassFieldsHandler(ClassFieldsMixin):
                                     field_type = self.translator._guess_type(stmt.value)
                                     field_type = self.translator._map_type(field_type, struct_name)
                                     default_val = self.translator.visit(stmt.value)
-                                    fields.append(
-                                        f"    {field_name} {field_type} = {default_val}"
-                                    )
+                                    fields.append(self._get_field_def(field_name, field_type, default_val))
         return fields
