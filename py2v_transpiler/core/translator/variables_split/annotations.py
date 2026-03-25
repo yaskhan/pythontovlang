@@ -136,6 +136,11 @@ class AnnotationsMixin(TranslatorBase):
                         emit_fn = lambda stmt: self.emitter.add_init_statement(stmt.strip())
                         if isinstance(node.target, ast.Name):
                             if not v_type or v_type == "unknown":
+                                if node.value:
+                                    v_type = self._map_type(self._guess_type(node.value))
+                                else:
+                                    v_type = "Any"
+                            if not v_type or v_type == "unknown":
                                 v_type = "Any"
                             self.emitter.add_global(f"{target} {v_type}")
 

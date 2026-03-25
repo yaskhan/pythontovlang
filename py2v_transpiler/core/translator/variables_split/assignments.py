@@ -353,7 +353,10 @@ class AssignmentsMixin(TranslatorBase):
                     if base_lhs in getattr(self, "global_vars", set()):
                         emit_fn = lambda stmt: self.emitter.add_init_statement(stmt.strip())
                         if isinstance(target, ast.Name):
-                            if v_type == "unknown": v_type = "Any"
+                            if v_type == "unknown":
+                                v_type = self._map_type(self._guess_type(node.value))
+                            if v_type == "unknown":
+                                v_type = "Any"
                             self.emitter.add_global(f"{lhs} {v_type}")
                     elif orig_is_upper:
                         emit_fn = lambda stmt: self.emitter.add_init_statement(stmt.strip())
