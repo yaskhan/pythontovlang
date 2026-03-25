@@ -2,37 +2,31 @@
 
 A robust tool to transpile Python source code into [V](https://vlang.io/) code. This project aims to bridge the gap between Python's ease of development and V's performance and safety.
 
-## Features
+## Current Limitations
 
-This transpiler supports a wide range of Python language features and standard library modules:
+The transpiler is under active development. Below are some of the current limitations and known issues when transpiling Python to V:
 
-### Core Language Support
--   **Variables & Types**: Type inference using `mypy` (int, float, bool, str, lists, dicts, tuples, sets).
--   **Mypy Error Tips**: Translates common mypy error codes into actionable V-specific guidance to help fix type issues for better transpilation. Supported mappings:
-    - `[union-attr]`: Guidance on type checking before attribute access.
-    - `[arg-type]`: Strict argument typing requirements in V.
-    - `[return-value]`: Matching return values to signatures.
-    - `[assignment]`: Static typing and reassignment restrictions.
-    - `[index]`: Integer index and map key type requirements.
-    - `[attr-defined]`: Struct field and method existence.
-    - `[operator]`: Operand type compatibility.
-    - `[call-arg]`: Exact parameter count matching.
-    - `[name-defined]`: Variable and function declaration scope.
-    - `[misc]` (for TypeForm): Experimental feature warnings.
--   **Control Flow**: `if`, `elif`, `else`, `for`, `while`, `match`/`case` pattern matching.
--   **Generics (PEP 695/696)**: Support for PEP 695 syntax (e.g. `def foo[T](x: T): ...`), including support for `ParamSpec` (`**P`) and `TypeVarTuple` (`*Ts`) in classes and functions.
-    - *Note on Limitations*: Due to V's current lack of native variadic generics and parameter specification variables, `ParamSpec` and `TypeVarTuple` are often erased to `Any` or simplified generic parameters in the generated V code.
--   **Functions**: Function definitions, arguments, return values, lambdas, and decorators.
--   **Object-Oriented Programming**: Classes, inheritance (via struct embedding), method overriding, `__init__`, and operator overloading (`__add__`, etc.).
--   **Syntactic Sugar**: List comprehensions, f-strings, walrus operator (`:=`), slice notation (`list[1:3]`).
--   **Keywords**: `global`, `nonlocal` (as comments), `assert`, `del` (partially mapped).
+### Type System & Inference
+- **SumType Narrowing**: V requires explicit type narrowing (flow-sensitive typing) for SumTypes (unions) before accessing type-specific methods or operators.
+- **Generic Field Hardcoding**: In some cases, generic class fields may have hardcoded types instead of the generic parameter.
+- **NoneType Handling**: Direct assignment of `None` to typed variables or explicit `NoneType` checks may produce invalid V syntax like `Any(NoneType{})`.
 
-### Standard Library Mapping
--   **Built-ins**: `print`, `len`, `range`, `enumerate`, `zip`, `map`, `filter`, `any`, `all`, `reversed`, `sorted`, `input`, `isinstance`.
--   **Math**: Mappings for `math` module functions (`sqrt`, `sin`, `pi`, etc.).
--   **File I/O**: `open()` context managers (`with open(...)`) mapped to `os.open` with `defer { close() }`.
--   **Modules**: Support for `random`, `json`, `time`, `datetime`, `os`, `sys`, and basic regex (`re`).
--   **Pydantic**: Full support for `BaseModel`, `Field` validation, `ConfigDict`, validators (`@field_validator`, `@model_validator`), and automatic `.validate() !` method generation. See [Pydantic Support](docs/pydantic.md).
+### Functions & Closures
+- **Default Parameters**: Python's default parameter values are not always correctly mapped to V's optional arguments.
+- **Variadic Arguments**: Support for `*args` and `**kwargs` is limited; `*args` are often converted to slices which must be the last parameter in V.
+- **Lambdas**: Default values in lambdas may be lost, and late binding in list comprehensions is not currently preserved.
+- **Decorators**: Custom decorators may generate warnings and produce code that requires manual adjustment.
+
+### Control Flow & Data Structures
+- **For/Else**: The `else` clause in a `for` loop always executes, regardless of whether a `break` was encountered.
+- **Tuple Destructuring**: Index-based destructuring of heterogeneous tuples (TupleStructs) sometimes uses invalid `[]` syntax instead of `.it_n`.
+- **List Operations**: `list.extend()` may incorrectly add a list as a single element (`<<`) rather than extending it.
+- **Set/Dict Comprehensions**: Some advanced comprehension semantics are still being refined.
+
+### Standard Library & Built-ins
+- **String Formatting**: `str.format()` and `str.format_map()` are not supported. Use V's native string interpolation (`'${var}'`).
+- **Async/Await**: Asynchronous programming features are not currently supported.
+- **Exception Handling**: `try/except` blocks may require external libraries (like `div72.vexc`) and are not fully idiomatic.
 
 ## Installation
 
