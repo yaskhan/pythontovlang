@@ -330,14 +330,20 @@ pub fn write_errors(mut data []u8, errs []ErrorInfo) {
 	write_int_bare(mut data, errs.len)
 	for err in errs {
 		write_tag(mut data, tuple_gen)
-		write_str_opt(mut data, if err.file != '' { err.file } else { none })
+		write_bool(mut data, err.file != '')
+		if err.file != '' {
+			write_str_bare(mut data, err.file)
+		}
 		write_int(mut data, err.line)
 		write_int(mut data, err.column)
 		write_int(mut data, err.end_line or { -1 })
 		write_int(mut data, err.end_column or { -1 })
 		write_str(mut data, err.severity)
 		write_str(mut data, err.message)
-		write_str_opt(mut data, err.code)
+		write_bool(mut data, err.code != none)
+		if code := err.code {
+			write_str_bare(mut data, code)
+		}
 	}
 }
 
@@ -347,15 +353,16 @@ pub fn read_errors(mut data []u8) []ErrorInfo {
 	mut result := []ErrorInfo{}
 	for _ in 0 .. read_int_bare(mut data) {
 		assert read_tag(mut data) == tuple_gen
+		has_file := read_bool(mut data)
 		result << ErrorInfo{
-			file:       read_str_opt(mut data) or { '' }
+			file:       if has_file { read_str_bare(mut data) } else { '' }
 			line:       read_int(mut data)
 			column:     read_int(mut data)
 			end_line:   (fn (v int) ?int { if v == -1 { return none } return v }(read_int(mut data)))
 			end_column: (fn (v int) ?int { if v == -1 { return none } return v }(read_int(mut data)))
 			severity:   read_str(mut data)
 			message:    read_str(mut data)
-			code:       read_str_opt(mut data)
+			code:       if read_bool(mut data) { read_str_bare(mut data) } else { none }
 		}
 	}
 	return result

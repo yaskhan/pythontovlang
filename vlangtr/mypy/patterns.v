@@ -28,7 +28,7 @@ pub mut:
 	name    ?NameExpr
 }
 
-pub fn (n &AsPattern) get_context() Context {
+pub fn (n AsPattern) get_context() Context {
 	return n.pbase.base.ctx
 }
 
@@ -46,7 +46,7 @@ pub mut:
 	patterns []PatternNode
 }
 
-pub fn (n &OrPattern) get_context() Context {
+pub fn (n OrPattern) get_context() Context {
 	return n.pbase.base.ctx
 }
 
@@ -64,7 +64,7 @@ pub mut:
 	expr  Expression
 }
 
-pub fn (n &ValuePattern) get_context() Context {
+pub fn (n ValuePattern) get_context() Context {
 	return n.pbase.base.ctx
 }
 
@@ -90,7 +90,7 @@ pub mut:
 	value ?SingletonValue
 }
 
-pub fn (n &SingletonPattern) get_context() Context {
+pub fn (n SingletonPattern) get_context() Context {
 	return n.pbase.base.ctx
 }
 
@@ -108,7 +108,7 @@ pub mut:
 	patterns []PatternNode
 }
 
-pub fn (n &SequencePattern) get_context() Context {
+pub fn (n SequencePattern) get_context() Context {
 	return n.pbase.base.ctx
 }
 
@@ -127,7 +127,7 @@ pub mut:
 	capture ?NameExpr
 }
 
-pub fn (n &StarredPattern) get_context() Context {
+pub fn (n StarredPattern) get_context() Context {
 	return n.pbase.base.ctx
 }
 
@@ -148,7 +148,7 @@ pub mut:
 	rest   ?NameExpr
 }
 
-pub fn (n &MappingPattern) get_context() Context {
+pub fn (n MappingPattern) get_context() Context {
 	return n.pbase.base.ctx
 }
 
@@ -171,7 +171,7 @@ pub mut:
 	keyword_values []PatternNode
 }
 
-pub fn (n &ClassPattern) get_context() Context {
+pub fn (n ClassPattern) get_context() Context {
 	return n.pbase.base.ctx
 }
 
@@ -207,6 +207,3 @@ pub fn (mut p PatternNode) accept(mut v NodeVisitor) !AnyNode {
 	}
 }
 
-pub fn pattern_accept(mut p PatternNode, mut v NodeVisitor) !AnyNode {
-	return p.accept(mut v)!
-}

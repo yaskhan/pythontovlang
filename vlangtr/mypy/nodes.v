@@ -944,7 +944,7 @@ pub mut:
 	base                 NodeBase
 	name                 string // unqualified name
 	arguments            []Argument
-	arg_names            []?string
+	arg_names            []string
 	arg_kinds            []ArgKind
 	body                 Block
 	type_                ?MypyTypeNode // full callable type if known
@@ -1257,7 +1257,7 @@ pub mut:
 	callee    Expression
 	args      []Expression
 	arg_kinds []ArgKind
-	arg_names []?string
+	arg_names []string
 	type_args []MypyTypeNode
 	typ       ?MypyTypeNode
 	analyzed  ?Expression
@@ -1603,7 +1603,7 @@ pub struct LambdaExpr {
 pub mut:
 	base         NodeBase
 	arguments    []Argument
-	arg_names    []?string
+	arg_names    []string
 	arg_kinds    []ArgKind
 	body         Expression
 	type_        ?MypyTypeNode
@@ -2103,4 +2103,3 @@ pub fn (mut n RefExpr) accept(mut v NodeVisitor) !AnyNode {
 pub fn (e Expression) str() string {
 	return 'Expression(...)'
 }
-

@@ -51,7 +51,7 @@ pub fn (mut sc StrConv) format_id(o voidptr) string {
 
 // dump converts a list of items into a multiline formatted string
 pub fn (mut sc StrConv) dump(nodes []DumpNode, obj Node) string {
-	mut tag := short_type_name(obj) + ':' + obj.get_context().line.str()
+	mut tag := typeof(obj).name + ':' + obj.get_context().line.str()
 	if sc.show_ids {
 		tag += sc.format_id(obj as voidptr)
 	}
@@ -119,19 +119,6 @@ pub:
 	nodes []DumpNode
 }
 
-// short_type_name returns the short name of the object's type
-fn short_type_name(obj Node) string {
-	match obj {
-		MypyFile { return 'MypyFile' }
-		FuncDef { return 'FuncDef' }
-		ClassDef { return 'ClassDef' }
-		Block { return 'Block' }
-		ExpressionStmt { return 'ExpressionStmt' }
-		AssignmentStmt { return 'AssignmentStmt' }
-		else { return 'Node' }
-	}
-}
-
 // dump_tagged converts an array into a formatted string
 fn dump_tagged(nodes []DumpNode, tag string, mut str_conv StrConv) string {
 	mut a := []string{}
@@ -150,8 +137,8 @@ fn dump_tagged(nodes []DumpNode, tag string, mut str_conv StrConv) string {
 			else {
 				// Simplified representation
 				match n {
-					Expression { a << indent(short_type_name(n) + ':' + n.get_context().line.str(), 2) }
-					Statement { a << indent(short_type_name(n) + ':' + n.get_context().line.str(), 2) }
+					Expression { a << indent(typeof(n).name + ':' + n.get_context().line.str(), 2) }
+					Statement { a << indent(typeof(n).name + ':' + n.get_context().line.str(), 2) }
 					else { a << indent('Node(...)', 2) }
 				}
 			}
@@ -177,7 +164,7 @@ fn indent(s string, n int) string {
 
 // node_to_string converts a node to a string
 fn node_to_string(node Node, mut str_conv StrConv) string {
-	return short_type_name(node) + ':' + node.get_context().line.str()
+	return typeof(node).name + ':' + node.get_context().line.str()
 }
 
 // IdMapper — mapper for assigning IDs to objects

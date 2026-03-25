@@ -27,7 +27,7 @@ pub mut:
 	type_context                []?MypyTypeNode
 	strfrm_checker              StringFormatterChecker
 	plugin                      Plugin
-	type_overrides              map[Expression]MypyTypeNode
+	type_overrides              map[string]MypyTypeNode
 	is_callee                   bool
 	in_expression               bool
 	collect_line_checking_stats bool
@@ -48,7 +48,7 @@ pub fn new_expression_checker(chk &TypeChecker, msg MessageBuilder, plugin Plugi
 			msg: unsafe { nil }
 		}
 		plugin:                      plugin
-		type_overrides:              map[Expression]MypyTypeNode{}
+		type_overrides:              map[string]MypyTypeNode{}
 		is_callee:                   false
 		in_expression:               false
 		collect_line_checking_stats: false
@@ -672,7 +672,7 @@ pub fn (ec ExpressionChecker) bool_type() Instance {
 
 pub fn (ec ExpressionChecker) narrow_type_from_binder(e Expression, known_type MypyTypeNode) MypyTypeNode {
 	if literal(e) >= literal_type {
-		if restriction := ec.chk.binder.get(e) {
+		if restriction := ec.chk.binder.get(e.str()) {
 			return restriction
 		}
 	}
@@ -683,7 +683,7 @@ pub fn (ec ExpressionChecker) typeddict_callable(info TypeInfo, td TypedDictType
 	return CallableType{
 		arg_types: []MypyTypeNode{}
 		arg_kinds: []ArgKind{}
-		arg_names: []?string{}
+		arg_names: []string{}
 		ret_type:  ec.named_type(info.fullname)
 		variables: []MypyTypeNode{}
 		fallback:  td.fallback
@@ -692,7 +692,7 @@ pub fn (ec ExpressionChecker) typeddict_callable(info TypeInfo, td TypedDictType
 
 fn callable_type_from_lambda(e LambdaExpr, fallback Instance, ret_type MypyTypeNode) CallableType {
 	mut arg_types := []MypyTypeNode{}
-	mut arg_names := []?string{}
+	mut arg_names := []string{}
 	for arg in e.arguments {
 		arg_types << (arg.variable.type_ or {
 			MypyTypeNode(AnyType{

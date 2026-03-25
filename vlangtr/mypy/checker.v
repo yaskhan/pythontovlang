@@ -30,12 +30,12 @@ pub:
 }
 
 // TypeMap — mapping of expressions to types
-pub type TypeMap = map[Expression]MypyTypeNode
+pub type TypeMap = map[string]MypyTypeNode
 
 // PartialTypeScope — scope for partial types
 pub struct PartialTypeScope {
 pub:
-	map         map[Var]NodeBase
+	map         map[string]NodeBase
 	is_function bool
 	is_local    bool
 }
@@ -46,7 +46,7 @@ pub mut:
 	is_stub                  bool
 	errors                   Errors
 	msg                      MessageBuilder
-	type_maps                []map[Expression]MypyTypeNode
+	type_maps                []TypeMap
 	binder                   ConditionalTypeBinder
 	expr_checker             ExpressionChecker
 	pattern_checker          PatternChecker
@@ -66,10 +66,10 @@ pub mut:
 	current_node_deferred    bool
 	is_typeshed_stub         bool
 	options                  Options
-	inferred_attribute_types ?map[Var]MypyTypeNode
+	inferred_attribute_types ?map[string]MypyTypeNode
 	no_partial_types         bool
 	module_refs              map[string]bool
-	var_decl_frames          map[Var]map[int]bool
+	var_decl_frames          map[string]map[int]bool
 	plugin                   Plugin
 	tree                     MypyFile
 	path                     string
@@ -92,7 +92,7 @@ pub fn new_type_checker(errors Errors, modules map[string]MypyFile, options Opti
 		is_stub:                  tree.is_stub
 		errors:                   errors
 		msg:                      msg
-		type_maps:                [map[Expression]MypyTypeNode{}]
+		type_maps:                [TypeMap{}]
 		binder:                   ConditionalTypeBinder{}
 		tscope:                   Scope{}
 		scope:                    new_checker_scope(tree)
@@ -113,7 +113,7 @@ pub fn new_type_checker(errors Errors, modules map[string]MypyFile, options Opti
 		inferred_attribute_types: none
 		no_partial_types:         false
 		module_refs:              map[string]bool{}
-		var_decl_frames:          map[Var]map[int]bool{}
+		var_decl_frames:          map[string]map[int]bool{}
 		plugin:                   plugin
 		tree:                     tree
 		path:                     path
@@ -132,7 +132,7 @@ pub fn new_type_checker(errors Errors, modules map[string]MypyFile, options Opti
 			}
 			plugin:                    plugin
 			type_context:              []?MypyTypeNode{}
-			type_overrides:            map[Expression]MypyTypeNode{}
+			type_overrides:            map[string]MypyTypeNode{}
 			per_line_checking_time_ns: map[int]int{}
 			expr_cache:                map[string]MypyTypeNode{}
 		}
@@ -148,7 +148,7 @@ pub fn (mut tc TypeChecker) reset() {
 	tc.partial_reported.clear()
 	tc.module_refs.clear()
 	tc.binder = ConditionalTypeBinder{}
-	tc.type_maps = [map[Expression]MypyTypeNode{}]
+	tc.type_maps = [TypeMap{}]
 	tc.deferred_nodes = []
 	tc.partial_types = []
 	tc.inferred_attribute_types = none
@@ -438,13 +438,13 @@ pub fn (mut tc TypeChecker) note(msg string, context Context) {
 
 // store_type saves node type
 pub fn (mut tc TypeChecker) store_type(node Expression, typ MypyTypeNode) {
-	tc.type_maps.last()[node] = typ
+	tc.type_maps.last()[node.str()] = typ
 }
 
 // has_type checks if node has a type
 pub fn (tc TypeChecker) has_type(node Expression) bool {
 	for m in tc.type_maps {
-		if node in m {
+		if node.str() in m {
 			return true
 		}
 	}
@@ -455,7 +455,7 @@ pub fn (tc TypeChecker) has_type(node Expression) bool {
 pub fn (tc TypeChecker) lookup_type(node Expression) MypyTypeNode {
 	for i := tc.type_maps.len - 1; i >= 0; i-- {
 		m := tc.type_maps[i].clone()
-		if typ := m[node] {
+		if typ := m[node.str()] {
 			return typ
 		}
 	}
@@ -466,7 +466,7 @@ pub fn (tc TypeChecker) lookup_type(node Expression) MypyTypeNode {
 pub fn (tc TypeChecker) lookup_type_or_none(node Expression) ?MypyTypeNode {
 	for i := tc.type_maps.len - 1; i >= 0; i-- {
 		m := tc.type_maps[i].clone()
-		if typ := m[node] {
+		if typ := m[node.str()] {
 			return typ
 		}
 	}
@@ -541,7 +541,7 @@ fn function_type(func FuncDef, fallback Instance) MypyTypeNode {
 	return CallableType{
 		arg_types: []MypyTypeNode{}
 		arg_kinds: []ArgKind{}
-		arg_names: []?string{}
+		arg_names: []string{}
 		ret_type:  MypyTypeNode(AnyType{
 			type_of_any: .from_error
 		})

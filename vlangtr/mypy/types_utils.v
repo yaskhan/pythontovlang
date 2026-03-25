@@ -66,7 +66,7 @@ pub fn is_invalid_recursive_alias(seen_nodes map[string]bool, target MypyTypeNod
 		new_seen[alias_key] = true
 		return is_invalid_recursive_alias(new_seen, get_proper_type(target))
 	}
-	tp := target as ProperType
+	tp := get_proper_type(target)
 	if tp !is UnionType && tp !is TupleType {
 		return false
 	}
@@ -134,12 +134,6 @@ pub fn is_union_with_any(tp_arg MypyTypeNode) bool {
 	return false
 }
 
-// is_generic_instance checks if a type is a generic instance
-pub fn is_generic_instance(tp_arg MypyTypeNode) bool {
-	mut tp := get_proper_type(tp_arg)
-	return tp is Instance && (tp as Instance).args.len > 0
-}
-
 // is_overlapping_none checks if a type can be None
 pub fn is_overlapping_none(t MypyTypeNode) bool {
 	tp := get_proper_type(t)
@@ -154,24 +148,6 @@ pub fn is_overlapping_none(t MypyTypeNode) bool {
 		}
 	}
 	return false
-}
-
-// remove_optional removes None from a type
-pub fn remove_optional(typ MypyTypeNode) MypyTypeNode {
-	tp := get_proper_type(typ)
-	if tp is UnionType {
-		mut items := []MypyTypeNode{}
-		for t in (tp as UnionType).items {
-			if get_proper_type(t) !is NoneType {
-				items << t
-			}
-		}
-		return make_union(items)
-	} else if tp is NoneType {
-		return UninhabitedType{}
-	} else {
-		return typ
-	}
 }
 
 // is_self_type_like checks if a type looks like a self-type annotation
@@ -226,12 +202,6 @@ pub fn store_argument_type(defn FuncItem, i int, typ CallableType, named_type fn
 	}
 }
 
-// Helper stub functions
-fn get_proper_type(t MypyTypeNode) MypyTypeNode {
-	// Delegate to types module
-	return get_proper_type(t)
-}
-
 fn get_proper_types(types []MypyTypeNode) []MypyTypeNode {
 	return types.map(get_proper_type(it))
 }
@@ -247,13 +217,4 @@ fn flatten_union_list(items []MypyTypeNode) []MypyTypeNode {
 		}
 	}
 	return result
-}
-
-fn make_union(items []MypyTypeNode) MypyTypeNode {
-	if items.len == 1 {
-		return items[0]
-	}
-	return UnionType{
-		items: items
-	}
 }

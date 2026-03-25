@@ -104,12 +104,12 @@ pub fn (mut v TypeArgumentAnalyzer) visit_instance(t &Instance) !AnyNode {
 
 pub fn (mut v TypeArgumentAnalyzer) check_non_paramspec(arg MypyTypeNode, tv_kind string, context Context) bool {
 	if arg is ParamSpecType {
-		v.fail('Invalid location for ParamSpec', context, valid_type)
+				v.fail('Invalid location for ParamSpec', context, valid_type.code)
 		// note ...
 		return true
 	}
 	if arg is ParametersType {
-		v.fail('Cannot use Parameters for ${tv_kind}, only for ParamSpec', context, valid_type)
+		v.fail('Cannot use Parameters for ${tv_kind}, only for ParamSpec', context, valid_type.code)
 		return true
 	}
 	return false
@@ -139,7 +139,7 @@ pub fn (mut v TypeArgumentAnalyzer) validate_args(name string, args []MypyTypeNo
 					if arg.values.len == 0 {
 						is_error = true
 						v.fail('Invalid TypeVar "${arg.name}" as type argument for "${name}"',
-							context, type_var)
+							context, type_var.code)
 						continue
 					}
 					arg_values = arg.values.clone()
@@ -160,7 +160,7 @@ pub fn (mut v TypeArgumentAnalyzer) validate_args(name string, args []MypyTypeNo
 			if p_arg !is ParamSpecType && p_arg !is ParametersType && p_arg !is AnyType {
 				is_invalid = true
 				v.fail('Can only replace ParamSpec with a parameter types list or another ParamSpec, got ${p_arg.type_str()}',
-					context, valid_type)
+					context, valid_type.code)
 			}
 		}
 	}
@@ -184,7 +184,7 @@ pub fn (mut v TypeArgumentAnalyzer) visit_unpack_type(typ &UnpackType) !AnyNode 
 	}
 
 	if p_type !is UnboundType && p_type !is AnyType {
-		v.fail('Invalid location for Unpack', typ.base_ctx.ctx, valid_type)
+		v.fail('Invalid location for Unpack', typ.base_ctx.ctx, valid_type.code)
 	}
 	// typ.type_ = v.named_type_func('builtins.tuple', [AnyType{kind: .from_error}])
 	return ''
@@ -209,16 +209,16 @@ pub fn (mut v TypeArgumentAnalyzer) check_type_var_values(name string, actuals [
 		if !found {
 			is_err = true
 			v.fail('Incompatible value for TypeVar "${arg_name}" in "${name}"', context,
-				type_var)
+				type_var.code)
 		}
 	}
 	return is_err
 }
 
-pub fn (mut v TypeArgumentAnalyzer) fail(msg string, context Context, code ?&ErrorCode) {
-	v.errors.report(context.line, context.column, msg, if c := code { c.code } else { none }, 'error', false, false)
+pub fn (mut v TypeArgumentAnalyzer) fail(msg string, context Context, code string) {
+	v.errors.report(context.line, context.column, msg, code, 'error', false, false)
 }
 
-pub fn (mut v TypeArgumentAnalyzer) note(msg string, context Context, code ?&ErrorCode) {
-	v.errors.report(context.line, context.column, msg, if c := code { c.code } else { none }, 'note', false, false)
+pub fn (mut v TypeArgumentAnalyzer) note(msg string, context Context, code string) {
+	v.errors.report(context.line, context.column, msg, code, 'note', false, false)
 }

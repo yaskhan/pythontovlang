@@ -196,19 +196,29 @@ pub fn constant_fold_binary_float_op(op string, left f64, right f64) ?ConstantVa
 // constant_fold_unary_op performs unary operation folding
 pub fn constant_fold_unary_op(op string, value ConstantValue) ?ConstantValue {
 	if op == '-' && value is i64 {
-		return -value
+		v := value as i64
+		mut neg := -v
+		return neg
 	}
 	if op == '-' && value is f64 {
-		return -value
+		v := value as f64
+		mut neg := -v
+		return neg
 	}
 	if op == '~' && value is i64 {
-		return ~value
+		v := value as i64
+		mut bit := ~v
+		return bit
 	}
 	if op == '+' && value is i64 {
-		return value
+		v := value as i64
+		mut out := v
+		return out
 	}
 	if op == '+' && value is f64 {
-		return value
+		v := value as f64
+		mut out := v
+		return out
 	}
 	return none
 }

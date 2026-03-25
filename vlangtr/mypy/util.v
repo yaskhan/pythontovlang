@@ -95,18 +95,6 @@ pub fn get_prefix(fullname string) string {
 	return fullname[..idx]
 }
 
-pub fn is_sub_path_normabs(path string, dir_path string) bool {
-	mut d := dir_path
-	if !d.ends_with(os.path_separator) {
-		d += os.path_separator
-	}
-	return path.starts_with(d)
-}
-
-pub fn os_path_join(a string, b string) string {
-	return os.join_path(a, b)
-}
-
 pub fn hard_exit(status int) {
 	os.flush()
 	exit(status)
@@ -350,12 +338,6 @@ pub fn correct_relative_import(cur_mod_id string, relative int, target string, i
 	return result_mod_id + suffix, ok
 }
 
-pub fn hash_digest(data []u8) string {
-	// In V, we can use crypto.sha1 or just a placeholder for now.
-	// We'll use a simple string representation if we don't want to import crypto.
-	return 'hash_placeholder'
-}
-
 pub fn should_force_color() bool {
 	env_var := os.getenv('MYPY_FORCE_COLOR')
 	if env_var == '' {
@@ -377,10 +359,6 @@ pub fn read_py_file(path string, read_fn fn (string) ![]u8) ?[]string {
 pub fn bytes_to_human_readable_repr(b []u8) string {
 	// Simplified repr for bytes
 	return b.bytestr()
-}
-
-pub fn time_spent_us(t0 i64) i64 {
-	return (time.ticks() - t0) * 1000 // Simplified
 }
 
 pub fn quote_docstring(docstr string) string {

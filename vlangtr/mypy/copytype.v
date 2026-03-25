@@ -6,11 +6,6 @@
 
 module mypy
 
-// copy_type — create a shallow copy of a type
-pub fn copy_type(t MypyTypeNode) !MypyTypeNode {
-	return type_shallow_copy(t)
-}
-
 // type_shallow_copy performs a shallow copy of a type
 pub fn type_shallow_copy(t MypyTypeNode) !MypyTypeNode {
 	return match t {

@@ -115,8 +115,8 @@ pub fn calculate_class_abstract_status(typ &TypeInfo, is_stub_file bool, mut err
 pub fn check_protocol_status(info &TypeInfo, mut errors Errors) {
 	if info.is_protocol {
 		for base_type in info.bases {
-			if base_type.typ != none {
-				if !base_type.typ.is_protocol && base_type.typ.fullname != 'builtins.object' {
+			if base_info := base_type.typ {
+				if !base_info.is_protocol && base_info.fullname != 'builtins.object' {
 					errors.report(info.base.ctx.line, info.base.ctx.column, 'All bases of a protocol must be protocols',
 						none, 'error', false, false)
 				}

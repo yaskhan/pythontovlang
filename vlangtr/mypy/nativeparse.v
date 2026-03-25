@@ -360,12 +360,12 @@ fn (mut b ASTReadBuffer) read_list_arg_kind() []ArgKind {
 	return res
 }
 
-fn (mut b ASTReadBuffer) read_list_str_opt() []?string {
+fn (mut b ASTReadBuffer) read_list_str_opt() []string {
 	tag := b.read_tag()
-	if tag != list_gen { return []?string{} }
+	if tag != list_gen { return []string{} }
 	len := b.read_int_bare()
-	mut res := []?string{cap: len}
-	for _ in 0 .. len { res << b.read_str_opt() }
+	mut res := []string{cap: len}
+	for _ in 0 .. len { res << b.read_str_opt() or { '' } }
 	return res
 }
 

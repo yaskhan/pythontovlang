@@ -25,7 +25,7 @@ module mypy
 //   represented as a set of vertices. Each input vertex will occur
 //   exactly once; vertices not part of a SCC are returned as
 //   singleton sets.
-pub fn strongly_connected_components[T](vertices []T, edges map[T][]T) [][]T {
+pub fn strongly_connected_components_generic[T](vertices []T, edges map[T][]T) [][]T {
 	mut identified := map[T]bool{}
 	mut stack := []T{}
 	mut index := map[T]int{}

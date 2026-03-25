@@ -22,15 +22,17 @@ pub fn meet_types(s MypyTypeNode, t MypyTypeNode) MypyTypeNode {
 
 	// Check extra_attrs for Instance
 	if s_proper is Instance && t_proper is Instance {
-		if s_proper.typ != none && s_proper.typ == t_proper.typ {
-			if s_proper.str() == t_proper.str() {
-				if ea := s_proper.extra_attrs {
+		if li := s_proper.typ {
+			if ri := t_proper.typ {
+				if li.fullname == ri.fullname && s_proper.str() == t_proper.str() {
+					if s_proper.extra_attrs != none {
+						return s_proper
+					}
+					if t_proper.extra_attrs != none {
+						return t_proper
+					}
 					return s_proper
 				}
-				if t_proper.extra_attrs != none {
-					return t_proper
-				}
-				return s_proper
 			}
 		}
 	}
@@ -251,29 +253,32 @@ pub fn (v TypeMeetVisitor) visit_type_var(t &TypeVarType) !MypyTypeNode {
 pub fn (v TypeMeetVisitor) visit_instance(t &Instance) !MypyTypeNode {
 	if v.s is Instance {
 		s_inst := v.s as Instance
-		if t.typ != none && t.typ == s_inst.typ {
-			if is_subtype_simple(t, s_inst) || is_subtype_simple(s_inst, t) {
-				mut args := []MypyTypeNode{}
-				for i in 0 .. t.args.len {
-					if i >= s_inst.args.len {
-						break
+		if ti := t.typ {
+			if si := s_inst.typ {
+				if ti.fullname == si.fullname {
+					if is_subtype_simple(t, s_inst) || is_subtype_simple(s_inst, t) {
+						mut args := []MypyTypeNode{}
+						for i in 0 .. t.args.len {
+							if i >= s_inst.args.len {
+								break
+							}
+							args << meet_types(t.args[i], s_inst.args[i])
+						}
+						return Instance{
+							typ:  t.typ
+							args: args
+						}
 					}
-					args << meet_types(t.args[i], s_inst.args[i])
-				}
-				return Instance{
-					typ:  t.typ
-					args: args
+					return UninhabitedType{}
 				}
 			}
-			return UninhabitedType{}
-		} else {
-			if is_subtype_simple(t, s_inst) {
-				return *t
-			} else if is_subtype_simple(s_inst, t) {
-				return s_inst
-			}
-			return UninhabitedType{}
 		}
+		if is_subtype_simple(t, s_inst) {
+			return *t
+		} else if is_subtype_simple(s_inst, t) {
+			return s_inst
+		}
+		return UninhabitedType{}
 	}
 	return object_from_type(v.s)
 }
@@ -433,11 +438,6 @@ pub fn object_from_type(typ MypyTypeNode) MypyTypeNode {
 	return AnyType{
 		type_of_any: TypeOfAny.special_form
 	}
-}
-
-fn is_similar_callables(t CallableType, s CallableType) bool {
-	return t.arg_types.len == s.arg_types.len && t.min_args == s.min_args
-		&& t.is_var_arg == s.is_var_arg
 }
 
 fn is_subtype_simple(left MypyTypeNode, right MypyTypeNode) bool {

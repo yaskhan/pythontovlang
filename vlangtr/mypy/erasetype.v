@@ -44,7 +44,7 @@ pub fn erase_type(typ MypyTypeNode) MypyTypeNode {
 			})
 			arg_types := [any_t, any_t]
 			arg_kinds := [ArgKind.arg_star, ArgKind.arg_star2]
-			arg_names := [?string(none), ?string(none)]
+			arg_names := ['', '']
 			MypyTypeNode(CallableType{
 				arg_types: arg_types
 				arg_kinds: arg_kinds

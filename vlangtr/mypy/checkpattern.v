@@ -36,7 +36,7 @@ pub fn (mut pc PatternChecker) accept(p PatternNode, type_context MypyTypeNode) 
 	return res
 }
 
-pub fn (mut pc PatternChecker) visit_as_pattern(p &AsPattern) PatternTypeResult {
+pub fn (mut pc PatternChecker) visit_as_pattern(p AsPattern) PatternTypeResult {
 	// as-pattern can be variable binding or wildcard (if pattern=none, name=none)
 	mut res := PatternTypeResult{
 		type_: pc.type_context.last()
@@ -53,7 +53,7 @@ pub fn (mut pc PatternChecker) visit_as_pattern(p &AsPattern) PatternTypeResult 
 	return res
 }
 
-pub fn (mut pc PatternChecker) visit_or_pattern(p &OrPattern) PatternTypeResult {
+pub fn (mut pc PatternChecker) visit_or_pattern(p OrPattern) PatternTypeResult {
 	mut res := PatternTypeResult{
 		type_: pc.type_context.last()
 	}
@@ -64,7 +64,7 @@ pub fn (mut pc PatternChecker) visit_or_pattern(p &OrPattern) PatternTypeResult 
 	return res
 }
 
-pub fn (mut pc PatternChecker) visit_value_pattern(p &ValuePattern) PatternTypeResult {
+pub fn (mut pc PatternChecker) visit_value_pattern(p ValuePattern) PatternTypeResult {
 	// Value must match expected type. We just check the right side.
 	pc.chk.expr_checker.accept(p.expr)
 	return PatternTypeResult{
@@ -72,14 +72,14 @@ pub fn (mut pc PatternChecker) visit_value_pattern(p &ValuePattern) PatternTypeR
 	}
 }
 
-pub fn (mut pc PatternChecker) visit_singleton_pattern(p &SingletonPattern) PatternTypeResult {
+pub fn (mut pc PatternChecker) visit_singleton_pattern(p SingletonPattern) PatternTypeResult {
 	// None, True, False
 	return PatternTypeResult{
 		type_: pc.type_context.last()
 	}
 }
 
-pub fn (mut pc PatternChecker) visit_sequence_pattern(p &SequencePattern) PatternTypeResult {
+pub fn (mut pc PatternChecker) visit_sequence_pattern(p SequencePattern) PatternTypeResult {
 	// Check sequence elements
 	mut res := PatternTypeResult{
 		type_: pc.type_context.last()
@@ -96,7 +96,7 @@ pub fn (mut pc PatternChecker) visit_sequence_pattern(p &SequencePattern) Patter
 	return res
 }
 
-pub fn (mut pc PatternChecker) visit_starred_pattern(p &StarredPattern) PatternTypeResult {
+pub fn (mut pc PatternChecker) visit_starred_pattern(p StarredPattern) PatternTypeResult {
 	mut res := PatternTypeResult{
 		type_: pc.type_context.last()
 	}
@@ -108,7 +108,7 @@ pub fn (mut pc PatternChecker) visit_starred_pattern(p &StarredPattern) PatternT
 	return res
 }
 
-pub fn (mut pc PatternChecker) visit_mapping_pattern(p &MappingPattern) PatternTypeResult {
+pub fn (mut pc PatternChecker) visit_mapping_pattern(p MappingPattern) PatternTypeResult {
 	mut res := PatternTypeResult{
 		type_: pc.type_context.last()
 	}
@@ -127,7 +127,7 @@ pub fn (mut pc PatternChecker) visit_mapping_pattern(p &MappingPattern) PatternT
 	return res
 }
 
-pub fn (mut pc PatternChecker) visit_class_pattern(p &ClassPattern) PatternTypeResult {
+pub fn (mut pc PatternChecker) visit_class_pattern(p ClassPattern) PatternTypeResult {
 	mut res := PatternTypeResult{
 		type_: pc.type_context.last()
 	}

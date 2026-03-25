@@ -59,14 +59,11 @@ pub fn (mut b ConditionalTypeBinder) push_frame(conditional_frame bool) &Frame {
 	return f
 }
 
-pub fn (mut b ConditionalTypeBinder) put(node Expression, typ MypyTypeNode, from_assignment bool) {
-	key := chk_literal_hash(node) or { return }
+pub fn (mut b ConditionalTypeBinder) put(key string, typ MypyTypeNode, from_assignment bool) {
 	if key !in b.declarations {
-		b.declarations[key] = get_declaration(node) or {
-			MypyTypeNode(AnyType{
-				type_of_any: .unannotated
-			})
-		}
+		b.declarations[key] = MypyTypeNode(AnyType{
+			type_of_any: .unannotated
+		})
 		// add dependencies
 	}
 	b.frames.last().types[key] = CurrentType{
@@ -76,8 +73,7 @@ pub fn (mut b ConditionalTypeBinder) put(node Expression, typ MypyTypeNode, from
 	b.version++
 }
 
-pub fn (b &ConditionalTypeBinder) get(node Expression) ?MypyTypeNode {
-	key := chk_literal_hash(node)?
+pub fn (b &ConditionalTypeBinder) get(key string) ?MypyTypeNode {
 	for i := b.frames.len - 1; i >= 0; i-- {
 		if ct := b.frames[i].types[key] {
 			return ct.typ

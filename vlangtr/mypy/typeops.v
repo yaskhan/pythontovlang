@@ -197,7 +197,7 @@ pub fn is_instance_type(t MypyTypeNode) bool {
 }
 
 // get_type_object_type returns the type object type
-pub fn get_type_object_type(info TypeInfo) ProperType {
+pub fn get_type_object_type(info TypeInfo) MypyTypeNode {
 	// Simplified version
 	return MypyTypeNode(AnyType{})
 }

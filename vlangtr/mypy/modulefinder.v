@@ -124,7 +124,15 @@ pub mut:
 	results            map[string]ModuleSearchResult
 	ns_ancestors       map[string]string
 	options            ?Options
-	stdlib_py_versions map[string]((int, int), ?(int, int))
+	stdlib_py_versions map[string]StdlibPyVersionRange
+}
+
+pub struct StdlibPyVersionRange {
+pub:
+	min_major int
+	min_minor int
+	max_major ?int
+	max_minor ?int
 }
 
 // new_find_module_cache creates a new MypyFindModuleCache
@@ -136,7 +144,7 @@ pub fn new_find_module_cache(search_paths SearchPaths, options ?Options) MypyFin
 		results:            map[string]ModuleSearchResult{}
 		ns_ancestors:       map[string]string{}
 		options:            options
-		stdlib_py_versions: map[string]((int, int), ?(int, int)){}
+		stdlib_py_versions: map[string]StdlibPyVersionRange{}
 	}
 }
 

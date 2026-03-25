@@ -368,14 +368,14 @@ pub fn os_path_join(parts ...string) string {
 
 // ===== JSON utilities =====
 
-pub fn json_dumps(data map[string]any) []u8 {
+pub fn json_dumps(data map[string]string) []u8 {
 	// Simplified JSON serialization
 	return json.encode(data).bytes()
 }
 
-pub fn json_loads(data []u8) ?map[string]any {
+pub fn json_loads(data []u8) ?map[string]string {
 	// Simplified JSON deserialization
-	return json.decode(map[string]any, data.bytestr()) or { return none }
+	return json.decode(map[string]string, data.bytestr()) or { return none }
 }
 
 // ===== Time utilities =====

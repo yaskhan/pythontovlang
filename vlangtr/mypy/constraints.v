@@ -87,12 +87,6 @@ pub fn infer_constraints_if_possible(template MypyTypeNode, actual MypyTypeNode,
 	return infer_constraints(template, actual, direction)
 }
 
-// Helper stub functions
-fn erase_typevars(t MypyTypeNode) MypyTypeNode {
-	// Delegate to erasetype module
-	return erase_type(t)
-}
-
 fn is_subtype_v(left MypyTypeNode, right MypyTypeNode) bool {
 	return is_subtype(left, right)
 }

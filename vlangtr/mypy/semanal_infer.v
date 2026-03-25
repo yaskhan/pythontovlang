@@ -14,7 +14,7 @@ pub fn infer_decorator_signature_if_simple(mut dec Decorator, analyzer SemanticA
 					}),
 				]
 				arg_kinds: [.arg_pos]
-				arg_names: [?string(none)]
+				arg_names: ['']
 				ret_type:  MypyTypeNode(AnyType{
 					type_of_any: .special_form
 				})
@@ -161,7 +161,7 @@ fn function_type_of_func(f FuncDef, analyzer SemanticAnalyzerInterface) ?Callabl
 	return CallableType{
 		arg_types: []MypyTypeNode{}
 		arg_kinds: []ArgKind{}
-		arg_names: []?string{}
+		arg_names: []string{}
 		ret_type:  MypyTypeNode(AnyType{
 			type_of_any: .special_form
 		})

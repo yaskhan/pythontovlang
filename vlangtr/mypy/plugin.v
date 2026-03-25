@@ -294,7 +294,7 @@ pub interface SemanticAnalyzerPluginInterface {
 	cur_mod_id      string
 	msg             MessageBuilder
 	final_iteration bool
-	named_type(fullname string, args ?[]MypyTypeNode) Instance
+	named_type(fullname string, args []MypyTypeNode) Instance
 	builtin_type(fullname string) Instance
 	fail(msg string, ctx NodeBase, serious bool, blocker bool, code ?ErrorCode)
 	anal_type(typ MypyTypeNode, allow_unbound_tvars bool) ?MypyTypeNode
@@ -305,40 +305,3 @@ pub interface SemanticAnalyzerPluginInterface {
 }
 
 // Helper stub functions
-fn lookup_fully_qualified(fullname string, modules map[string]MypyFile) ?SymbolTableNode {
-	// Split fullname into module and name parts
-	parts := fullname.split('.')
-	if parts.len < 2 {
-		return none
-	}
-
-	// Find module
-	module_name := parts[0]
-	mod := modules[module_name] or { return none }
-
-	// Lookup in module namespace
-	mut current := modules[parts[0]].names
-	for i in 1 .. parts.len {
-		name := parts[i]
-		if name in current.symbols {
-			sym := current.symbols[name]
-			if i == parts.len - 1 {
-				return sym
-			}
-			// Continue lookup in nested namespace
-			if mut node := sym.node {
-				if node is TypeInfo {
-					current = (node as TypeInfo).names
-				} else {
-					return none
-				}
-			} else {
-				return none
-			}
-		} else {
-			return none
-		}
-	}
-
-	return none
-}

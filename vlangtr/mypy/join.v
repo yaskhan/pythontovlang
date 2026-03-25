@@ -14,9 +14,9 @@ pub fn (mut ij InstanceJoiner) join_instances(t Instance, s Instance) MypyTypeNo
 	return trivial_join(t, s)
 }
 
-pub fn (mut ij InstanceJoiner) join_instances_via_supertype(t Instance, s Instance) ProperType {
+pub fn (mut ij InstanceJoiner) join_instances_via_supertype(t Instance, s Instance) MypyTypeNode {
 	_ = ij
-	return ProperType(trivial_join(t, s))
+	return trivial_join(t, s)
 }
 
 pub fn join_types(s MypyTypeNode, t MypyTypeNode, instance_joiner InstanceJoiner) MypyTypeNode {
@@ -80,8 +80,8 @@ pub fn is_better(t MypyTypeNode, s MypyTypeNode) bool { return t.type_str() == s
 pub fn is_similar_callables(t CallableType, s CallableType) bool { return t.arg_types.len == s.arg_types.len }
 pub fn combine_similar_callables(t CallableType, s CallableType) CallableType { _ = s return t }
 pub fn object_from_instance(instance Instance) Instance { return instance }
-pub fn object_or_any_from_type(typ ProperType) ProperType { return typ }
-pub fn unpack_callback_protocol(t Instance) ?ProperType { _ = t return none }
+pub fn object_or_any_from_type(typ MypyTypeNode) MypyTypeNode { return typ }
+pub fn unpack_callback_protocol(t Instance) ?MypyTypeNode { _ = t return none }
 pub fn (v TypeJoinVisitor) visit_param_spec(t &ParamSpecType) !MypyTypeNode { return MypyTypeNode(*t) }
 pub fn (v TypeJoinVisitor) visit_parameters(t &ParametersType) !MypyTypeNode { return MypyTypeNode(*t) }
 pub fn (v TypeJoinVisitor) visit_type_var_tuple(t &TypeVarTupleType) !MypyTypeNode { return MypyTypeNode(*t) }

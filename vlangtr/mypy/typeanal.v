@@ -167,7 +167,7 @@ pub fn (mut ta TypeAnalyser) visit_unbound_type_nonoptional(t &UnboundType, defi
 		}
 
 		if node_ref is TypeInfo {
-			return ta.analyze_type_with_type_info(node_ref, t.args, Context{line: t.line, column: t.column})
+			return ta.analyze_type_with_type_info(&node_ref, t.args, Context{line: t.line, column: t.column})
 		}
 
 		return ta.analyze_unbound_type_without_type_info(t, sym, defining_literal)
@@ -308,14 +308,14 @@ pub fn (mut ta TypeAnalyser) analyze_callable_type(t &UnboundType) !MypyTypeNode
 
 	mut arg_types := []MypyTypeNode{}
 	mut arg_kinds := []ArgKind{}
-	mut arg_names := []?string{}
+	mut arg_names := []string{}
 
 	args_spec := t.args[0]
 	if args_spec is TypeList {
 		for arg in args_spec.items {
 			arg_types << ta.anal_type(arg, true)!
 			arg_kinds << .arg_pos
-			arg_names << none
+			arg_names << ''
 		}
 	} else if args_spec is EllipsisType {
 		// Represented by empty arg_types + is_type_obj = false in Mypy?

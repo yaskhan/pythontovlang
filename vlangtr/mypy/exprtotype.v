@@ -134,7 +134,8 @@ pub fn expr_to_unanalyzed_type(expr Expression,
 				if re.literal_value is int {
 					val := re.literal_value as int
 					if expr.op == '-' {
-						re.literal_value = Any(-val)
+						mut neg := -val
+						re.literal_value = Any(neg)
 						return MypyTypeNode(re)
 					} else if expr.op == '+' {
 						return MypyTypeNode(re)

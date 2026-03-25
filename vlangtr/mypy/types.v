@@ -298,7 +298,7 @@ pub struct ParametersType {
 pub:
 	arg_types []MypyTypeNode
 	arg_kinds []ArgKind
-	arg_names []?string
+	arg_names []string
 }
 
 pub struct TypeVarTupleType {
@@ -347,7 +347,7 @@ pub struct CallableType {
 pub mut:
 	arg_types   []MypyTypeNode
 	arg_kinds   []ArgKind
-	arg_names   []?string
+	arg_names   []string
 	ret_type    MypyTypeNode
 	variables   []MypyTypeNode
 	line        int = -1
@@ -557,9 +557,4 @@ pub fn new_unification_variable(t MypyTypeNode) MypyTypeNode {
 			t
 		}
 	}
-}
-
-// get_proper_type — expands TypeAliasType.
-pub fn get_proper_type(t MypyTypeNode) MypyTypeNode {
-	return t
 }

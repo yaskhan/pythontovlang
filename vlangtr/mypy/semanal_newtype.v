@@ -130,7 +130,7 @@ pub fn (mut a NewTypeAnalyzer) build_newtype_typeinfo(name string, old_type Mypy
 			typ: info
 		}), old_type]
 		arg_kinds: [.arg_pos, .arg_pos]
-		arg_names: ['self', 'item'].map(?string(it))
+		arg_names: ['self', 'item']
 		ret_type:  MypyTypeNode(NoneType{})
 		fallback:  a.api.named_type('builtins.function', [])
 		name:      name

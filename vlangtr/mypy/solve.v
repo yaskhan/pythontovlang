@@ -301,26 +301,6 @@ pub fn get_vars(target MypyTypeNode, vars []TypeVarId) []TypeVarId {
 	return result
 }
 
-// Helper stub functions
-fn get_proper_type(t MypyTypeNode) MypyTypeNode {
-	return t
-}
-
-fn is_subtype_stub(left MypyTypeNode, right MypyTypeNode) bool {
-	return true
-}
-
-fn join_type_list(types []MypyTypeNode) MypyTypeNode {
-	if types.len == 0 {
-		return MypyTypeNode(UninhabitedType{})
-	}
-	return types[0]
-}
-
-fn meet_types(left MypyTypeNode, right MypyTypeNode) MypyTypeNode {
-	return left
-}
-
 fn get_vars_from_str(s string, tvars []TypeVarId) []TypeVarId {
 	mut result := []TypeVarId{}
 	for tv in tvars {

@@ -72,7 +72,7 @@ pub mut:
 	options            &Options
 	read_source        ?fn (string) []string
 	hide_error_codes   bool
-	function_or_member []?string
+	function_or_member []string
 }
 
 pub fn Errors.new(options &Options, read_source ?fn (string) []string, hide_error_codes ?bool) Errors {
@@ -97,7 +97,7 @@ pub fn Errors.new(options &Options, read_source ?fn (string) []string, hide_erro
 		options:            options
 		read_source:        read_source
 		hide_error_codes:   hide_error_codes or { options.hide_error_codes }
-		function_or_member: []?string{}
+		function_or_member: []string{}
 	}
 }
 
