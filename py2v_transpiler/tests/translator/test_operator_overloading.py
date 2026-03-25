@@ -22,8 +22,8 @@ class Vector:
         return Vector(self.x + other.x, self.y + other.y)
 """
     v_code = translate(source)
-    # Check for V operator overloading syntax: fn (self Vector) + (other Vector) Vector
-    assert "fn (self Vector) + (other Vector) Vector {" in v_code
+    # Check for V operator overloading syntax: fn (self Vector) + (other &Vector) &Vector
+    assert "fn (self Vector) + (other &Vector) &Vector {" in v_code
 
 def test_sub_operator():
     source = """
@@ -32,7 +32,7 @@ class Point:
         return Point(self.x - other.x, self.y - other.y)
 """
     v_code = translate(source)
-    assert "fn (self Point) - (other Point) Point {" in v_code
+    assert "fn (self Point) - (other &Point) &Point {" in v_code
 
 def test_mul_operator_scalar():
     source = """
@@ -42,7 +42,7 @@ class Vector:
 """
     v_code = translate(source)
     # Argument name is scalar, type is int
-    assert "fn (self Vector) * (scalar int) Vector {" in v_code
+    assert "fn (self Vector) * (scalar int) &Vector {" in v_code
 
 def test_eq_operator():
     source = """
@@ -51,7 +51,7 @@ class Box:
         return self.val == other.val
 """
     v_code = translate(source)
-    assert "fn (self Box) == (other Box) bool {" in v_code
+    assert "fn (self Box) == (other &Box) bool {" in v_code
 
 def test_str_method():
     source = """

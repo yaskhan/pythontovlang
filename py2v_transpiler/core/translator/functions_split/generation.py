@@ -34,6 +34,7 @@ class FunctionGenerationMixin:
         name_remap: Dict[str, str]
         current_class_body: List[ast.stmt]
         def _sanitize_name(self, name: str, is_type: bool = False) -> str: ...
+        def _is_class_type(self, v_type: str) -> bool: ...
         def _to_snake_case(self, name: str) -> str: ...
         def _map_type(
             self,
@@ -137,6 +138,11 @@ class FunctionGenerationMixin:
             arg_name = self._sanitize_name(arg.arg)
             try: arg_type = self._map_type(ast.unparse(arg.annotation), struct_name) if arg.annotation else self._map_type(self.type_inference.type_map.get(arg_name, "Any" if node.name == "__exit__" else "int"), struct_name)
             except: arg_type = self._map_type(self.type_inference.type_map.get(arg_name, "int"), struct_name)
+
+            # Prepend & for non-primitive struct types
+            if self._is_class_type(arg_type):
+                arg_type = f"&{arg_type}"
+
             annotations_data[arg_name] = arg_type
             args_names.append(arg_name)
             is_mut, is_reassigned = False, False
@@ -176,7 +182,12 @@ class FunctionGenerationMixin:
                 except:
                     if isinstance(node.returns, ast.Name): ret_type = self._map_type(node.returns.id, struct_name, is_return=True)
                     elif isinstance(node.returns, ast.Constant) and isinstance(node.returns.value, str): ret_type = self._map_type(node.returns.value, struct_name, is_return=True)
-            else:
+
+            # Prepend & for non-primitive struct types
+            if self._is_class_type(ret_type):
+                ret_type = f"&{ret_type}"
+
+            if not node.returns:
                 inferred_ret = self.type_inference.type_map.get(f"{node.name}@return")
                 if isinstance(inferred_ret, str): ret_type = inferred_ret
                 elif node.name == "__enter__":

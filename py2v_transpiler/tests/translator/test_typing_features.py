@@ -117,7 +117,7 @@ class A:
         return self
 """
     v_code = translate(source)
-    assert "fn (self A) foo() A {" in v_code
+    assert "fn (self A) foo() &A {" in v_code
 
 def test_typing_self_generic():
     if sys.version_info < (3, 12):
@@ -130,7 +130,7 @@ class Builder[T]:
         return self
 """
     v_code = translate(source)
-    assert "fn (self Builder[T]) set_value[T](value T) Builder[T] {" in v_code
+    assert "fn (self Builder[T]) set_value[T](value T) &Builder[T] {" in v_code
 
 def test_typing_self_generic_legacy():
     source = """
@@ -144,7 +144,7 @@ class Builder(Generic[T]):
 """
     v_code = translate(source)
     # V generic map: T -> T
-    assert "fn (self Builder[T]) set_value[T](value T) Builder[T] {" in v_code
+    assert "fn (self Builder[T]) set_value[T](value T) &Builder[T] {" in v_code
 
 def test_typing_cast():
     source = """

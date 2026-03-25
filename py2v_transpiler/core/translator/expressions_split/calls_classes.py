@@ -354,7 +354,7 @@ class ClassCallsMixin:
         receiver = self.visit(func_node.value)
         if receiver in ("object", "super()") or receiver == getattr(self, 'current_class', None):
             if self.current_class:
-                return f"{self.current_class}{{}}"
+                return f"&{self.current_class}{{}}"
         
         return None
 

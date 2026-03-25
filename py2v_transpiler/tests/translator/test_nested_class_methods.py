@@ -58,7 +58,7 @@ class TestNestedClassMethods(TranspilerTest):
             }
         """)
         self.assert_transpilation(source, """
-            fn (self Outer) make_inner(v int) OuterInner {
+            fn (self Outer) make_inner(v int) &OuterInner {
                 return new_outer_inner(v)
             }
         """)

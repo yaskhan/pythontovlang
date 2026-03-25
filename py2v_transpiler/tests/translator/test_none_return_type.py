@@ -73,7 +73,7 @@ class A:
         pass
 """
     v_code = translate(source)
-    assert "fn (self A) + (other A) {" in v_code
+    assert "fn (self A) + (other &A) {" in v_code
     assert "void" not in v_code
 
 def test_lambda_implicit_none():
