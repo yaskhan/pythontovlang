@@ -1,4 +1,9 @@
+import re
 from typing import List
+
+_CONST_RE = re.compile(r'^(pub\s+)?const\s+([A-Z_][A-Z0-9_]*)\s*=')
+_SNAKE_CASE_RE1 = re.compile('(.)([A-Z][a-z]+)')
+_SNAKE_CASE_RE2 = re.compile('([a-z0-9])([A-Z])')
 
 class VCodeEmitter:
     def __init__(self, module_name: str = "main"):
@@ -41,8 +46,7 @@ class VCodeEmitter:
     def add_constant(self, const_def: str) -> None:
         """Adds a const definition."""
         # Convert UPPER_CASE constant names to snake_case for V compliance
-        import re
-        match = re.match(r'^(pub\s+)?const\s+([A-Z_][A-Z0-9_]*)\s*=', const_def)
+        match = _CONST_RE.match(const_def)
         if match:
             pub_prefix = match.group(1) or ''
             upper_name = match.group(2)
@@ -52,10 +56,9 @@ class VCodeEmitter:
 
     def _to_snake_case(self, name: str) -> str:
         """Convert UPPER_CASE to snake_case."""
-        import re
         # Simple conversion: I_IDLE -> i_idle, BUFSIZE -> bufsize
-        s1 = re.sub('(.)([A-Z][a-z]+)', r'\1_\2', name)
-        s2 = re.sub('([a-z0-9])([A-Z])', r'\1_\2', s1)
+        s1 = _SNAKE_CASE_RE1.sub(r'\1_\2', name)
+        s2 = _SNAKE_CASE_RE2.sub(r'\1_\2', s1)
         return s2.lower().replace('__', '_')
 
     def add_struct(self, struct_def: str) -> None:

@@ -7,6 +7,9 @@ import ast
 import re
 from typing import List, Any
 
+_PY_HELPER_RE = re.compile(r'py_[a-zA-Z0-9_]+')
+_IDENTIFIER_RE = re.compile(r'^[a-zA-Z_][a-zA-Z0-9._]*$')
+
 from ..base import TranslatorBase
 from .calls_builtin import BuiltinCallsMixin
 from .calls_methods import MethodCallsMixin
@@ -501,7 +504,7 @@ class CallsMixin(
                     self.emitter.add_import(imp)
             
             # Identify and track used py_ helpers from the mapper
-            for py_helper in re.findall(r'py_[a-zA-Z0-9_]+', mapped):
+            for py_helper in _PY_HELPER_RE.findall(mapped):
                 self.used_builtins.add(py_helper)
             
             return mapped
@@ -604,7 +607,7 @@ class CallsMixin(
         for i, arg_str in enumerate(args):
             if i in mutated_indices:
                 if not arg_str.startswith("mut ") and arg_str not in ("none", "true", "false"):
-                    if re.match(r'^[a-zA-Z_][a-zA-Z0-9._]*$', arg_str):
+                    if _IDENTIFIER_RE.match(arg_str):
                         final_args_list.append(f"mut {arg_str}")
                     else:
                         final_args_list.append(arg_str)
