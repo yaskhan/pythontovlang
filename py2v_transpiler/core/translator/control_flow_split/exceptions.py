@@ -33,15 +33,20 @@ class ExceptionsMixin(TranslatorBase):
         if node.exc:
             if isinstance(node.exc, ast.Call):
                  exc_name = self.visit(node.exc.func)
-                 msg = ""
                  if node.exc.args:
-                      msg = self.visit(node.exc.args[0])
-                      # Remove quotes if it's a string literal visit
-                      if msg.startswith("'") and msg.endswith("'"):
-                           msg = msg[1:-1]
-                      elif msg.startswith('"') and msg.endswith('"'):
-                           msg = msg[1:-1]
-                 self.output.append(f"{self._indent()}vexc.raise('{exc_name}', '{msg}')")
+                      arg0 = node.exc.args[0]
+                      msg = self.visit(arg0)
+                      if isinstance(arg0, ast.Constant) and isinstance(arg0.value, (str, bytes)):
+                           # Remove quotes if it's a string literal visit
+                           if msg.startswith("'") and msg.endswith("'"):
+                                msg = msg[1:-1]
+                           elif msg.startswith('"') and msg.endswith('"'):
+                                msg = msg[1:-1]
+                           self.output.append(f"{self._indent()}vexc.raise('{exc_name}', '{msg}')")
+                      else:
+                           self.output.append(f"{self._indent()}vexc.raise('{exc_name}', {msg})")
+                 else:
+                      self.output.append(f"{self._indent()}vexc.raise('{exc_name}', '')")
             elif isinstance(node.exc, ast.Name):
                  exc_name = self.visit(node.exc)
                  self.output.append(f"{self._indent()}vexc.raise('{exc_name}', '')")

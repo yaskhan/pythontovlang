@@ -5,13 +5,13 @@ class TestTodoFeatures(TranspilerTest):
         self.assert_transpilation(
             "x = 'Value: %d' % 10",
             """
-            x := py_string_format('Value: %d', 10)
+            x := `Value: ${10}`
             """
         )
         self.assert_transpilation(
             "x = 'Name: %s, Age: %d' % ('Alice', 30)",
             """
-            x := py_string_format('Name: %s, Age: %d', 'Alice', 30)
+            x := `Name: ${'Alice'}, Age: ${30}`
             """
         )
 

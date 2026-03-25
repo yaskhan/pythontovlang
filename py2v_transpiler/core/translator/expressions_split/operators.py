@@ -241,6 +241,78 @@ class OperatorsMixin(TranslatorBase):
 
              if is_string_fmt:
                  self.used_string_format = True
+                 # Try to convert to V interpolation if left is a constant string
+                 if isinstance(node.left, ast.Constant) and isinstance(node.left.value, str):
+                     import re
+                     fmt_str = node.left.value
+                     # Handle simple %s, %d, %f, %r without complex flags
+                     # We only handle cases where the number of % matches the number of simple specifiers
+                     placeholders = re.findall(r'%[sdfr]', fmt_str)
+
+                     args = []
+                     if isinstance(node.right, ast.Tuple):
+                         args = node.right.elts
+                     else:
+                         args = [node.right]
+
+                     if len(placeholders) == len(args) and '%%' not in fmt_str and fmt_str.count('%') == len(placeholders):
+                         result_parts = []
+                         last_pos = 0
+                         arg_idx = 0
+                         for match in re.finditer(r'%([sdfr])', fmt_str):
+                             result_parts.append(fmt_str[last_pos:match.start()])
+                             spec = match.group(1)
+                             arg_node = args[arg_idx]
+                             arg_idx += 1
+
+                             v_arg = self.visit(arg_node)
+                             if spec == 'r':
+                                 self.used_builtins.add('py_repr')
+                                 result_parts.append(f'${{py_repr({v_arg})}}')
+                             else:
+                                 result_parts.append(f'${{{v_arg}}}')
+                             last_pos = match.end()
+                         result_parts.append(fmt_str[last_pos:])
+
+                         final_str = ''.join(result_parts)
+                         # Choose quote: prefer ` for simplicity but must escape ${}
+                         return f"`{final_str.replace('\\', '\\\\')}`"
+                 if isinstance(node.left, ast.Constant) and isinstance(node.left.value, str):
+                     import re
+                     fmt_str = node.left.value
+                     # Handle simple %s, %d, %f, %r without complex flags
+                     # We only handle cases where the number of % matches the number of simple specifiers
+                     placeholders = re.findall(r'%[sdfr]', fmt_str)
+
+                     args = []
+                     if isinstance(node.right, ast.Tuple):
+                         args = node.right.elts
+                     else:
+                         args = [node.right]
+
+                     if len(placeholders) == len(args) and '%%' not in fmt_str and fmt_str.count('%') == len(placeholders):
+                         result_parts = []
+                         last_pos = 0
+                         arg_idx = 0
+                         for match in re.finditer(r'%([sdfr])', fmt_str):
+                             result_parts.append(fmt_str[last_pos:match.start()])
+                             spec = match.group(1)
+                             arg_node = args[arg_idx]
+                             arg_idx += 1
+
+                             v_arg = self.visit(arg_node)
+                             if spec == 'r':
+                                 self.used_builtins.add('py_repr')
+                                 result_parts.append(f'${{py_repr({v_arg})}}')
+                             else:
+                                 result_parts.append(f'${{{v_arg}}}')
+                             last_pos = match.end()
+                         result_parts.append(fmt_str[last_pos:])
+
+                         final_str = ''.join(result_parts)
+                         # Choose quote: prefer ` for simplicity but must escape ${}
+                         return f"`{final_str.replace('\\', '\\\\')}`"
+                 self.used_string_format = True
                  # Flatten arguments if tuple
                  fmt_args = right
                  if isinstance(node.right, ast.Tuple):
@@ -277,7 +349,6 @@ class OperatorsMixin(TranslatorBase):
             return f" {op_str} ".join(values)
         else:
             # For non-boolean context, evaluate left to right
-            # Python 'x or y' -> `if bool(x) { x } else { y }`
             # Since V if expressions can't directly inline assignments of x without re-evaluating,
             # we rely on V's `or` block if `x` is Optional? No, V `or` is for Option/Result.
             # We must output `if bool(x) { x } else { y }`.
