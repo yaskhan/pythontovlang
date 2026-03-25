@@ -55,12 +55,12 @@ def translate_expr(expr_str):
 
 def test_string_format_percent_simple():
     res, used = translate_expr("'Hello %s' % 'World'")
-    assert "py_string_format('Hello %s', 'World')" in res
+    assert "`Hello ${'World'}`" in res
     assert used
 
 def test_string_format_percent_number():
     res, used = translate_expr("'Num %d' % 123")
-    assert "py_string_format('Num %d', 123)" in res
+    assert "`Num ${123}`" in res
     assert used
 
 def test_string_format_percent_float():
@@ -71,7 +71,7 @@ def test_string_format_percent_float():
 def test_string_format_percent_tuple():
     res, used = translate_expr("'%s %d' % ('Age', 30)")
     # Tuple args should be flattened
-    assert "py_string_format('%s %d', 'Age', 30)" in res
+    assert "`${'Age'} ${30}`" in res
     assert used
 
 def test_integer_modulo():
