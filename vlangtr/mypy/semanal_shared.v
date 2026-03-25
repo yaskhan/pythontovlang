@@ -73,6 +73,7 @@ pub fn set_callable_name(sig MypyTypeNode, fdef &FuncDef) MypyTypeNode {
 		mut class_name := ''
 		if info := fdef.info {
 			class_name = info.name
+			_ = class_name
 			// return p_sig.with_name('${fdef.name} of ${class_name}')
 			return p_sig
 		} else {

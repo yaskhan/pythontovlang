@@ -59,9 +59,9 @@ pub fn expr_to_unanalyzed_type(expr Expression,
 
 				mut new_args := []MypyTypeNode{}
 				for arg in args {
-					arg_type := expr_to_unanalyzed_type(arg, options, allow_new_syntax,
+					arg_type_node := expr_to_unanalyzed_type(arg, options, allow_new_syntax,
 						Expression(expr), true, lookup_qualified)!
-					new_args << arg_type
+					new_args << arg_type_node
 				}
 				ub.args = new_args
 				if new_args.len == 0 {

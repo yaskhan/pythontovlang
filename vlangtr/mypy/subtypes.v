@@ -248,8 +248,8 @@ fn is_typeddict_subtype(left TypedDictType, right TypedDictType, ctx SubtypeCont
 		if key !in left.items {
 			return false
 		}
-		left_type := left.items[key]
-		right_type := right.items[key]
+		left_type := left.items[key] or { return false }
+		right_type := right.items[key] or { return false }
 
 		// Required vs NotRequired check
 		left_required := key in left.required_keys

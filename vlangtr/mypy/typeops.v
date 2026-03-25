@@ -266,7 +266,7 @@ pub fn replace_type_vars(t MypyTypeNode, replacements map[string]MypyTypeNode) M
 		TypeVarType {
 			mut tvt := t as TypeVarType
 			if tvt.id.str() in replacements {
-				return replacements[tvt.id.str()]
+				return replacements[tvt.id.str()] or { t }
 			}
 			t
 		}

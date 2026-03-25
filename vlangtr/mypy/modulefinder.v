@@ -157,8 +157,8 @@ pub fn (mut fmc MypyFindModuleCache) clear() {
 
 // find_module finds a module and returns the path or failure reason
 pub fn (mut fmc MypyFindModuleCache) find_module(id string) ModuleSearchResult {
-	if id in fmc.results {
-		return fmc.results[id]
+	if res := fmc.results[id] {
+		return res
 	}
 
 	result := fmc.find_module_internal(id)

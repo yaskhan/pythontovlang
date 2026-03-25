@@ -83,7 +83,7 @@ pub fn (mut v TypeIndirectionVisitor) visit_unpack_type(t &UnpackType) !string {
 
 pub fn (mut v TypeIndirectionVisitor) visit_type_alias_type(t &TypeAliasType) !string {
 	v.traverse_type_list(t.args)!
-	if alias := t.alias {
+	if t.alias != none {
 		// v.modules[alias.module] = true
 	}
 	return ''

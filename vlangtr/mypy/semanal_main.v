@@ -18,7 +18,7 @@ pub const core_modules = [
 pub struct PatchEntry {
 pub:
 	priority int
-	callback ?fn () = none
+	callback ?fn ()
 }
 
 pub type Patches = []PatchEntry
@@ -118,7 +118,9 @@ fn process_functions(mut graph Graph, scc []string, mut patches Patches) {
 		tree := state.tree or { continue }
 		// targets := get_all_leaf_targets(tree)
 		// for t in targets { all_targets << FullTargetInfo{ ... } }
+		_ = tree
 	}
+	_ = all_targets
 	// order and process
 }
 

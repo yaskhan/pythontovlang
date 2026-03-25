@@ -31,7 +31,9 @@ pub fn (mut m MessageBuilder) report(msg string, context Context, severity strin
 	if info.file !in m.errors.error_info_map {
 		m.errors.error_info_map[info.file] = []&ErrorInfo{}
 	}
-	m.errors.error_info_map[info.file] << info
+	mut infos := m.errors.error_info_map[info.file] or { []&ErrorInfo{} }
+	infos << info
+	m.errors.error_info_map[info.file] = infos
 }
 
 pub fn (mut m MessageBuilder) fail(msg string, context Context, serious bool, blocker bool, code ?ErrorCode) {

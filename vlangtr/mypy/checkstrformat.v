@@ -317,12 +317,12 @@ fn (mut sfc StringFormatterChecker) check_specs_in_format_call(call CallExpr, sp
 			}
 			last_char := fmt_spec[fmt_spec.len - 1]
 			arg := call.args[i]
-			arg_type := sfc.chk.expr_checker.accept(arg)
+			arg_type_node := sfc.chk.expr_checker.accept(arg)
 			if last_char in [`d`, `i`, `o`, `x`, `X`] {
-				_ = sfc.chk.check_subtype(arg_type, sfc.named_type('builtins.int'), arg.get_context(),
+				_ = sfc.chk.check_subtype(arg_type_node, sfc.named_type('builtins.int'), arg.get_context(),
 					'Argument must be int for format specifier')
 			} else if last_char in [`f`, `F`, `e`, `E`, `g`, `G`] {
-				_ = sfc.chk.check_subtype(arg_type, sfc.named_type('builtins.float'),
+				_ = sfc.chk.check_subtype(arg_type_node, sfc.named_type('builtins.float'),
 					arg.get_context(), 'Argument must be float for format specifier')
 			}
 		}
@@ -388,24 +388,24 @@ fn (mut sfc StringFormatterChecker) check_mapping_str_interpolation(specifiers [
 }
 
 pub fn has_type_component(typ MypyTypeNode, fullname string) bool {
-	proper_type := get_proper_type(typ)
-	if proper_type is Instance {
-		inst := proper_type
+	proper_type_node := get_proper_type(typ)
+	if proper_type_node is Instance {
+		inst := proper_type_node
 		info := inst.type_ or { inst.typ or { return false } }
 		if isnil(info) {
 			return false
 		}
 		return info.has_base(fullname)
 	}
-	if proper_type is TypeVarType {
-		type_var := proper_type
-		if has_type_component(type_var.upper_bound, fullname) {
+	if proper_type_node is TypeVarType {
+		type_var_node := proper_type_node
+		if has_type_component(type_var_node.upper_bound, fullname) {
 			return true
 		}
-		return type_var.values.any(has_type_component(it, fullname))
+		return type_var_node.values.any(has_type_component(it, fullname))
 	}
-	if proper_type is UnionType {
-		union_type := proper_type
+	if proper_type_node is UnionType {
+		union_type := proper_type_node
 		return union_type.items.any(has_type_component(it, fullname))
 	}
 	return false

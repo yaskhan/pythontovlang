@@ -186,8 +186,8 @@ pub fn (v StatisticsVisitor) is_checked_scope() bool {
 pub fn (mut v StatisticsVisitor) visit_class_def(o ClassDef) {
 	v.record_line(o.base.ctx.line, type_precise) // TODO: Look at base classes
 	// While base_type_exprs are technically expressions, type analyzer does not visit them
-	for d in o.decorators {
-		// d.accept(self)
+	for _ in o.decorators {
+		// Decorators are intentionally ignored here.
 	}
 	// o.defs.accept(self)
 }

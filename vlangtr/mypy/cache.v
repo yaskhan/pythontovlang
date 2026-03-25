@@ -372,7 +372,7 @@ pub fn read_errors(mut data []u8) []ErrorInfo {
 fn read_tag(mut data []u8) u8 {
 	if data.len > 0 {
 		tag := data[0]
-		data = data[1..]
+		data = data[1..].clone()
 		return tag
 	}
 	return 0
@@ -387,8 +387,8 @@ fn read_int_bare(mut data []u8) int {
 		return 0
 	}
 	// Read 4 bytes as little-endian int
-	result := int(data[0]) | (int(data[1]) << 8) | (int(data[2]) << 16) | (int(data[3]) << 24)
-	data = data[4..]
+	result := int(u32(data[0]) | (u32(data[1]) << 8) | (u32(data[2]) << 16) | (u32(data[3]) << 24))
+	data = data[4..].clone()
 	return result
 }
 
@@ -405,13 +405,13 @@ fn read_str_bare(mut data []u8) string {
 	if data.len < 4 {
 		return ''
 	}
-	length := int(data[0]) | (int(data[1]) << 8) | (int(data[2]) << 16) | (int(data[3]) << 24)
-	data = data[4..]
+	length := int(u32(data[0]) | (u32(data[1]) << 8) | (u32(data[2]) << 16) | (u32(data[3]) << 24))
+	data = data[4..].clone()
 	if data.len < length {
 		return ''
 	}
 	result := data[..length].bytestr()
-	data = data[length..]
+	data = data[length..].clone()
 	return result
 }
 
@@ -429,13 +429,13 @@ fn read_bytes_bare(mut data []u8) []u8 {
 	if data.len < 4 {
 		return []
 	}
-	length := int(data[0]) | (int(data[1]) << 8) | (int(data[2]) << 16) | (int(data[3]) << 24)
-	data = data[4..]
+	length := int(u32(data[0]) | (u32(data[1]) << 8) | (u32(data[2]) << 16) | (u32(data[3]) << 24))
+	data = data[4..].clone()
 	if data.len < length {
 		return []
 	}
 	result := data[..length].clone()
-	data = data[length..]
+	data = data[length..].clone()
 	return result
 }
 
@@ -457,7 +457,7 @@ fn read_float_bare(mut data []u8) f64 {
 	for i in 0 .. 8 {
 		bits |= u64(data[i]) << (i * 8)
 	}
-	data = data[8..]
+	data = data[8..].clone()
 	// Reinterpret as f64
 	return f64_from_bits(bits)
 }

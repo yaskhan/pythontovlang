@@ -141,11 +141,11 @@ pub fn (mut ts TypeState) is_cached_subtype_check(kind SubtypeKind, left &Instan
 	if info_name !in ts.subtype_caches {
 		return false
 	}
-	cache := ts.subtype_caches[info_name].clone()
+	cache := unsafe { ts.subtype_caches[info_name] }
 	if kind !in cache {
 		return false
 	}
-	subcache := cache[kind].clone()
+	subcache := unsafe { cache[kind] }
 	for pair in subcache {
 		if is_same_instance(pair.left, *left) && is_same_instance(pair.right, *right) {
 			return true
@@ -164,11 +164,11 @@ pub fn (mut ts TypeState) is_cached_negative_subtype_check(kind SubtypeKind, lef
 	if info_name !in ts.negative_subtype_caches {
 		return false
 	}
-	cache := ts.negative_subtype_caches[info_name].clone()
+	cache := unsafe { ts.negative_subtype_caches[info_name] }
 	if kind !in cache {
 		return false
 	}
-	subcache := cache[kind].clone()
+	subcache := unsafe { cache[kind] }
 	for pair in subcache {
 		if is_same_instance(pair.left, *left) && is_same_instance(pair.right, *right) {
 			return true
@@ -193,11 +193,11 @@ pub fn (mut ts TypeState) record_subtype_cache_entry(kind SubtypeKind, left &Ins
 	if r_info.fullname !in ts.subtype_caches {
 		ts.subtype_caches[r_info.fullname] = map[u32][]SubtypePair{}
 	}
-	mut cache := ts.subtype_caches[r_info.fullname].clone()
+	mut cache := unsafe { ts.subtype_caches[r_info.fullname] }
 	if kind !in cache {
 		cache[kind] = []SubtypePair{}
 	}
-	mut pairs := cache[kind].clone()
+	mut pairs := unsafe { cache[kind] }
 	pairs << SubtypePair{
 		left:  *left
 		right: *right
@@ -218,14 +218,14 @@ pub fn (mut ts TypeState) record_negative_subtype_cache_entry(kind SubtypeKind, 
 	if r_info.fullname !in ts.negative_subtype_caches {
 		ts.negative_subtype_caches[r_info.fullname] = map[u32][]SubtypePair{}
 	}
-	mut cache := ts.negative_subtype_caches[r_info.fullname].clone()
+	mut cache := unsafe { ts.negative_subtype_caches[r_info.fullname] }
 	if kind !in cache {
 		cache[kind] = []SubtypePair{}
 	}
-	if (cache[kind] or { []SubtypePair{} }).len > max_negative_cache_entries {
+	if (unsafe { cache[kind] }).len > max_negative_cache_entries {
 		cache[kind] = []SubtypePair{}
 	}
-	mut pairs := cache[kind] or { []SubtypePair{} }
+	mut pairs := unsafe { cache[kind] }
 	pairs << SubtypePair{
 		left:  *left
 		right: *right

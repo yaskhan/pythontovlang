@@ -77,8 +77,8 @@ pub fn solve_constraints(original_vars []TypeVarLikeType, constraints []Constrai
 
 	mut res := []?MypyTypeNode{}
 	for v in vars {
-		if v in solutions {
-			res << solutions[v]
+		if sol := solutions[v] {
+			res << sol
 		} else {
 			if strict {
 				res << ?MypyTypeNode(UninhabitedType{})

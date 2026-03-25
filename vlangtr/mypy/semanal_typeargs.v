@@ -9,7 +9,7 @@ pub mut:
 	errors                 &Errors
 	options                &Options
 	is_typeshed_file       bool
-	named_type_func        ?fn (string, []MypyTypeNode) &Instance = none
+	named_type_func        ?fn (string, []MypyTypeNode) &Instance
 	scope                  Scope
 	recurse_into_functions bool = true
 	seen_aliases           map[string]bool
@@ -83,7 +83,7 @@ pub fn (mut v TypeArgumentAnalyzer) visit_type_alias_type(t &TypeAliasType) !Any
 
 pub fn (mut v TypeArgumentAnalyzer) visit_tuple_type(t &TupleType) !AnyNode {
 	// t.items = flatten_nested_tuples(t.items)
-	for i, it in t.items {
+	for _, it in t.items {
 		if v.check_non_paramspec(it, 'tuple', Context{line: t.line}) {
 			// t.items[i] = ...
 		}
@@ -94,7 +94,7 @@ pub fn (mut v TypeArgumentAnalyzer) visit_tuple_type(t &TupleType) !AnyNode {
 
 pub fn (mut v TypeArgumentAnalyzer) visit_instance(t &Instance) !AnyNode {
 	v.MixedTraverserVisitor.visit_instance(t)!
-	info := t.typ // In Instance it is TypeInfo
+	_ = t.typ
 	// if info is FakeInfo ...
 
 	// defn := info.defn
@@ -152,7 +152,7 @@ pub fn (mut v TypeArgumentAnalyzer) validate_args(name string, args []MypyTypeNo
 				}
 			}
 
-			upper_bound := tvar.upper_bound
+			_ = tvar.upper_bound
 			// Simplified subtype check placeholder
 			// if !is_subtype(arg, upper_bound) { ... }
 		} else if tvar is ParamSpecType {

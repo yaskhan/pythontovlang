@@ -52,7 +52,7 @@ pub mut:
 pub struct TypeVarLikeDefaultFixer {
 pub mut:
 	scope     &TypeVarLikeScope
-	fail_func FailFunc
+	fail_func ?FailFunc
 	source_tv TypeVarLikeExpr
 	result    MypyTypeNode
 	context   Context
@@ -65,13 +65,13 @@ pub fn new_type_var_like_scope(parent ?&TypeVarLikeScope,
 	namespace string) TypeVarLikeScope {
 	mut scope := TypeVarLikeScope{
 		scope:          map[string]TypeVarLikeType{}
-		parent:         parent
 		func_id:        0
 		class_id:       0
 		is_class_scope: is_class_scope
-		prohibited:     prohibited
 		namespace:      namespace
 	}
+	scope.parent = parent
+	scope.prohibited = prohibited
 
 	if parent != none {
 		p := parent
@@ -151,8 +151,6 @@ pub fn (mut s TypeVarLikeScope) bind_new(name string,
 	}
 
 	i := if s.is_class_scope { s.class_id } else { s.func_id }
-	namespace := s.namespace
-
 	// Defaults may reference other type variables.
 	mut def_fixer := TypeVarLikeDefaultFixer{
 		scope:     &s
@@ -161,8 +159,6 @@ pub fn (mut s TypeVarLikeScope) bind_new(name string,
 		context:   context
 	}
 	def_fixer.result = tvar_expr.default_().accept_translator(mut def_fixer)!
-	default := def_fixer.result
-
 	tvar_def := match tvar_expr {
 		TypeVarExpr {
 			tve := tvar_expr as TypeVarExpr
@@ -215,8 +211,8 @@ pub fn (mut s TypeVarLikeScope) bind_existing(tvar_def TypeVarLikeType) {
 pub fn (mut s TypeVarLikeScope) get_binding(item string) ?TypeVarLikeType {
 	fullname := item
 
-	if fullname in s.scope {
-		return s.scope[fullname]
+	if binding := s.scope[fullname] {
+		return binding
 	}
 
 	if mut p := s.parent {
@@ -293,8 +289,10 @@ pub fn (mut f TypeVarLikeDefaultFixer) visit_type_alias_type(t &TypeAliasType) !
 
 // report_unbound_tvar reports an unbound type variable.
 fn (mut f TypeVarLikeDefaultFixer) report_unbound_tvar(tvar TypeVarLikeType) {
-	f.fail_func('Type variable ${tvar.name} referenced in the default of ${f.source_tv.name} is unbound',
-		f.context)
+	if fail_func := f.fail_func {
+		fail_func('Type variable ${tvar.name} referenced in the default of ${f.source_tv.name} is unbound',
+			f.context)
+	}
 }
 
 pub fn (mut f TypeVarLikeDefaultFixer) visit_unbound_type(t &UnboundType) !MypyTypeNode { return MypyTypeNode(*t) }

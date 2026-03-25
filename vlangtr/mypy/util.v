@@ -2,7 +2,6 @@ module mypy
 
 import os
 import regex
-import time
 import term
 
 // Work in progress by Antigravity. Started: 2026-03-22 03:05
@@ -178,11 +177,11 @@ pub fn soft_wrap(msg string, max_len int, first_offset int, num_indent int) stri
 		return ''
 	}
 	mut next_line := words[0]
-	mut remaining_words := words[1..]
+	mut remaining_words := words[1..].clone()
 	mut lines := []string{}
 	for remaining_words.len > 0 {
 		next_word := remaining_words[0]
-		remaining_words = remaining_words[1..]
+		remaining_words = remaining_words[1..].clone()
 		max_line_len := if lines.len > 0 { max_len - num_indent } else { max_len - first_offset }
 		if next_line.len + next_word.len + 1 <= max_line_len {
 			next_line += ' ' + next_word
@@ -227,7 +226,7 @@ pub const encoding_re_str = r'([ \t\v]*#.*(\r\n?|\n))??[ \t\v]*#.*coding[:=][ \t
 pub fn decode_python_encoding(source []u8) string {
 	mut src := source.clone()
 	if src.len >= 3 && src[0] == 0xef && src[1] == 0xbb && src[2] == 0xbf {
-		src = src[3..]
+		src = src[3..].clone()
 		return src.bytestr()
 	}
 	_, _ = find_python_encoding(src)

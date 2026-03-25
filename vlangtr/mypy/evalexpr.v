@@ -224,7 +224,7 @@ pub fn (mut e NodeEvaluator) visit_promote_expr(mut o PromoteExpr) !AnyNode {
 
 // visit_await_expr evaluates AwaitExpr
 pub fn (mut e NodeEvaluator) visit_await_expr(mut o AwaitExpr) !AnyNode {
-	return 'await ' + ((o.expr.accept(mut e)! as string))
+	return 'await ' + (o.expr.accept(mut e)! as string)
 }
 
 // visit_template_str_expr evaluates TemplateStrExpr

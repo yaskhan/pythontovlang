@@ -127,7 +127,7 @@ pub fn constant_fold_binary_int_op(op string, left i64, right i64) ?ConstantValu
 		}
 		'<<' {
 			if right >= 0 {
-				return left << right
+				return i64(u64(left) << u32(right))
 			}
 		}
 		'>>' {

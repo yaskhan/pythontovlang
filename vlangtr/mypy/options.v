@@ -1068,15 +1068,15 @@ pub fn (o &Options) clone_for_module(mod_name string) &Options {
 	}
 
 	if mod_name in cache {
-		return cache[mod_name]
+		return cache[mod_name] or { return o }
 	}
 
 	mut options := o.apply_changes(map[string]string{})
 	path := mod_name.split('.')
 	for i := path.len; i > 0; i-- {
 		key := path[..i].join('.') + '.*'
-		if key in cache {
-			options = cache[key].apply_changes(map[string]string{})
+		if key_opts := cache[key] {
+			options = key_opts.apply_changes(map[string]string{})
 			break
 		}
 	}

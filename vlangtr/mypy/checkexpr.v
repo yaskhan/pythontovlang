@@ -342,7 +342,11 @@ pub fn (mut ec ExpressionChecker) visit_index_with_type(left_type MypyTypeNode, 
 pub fn (mut ec ExpressionChecker) visit_typeddict_index_expr(td TypedDictType, index Expression) MypyTypeNode {
 	if index is StrExpr {
 		if index.value in td.items {
-			return td.items[index.value]
+			return td.items[index.value] or {
+				AnyType{
+					type_of_any: .from_error
+				}
+			}
 		}
 	}
 	ec.msg.fail('Invalid TypedDict key access', index.get_context(), false, false, none)

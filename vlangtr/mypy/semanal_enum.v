@@ -72,6 +72,7 @@ pub fn (mut a EnumCallAnalyzer) check_enum_call(node Expression, var_name string
 	}
 
 	new_class_name, items, values, ok := a.parse_enum_call_args(call, fullname.split('.').last())
+	_ = values
 
 	mut info := unsafe { &TypeInfo(nil) }
 	if !ok {

@@ -161,7 +161,9 @@ pub fn (mut e Errors) report(line int, column int, message string, code ?string,
 	if e.file !in e.error_info_map {
 		e.error_info_map[e.file] = []&ErrorInfo{}
 	}
-	e.error_info_map[e.file] << info
+	mut infos := e.error_info_map[e.file] or { []&ErrorInfo{} }
+	infos << info
+	e.error_info_map[e.file] = infos
 
 	for watcher in e.watchers {
 		watcher.on_error(e.file, line, column, message, severity, code)

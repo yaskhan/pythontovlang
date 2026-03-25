@@ -46,9 +46,9 @@ pub fn (mut s SplitNamespace) get_attr(name string) ?AttributeValue {
 	if name.starts_with(s.alt_prefix) {
 		// Remove prefix and get from alt namespace
 		alt_name := name[s.alt_prefix.len..]
-		return s.alt_namespace[alt_name]
+		return s.alt_namespace[alt_name] or { none }
 	} else {
-		return s.standard_namespace[name]
+		return s.standard_namespace[name] or { none }
 	}
 }
 

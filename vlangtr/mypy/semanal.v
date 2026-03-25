@@ -275,6 +275,7 @@ fn (mut sa SemanticAnalyzer) analyze_func_def(mut defn FuncDef) !AnyNode {
 			sa.update_function_type_variables(defn.type_ as CallableType, defn)
 		}
 	}
+	_ = has_self_type
 
 	sa.function_stack.pop()
 
@@ -325,9 +326,11 @@ pub fn (mut sa SemanticAnalyzer) visit_import(mut i Import) !AnyNode {
 		id := item.name
 		as_id := item.alias
 		use_implicit_reexport := !sa.is_stub_file() && sa.options.implicit_reexport
-		base_id := if as_val := as_id { id } else { id.split('.')[0] }
-		imported_id := if as_val := as_id { as_val } else { base_id }
-		module_public := use_implicit_reexport || (as_id != none && id == (as_id or { '' }))
+		base_id := if alias := as_id { _ = alias; id } else { id.split('.')[0] }
+		imported_id := if alias := as_id { alias } else { base_id }
+		module_public := use_implicit_reexport || if alias := as_id { id == alias } else { false }
+		_ = base_id
+		_ = imported_id
 
 		if base_id in sa.modules {
 			node := sa.modules[base_id]
@@ -370,6 +373,7 @@ pub fn (mut sa SemanticAnalyzer) visit_import_from(mut imp ImportFrom) !AnyNode 
 		}
 
 		imported_id := if as_val := as_id { as_val } else { id }
+		_ = imported_id
 		use_implicit_reexport := !sa.is_stub_file() && sa.options.implicit_reexport
 		module_public := use_implicit_reexport || (as_id != none && id == (as_id or { '' }))
 
@@ -1183,6 +1187,7 @@ fn (mut sa SemanticAnalyzer) add_unknown_imported_symbol(name string, context No
 	// Add to current scope
 	if sa.locals.len > 0 {
 		if locals := sa.locals.last() {
+			_ = locals
 			return
 		}
 	}

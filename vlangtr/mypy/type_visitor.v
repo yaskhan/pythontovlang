@@ -17,7 +17,7 @@ pub fn new_type_translator() TypeTranslator {
 
 pub fn (tt &TypeTranslator) get_cached(key string) ?MypyTypeNode {
 	if key in tt.cache {
-		return tt.cache[key]
+		return tt.cache[key] or { return none }
 	}
 	return none
 }
@@ -123,9 +123,9 @@ pub fn (mut tt TypeTranslator) visit_instance(t Instance) !Instance {
 	mut last_known_value := t.last_known_value
 	if value := t.last_known_value {
 		translated := tt.translate_type(MypyTypeNode(value))!
-		last_known_value = match translated {
-			LiteralType { &translated }
-			else { value }
+		if translated is LiteralType {
+			mut translated_copy := translated
+			last_known_value = &translated_copy
 		}
 	}
 	return Instance{

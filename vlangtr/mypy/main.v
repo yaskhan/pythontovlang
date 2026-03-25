@@ -39,8 +39,7 @@ pub fn main(args []string, mut stdout os.File, mut stderr os.File) {
 		return
 	}
 
-	res, messages, blockers := run_build(sources, options, fscache, t1, mut stdout, mut
-		stderr)
+	_, messages, blockers := run_build(sources, options, fscache, t1, mut stdout, mut stderr)
 
 	mut code := 0
 	n_errors, n_notes, n_files := count_stats(messages)
@@ -132,7 +131,6 @@ fn fail(msg string, mut stderr os.File, options Options) {
 fn maybe_write_junit_xml(td f64, serious bool, all_messages []string, messages_by_file map[string][]string, options Options) {
 	if jx := options.junit_xml {
 		if jx.len > 0 {
-			py_version := '${options.python_version[0]}_${options.python_version[1]}'
 			if options.junit_format == 'global' {
 				mut global_map := map[string][]string{}
 				global_map['none'] = all_messages

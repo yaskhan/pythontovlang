@@ -4,9 +4,6 @@
 
 module mypy
 
-import os
-import strings
-
 // StrConv — visitor for converting nodes to human-readable strings
 pub struct StrConv {
 pub mut:

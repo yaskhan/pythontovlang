@@ -15,7 +15,7 @@ pub fn (m ErrorMessage) format(args ...string) ErrorMessage {
 	// In a real implementation, we'd use a proper string formatting tool.
 	// For now, this is a placeholder that would be used by the MessageBuilder.
 	mut res := m.value
-	for i, arg in args {
+	for _, arg in args {
 		res = res.replace_once('{}', arg)
 	}
 	return ErrorMessage{
