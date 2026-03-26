@@ -2,6 +2,9 @@ import ast
 import re
 from typing import Any, List, Optional, Dict, Set, TYPE_CHECKING
 
+# Cache for dynamic generic replacement regexes to improve performance
+_GENERIC_RE_CACHE: Dict[str, re.Pattern] = {}
+
 
 class FunctionOverloadMixin:
     if TYPE_CHECKING:
@@ -199,7 +202,9 @@ class FunctionOverloadMixin:
                 # Clean up type for name mangling
                 clean_arg_type = arg_type
                 for gen in all_v_generics:
-                    clean_arg_type = re.sub(rf'\b{re.escape(gen)}\b', 'generic', clean_arg_type)
+                    if gen not in _GENERIC_RE_CACHE:
+                        _GENERIC_RE_CACHE[gen] = re.compile(rf'\b{re.escape(gen)}\b')
+                    clean_arg_type = _GENERIC_RE_CACHE[gen].sub('generic', clean_arg_type)
 
                 clean_type = (
                     clean_arg_type.replace("?", "opt_")
