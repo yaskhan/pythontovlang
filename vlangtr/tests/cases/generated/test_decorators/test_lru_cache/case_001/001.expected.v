@@ -1,0 +1,7 @@
+@@in# "mut fib_cache := map[string]int{}"
+@@in# "fn fib(n int) int {"
+@@in# "key := '${n}'"
+@@in# "if key in fib_cache {"
+@@in# "res := fib__impl(n)"
+@@in# "fib_cache[key] = res"
+@@in# "fn fib__impl(n int) int {"

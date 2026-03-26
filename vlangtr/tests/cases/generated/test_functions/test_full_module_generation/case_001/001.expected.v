@@ -1,0 +1,5 @@
+@@in# "module main"
+@@in# "fn add(a int, b int) int {"
+@@in# "fn init() {"
+@@in# "x := 1"
+@@in# "z := add(x, y)"

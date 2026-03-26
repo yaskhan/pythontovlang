@@ -1,0 +1,7 @@
+@@in# "py_zip_it1_1 := a"
+@@in# "py_zip_it2_1 := b"
+@@in# "for py_i_1, py_v1_1 in py_zip_it1_1 {"
+@@in# "if py_i_1 >= py_zip_it2_1.len { break }"
+@@in# "py_v2_1 := py_zip_it2_1[py_i_1]"
+@@in# "x := py_v1_1"
+@@in# "y := py_v2_1"

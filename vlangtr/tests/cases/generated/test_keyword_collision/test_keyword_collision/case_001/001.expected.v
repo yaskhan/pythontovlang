@@ -1,0 +1,5 @@
+@@in# "fn (self Task) py_fn()"
+@@in# "fn (self Task) py_mut(py_type int, py_struct int)"
+@@in# "py_fn := 1"
+@@in# "py_type := 2"
+@@in# "py_struct := 3"

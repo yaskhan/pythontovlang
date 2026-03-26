@@ -1,0 +1,8 @@
+@@in# "struct Point {"
+@@in# "pub mut:"
+@@in# "x int"
+@@in# "y int"
+@@in# "fn new_point(x int, y int) &Point {"
+@@in# "self.x = x"
+@@in# "fn (mut self Point) move(dx int, dy int) {"
+@@in# "self.x = self.x + dx"

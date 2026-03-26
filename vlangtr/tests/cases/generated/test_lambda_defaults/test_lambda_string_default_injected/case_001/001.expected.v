@@ -1,0 +1,6 @@
+@@in# "join_fn(["
+@@in# "'-'"
+@@in# "join_fn(['a', 'b'], '-')"
+@@or# "join_fn(['a','b'],'-')"
+@@or# "join_fn(['a', 'b'],'-')"
+@@or# "join_fn(['a','b'], '-')"

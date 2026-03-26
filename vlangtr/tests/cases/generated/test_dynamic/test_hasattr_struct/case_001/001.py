@@ -1,0 +1,1 @@
+x = hasattr(obj, 'attr')

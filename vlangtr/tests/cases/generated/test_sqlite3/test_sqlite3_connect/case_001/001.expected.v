@@ -1,0 +1,6 @@
+@@in# "PySqliteConnection"
+@@in# "py_sqlite_connect"
+@@in# ".cursor()"
+@@in# ".execute("
+@@in# ".commit()"
+@@in# ".close()"

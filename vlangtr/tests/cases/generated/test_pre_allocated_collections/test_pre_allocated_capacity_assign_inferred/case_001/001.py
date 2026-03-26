@@ -1,0 +1,3 @@
+def test():
+    arr = [1, 2, 3]
+    arr.append(4)

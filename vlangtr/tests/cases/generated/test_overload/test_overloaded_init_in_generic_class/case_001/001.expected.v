@@ -1,0 +1,5 @@
+@@in# "fn new_user_dict_map_stringint[T]"
+@@in# "fn new_user_dict_none[T]"
+@@in# "fn new_user_dict_map_stringint[T](data map[string]int) UserDict[T] {"
+@@in# "fn new_user_dict_none[T](data none) UserDict[T] {"
+@@notin# "new_user_dict_T"

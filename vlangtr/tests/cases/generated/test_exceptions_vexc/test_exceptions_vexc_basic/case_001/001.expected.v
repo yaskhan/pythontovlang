@@ -1,0 +1,5 @@
+@@in# "import div72.vexc"
+@@in# "if C.try() {"
+@@in# "vexc.end_try()"
+@@in# "} else {"
+@@in# "vexc.get_curr_exc()"

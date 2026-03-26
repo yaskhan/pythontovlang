@@ -1,0 +1,5 @@
+@@in# "ctx_mgr_0 := py_decimal_localcontext()"
+@@in# "ctx := ctx_mgr_0.enter()"
+@@in# "defer { ctx_mgr_0.exit(none, none, none) }"
+@@in# "ctx.prec = 50"
+@@in# "py_decimal_getcontext().prec = 50"

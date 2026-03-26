@@ -1,0 +1,6 @@
+@@in# "log.info('info')"
+@@in# "log.warn('warn')"
+@@in# "log.error('error')"
+@@in# "log.debug('debug')"
+@@in# "log.error('critical')"
+@@in# "import log"

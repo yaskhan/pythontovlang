@@ -1,0 +1,6 @@
+@@in# "a := py_destruct_0[0]"
+@@in# "b := py_destruct_0[1..(py_destruct_0.len - 2)]"
+@@in# "c := py_destruct_0[(py_destruct_0.len - 2)]"
+@@in# "d := py_destruct_0[(py_destruct_0.len - 1)]"
+@@notin# ".len-1]"
+@@notin# ".len-2]"

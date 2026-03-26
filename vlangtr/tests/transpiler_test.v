@@ -33,27 +33,24 @@ fn test_transpilation() {
 		return
 	}
 	
-	files := os.ls(cases_dir) or { 
-		println('Could not list cases: ${err}')
-		assert false
-		return 
-	}
+	mut files := []string{}
+	os.walk(cases_dir, fn [mut files] (path string) {
+		if os.is_file(path) && path.ends_with('.py') {
+			files << path
+		}
+	})
+	files.sort()
 	
 	mut passed := 0
 	mut total := 0
 	
-	for file in files {
-		if !file.ends_with('.py') {
-			continue
-		}
-		
+	for py_path in files {
 		total++
 		
-		py_path := os.join_path(cases_dir, file)
 		expected_path := py_path.replace('.py', '.expected.v')
 		
 		if !os.exists(expected_path) {
-			println('SKIP: ${file} (no .expected.v)')
+			println('SKIP: ${py_path} (no .expected.v)')
 			continue
 		}
 		
@@ -65,12 +62,12 @@ fn test_transpilation() {
 		actual := t.translate(source)
 		
 		if !check_expected_output(actual, expected) {
-			println('FAIL: ${file}')
+			println('FAIL: ${py_path}')
 			println('Expected:\n---\n${expected}\n---')
 			println('Actual:\n---\n${actual}\n---')
 			assert false 
 		} else {
-			println('PASS: ${file}')
+			println('PASS: ${py_path}')
 			passed++
 		}
 	}

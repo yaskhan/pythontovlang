@@ -1,0 +1,7 @@
+@@in# "assert 1 == 1"
+@@in# "assert true"
+@@in# "assert !(false)"
+@@in# "assert 1 != 2"
+@@in# "assert 1 in [1]"
+@@in# "assert none == none"
+@@in# "assert 1 != none"

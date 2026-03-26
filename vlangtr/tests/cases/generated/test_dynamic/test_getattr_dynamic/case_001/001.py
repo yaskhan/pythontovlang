@@ -1,0 +1,1 @@
+x = getattr(obj, var)
