@@ -154,7 +154,7 @@ class ClassDefinitionHandler:
         )
 
         # Initialize fields collection
-        fields: List[Any] = []
+        fields: List[Dict[str, Any]] = []
         dataclass_field_order: List[str] = []
         added_fields: Set[str] = set()
 
@@ -170,7 +170,6 @@ class ClassDefinitionHandler:
         if is_dataclass:
             dataclass_metadata = self.translator.class_fields_handler.get_dataclass_metadata(node, struct_name)
 
-        # Process bases and inheritance
         # Process bases and inheritance
         res = self.translator.class_bases_handler.process_bases(node, struct_name)
         (
@@ -294,9 +293,7 @@ class ClassDefinitionHandler:
 
                 struct_parts.append(f"@[heap]\n")
                 struct_parts.append(f"pub struct {impl_name}{generics_str} {{\n")
-                if fields:
-                    struct_parts.append("\n".join(fields))
-                    struct_parts.append("\n")
+                self._add_fields_to_struct(struct_parts, fields)
                 struct_parts.append("}\n")
                 self.translator.emitter.add_struct("".join(struct_parts))
 
@@ -397,9 +394,7 @@ class ClassDefinitionHandler:
 
             struct_parts.append("@[heap]\n")
             struct_parts.append(f"{pub}struct {struct_name}{generics_str} {{\n")
-            if fields:
-                struct_parts.append("\n".join(fields))
-                struct_parts.append("\n")
+            self._add_fields_to_struct(struct_parts, fields)
             struct_parts.append("}")
             self.translator.emitter.add_struct("".join(struct_parts))
 
@@ -442,6 +437,63 @@ class ClassDefinitionHandler:
             added_variance_keys, added_default_keys, has_init,
             static_methods, class_methods
         )
+
+    def _add_fields_to_struct(self, struct_parts: List[str], fields: List[Dict[str, Any]]) -> None:
+        """Groups fields into visibility/mutability blocks and adds them to struct_parts."""
+        if not fields:
+            return
+
+        # Embeds (anonymous fields) go first, outside any block
+        embeds = [f["def"] for f in fields if not f.get("name")]
+        if embeds:
+            struct_parts.append("\n".join(["    " + d.strip() for d in embeds]))
+            struct_parts.append("\n")
+
+        # Sort remaining fields into blocks
+        pub_immut = []
+        pub_mut = []
+        priv_immut = []
+        priv_mut = []
+
+        for f in fields:
+            f_name = f.get('name')
+            if not f_name:
+                continue
+
+            orig_name = f.get('orig_name') or f_name
+            is_mutated = f.get('is_mutated', False)
+            is_private = str(orig_name).startswith('_')
+            f_def = f['def']
+
+            if is_private:
+                if is_mutated:
+                    priv_mut.append(f_def)
+                else:
+                    priv_immut.append(f_def)
+            else:
+                if is_mutated:
+                    pub_mut.append(f_def)
+                else:
+                    pub_immut.append(f_def)
+
+        if priv_immut:
+            struct_parts.append("\n".join(["    " + d.strip() for d in priv_immut]))
+            struct_parts.append("\n")
+
+        if pub_immut:
+            struct_parts.append("pub:\n")
+            struct_parts.append("\n".join(["    " + d.strip() for d in pub_immut]))
+            struct_parts.append("\n")
+
+        if pub_mut:
+            struct_parts.append("pub mut:\n")
+            struct_parts.append("\n".join(["    " + d.strip() for d in pub_mut]))
+            struct_parts.append("\n")
+
+        if priv_mut:
+            struct_parts.append("mut:\n")
+            struct_parts.append("\n".join(["    " + d.strip() for d in priv_mut]))
+            struct_parts.append("\n")
 
     def _cleanup_and_restore(
         self,

@@ -125,7 +125,15 @@ class FunctionGenerationMixin:
         if is_method and args and args[0].arg in ("self", "cls"):
             if not dec_info.is_static and not dec_info.is_classmethod:
                 if args[0].arg == "self":
-                    mut_pfx = "mut " if getattr(dec_info, 'is_setter', False) else ""
+                    is_mutated = False
+                    if hasattr(self, 'type_inference') and hasattr(self.type_inference, 'mutability_map'):
+                        prefix = ".".join(self._scope_names)
+                        prefix_full = f"{prefix}.{node.name}.self" if prefix else f"{node.name}.self"
+                        m_info = self.type_inference.mutability_map.get(prefix_full)
+                        if m_info:
+                            is_mutated = m_info.get("is_mutated", False)
+
+                    mut_pfx = "mut " if (getattr(dec_info, 'is_setter', False) or is_mutated) else ""
                     gen_s = f"[{', '.join(self.current_class_generics)}]" if self.current_class_generics else ""
                     receiver_str = f"({mut_pfx}{args[0].arg} {struct_name}{gen_s}) "
             args = args[1:]

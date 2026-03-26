@@ -50,20 +50,32 @@ class TypeInferenceUtilsMixin(TypeInferenceBase):
     def _mark_mutated(self, node: ast.AST):
         if isinstance(node, ast.Name):
             name = node.id
-            if name not in self.mutability_map:
-                self.mutability_map[name] = {"is_reassigned": False, "is_final": False, "is_mutated": False}
-            self.mutability_map[name]["is_mutated"] = True
-        elif isinstance(node, ast.Attribute) and isinstance(node.value, ast.Name):
-            # Track both the object and the attribute access
-            obj_name = node.value.id
-            if obj_name not in self.mutability_map:
-                self.mutability_map[obj_name] = {"is_reassigned": False, "is_final": False, "is_mutated": False}
-            self.mutability_map[obj_name]["is_mutated"] = True
+            # If in a method, qualify 'self' with class and method name
+            if name == "self" and len(self._scope_names) >= 2:
+                prefix = ".".join(self._scope_names)
+                name = f"{prefix}.self"
 
-            name = f"{node.value.id}.{node.attr}"
             if name not in self.mutability_map:
                 self.mutability_map[name] = {"is_reassigned": False, "is_final": False, "is_mutated": False}
             self.mutability_map[name]["is_mutated"] = True
+        elif isinstance(node, ast.Attribute):
+            # Recurse to mark the receiver as mutated (e.g., 'self' in 'self.x = 1')
+            self._mark_mutated(node.value)
+
+            if isinstance(node.value, ast.Name):
+                # Also track the specific attribute access qualified by receiver
+                obj_name = node.value.id
+                name = f"{obj_name}.{node.attr}"
+                if name not in self.mutability_map:
+                    self.mutability_map[name] = {"is_reassigned": False, "is_final": False, "is_mutated": False}
+                self.mutability_map[name]["is_mutated"] = True
+
+                if obj_name == "self" and self._scope_names:
+                    class_name = self._scope_names[0]
+                    qualified = f"{class_name}.{node.attr}"
+                    if qualified not in self.mutability_map:
+                        self.mutability_map[qualified] = {"is_reassigned": False, "is_final": False, "is_mutated": False}
+                    self.mutability_map[qualified]["is_mutated"] = True
         elif isinstance(node, ast.Subscript):
             self._mark_mutated(node.value)
 
@@ -74,6 +86,8 @@ class TypeInferenceUtilsMixin(TypeInferenceBase):
                 self.mutability_map[name]["is_reassigned"] = True
             else:
                 self.mutability_map[name] = {"is_reassigned": False, "is_final": False, "is_mutated": False}
+        elif isinstance(node, ast.Attribute):
+            self._mark_mutated(node)
         elif isinstance(node, (ast.Tuple, ast.List)):
             for elt in node.elts:
                 self._mark_reassigned(elt)

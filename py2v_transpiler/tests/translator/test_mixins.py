@@ -15,16 +15,21 @@ class User(AuthMixin):
     def __init__(self, username: str):
         self.username = username
 """
+    # User fields:
+    # is_authenticated (from AuthMixin) - mutated in login
+    # username (from __init__) - assigned in __init__
     expected_v_code = """
- @[heap]
+@[heap]
 struct User {
+pub:
     is_authenticated bool = false
+pub mut:
     username string
 }
 
 const user_new_user_annotations = { 'username': 'string' }
 
-fn (self User) login() {
+fn (mut self User) login() {
     self.is_authenticated = true
 }
 
@@ -50,14 +55,18 @@ class ServiceA(BaseMixin):
 class ServiceB(BaseMixin):
     pass
 """
+    # In mixins, assignments in the body are currently treated as instance fields
+    # when collected by collect_mixin_fields.
     expected_v_code = """
- @[heap]
+@[heap]
 struct ServiceA {
+pub:
     base_id int = 42
 }
 
- @[heap]
+@[heap]
 struct ServiceB {
+pub:
     base_id int = 42
 }
 
@@ -90,8 +99,11 @@ class LogMixin:
 class SystemUser(AuthMixin, LogMixin):
     username: str
 """
+    # All these are unmutated pub fields
     expected_v_code = """
+@[heap]
 struct SystemUser {
+pub:
     is_authenticated bool = false
     log_level int = 0
     username string

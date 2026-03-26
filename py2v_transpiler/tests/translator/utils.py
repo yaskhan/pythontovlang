@@ -26,26 +26,27 @@ def translate_with_mypy(code: str, parser: PyASTParser, type_inference: TypeInfe
     return visitor.emitter.emit()
 
 class TranspilerTest:
-    def assert_transpilation(self, python_code: str, v_code: str):
+    def _transpile(self, python_code: str) -> str:
         python_code = textwrap.dedent(python_code).strip()
-        v_code = textwrap.dedent(v_code).strip()
-
         parser = PyASTParser()
         analyzer = TypeInference()
         tree = parser.parse(python_code)
         analyzer.analyze(tree)
         translator = VNodeVisitor(analyzer)
-
         translator.visit_Module(cast(ast.Module, tree))
-        result = translator.emitter.emit() + "\n" + translator.emitter.emit_helpers()
+        return translator.emitter.emit()
+
+    def assert_transpilation(self, python_code: str, v_code: str):
+        v_code = textwrap.dedent(v_code).strip()
+        result = self._transpile(python_code)
 
         # Normalize whitespace for comparison
-        result = self._normalize(result)
-        expected = self._normalize(v_code)
+        norm_result = self._normalize(result)
+        norm_expected = self._normalize(v_code)
 
-        if expected not in result:
-             print(f"FAILED. \nExpected:\n{expected}\n\nGot:\n{result}")
-        assert expected in result
+        if norm_expected not in norm_result:
+             print(f"FAILED. \nExpected:\n{norm_expected}\n\nGot:\n{norm_result}")
+        assert norm_expected in norm_result
 
     def _normalize(self, code: str) -> str:
         lines = [line.strip() for line in code.splitlines() if line.strip()]

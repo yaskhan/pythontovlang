@@ -12,10 +12,11 @@ class TestGenericsFields(TranspilerTest):
             def __init__(self, x: T):
                 self.x = x
         """
-        # We expect x to have type T (mapped to a single char, likely 'T')
-        # In the bug report, it was "x int"
+        # We expect x to have type T
+        # Assigned in __init__ -> pub mut
         expected_v = """
         struct Box[T] {
+        pub mut:
             x T
         }
         """
@@ -35,6 +36,7 @@ class TestGenericsFields(TranspilerTest):
         """
         expected_v = """
         struct Pair[T, U] {
+        pub mut:
             first T
             second U
         }
@@ -56,6 +58,7 @@ class TestGenericsFields(TranspilerTest):
         """
         expected_v = """
         struct Box[T] {
+        pub mut:
             x T
         }
         """
@@ -74,6 +77,7 @@ class TestGenericsFields(TranspilerTest):
         """
         expected_v = """
         struct Box[T] {
+        pub mut:
             x T
         }
         """
