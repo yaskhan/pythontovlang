@@ -52,7 +52,7 @@ pub fn get_factory_name(struct_name string, hierarchy map[string][]string) strin
 	sanitized := to_snake_case(base_name)
 
 	mut is_split_base := false
-	for derived, bases in hierarchy {
+	for _, bases in hierarchy {
 		if base_name in bases {
 			is_split_base = true
 			break
@@ -161,7 +161,7 @@ pub fn find_defining_class_for_static_method(class_name string, method_name stri
 	mut stack := [class_name]
 	for stack.len > 0 {
 		curr := stack[stack.len - 1]
-		stack = stack[..stack.len - 1]
+		stack = stack[..stack.len - 1].clone()
 		if curr in visited {
 			continue
 		}
@@ -204,7 +204,7 @@ pub fn find_defining_class_for_class_var(class_name string, var_name string, cla
 	mut stack := [class_name]
 	for stack.len > 0 {
 		curr := stack[stack.len - 1]
-		stack = stack[..stack.len - 1]
+		stack = stack[..stack.len - 1].clone()
 		if curr in visited {
 			continue
 		}
