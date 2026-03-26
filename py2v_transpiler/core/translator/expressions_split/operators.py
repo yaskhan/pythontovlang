@@ -1,6 +1,11 @@
 import ast
+import re
 from typing import Any
 from ..base import TranslatorBase
+
+# Pre-compiled regular expressions for performance
+_PLACEHOLDERS_RE = re.compile(r'%[sdfr]')
+_PLACEHOLDERS_GROUPS_RE = re.compile(r'%([sdfr])')
 
 class OperatorsMixin(TranslatorBase):
     def _should_use_is_none_type(self, typ: str, node: ast.AST) -> bool:
@@ -243,10 +248,9 @@ class OperatorsMixin(TranslatorBase):
                  self.used_string_format = True
                  # Try to convert to V interpolation if left is a constant string
                  if isinstance(node.left, ast.Constant) and isinstance(node.left.value, str):
-                     import re
                      fmt_str = node.left.value
                      # Handle simple %s, %d, %f, %r without complex flags
-                     placeholders = re.findall(r'%[sdfr]', fmt_str)
+                     placeholders = _PLACEHOLDERS_RE.findall(fmt_str)
 
                      args = []
                      if isinstance(node.right, ast.Tuple):
@@ -258,7 +262,7 @@ class OperatorsMixin(TranslatorBase):
                          result_parts = []
                          last_pos = 0
                          arg_idx = 0
-                         for match in re.finditer(r'%([sdfr])', fmt_str):
+                         for match in _PLACEHOLDERS_GROUPS_RE.finditer(fmt_str):
                              result_parts.append(fmt_str[last_pos:match.start()])
                              spec = match.group(1)
                              v_arg = self.visit(args[arg_idx])

@@ -1,6 +1,11 @@
 import ast
+import re
 from enum import Enum, auto
 from typing import cast, Optional, Callable, List, Sequence, Dict, Any
+
+# Pre-compiled regular expressions for performance
+_FALLBACK_RE = re.compile(r"fallback=([^,\]\s]+)")
+_CLEAN_FALLBACK_RE = re.compile(r",\s*fallback=[^\]]+")
 
 class VType(Enum):
     INT = auto()
@@ -42,18 +47,17 @@ def map_python_type_to_v(py_type: str, self_name: str = 'Self', allow_union: boo
 
     # Handle Mypy specific: tuple[int, int, fallback=Point]
     if py_type and "fallback=" in py_type:
-        import re
         # Try to extract fallback type first
-        m = re.search(r"fallback=([^,\]\s]+)", py_type)
+        m = _FALLBACK_RE.search(py_type)
         if m:
             fb_type = m.group(1).strip()
             # If fallback is specific (not generic tuple or object), use it!
             if fb_type not in ("builtins.tuple", "tuple", "builtins.object", "object"):
                  # Avoid recursion with the same fallback string
-                 clean_fb = re.sub(r",\s*fallback=[^\]]+", "", fb_type)
+                 clean_fb = _CLEAN_FALLBACK_RE.sub("", fb_type)
                  return map_python_type_to_v(clean_fb, self_name, allow_union, generic_map, sum_type_registrar, literal_registrar, tuple_registrar)
         
-        py_type = re.sub(r",\s*fallback=[^\]]+", "", py_type)
+        py_type = _CLEAN_FALLBACK_RE.sub("", py_type)
 
     # Pre-process basic types to avoid overhead
     if py_type == 'int': return 'int'
