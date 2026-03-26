@@ -17,6 +17,8 @@ pub mut:
 	has_init    bool
 	has_vararg  bool
 	has_kwarg   bool
+	dataclass_metadata  map[string]string
+	namedtuple_metadata map[string]string
 }
 
 pub struct TypeInferenceBase {

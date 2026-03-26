@@ -33,16 +33,14 @@ fn test_transpilation() {
 		return
 	}
 	
-	mut files := []string{}
-	os.walk(cases_dir, fn [mut files] (path string) {
-		if os.is_file(path) && path.ends_with('.py') {
-			files << path
-		}
-	})
+	mut files := collect_py_files(cases_dir)
 	files.sort()
 	
 	mut passed := 0
+	mut failed := 0
+	mut skipped := 0
 	mut total := 0
+	mut failures := []string{}
 	
 	for py_path in files {
 		total++
@@ -51,6 +49,7 @@ fn test_transpilation() {
 		
 		if !os.exists(expected_path) {
 			println('SKIP: ${py_path} (no .expected.v)')
+			skipped++
 			continue
 		}
 		
@@ -61,36 +60,74 @@ fn test_transpilation() {
 		// (Assuming it's safe to reuse it, which is the point of shared initialization)
 		actual := t.translate(source)
 		
-		if !check_expected_output(actual, expected) {
-			println('FAIL: ${py_path}')
-			println('Expected:\n---\n${expected}\n---')
-			println('Actual:\n---\n${actual}\n---')
-			assert false 
+		is_ok := check_expected_output(actual, expected, expected_path) or {
+			failures << format_failure(py_path, expected_path, expected, actual, err.msg())
+			failed++
+			continue
+		}
+		if !is_ok {
+			failures << format_failure(py_path, expected_path, expected, actual, 'expected output mismatch')
+			failed++
 		} else {
 			println('PASS: ${py_path}')
 			passed++
 		}
 	}
 	
-	println('Tests summary: ${passed}/${total} cases passed.')
+	checked := passed + failed
+	success_rate := if checked > 0 { f64(passed) * 100.0 / f64(checked) } else { 0.0 }
+	println('Tests summary:')
+	println('  total: ${total}')
+	println('  checked: ${checked}')
+	println('  passed: ${passed}')
+	println('  failed: ${failed}')
+	println('  skipped: ${skipped}')
+	println('  success_rate: ${success_rate:.1f}%')
+	if failures.len > 0 {
+		println('')
+		println('Failures (${failures.len}):')
+		for failure in failures {
+			println(failure)
+			println('')
+		}
+		assert false
+	}
+}
+
+fn collect_py_files(root string) []string {
+	mut files := []string{}
+	entries := os.ls(root) or { return files }
+	for entry in entries {
+		path := os.join_path(root, entry)
+		if os.is_dir(path) {
+			files << collect_py_files(path)
+		} else if path.ends_with('.py') {
+			files << path
+		}
+	}
+	return files
 }
 
 fn test_directive_expectations() {
 	actual := 'let a = 1\nassert False\nb := py_any(a)\n'
 	expected := '@@in# "b := py_any(a)"\n@@notin# "missing snippet"\n@@in# "assert False" @@or# "assert false"\n'
 
-	assert check_expected_output(actual, expected)
+	assert check_expected_output(actual, expected, 'directive_expectations.expected.v') or { panic(err) }
 }
 
-fn check_expected_output(actual string, expected string) bool {
+fn format_failure(py_path string, expected_path string, expected string, actual string, reason string) string {
+	return 'FAIL: ${py_path}\nExpected file: ${expected_path}\nReason: ${reason}\nExpected:\n---\n${expected}\n---\nActual:\n---\n${actual}\n---'
+}
+
+fn check_expected_output(actual string, expected string, expected_path string) !bool {
 	if expected.contains('@@in#') || expected.contains('@@notin#') || expected.contains('@@or#') {
-		return check_expected_directives(actual, expected)
+		return check_expected_directives(actual, expected, expected_path)
 	}
 	return actual.trim_space() == expected.trim_space()
 }
 
-fn check_expected_directives(actual string, expected string) bool {
-	rules := parse_expected_rules(expected)
+fn check_expected_directives(actual string, expected string, expected_path string) !bool {
+	rules := parse_expected_rules(expected, expected_path)!
 	norm_actual := normalize_text(actual)
 
 	for group in rules.required {
@@ -103,25 +140,25 @@ fn check_expected_directives(actual string, expected string) bool {
 			}
 		}
 		if !matched {
-			return false
+			return error('expected file ${expected_path}: missing required snippet group: ${group.alternatives.join(' | ')}')
 		}
 	}
 
 	for forbidden in rules.forbidden {
 		norm_forbidden := normalize_text(forbidden)
 		if norm_forbidden != '' && norm_actual.contains(norm_forbidden) {
-			return false
+			return error('expected file ${expected_path}: forbidden snippet found: ${forbidden}')
 		}
 	}
 
 	return true
 }
 
-fn parse_expected_rules(expected string) ExpectedRules {
+fn parse_expected_rules(expected string, expected_path string) !ExpectedRules {
 	mut rules := ExpectedRules{}
 	lines := expected.split_into_lines()
 
-	for raw_line in lines {
+	for idx, raw_line in lines {
 		line := raw_line.trim_space()
 		if line == '' {
 			continue
@@ -134,32 +171,26 @@ fn parse_expected_rules(expected string) ExpectedRules {
 			continue
 		}
 
-		parse_expected_line(line, mut rules)
+		parse_expected_line(line, expected_path, idx + 1, mut rules)!
 	}
 
 	return rules
 }
 
-fn parse_expected_line(line string, mut rules ExpectedRules) {
+fn parse_expected_line(line string, expected_path string, line_no int, mut rules ExpectedRules) !bool {
 	mut pos := 0
 	mut current_group := ExpectedGroup{}
 	mut has_group := false
+	mut saw_marker := false
 
 	for pos < line.len {
 		hit := next_marker(line, pos) or {
-			if pos < line.len {
-				plain := line[pos..].trim_space()
-				if plain != '' {
-					if has_group {
-						rules.required << current_group
-					}
-					rules.required << ExpectedGroup{
-						alternatives: [plain]
-					}
-				}
+			if line.contains('@@') {
+				return error('expected file ${expected_path}:${line_no}: invalid directive syntax: ${line}')
 			}
 			break
 		}
+		saw_marker = true
 
 		if hit.pos > pos {
 			plain := line[pos..hit.pos].trim_space()
@@ -178,6 +209,9 @@ fn parse_expected_line(line string, mut rules ExpectedRules) {
 		marker_end := hit.pos + hit.kind.len
 		next_hit := next_marker(line, marker_end) or { MarkerHit{ kind: '', pos: line.len } }
 		snippet := clean_expected_snippet(line[marker_end..next_hit.pos])
+		if snippet.len == 0 {
+			return error('expected file ${expected_path}:${line_no}: empty snippet for ${hit.kind}')
+		}
 
 		match hit.kind {
 			'@@in#' {
@@ -207,15 +241,23 @@ fn parse_expected_line(line string, mut rules ExpectedRules) {
 				}
 				rules.forbidden << snippet
 			}
-			else {}
+			else {
+				return error('expected file ${expected_path}:${line_no}: unknown directive: ${hit.kind}')
+			}
 		}
 
 		pos = next_hit.pos
 	}
 
+	if !saw_marker && line.contains('@@') {
+		return error('expected file ${expected_path}:${line_no}: invalid directive syntax: ${line}')
+	}
+
 	if has_group && current_group.alternatives.len > 0 {
 		rules.required << current_group
 	}
+
+	return true
 }
 
 fn next_marker(line string, start int) ?MarkerHit {

@@ -57,6 +57,12 @@ pub fn (mut h ClassDefinitionHandler) visit_class_def(node ast.ClassDef, mut env
 	metaclass_decorators := classes.class_decorator_handler.process_metaclass(node, mut env)
 	decorators << metaclass_decorators
 
+	dataclass_metadata := if is_dataclass {
+		classes.class_fields_handler.get_dataclass_metadata(node, struct_name, &env) or { map[string]string{} }
+	} else {
+		map[string]string{}
+	}
+
 	is_mixin := struct_name in env.analyzer.mixin_to_main
 	is_main_struct := struct_name in env.analyzer.main_to_mixins
 
@@ -65,8 +71,8 @@ pub fn (mut h ClassDefinitionHandler) visit_class_def(node ast.ClassDef, mut env
 	mut added_fields := map[string]bool{}
 
 	if is_main_struct {
-		mixin_fields := classes.class_fields_handler.collect_mixin_fields(struct_name, added_fields,
-			is_main_struct, env)
+		mixin_fields := classes.class_fields_handler.collect_mixin_fields(struct_name, mut added_fields,
+			is_main_struct, mut env)
 		fields << mixin_fields
 	}
 
@@ -98,11 +104,39 @@ pub fn (mut h ClassDefinitionHandler) visit_class_def(node ast.ClassDef, mut env
 	}
 	body = filtered_body.clone()
 
+	mut has_post_init := false
+	for method in methods {
+		if method.name == '__post_init__' {
+			has_post_init = true
+			break
+		}
+	}
+
+	if is_dataclass && dataclass_metadata.len > 0 {
+		dc_fields, updated_added_fields, updated_dataclass_field_order := classes.class_fields_handler.process_dataclass_fields(
+			body, struct_name, dataclass_metadata, mut added_fields, mut dataclass_field_order, mut env)
+		fields << dc_fields
+		_ = updated_added_fields
+		_ = updated_dataclass_field_order
+	}
+
 	class_fields, updated_added_fields, updated_dataclass_field_order := classes.class_fields_handler.process_class_attributes(body, struct_name,
-		added_fields, is_dataclass, is_typed_dict, map[string]string{}, dataclass_field_order, mut env)
+		mut added_fields, is_dataclass, is_typed_dict, map[string]string{}, mut dataclass_field_order, mut env)
 	fields << class_fields
 	_ = updated_added_fields
 	_ = updated_dataclass_field_order
+
+	namedtuple_metadata := if !is_dataclass {
+		classes.class_fields_handler.get_namedtuple_metadata(node, struct_name, &env) or { map[string]string{} }
+	} else {
+		map[string]string{}
+	}
+	if namedtuple_metadata.len > 0 {
+		nt_fields, updated_added_fields2 := classes.class_fields_handler.process_namedtuple_fields(
+			struct_name, namedtuple_metadata, mut added_fields, mut env)
+		fields << nt_fields
+		_ = updated_added_fields2
+	}
 
 	if is_unittest {
 		env.state.current_class_is_unittest = true
@@ -201,6 +235,12 @@ pub fn (mut h ClassDefinitionHandler) visit_class_def(node ast.ClassDef, mut env
 			env.emit_struct_fn(meta_parts.join('\n'))
 			meta_const_name := '${base.to_snake_case(struct_name)}_meta'
 			env.emit_constant_fn('pub ${meta_const_name} = &${meta_struct_name}{}')
+		}
+		if is_dataclass && has_post_init {
+			if factory_code := classes.class_fields_handler.generate_dataclass_factory(
+				struct_name, dataclass_metadata, body, has_post_init, env) {
+				env.emit_function_fn(factory_code)
+			}
 		}
 		has_str := classes.class_methods_handler.has_method(methods, '__str__')
 		classes.class_methods_handler.rename_dunder_methods(mut methods, has_str)

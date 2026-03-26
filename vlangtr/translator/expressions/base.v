@@ -85,6 +85,9 @@ pub fn (mut eg ExprGen) visit(node ast.Expression) string {
 
 pub fn (mut eg ExprGen) visit_name(node ast.Name) string {
 	name := eg.state.name_remap[node.id] or { node.id }
+	if name.len > 0 && name[0].is_capital() && !name.is_upper() {
+		return base.sanitize_name(name, true, map[string]bool{}, '', map[string]bool{})
+	}
 	return base.sanitize_name(name, false, map[string]bool{}, '', map[string]bool{})
 }
 

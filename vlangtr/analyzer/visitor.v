@@ -1034,7 +1034,16 @@ pub fn (mut t TypeInferenceVisitorMixin) visit_ann_assign(node ast.AnnAssign) {
 		}
 	}
 	if node.target is ast.Name {
-		t.store_type(node.target.id, v_type)
+		if t.scope_names.len > 0 {
+			curr_scope := t.scope_names[t.scope_names.len - 1]
+			if curr_scope.len > 0 && curr_scope[0].is_capital() {
+				t.store_type('${curr_scope}.${node.target.id}', v_type)
+			} else {
+				t.store_type(node.target.id, v_type)
+			}
+		} else {
+			t.store_type(node.target.id, v_type)
+		}
 	} else if node.target is ast.Attribute {
 		if node.target.value is ast.Name && node.target.value.id == 'self' {
 			t.store_type('self.${node.target.attr}', v_type)

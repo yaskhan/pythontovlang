@@ -1,3 +1,3 @@
-n := a.len
-l := s.len
-m := d.len
+@@in#  n := a.len
+@@in#  l := s.len
+@@in#  m := d.len

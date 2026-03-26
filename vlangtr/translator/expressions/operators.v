@@ -2,6 +2,73 @@ module expressions
 
 import ast
 
+fn is_none_expr(node ast.Expression) bool {
+	return (node is ast.Constant && node.value == 'None')
+		|| (node is ast.Name && node.id in ['None', 'none'])
+		|| node is ast.NoneExpr
+}
+
+fn (eg &ExprGen) is_explicit_any(node ast.Expression, typ string) bool {
+	if typ != 'Any' {
+		return false
+	}
+	token := node.get_token()
+	loc_key := '${token.line}:${token.column}'
+	if loc_key in eg.analyzer.explicit_any_types {
+		return true
+	}
+	if node is ast.Name {
+		if node.id in eg.analyzer.explicit_any_types {
+			return true
+		}
+		name_loc_key := '${node.id}@${token.line}:${token.column}'
+		if name_loc_key in eg.analyzer.explicit_any_types {
+			return true
+		}
+	}
+	return false
+}
+
+fn (eg &ExprGen) should_use_is_none_type(node ast.Expression, typ string) bool {
+	if typ.starts_with('?') {
+		return false
+	}
+	if typ.starts_with('SumType_') {
+		return true
+	}
+	if typ.starts_with('map[') && typ.ends_with(']Any') {
+		return true
+	}
+	return eg.is_explicit_any(node, typ)
+}
+
+fn (mut eg ExprGen) format_percent_call(left string, right ast.Expression) string {
+	if right is ast.Tuple {
+		mut args := []string{}
+		for elt in right.elements {
+			args << eg.visit(elt)
+		}
+		return 'py_string_format(${left}, ${args.join(', ')})'
+	}
+	return 'py_string_format(${left}, ${eg.visit(right)})'
+}
+
+fn (mut eg ExprGen) format_percent_bytes(left string, right ast.Expression) string {
+	if right is ast.Tuple {
+		mut args := []string{}
+		for elt in right.elements {
+			args << eg.visit(elt)
+		}
+		return 'py_bytes_format(${left}, ${args.join(', ')})'
+	}
+	return 'py_bytes_format(${left}, ${eg.visit(right)})'
+}
+
+fn (eg &ExprGen) is_set_type(v_type string) bool {
+	return (v_type.starts_with('map[') && v_type.ends_with(']bool'))
+		|| v_type.starts_with('datatypes.Set[')
+}
+
 pub fn (mut eg ExprGen) visit_bin_op(node ast.BinaryOp) string {
 	left_type := eg.guess_type(node.left)
 	right_type := eg.guess_type(node.right)
@@ -9,11 +76,18 @@ pub fn (mut eg ExprGen) visit_bin_op(node ast.BinaryOp) string {
 	right := eg.visit(node.right)
 	op := node.op.value
 
+	if op in ['and', 'or'] {
+		lhs := eg.wrap_bool(node.left, false)
+		rhs := eg.wrap_bool(node.right, false)
+		v_op := if op == 'and' { '&&' } else { '||' }
+		return '${lhs} ${v_op} ${rhs}'
+	}
+
 	if op == '*' {
-		if left_type == 'string' {
+		if left_type == 'string' || left_type == 'LiteralString' {
 			return '${left}.repeat(${right})'
 		}
-		if right_type == 'string' {
+		if right_type == 'string' || right_type == 'LiteralString' {
 			return '${right}.repeat(${left})'
 		}
 		if node.left is ast.List && node.left.elements.len == 1 {
@@ -39,6 +113,7 @@ pub fn (mut eg ExprGen) visit_bin_op(node ast.BinaryOp) string {
 	if op == '@' {
 		return '${left}.matmul(${right})'
 	}
+
 	if op == '**' {
 		eg.state.used_builtins['math.pow'] = true
 		if left_type == 'int' && right_type == 'int' {
@@ -46,6 +121,7 @@ pub fn (mut eg ExprGen) visit_bin_op(node ast.BinaryOp) string {
 		}
 		return 'math.pow(f64(${left}), f64(${right}))'
 	}
+
 	if op == '//' {
 		eg.state.used_builtins['math.floor'] = true
 		if left_type == 'int' && right_type == 'int' {
@@ -53,16 +129,16 @@ pub fn (mut eg ExprGen) visit_bin_op(node ast.BinaryOp) string {
 		}
 		return 'math.floor(${left} / ${right})'
 	}
-	if op == '%' && (left_type == 'string' || left_type == 'LiteralString') {
-		eg.state.used_string_format = true
-		if node.right is ast.Tuple {
-			mut args := []string{}
-			for elt in node.right.elements {
-				args << eg.visit(elt)
-			}
-			return 'py_string_format(${left}, ${args.join(', ')})'
+
+	if op == '%' {
+		if left.starts_with('b\'') || left.starts_with('b"') {
+			eg.state.used_builtins['py_bytes_format'] = true
+			return eg.format_percent_bytes(left, node.right)
 		}
-		return 'py_string_format(${left}, ${right})'
+		if left_type == 'string' || left_type == 'LiteralString' {
+			eg.state.used_string_format = true
+			return eg.format_percent_call(left, node.right)
+		}
 	}
 
 	if left_type == 'PyComplex' && right_type != 'PyComplex' {
@@ -70,6 +146,28 @@ pub fn (mut eg ExprGen) visit_bin_op(node ast.BinaryOp) string {
 	}
 	if right_type == 'PyComplex' && left_type != 'PyComplex' {
 		return 'py_complex(f64(${left}), 0.0) ${op} ${right}'
+	}
+
+	if eg.is_set_type(left_type) && eg.is_set_type(right_type) {
+		match op {
+			'|' {
+				eg.state.used_builtins['py_set_union'] = true
+				return 'py_set_union(${left}, ${right})'
+			}
+			'&' {
+				eg.state.used_builtins['py_set_intersection'] = true
+				return 'py_set_intersection(${left}, ${right})'
+			}
+			'-' {
+				eg.state.used_builtins['py_set_difference'] = true
+				return 'py_set_difference(${left}, ${right})'
+			}
+			'^' {
+				eg.state.used_builtins['py_set_xor'] = true
+				return 'py_set_xor(${left}, ${right})'
+			}
+			else {}
+		}
 	}
 
 	return '${left} ${op} ${right}'
@@ -93,11 +191,6 @@ pub fn (mut eg ExprGen) visit_bool_op(node ast.Expression) string {
 	return eg.visit(node)
 }
 
-fn is_none_expr(node ast.Expression) bool {
-	return (node is ast.Constant && node.value == 'None')
-		|| (node is ast.Name && node.id in ['None', 'none']) || node is ast.NoneExpr
-}
-
 pub fn (mut eg ExprGen) visit_compare(node ast.Compare) string {
 	mut comparators := []string{cap: node.comparators.len + 1}
 	comparators << eg.visit(node.left)
@@ -109,10 +202,17 @@ pub fn (mut eg ExprGen) visit_compare(node ast.Compare) string {
 		left := comparators[0]
 		right := comparators[1]
 		op := node.ops[0].value
+		left_type := eg.guess_type(node.left)
 		if op in ['is', '=='] && is_none_expr(node.comparators[0]) {
+			if eg.should_use_is_none_type(node.left, left_type) {
+				return '${left} is NoneType'
+			}
 			return '${left} == none'
 		}
 		if op in ['is not', '!='] && is_none_expr(node.comparators[0]) {
+			if eg.should_use_is_none_type(node.left, left_type) {
+				return '${left} !is NoneType'
+			}
 			return '${left} != none'
 		}
 		if op == 'is' {
@@ -134,6 +234,27 @@ pub fn (mut eg ExprGen) visit_compare(node ast.Compare) string {
 				return '!${right}.any(it == none)'
 			}
 			return '${left} !in ${right}'
+		}
+		if eg.is_set_type(left_type) {
+			match op {
+				'<=' {
+					eg.state.used_builtins['py_set_subset'] = true
+					return 'py_set_subset(${left}, ${right})'
+				}
+				'<' {
+					eg.state.used_builtins['py_set_strict_subset'] = true
+					return 'py_set_strict_subset(${left}, ${right})'
+				}
+				'>=' {
+					eg.state.used_builtins['py_set_superset'] = true
+					return 'py_set_superset(${left}, ${right})'
+				}
+				'>' {
+					eg.state.used_builtins['py_set_strict_superset'] = true
+					return 'py_set_strict_superset(${left}, ${right})'
+				}
+				else {}
+			}
 		}
 		return '${left} ${op} ${right}'
 	}

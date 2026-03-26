@@ -326,7 +326,7 @@ pub fn (mut eg ExprGen) handle_fallback_call(node ast.Call, func_name_str string
 	mut func_name := eg.visit(node.func)
 	if func_name in eg.state.renamed_functions {
 		func_name = eg.state.renamed_functions[func_name]
-	} else if func_name_str.len > 0 {
+	} else if func_name.len == 0 && func_name_str.len > 0 {
 		func_name = func_name_str
 	}
 

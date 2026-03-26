@@ -46,6 +46,12 @@ pub fn (mut eg ExprGen) visit_attribute(node ast.Attribute) string {
 		attr_name = 'await_'
 	} else if attr_name == '__iter__' {
 		attr_name = 'iter'
+	} else if attr_name == '__init__' {
+		attr_name = 'init'
+	} else if attr_name == '__new__' {
+		attr_name = 'new'
+	} else if attr_name == 'fn' {
+		attr_name = 'run'
 	}
 
 	if eg.state.current_class.len > 0 {
