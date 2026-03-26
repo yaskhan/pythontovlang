@@ -1,12 +1,13 @@
 module analyzer
 
+import ast
+
 // Analyzer - основная структура для анализа Python кода
 pub struct Analyzer {
 	TypeInferenceVisitorMixin
 pub mut:
 	context               string
 	stack                 []string
-	func_param_mutability map[string]map[string]bool
 }
 
 // new_analyzer создает новый экземпляр Analyzer
@@ -15,15 +16,14 @@ pub fn new_analyzer(type_data map[string]string) Analyzer {
 		TypeInferenceVisitorMixin: new_type_inference_visitor_mixin()
 		context:                   ''
 		stack:                     []string{}
-		func_param_mutability:     map[string]map[string]bool{}
 	}
 	a.type_map = type_data.clone()
 	return a
 }
 
 // analyze запускает анализ Python кода
-pub fn (mut a Analyzer) analyze(node string) {
-	a.visit_node(node)
+pub fn (mut a Analyzer) analyze(node ast.Module) {
+	a.visit_module(node)
 }
 
 // get_type возвращает тип переменной

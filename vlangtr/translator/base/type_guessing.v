@@ -4,11 +4,12 @@ import ast
 
 pub struct TypeGuessingContext {
 pub:
-	type_map        map[string]string
-	location_map    map[string]string
-	known_v_types   map[string]string
-	name_remap      map[string]string
-	defined_classes map[string]map[string]bool
+	type_map           map[string]string
+	location_map       map[string]string
+	known_v_types      map[string]string
+	name_remap         map[string]string
+	defined_classes    map[string]map[string]bool
+	explicit_any_types map[string]bool
 }
 
 // guess_type infers a best-effort V type for an expression node.
@@ -265,6 +266,15 @@ fn guess_type_dict(node ast.Dict, ctx TypeGuessingContext) string {
 
 fn guess_type_name(node ast.Name, ctx TypeGuessingContext, use_location bool) string {
 	actual_name := ctx.name_remap[node.id] or { node.id }
+	if actual_name in ctx.explicit_any_types || node.id in ctx.explicit_any_types {
+		return 'Any'
+	}
+	if use_location {
+		loc_key := '${node.id}@${node.token.line}:${node.token.column}'
+		if loc_key in ctx.explicit_any_types {
+			return 'Any'
+		}
+	}
 	if actual_name in ctx.known_v_types {
 		return ctx.known_v_types[actual_name]
 	}

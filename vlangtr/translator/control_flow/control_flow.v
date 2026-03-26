@@ -79,11 +79,12 @@ pub fn (mut m ControlFlowModule) visit_expr(node ast.Expression) string {
 
 pub fn (mut m ControlFlowModule) guess_type(node ast.Expression) string {
 	ctx := base.TypeGuessingContext{
-		type_map:        m.env.analyzer.type_map
-		location_map:    m.env.analyzer.location_map
-		known_v_types:   m.env.state.known_v_types
-		name_remap:      m.env.state.name_remap
-		defined_classes: m.env.state.defined_classes
+		type_map:           m.env.analyzer.type_map
+		location_map:       m.env.analyzer.location_map
+		known_v_types:      m.env.state.known_v_types
+		name_remap:         m.env.state.name_remap
+		defined_classes:    m.env.state.defined_classes
+		explicit_any_types: m.env.analyzer.explicit_any_types
 	}
 	return base.guess_type(node, ctx, true)
 }

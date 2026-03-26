@@ -21,36 +21,40 @@ pub mut:
 
 pub struct TypeInferenceBase {
 pub mut:
-	type_map        map[string]string
-	raw_type_map    map[string]string
-	mutability_map  map[string]MutabilityInfo
-	location_map    map[string]string
-	call_signatures map[string]CallSignature
-	mixin_to_main   map[string][]string
-	main_to_mixins  map[string][]string
-	mixin_nodes     map[string]string
-	static_methods  map[string][]string
-	class_methods   map[string][]string
-	is_abc          map[string]bool
-	class_hierarchy map[string][]string
-	scope_names     []string
+	type_map              map[string]string
+	raw_type_map          map[string]string
+	mutability_map        map[string]MutabilityInfo
+	location_map          map[string]string
+	call_signatures       map[string]CallSignature
+	mixin_to_main         map[string][]string
+	main_to_mixins        map[string][]string
+	mixin_nodes           map[string]string
+	static_methods        map[string][]string
+	class_methods         map[string][]string
+	is_abc                map[string]bool
+	class_hierarchy       map[string][]string
+	scope_names           []string
+	explicit_any_types    map[string]bool
+	func_param_mutability map[string][]int
 }
 
 pub fn new_type_inference_base() TypeInferenceBase {
 	return TypeInferenceBase{
-		type_map:        map[string]string{}
-		raw_type_map:    map[string]string{}
-		mutability_map:  map[string]MutabilityInfo{}
-		location_map:    map[string]string{}
-		call_signatures: map[string]CallSignature{}
-		mixin_to_main:   map[string][]string{}
-		main_to_mixins:  map[string][]string{}
-		mixin_nodes:     map[string]string{}
-		static_methods:  map[string][]string{}
-		class_methods:   map[string][]string{}
-		is_abc:          map[string]bool{}
-		class_hierarchy: map[string][]string{}
-		scope_names:     []string{}
+		type_map:              map[string]string{}
+		raw_type_map:          map[string]string{}
+		mutability_map:        map[string]MutabilityInfo{}
+		location_map:          map[string]string{}
+		call_signatures:       map[string]CallSignature{}
+		mixin_to_main:         map[string][]string{}
+		main_to_mixins:        map[string][]string{}
+		mixin_nodes:           map[string]string{}
+		static_methods:        map[string][]string{}
+		class_methods:         map[string][]string{}
+		is_abc:                map[string]bool{}
+		class_hierarchy:       map[string][]string{}
+		scope_names:           []string{}
+		explicit_any_types:    map[string]bool{}
+		func_param_mutability: map[string][]int{}
 	}
 }
 

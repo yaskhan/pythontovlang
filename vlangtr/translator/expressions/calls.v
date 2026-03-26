@@ -339,10 +339,8 @@ pub fn (mut eg ExprGen) process_mutated_args(func_name_str string, args []string
 	mut final_args := []string{}
 	mut mutated := map[int]bool{}
 	if func_name_str in eg.analyzer.func_param_mutability {
-		for key, val in eg.analyzer.func_param_mutability[func_name_str] {
-			if val {
-				mutated[key.int()] = true
-			}
+		for idx in eg.analyzer.func_param_mutability[func_name_str] {
+			mutated[idx] = true
 		}
 	}
 	for i, arg in args {

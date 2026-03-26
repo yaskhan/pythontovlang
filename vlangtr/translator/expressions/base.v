@@ -22,11 +22,12 @@ pub fn new_expr_gen(model &models.VType, type_analyzer &analyzer.Analyzer) ExprG
 
 fn (eg &ExprGen) type_ctx() base.TypeGuessingContext {
 	return base.TypeGuessingContext{
-		type_map:        eg.analyzer.type_map
-		location_map:    eg.analyzer.location_map
-		known_v_types:   eg.state.known_v_types
-		name_remap:      eg.state.name_remap
-		defined_classes: eg.state.defined_classes
+		type_map:           eg.analyzer.type_map
+		location_map:       eg.analyzer.location_map
+		known_v_types:      eg.state.known_v_types
+		name_remap:         eg.state.name_remap
+		defined_classes:    eg.state.defined_classes
+		explicit_any_types: eg.analyzer.explicit_any_types
 	}
 }
 

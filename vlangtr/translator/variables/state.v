@@ -113,11 +113,12 @@ fn (m &VariablesModule) type_utils_context() base.TypeUtilsContext {
 
 pub fn (mut m VariablesModule) guess_type(node ast.Expression, use_location bool) string {
 	ctx := base.TypeGuessingContext{
-		type_map:        m.analyzer.type_map
-		location_map:    m.analyzer.location_map
-		known_v_types:   m.state.known_v_types
-		name_remap:      m.state.name_remap
-		defined_classes: m.state.defined_classes
+		type_map:           m.analyzer.type_map
+		location_map:       m.analyzer.location_map
+		known_v_types:      m.state.known_v_types
+		name_remap:         m.state.name_remap
+		defined_classes:    m.state.defined_classes
+		explicit_any_types: m.analyzer.explicit_any_types
 	}
 	return base.guess_type(node, ctx, use_location)
 }

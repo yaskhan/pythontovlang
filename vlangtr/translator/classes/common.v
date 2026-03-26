@@ -40,11 +40,12 @@ fn map_python_type(type_str string, struct_name string, is_return bool, mut env 
 
 fn guess_type(node ast.Expression, env &ClassVisitEnv) string {
 	ctx := base.TypeGuessingContext{
-		type_map:        env.analyzer.type_map
-		location_map:    env.analyzer.location_map
-		known_v_types:   env.state.known_v_types
-		name_remap:      env.state.name_remap
-		defined_classes: env.state.defined_classes
+		type_map:           env.analyzer.type_map
+		location_map:       env.analyzer.location_map
+		known_v_types:      env.state.known_v_types
+		name_remap:         env.state.name_remap
+		defined_classes:    env.state.defined_classes
+		explicit_any_types: env.analyzer.explicit_any_types
 	}
 	return base.guess_type(node, ctx, true)
 }
