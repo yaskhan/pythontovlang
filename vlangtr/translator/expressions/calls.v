@@ -55,14 +55,13 @@ pub fn (mut eg ExprGen) extract_func_info(node ast.Call) (string, string) {
 pub fn (mut eg ExprGen) get_call_signature(func_name_str string, loc_key string) ?analyzer.CallSignature {
 	potential_keys := [loc_key, '${func_name_str}@${loc_key}', func_name_str]
 	for key in potential_keys {
-		if key in eg.analyzer.call_signatures && eg.analyzer.call_signatures[key].len > 0 {
-			return eg.analyzer.call_signatures[key][0]
+		if key in eg.analyzer.call_signatures {
+			return eg.analyzer.call_signatures[key]
 		}
 	}
-	for key, sigs in eg.analyzer.call_signatures {
-		if (key == func_name_str || key.ends_with('.${func_name_str}')
-			|| key.ends_with('@${loc_key}')) && sigs.len > 0 {
-			return sigs[0]
+	for key, sig in eg.analyzer.call_signatures {
+		if key == func_name_str || key.ends_with('.${func_name_str}') || key.ends_with('@${loc_key}') {
+			return sig
 		}
 	}
 	return none

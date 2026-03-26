@@ -87,6 +87,103 @@ pub fn (mut eg ExprGen) visit_name(node ast.Name) string {
 	return base.sanitize_name(name, false, map[string]bool{}, '', map[string]bool{})
 }
 
+fn (eg &ExprGen) extract_string_content(value string) string {
+	if value.len >= 3 && value[0] == `t` && (value[1] == `'` || value[1] == `"`) {
+		return value[2..value.len - 1]
+	}
+	if value.len >= 2 && (value[0] == `'` || value[0] == `"`) {
+		return value[1..value.len - 1]
+	}
+	return value
+}
+
+fn (eg &ExprGen) quote_string_content(value string) string {
+	if value.len == 0 {
+		return "''"
+	}
+
+	if value.contains('\\') {
+		if !value.contains("'") {
+			return "r'${value}'"
+		}
+		if !value.contains('"') {
+			return 'r"${value}"'
+		}
+	}
+
+	mut escaped := value.replace('\\', '\\\\')
+	escaped = escaped.replace("'", "\\'")
+	escaped = escaped.replace('\n', '\\n')
+	escaped = escaped.replace('\r', '\\r')
+	escaped = escaped.replace('\t', '\\t')
+	return "'${escaped}'"
+}
+
+fn (mut eg ExprGen) translate_tstring(values []ast.Expression) string {
+	if values.len == 0 {
+		return ''
+	}
+	if values[0] is ast.Constant {
+		first := values[0] as ast.Constant
+		if !first.value.starts_with('__py2v_t__')
+			&& !first.value.starts_with('t\'')
+			&& !first.value.starts_with('t"')
+			&& first.token.typ != .tstring_tok {
+			return ''
+		}
+
+		mut strings := []string{}
+		mut interpolations := []string{}
+
+		for i, value in values {
+			match value {
+				ast.Constant {
+					mut content := value.value
+					if content.starts_with('__py2v_t__') {
+						content = content['__py2v_t__'.len..]
+					}
+					content = eg.extract_string_content(content)
+					strings << eg.quote_string_content(content)
+				}
+				ast.FormattedValue {
+					if i == 0 {
+						strings << "''"
+					}
+					expr_text := eg.visit(value.value)
+					conversion := match value.conversion {
+						114 {
+							eg.state.used_builtins['py_repr'] = true
+							"'r'"
+						}
+						115 { "'s'" }
+						97 {
+							eg.state.used_builtins['py_ascii'] = true
+							"'a'"
+						}
+						else { "'none'" }
+					}
+					mut format_spec := "''"
+					if format_spec_node := value.format_spec {
+						format_spec = eg.visit(format_spec_node)
+					}
+					interpolations << 'Interpolation{value: ${expr_text}, expression: ${eg.quote_string_content(expr_text)}, conversion: ${conversion}, format_spec: ${format_spec}}'
+					if i == values.len - 1 {
+						strings << "''"
+					}
+				}
+				else {}
+			}
+		}
+
+		for strings.len < interpolations.len + 1 {
+			strings << "''"
+		}
+
+		return 'Template{strings: [${strings.join(', ')}], interpolations: [${interpolations.join(', ')}]}'
+	}
+	return ''
+}
+
 pub fn (mut eg ExprGen) visit_constant(node ast.Constant) string {
 	if node.value == 'None' {
 		return 'none'
@@ -97,9 +194,18 @@ pub fn (mut eg ExprGen) visit_constant(node ast.Constant) string {
 	if node.value == 'False' {
 		return 'false'
 	}
-	if node.token.typ == .string_tok || node.token.typ == .fstring_tok
-		|| node.token.typ == .tstring_tok {
-		if node.value.starts_with("'") || node.value.starts_with('"') {
+	if node.token.typ == .tstring_tok || node.value.starts_with('__py2v_t__')
+		|| node.value.starts_with('t\'') || node.value.starts_with('t"') {
+		mut content := node.value
+		if content.starts_with('__py2v_t__') {
+			content = content['__py2v_t__'.len..]
+		}
+		content = eg.extract_string_content(content)
+		return 'Template{strings: [${eg.quote_string_content(content)}], interpolations: []}'
+	}
+	if node.token.typ == .string_tok || node.token.typ == .fstring_tok {
+		if node.value.starts_with("'") || node.value.starts_with('"') || node.value.starts_with('t\'')
+			|| node.value.starts_with('t"') {
 			return node.value
 		}
 		return "'${node.value}'"
@@ -164,6 +270,10 @@ pub fn (mut eg ExprGen) visit_slice(node ast.Slice) string {
 }
 
 pub fn (mut eg ExprGen) visit_joined_str(node ast.JoinedStr) string {
+	tstring := eg.translate_tstring(node.values)
+	if tstring.len > 0 {
+		return tstring
+	}
 	mut parts := []string{}
 	for value in node.values {
 		parts << eg.visit(value)
@@ -180,6 +290,11 @@ pub fn (mut eg ExprGen) visit_joined_str(node ast.JoinedStr) string {
 pub fn (mut eg ExprGen) visit_formatted_value(node ast.FormattedValue) string {
 	expr := eg.visit(node.value)
 	expr_type := eg.guess_type(node.value)
+	if node.conversion == 114 {
+		eg.state.used_builtins['py_repr'] = true
+	} else if node.conversion == 97 {
+		eg.state.used_builtins['py_ascii'] = true
+	}
 	if node.conversion == 114 || node.conversion == 115 || node.conversion == 97
 		|| node.format_spec != none || expr_type !in ['string', 'LiteralString'] {
 		return 'string(${expr})'
