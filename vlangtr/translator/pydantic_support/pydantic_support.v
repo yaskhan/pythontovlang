@@ -8,11 +8,11 @@ pub struct PydanticVisitEnv {
 pub mut:
 	state            base.TranslatorState
 	analyzer         analyzer.Analyzer
-	visit_stmt_fn    fn (ast.Statement)
-	visit_expr_fn    fn (ast.Expression) string
-	emit_struct_fn   fn (string)
-	emit_function_fn fn (string)
-	emit_constant_fn fn (string)
+	visit_stmt_fn    fn (ast.Statement) = unsafe { nil }
+	visit_expr_fn    fn (ast.Expression) string = unsafe { nil }
+	emit_struct_fn   fn (string) = unsafe { nil }
+	emit_function_fn fn (string) = unsafe { nil }
+	emit_constant_fn fn (string) = unsafe { nil }
 	source_mapping   bool
 }
 

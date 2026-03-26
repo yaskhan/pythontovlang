@@ -13,6 +13,8 @@ pub fn (p PydanticConfigProcessor) extract(node ast.ClassDef, mut env PydanticVi
 	mut info := PydanticConfigInfo{
 		extra:          'ignore'
 		allow_mutation: true
+		min_anystr_length: -1
+		max_anystr_length: -1
 	}
 	for item in node.body {
 		if item is ast.Assign {
@@ -37,6 +39,8 @@ pub fn (p PydanticConfigProcessor) extract_from_config_dict(node ast.Call, mut e
 	mut info := PydanticConfigInfo{
 		extra:          'ignore'
 		allow_mutation: true
+		min_anystr_length: -1
+		max_anystr_length: -1
 	}
 	for kw in node.keywords {
 		if kw.arg.len > 0 {

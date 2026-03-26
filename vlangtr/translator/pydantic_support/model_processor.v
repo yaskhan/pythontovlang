@@ -28,6 +28,21 @@ pub fn (p PydanticModelProcessor) process_model(node ast.ClassDef, mut env Pydan
 
 	struct_name := sanitize_name(node.name, true)
 	export := if env.state.is_exported(node.name) { 'pub ' } else { '' }
+	for base in node.bases {
+		if base is ast.Subscript {
+			if base.value is ast.Name {
+				if base.value.id == 'BaseModel' {
+					env.state.pending_llm_call_comments << "//##LLM@@ Pydantic Generic model (BaseModel[T]) detected in '${struct_name}'. This requires manual type annotation and adjustments in V. Please review the generated struct."
+					break
+				}
+			} else if base.value is ast.Attribute {
+				if base.value.attr == 'BaseModel' {
+					env.state.pending_llm_call_comments << "//##LLM@@ Pydantic Generic model (BaseModel[T]) detected in '${struct_name}'. This requires manual type annotation and adjustments in V. Please review the generated struct."
+					break
+				}
+			}
+		}
+	}
 
 	mut fields := []PydanticFieldInfo{}
 	mut methods := []ast.FunctionDef{}
@@ -35,13 +50,20 @@ pub fn (p PydanticModelProcessor) process_model(node ast.ClassDef, mut env Pydan
 	mut config := PydanticConfigInfo{
 		extra:          'ignore'
 		allow_mutation: true
+		min_anystr_length: -1
+		max_anystr_length: -1
 	}
 	mut has_config := false
+	mut has_init := false
+	mut configs := map[string]string{}
 
 	for item in node.body {
 		if item is ast.AnnAssign {
 			fields << p.field_processor.extract(item, mut env)
 		} else if item is ast.FunctionDef {
+			if item.name == '__init__' {
+				has_init = true
+			}
 			if item.name == '__init__' {
 				methods << item
 				continue
@@ -64,6 +86,11 @@ pub fn (p PydanticModelProcessor) process_model(node ast.ClassDef, mut env Pydan
 						if item.value is ast.Call {
 							config = p.config_processor.extract_from_config_dict(item.value, mut env)
 							has_config = true
+							for kw in item.value.keywords {
+								if kw.arg.len > 0 {
+									configs[kw.arg] = env.visit_expr_fn(kw.value)
+								}
+							}
 						}
 					}
 				}
@@ -105,6 +132,12 @@ pub fn (p PydanticModelProcessor) process_model(node ast.ClassDef, mut env Pydan
 		if config_bits.len > 0 {
 			struct_lines << '// Config: ${config_bits.join(", ")}'
 		}
+	} else if configs.len > 0 {
+		mut config_comment := []string{}
+		for key in configs.keys() {
+			config_comment << '${key}=${configs[key]}'
+		}
+		struct_lines << '// ConfigDict: ${config_comment.join(", ")}'
 	}
 
 	struct_lines << '@[params]'
@@ -140,11 +173,15 @@ pub fn (p PydanticModelProcessor) process_model(node ast.ClassDef, mut env Pydan
 	env.state.defined_classes[struct_name]['has_new'] = false
 	env.state.defined_classes[struct_name]['is_pydantic'] = true
 
-	factory_code := p.generate_factory(struct_name, fields, export, mut env)
-	if factory_code.len > 0 {
-		env.emit_function_fn(factory_code)
+	if !has_init {
+		factory_code := p.generate_factory(struct_name, fields, export, mut env)
+		if factory_code.len > 0 {
+			env.emit_function_fn(factory_code)
+			env.state.defined_classes[struct_name]['has_init'] = true
+			env.state.defined_classes[struct_name]['has_new'] = true
+		}
+	} else {
 		env.state.defined_classes[struct_name]['has_init'] = true
-		env.state.defined_classes[struct_name]['has_new'] = true
 	}
 
 	validate_code := p.generate_validate_method(struct_name, fields, validators, config, export)

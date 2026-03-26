@@ -73,6 +73,7 @@ fn (p PydanticFieldProcessor) parse_field_call(node ast.Call, mut info PydanticF
 				}
 			}
 			'default_factory' {
+				env.state.pending_llm_call_comments << "//##LLM@@ Pydantic 'Field(default_factory=...)' detected on field '${info.name}'. This is not fully supported by the transpiler. Please manually initialize the default value in the V struct or factory."
 				if info.default_val.len == 0 {
 					info.default_val = 'none'
 				}
