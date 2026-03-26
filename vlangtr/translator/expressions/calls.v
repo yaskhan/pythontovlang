@@ -227,6 +227,22 @@ pub fn (mut eg ExprGen) handle_special_cases(node ast.Call, module_name string, 
 	if func_name_str == 'len' && args.len == 1 {
 		return '${args[0]}.len'
 	}
+	if func_name_str == 'int' {
+		if args.len == 0 {
+			return '0'
+		}
+		if args.len == 1 {
+			arg_type := eg.guess_type(node.args[0])
+			if arg_type in ['string', 'LiteralString'] {
+				return '${args[0]}.int()'
+			}
+			return 'int(${args[0]})'
+		}
+		if args.len >= 2 {
+			eg.state.used_builtins['strconv.parse_int'] = true
+			return 'int(strconv.parse_int(${args[0]}, ${args[1]}, 32) or { 0 })'
+		}
+	}
 	if func_name_str == 'round' && args.len == 1 {
 		return 'int(math.round(${args[0]}))'
 	}
@@ -258,7 +274,8 @@ pub fn (mut eg ExprGen) handle_special_cases(node ast.Call, module_name string, 
 		return 'py_zip(${args.join(', ')})'
 	}
 	if func_name_str == 'sorted' {
-		return 'py_sorted(${args.join(', ')})'
+		eg.state.used_builtins['py_sorted'] = true
+		return 'py_sorted(${args.join(', ')}, false)'
 	}
 	if func_name_str == 'reversed' {
 		return 'py_reversed(${args.join(', ')})'

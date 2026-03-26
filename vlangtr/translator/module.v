@@ -236,8 +236,8 @@ fn (mut m ModuleTranslator) append_runtime_helpers() {
 		m.emitter.add_helper_function('fn py_string_format(fmt string, args ...string) string {\n    mut res := fmt\n    for arg in args {\n        res = res.replace_first(\'%s\', arg)\n    }\n    return res\n}')
 	}
 
-	if 'sorted' in m.state.used_builtins {
-		m.emitter.add_helper_function('fn py_sorted[T](a []T) []T {\n    mut b := a.clone()\n    b.sort()\n    return b\n}')
+	if 'py_sorted' in m.state.used_builtins {
+		m.emitter.add_helper_function('fn py_sorted[T](a []T, reverse bool) []T {\n    mut b := a.clone()\n    b.sort()\n    if reverse {\n        b.reverse()\n    }\n    return b\n}')
 	}
 
 	if 'reversed' in m.state.used_builtins {
