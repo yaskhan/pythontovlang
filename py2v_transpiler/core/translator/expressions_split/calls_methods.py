@@ -3,6 +3,33 @@
 import ast
 from typing import Any, Set, TYPE_CHECKING
 
+# Static mappings for method calls to improve performance
+_KEY_COMPARISONS = {
+    "len": ("a.len", "b.len"),
+    "str": ("a.str()", "b.str()"),
+    "int": ("int(a)", "int(b)"),
+}
+
+_SET_OP_MAP = {
+    "union": "py_set_union",
+    "intersection": "py_set_intersection",
+    "difference": "py_set_difference",
+    "symmetric_difference": "py_set_xor"
+}
+
+_SET_UPDATE_OP_MAP = {
+    "update": "py_set_update",
+    "intersection_update": "py_set_intersection_update",
+    "difference_update": "py_set_difference_update",
+    "symmetric_difference_update": "py_set_xor_update"
+}
+
+_SET_COMP_OP_MAP = {
+    "issubset": "py_set_subset",
+    "issuperset": "py_set_superset",
+    "isdisjoint": "py_set_isdisjoint"
+}
+
 
 class MethodCallsMixin:
     """Mixin for handling method calls."""
@@ -182,12 +209,6 @@ class MethodCallsMixin:
 
     def _handle_list_sort(self, node: ast.Call, func_node: ast.Attribute, args: list) -> str:
         """Handle list.sort(key=..., reverse=True/False)."""
-        _KEY_COMPARISONS = {
-            "len": ("a.len", "b.len"),
-            "str": ("a.str()", "b.str()"),
-            "int": ("int(a)", "int(b)"),
-        }
-
         reverse = False
         key_name = None
         key_expr = None
@@ -407,38 +428,21 @@ class MethodCallsMixin:
         
         # Set-theoretic operations
         elif attr in ("union", "intersection", "difference", "symmetric_difference"):
-            helper_map = {
-                "union": "py_set_union",
-                "intersection": "py_set_intersection",
-                "difference": "py_set_difference",
-                "symmetric_difference": "py_set_xor"
-            }
-            helper = helper_map[attr]
+            helper = _SET_OP_MAP[attr]
             self.emitter.add_import("datatypes")
             self.used_builtins.add(helper)
             return f"{helper}({obj}, {args[0]})"
             
         # Update operations
         elif attr in ("update", "intersection_update", "difference_update", "symmetric_difference_update"):
-            helper_map = {
-                "update": "py_set_update",
-                "intersection_update": "py_set_intersection_update",
-                "difference_update": "py_set_difference_update",
-                "symmetric_difference_update": "py_set_xor_update"
-            }
-            helper = helper_map[attr]
+            helper = _SET_UPDATE_OP_MAP[attr]
             self.emitter.add_import("datatypes")
             self.used_builtins.add(helper)
             return f"{helper}(mut {obj}, {args[0]})"
             
         # Comparisons
         elif attr in ("issubset", "issuperset", "isdisjoint"):
-            helper_map = {
-                "issubset": "py_set_subset",
-                "issuperset": "py_set_superset",
-                "isdisjoint": "py_set_isdisjoint"
-            }
-            helper = helper_map[attr]
+            helper = _SET_COMP_OP_MAP[attr]
             self.emitter.add_import("datatypes")
             self.used_builtins.add(helper)
             return f"{helper}({obj}, {args[0]})"
