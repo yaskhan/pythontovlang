@@ -57,9 +57,11 @@ pub mut:
 	walrus_assignments           []string
 	imported_modules             map[string]string
 	imported_symbols             map[string]string
+	overloads                    map[string][]ast.FunctionDef
 	single_dispatch_functions    map[string]map[string]string
 	known_interfaces             map[string]bool
 	class_hierarchy              map[string][]string
+	type_guards                  map[string]string
 	property_setters             map[string]map[string]bool
 	function_names               map[string]bool
 	overloaded_signatures        map[string][]map[string]string

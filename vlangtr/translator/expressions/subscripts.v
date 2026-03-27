@@ -20,7 +20,8 @@ pub fn (mut eg ExprGen) visit_subscript(node ast.Subscript) string {
 	value := eg.visit(node.value)
 	val_type := eg.guess_type(node.value)
 
-	if val_type in eg.state.dataclasses && node.slice is ast.Constant
+	pure_val_type := val_type.trim_left('&')
+	if (pure_val_type in eg.state.dataclasses || pure_val_type in eg.state.defined_classes) && node.slice is ast.Constant
 		&& (node.slice.token.typ == .string_tok || node.slice.token.typ == .fstring_tok) {
 		return '${value}.${node.slice.value.trim('\'"')}'
 	}

@@ -10,6 +10,7 @@ pub:
 	name_remap         map[string]string
 	defined_classes    map[string]map[string]bool
 	explicit_any_types map[string]bool
+	target_type        string
 }
 
 // guess_type infers a best-effort V type for an expression node.
@@ -84,6 +85,9 @@ fn guess_constant_type(node ast.Constant) string {
 		return 'string'
 	}
 	if tok.typ == .number {
+		if node.value.ends_with('j') {
+			return 'PyComplex'
+		}
 		if node.value.contains('.') {
 			return 'f64'
 		}
@@ -173,6 +177,9 @@ fn guess_type_call(node ast.Call, ctx TypeGuessingContext) string {
 			return '[]string'
 		}
 
+		if fid == 'py_complex' {
+			return 'PyComplex'
+		}
 		ret_key := '${fid}@return'
 		if ret_key in ctx.type_map {
 			return ctx.type_map[ret_key]
@@ -241,6 +248,9 @@ fn guess_type_set(node ast.Set, ctx TypeGuessingContext) string {
 }
 
 fn guess_type_dict(node ast.Dict, ctx TypeGuessingContext) string {
+	if ctx.target_type.len > 0 && ctx.target_type in ctx.defined_classes {
+		return ctx.target_type
+	}
 	if node.keys.len == 0 {
 		return 'map[string]Any'
 	}

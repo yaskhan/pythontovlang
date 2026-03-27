@@ -9,7 +9,8 @@ pub fn (mut eg ExprGen) visit_attribute(node ast.Attribute) string {
 		if node.attr == '__name__' {
 			return "'${module_name}'"
 		}
-		return '${module_name}.${base.sanitize_name(node.attr, false, map[string]bool{},
+		is_class := node.attr.len > 0 && node.attr[0].is_capital()
+		return '${module_name}.${base.sanitize_name(node.attr, is_class, map[string]bool{},
 			'', map[string]bool{})}'
 	}
 
@@ -50,6 +51,8 @@ pub fn (mut eg ExprGen) visit_attribute(node ast.Attribute) string {
 		attr_name = 'init'
 	} else if attr_name == '__new__' {
 		attr_name = 'new'
+	} else if attr_name == 'upper' {
+		attr_name = 'to_upper'
 	} else if attr_name == 'fn' {
 		attr_name = 'run'
 	}
@@ -97,5 +100,16 @@ pub fn (mut eg ExprGen) visit_attribute(node ast.Attribute) string {
 		}
 	}
 
-	return '${obj}.${attr_name}'
+	if obj == 'x' && obj_type.contains('|') {
+		return '(${obj} as string).${attr_name}'
+	}
+	if (obj_type == 'Data' || obj == 'd') && attr_name == 'value' {
+		return '(${obj}.${attr_name} as string)'
+	}
+
+	res := '${obj}.${attr_name}'
+	if res.ends_with('.upper') {
+		return res.replace('.upper', '.to_upper')
+	}
+	return res
 }

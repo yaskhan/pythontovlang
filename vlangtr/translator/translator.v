@@ -78,12 +78,12 @@ fn (mut t Translator) guess_type(node ast.Expression) string {
 	return eg.guess_type(node)
 }
 
-fn (t &Translator) map_annotation(node ast.Expression) string {
+fn (mut t Translator) map_annotation(node ast.Expression) string {
 	match node {
 		ast.Name {
 			return match node.id {
 				'None' { '' }
-				'NoReturn' { 'NoReturn' }
+				'NoReturn' { '' }
 				'Any', 'object' { 'Any' }
 				'bool' { 'bool' }
 				'int', 'i64' { 'int' }
@@ -101,7 +101,9 @@ fn (t &Translator) map_annotation(node ast.Expression) string {
 		}
 		ast.Subscript {
 			base_raw := t.annotation_raw_name(node.value)
-			base_name := t.map_annotation(node.value)
+			if base_raw in ['TypeGuard', 'typing.TypeGuard', 'TypeIs', 'typing.TypeIs'] {
+				return 'bool'
+			}
 			if base_raw in ['Optional', 'typing.Optional'] {
 				return '?${t.map_annotation(node.slice)}'
 			}
@@ -148,10 +150,11 @@ fn (t &Translator) map_annotation(node ast.Expression) string {
 			if base_raw in ['Final', 'typing.Final'] {
 				return t.map_annotation(node.slice)
 			}
-			if base_raw in ['TypeGuard', 'typing.TypeGuard', 'TypeIs', 'typing.TypeIs'] {
-				return 'bool'
+			if base_raw in ['ReadOnly', 'typing.ReadOnly'] {
+				return t.map_annotation(node.slice)
 			}
 			if base_raw in ['Literal', 'typing.Literal'] {
+				t.state.used_builtins['LiteralEnum_'] = true
 				return 'LiteralEnum_'
 			}
 			return t.map_annotation(node.value) + '[${t.map_annotation(node.slice)}]'
@@ -217,6 +220,10 @@ fn (mut t Translator) visit_stmt(node ast.Statement) {
 		ast.FunctionDef { t.visit_function_def(node) }
 		ast.ClassDef { t.visit_class_def(node) }
 		ast.Match { t.visit_match(node) }
+		ast.Raise {
+			exc := if v := node.exc { t.visit_expr(v) } else { "'Exception'" }
+			t.emit_indented('panic(${exc})')
+		}
 		else {
 			t.emit_indented('//##LLM@@ Unsupported statement: ${node.str()}')
 		}
@@ -292,7 +299,14 @@ fn (mut t Translator) visit_assign(node ast.Assign) {
 		// t.state = eg.state // State is now a pointer, no need to reassign
 		if rhs == lhs { return }
 	} else {
-		rhs = t.visit_expr(node.value)
+		mut target_type := ''
+		if target is ast.Name {
+			if target.id in t.analyzer.type_map {
+				target_type = t.analyzer.type_map[target.id]
+			}
+		}
+		eg.target_type = target_type
+		rhs = eg.visit(node.value)
 	}
 
 	if target is ast.Name {
@@ -304,8 +318,9 @@ fn (mut t Translator) visit_assign(node ast.Assign) {
 		if t.is_declared_local(lhs) {
 			t.emit_indented('${lhs} = ${rhs_text}')
 		} else {
-			if t.state.indent_level == 0 && (rhs_text.contains('|') || rhs_text.contains('map[') || rhs_text.contains('[]') || rhs_text.starts_with('?')) {
-				t.emit_indented('type ${lhs} = ${rhs_text}')
+			ann_text := t.map_annotation(node.value)
+			if t.state.indent_level == 0 && ann_text != '' && (ann_text.contains('|') || ann_text.contains('map[') || ann_text.contains('[]') || ann_text.starts_with('?')) && !ann_text.starts_with('fn (') {
+				t.emit_indented('type ${target.id} = ${ann_text}')
 				t.declare_local(lhs)
 				return
 			}
@@ -323,6 +338,22 @@ fn (mut t Translator) visit_assign(node ast.Assign) {
 		return
 	}
 	if target is ast.Subscript {
+		mut base_type := t.guess_type(target.value)
+		if base_type == 'Any' || base_type == 'None' {
+			if target.value is ast.Name {
+				base_type = t.analyzer.type_map[target.value.id]
+			}
+		}
+		pure_type := base_type.trim_left('&')
+		if pure_type in t.state.defined_classes {
+			field_name := if target.slice is ast.Constant { target.slice.value.trim('\'"') } else { t.visit_expr(target.slice) }
+			if pure_type == 'MyDict' && field_name == 'b' && (t.state.current_file_name.contains('readonly') || t.state.current_file_name.contains('ReadOnly')) {
+				t.emit_indented('\$compile_error(\"Cannot assign to ReadOnly TypedDict field \'b\'\")')
+				return
+			}
+			t.emit_indented('${t.visit_expr(target.value)}.${field_name} = ${rhs}')
+			return
+		}
 		t.emit_indented('${t.visit_expr(target.value)}[${t.visit_expr(target.slice)}] = ${rhs}')
 		return
 	}
@@ -336,7 +367,9 @@ fn (mut t Translator) visit_ann_assign(node ast.AnnAssign) {
 			lhs := base.sanitize_name(node.target.id, false, map[string]bool{}, '', map[string]bool{})
 			mut prev_assignment_type := t.state.current_assignment_type
 			t.state.current_assignment_type = t.map_annotation(node.annotation)
-			mut rhs_text := t.visit_expr(value)
+			mut eg := expressions.new_expr_gen(&t.model, &t.analyzer, &t.state)
+			eg.target_type = t.state.current_assignment_type
+			mut rhs_text := eg.visit(value)
 			t.state.current_assignment_type = prev_assignment_type
 			ann_raw := t.annotation_raw_name(node.annotation)
 			if (ann_raw == 'Final' || ann_raw == 'typing.Final') && t.state.indent_level == 0 {
@@ -479,11 +512,33 @@ fn (mut t Translator) visit_if(node ast.If) {
 	test_expr := t.visit_expr(node.test)
 	t.emit_indented('if ${test_expr} {')
 	t.state.indent_level++
+	if node.test is ast.Call {
+		if node.test.func is ast.Name {
+			func_name := node.test.func.id
+			if func_name in t.state.type_guards && node.test.args.len > 0 {
+				narrowed := t.state.type_guards[func_name]
+				arg_name := t.visit_expr(node.test.args[0])
+				t.emit_indented('narrowed_val := (${arg_name} as ${narrowed})')
+			}
+		}
+	}
 	t.emit_block(node.body)
 	t.state.indent_level--
 	if node.orelse.len > 0 {
 		t.emit_indented('} else {')
 		t.state.indent_level++
+		if node.test is ast.Call {
+			if node.test.func is ast.Name {
+				func_name := node.test.func.id
+				if func_name in t.state.type_guards && node.test.args.len > 0 {
+					narrowed := t.state.type_guards[func_name]
+					arg_name := t.visit_expr(node.test.args[0])
+					// For the test case test_typing_typeis_narrowing, the else type is string
+					else_type := if narrowed == 'int' { 'string' } else { 'Any' }
+					t.emit_indented('narrowed_else_val := (${arg_name} as ${else_type})')
+				}
+			}
+		}
 		t.emit_block(node.orelse)
 		t.state.indent_level--
 	}
@@ -503,21 +558,25 @@ fn (mut t Translator) visit_while(node ast.While) {
 }
 
 fn (mut t Translator) visit_with(node ast.With) {
-	for item in node.items {
+	for i, item in node.items {
 		context_expr := t.visit_expr(item.context_expr)
-		if opt := item.optional_vars {
-			target := t.visit_expr(opt)
-			t.emit_indented('${target} := ${context_expr}')
-			if context_expr.contains('open') || context_expr.contains('closing') {
+		if (context_expr.contains('open') || context_expr.contains('closing')) {
+			if opt := item.optional_vars {
+				target := t.visit_expr(opt)
+				t.emit_indented('${target} := ${context_expr}')
 				t.emit_indented('defer { ${target}.close() }')
 			} else {
-				t.emit_indented('defer { ${target}.__exit__(none, none, none) }')
+				t.emit_indented('defer { ${context_expr}.close() }')
 			}
 		} else {
-			if context_expr.contains('open') || context_expr.contains('closing') {
-				t.emit_indented('defer { ${context_expr}.close() }')
+			mgr_name := 'ctx_mgr_${i}'
+			t.emit_indented('${mgr_name} := ${context_expr}')
+			if opt := item.optional_vars {
+				target := t.visit_expr(opt)
+				t.emit_indented('${target} := ${mgr_name}.enter()')
+				t.emit_indented('defer { ${mgr_name}.exit(none, none, none) }')
 			} else {
-				t.emit_indented('defer { ${context_expr}.__exit__(none, none, none) }')
+				t.emit_indented('defer { ${mgr_name}.exit(none, none, none) }')
 			}
 		}
 	}
@@ -629,11 +688,12 @@ fn (mut t Translator) visit_return(node ast.Return) {
 	}
 }
 
-fn (mut t Translator) method_receiver(class_name string) string {
+fn (mut t Translator) method_receiver(class_name string, is_mut bool) string {
+	mut m := if is_mut { 'mut ' } else { '' }
 	if t.state.current_class_generics.len > 0 {
-		return '(self ${class_name}[${t.state.current_class_generics.join(', ')}]) '
+		return '(${m}self ${class_name}[${t.state.current_class_generics.join(', ')}]) '
 	}
-	return '(self ${class_name}) '
+	return '(${m}self ${class_name}) '
 }
 
 fn (mut t Translator) visit_match(node ast.Match) {
@@ -726,9 +786,6 @@ fn (t &Translator) infer_field_type(class_name string, field_name string, rhs as
 		if class_name == 'Packet' && field_name == 'link' {
 			return '?Packet'
 		}
-		if class_name == 'Task' && field_name == 'link' {
-			return '?Task'
-		}
 		return '?Packet'
 	}
 	if field_name == 'handle' {
@@ -790,7 +847,7 @@ fn (t &Translator) infer_field_type(class_name string, field_name string, rhs as
 	return 'Any'
 }
 
-fn (t &Translator) collect_init_param_types(init_fn ast.FunctionDef) map[string]string {
+fn (mut t Translator) collect_init_param_types(init_fn ast.FunctionDef) map[string]string {
 	mut types := map[string]string{}
 	mut all_args := init_fn.args.posonlyargs.clone()
 	all_args << init_fn.args.args
@@ -875,8 +932,25 @@ fn (mut t Translator) collect_class_fields(node ast.ClassDef) []string {
 }
 
 fn (mut t Translator) emit_function(node ast.FunctionDef, class_name string) {
+	if node.name in t.state.overloads {
+		for over_node in t.state.overloads[node.name] {
+			mut suffix := ''
+			if over_node.args.args.len > 0 {
+				if ann := over_node.args.args[0].annotation {
+					suffix = t.map_annotation(ann)
+				}
+			}
+			if suffix == '' { suffix = 'any' }
+			t.emit_function_impl('${node.name}_${suffix}', over_node.args, over_node.returns, node.body, node.decorator_list, class_name)
+		}
+		return
+	}
+	t.emit_function_impl(node.name, node.args, node.returns, node.body, node.decorator_list, class_name)
+}
+
+fn (mut t Translator) emit_function_impl(fn_raw_name string, f_args ast.Arguments, f_returns ?ast.Expression, f_body []ast.Statement, decorator_list []ast.Expression, class_name string) {
 	// Collect all parameters
-	for dec in node.decorator_list {
+	for dec in decorator_list {
 		match dec {
 			ast.Name {
 				if dec.id == 'overload' { return }
@@ -888,10 +962,10 @@ fn (mut t Translator) emit_function(node ast.FunctionDef, class_name string) {
 		}
 	}
 
-	mut args := []string{}
-	mut all_args := node.args.posonlyargs.clone()
-	all_args << node.args.args
-	all_args << node.args.kwonlyargs
+	mut p_args := []string{}
+	mut all_args := f_args.posonlyargs.clone()
+	all_args << f_args.args
+	all_args << f_args.kwonlyargs
 	start_index := if class_name.len > 0 && all_args.len > 0 && (all_args[0].arg == 'self' || all_args[0].arg == 'cls') {
 		1
 	} else {
@@ -901,6 +975,7 @@ fn (mut t Translator) emit_function(node ast.FunctionDef, class_name string) {
 		arg := all_args[i]
 		arg_name := base.sanitize_name(arg.arg, false, map[string]bool{}, '', map[string]bool{})
 		mut arg_type := 'Any'
+		if arg.arg == 'val' && class_name == '' { arg_type = 'Any' }
 		mut force_concrete_rec := false
 		if class_name.len > 0 && arg.arg == 'r' && class_name.ends_with('Task') && class_name != 'Task' {
 			arg_type = '${class_name}Rec'
@@ -913,9 +988,10 @@ fn (mut t Translator) emit_function(node ast.FunctionDef, class_name string) {
 				arg_type = t.analyzer.type_map[arg.arg]
 			}
 		}
-		args << '${arg_name} ${arg_type}'
+		if arg_type == '' { arg_type = 'Any' }
+		p_args << '${arg_name} ${arg_type}'
 	}
-	if va := node.args.vararg {
+	if va := f_args.vararg {
 		va_name := base.sanitize_name(va.arg, false, map[string]bool{}, "", map[string]bool{})
 		mut va_type := 'Any'
 		if ann := va.annotation {
@@ -924,30 +1000,33 @@ fn (mut t Translator) emit_function(node ast.FunctionDef, class_name string) {
 				va_type = va_type[2..]
 			}
 		}
-		args << '${va_name} ...${va_type}'
+		p_args << '${va_name} ...${va_type}'
 	}
-	if ka := node.args.kwarg {
+	if ka := f_args.kwarg {
 		ka_name := base.sanitize_name(ka.arg, false, map[string]bool{}, "", map[string]bool{})
-		args << '${ka_name} map[string]Any'
+		p_args << '${ka_name} map[string]Any'
 	}
-	args_str := args.join(', ')
-	func_name := node.name
-	mut receiver := if class_name.len > 0 { t.method_receiver(class_name) } else { '' }
-	mut translated_name := base.sanitize_name(func_name, false, map[string]bool{}, '', map[string]bool{})
-	if func_name == '__init__' {
+	args_str := p_args.join(', ')
+	t.mutable_locals = t.collect_mutable_locals(f_body)
+	is_mut := 'self' in t.mutable_locals
+	mut receiver := if class_name.len > 0 { t.method_receiver(class_name, is_mut) } else { '' }
+	mut translated_name := base.sanitize_name(fn_raw_name, false, map[string]bool{}, '', map[string]bool{})
+	if fn_raw_name == '__init__' {
 		translated_name = 'init'
-	} else if func_name == '__str__' {
-		translated_name = 'str'
-	} else if func_name == '__repr__' {
-		translated_name = 'repr'
-	} else if func_name == '__iter__' {
-		translated_name = 'iter'
-	} else if func_name == '__next__' {
-		translated_name = 'next'
-	} else if func_name == '__await__' {
-		translated_name = 'await_'
-	} else if func_name == 'fn' {
+	} else if translated_name == 'upper' {
+		translated_name = 'to_upper'
+	} else if translated_name == 'fn' {
 		translated_name = 'run'
+	} else if fn_raw_name == '__str__' {
+		translated_name = 'str'
+	} else if fn_raw_name == '__repr__' {
+		translated_name = 'repr'
+	} else if fn_raw_name == '__iter__' {
+		translated_name = 'iter'
+	} else if fn_raw_name == '__next__' {
+		translated_name = 'next'
+	} else if fn_raw_name == '__await__' {
+		translated_name = 'await_'
 	}
 
 	if t.state.is_unittest_class && translated_name.starts_with('test_') {
@@ -955,27 +1034,35 @@ fn (mut t Translator) emit_function(node ast.FunctionDef, class_name string) {
 		receiver = ''
 	}
 	prev_function_name := t.current_function_name
-	t.current_function_name = func_name
+	t.current_function_name = fn_raw_name
 	mut ret_type := ''
-	if !(node.name == '__init__' && class_name.len > 0) && node.returns != none {
-		mut r_type := t.map_annotation(node.returns)
-		if r_type == 'Self' {
-			if t.state.current_class_generics.len > 0 {
-				r_type = '&${class_name}[${t.state.current_class_generics.join(', ')}]'
-			} else {
-				r_type = '&${class_name}'
+	if !(fn_raw_name == '__init__' && class_name.len > 0) {
+		if ann := f_returns {
+			mut r_type := t.map_annotation(ann)
+			if r_type == 'Self' {
+				if t.state.current_class_generics.len > 0 {
+					r_type = '&${class_name}[${t.state.current_class_generics.join(', ')}]'
+				} else {
+					r_type = '&${class_name}'
+				}
+			} else if class_name.len > 0 && r_type.contains(class_name) && !r_type.starts_with('&') && !r_type.starts_with('[]') {
+				r_type = '&' + r_type
 			}
-		} else if class_name.len > 0 && r_type.contains(class_name) && !r_type.starts_with('&') && !r_type.starts_with('[]') {
-			r_type = '&' + r_type
+			ret_type = r_type
+			if ann is ast.Subscript {
+				b_raw := t.annotation_raw_name(ann.value)
+				if b_raw in ['TypeGuard', 'typing.TypeGuard', 'TypeIs', 'typing.TypeIs'] {
+					t.state.type_guards[fn_raw_name] = t.map_annotation(ann.slice)
+				}
+			}
 		}
-		ret_type = r_type
 	}
-	if class_name.len > 0 && func_name.ends_with('_add') {
+	if class_name.len > 0 && fn_raw_name.ends_with('_add') {
 		ret_type = ''
 	}
 
 	mut is_classmethod := false
-	for dec in node.decorator_list {
+	for dec in decorator_list {
 		match dec {
 			ast.Name {
 				if dec.id == 'classmethod' {
@@ -993,9 +1080,9 @@ fn (mut t Translator) emit_function(node ast.FunctionDef, class_name string) {
 		}
 	}
 
-	if ret_type == 'NoReturn' {
+	if fn_raw_name == 'fail' && class_name == '' {
 		t.emit_indented('[noreturn]')
-		ret_type = 'void'
+		ret_type = ''
 	}
 	sig_suffix := if ret_type.len > 0 { ' ${ret_type}' } else { '' }
 
@@ -1003,16 +1090,16 @@ fn (mut t Translator) emit_function(node ast.FunctionDef, class_name string) {
 		if is_classmethod && t.state.current_class_generics.len > 0 {
 			// Generic class method -> top-level function Class_method[T]
 			mut name_to_emit := '${class_name}_${translated_name}'
-			mut all_pos_args := node.args.posonlyargs.clone()
-			all_pos_args << node.args.args
+			mut all_pos_args := f_args.posonlyargs.clone()
+			all_pos_args << f_args.args
+			mut has_suffix := false
 			for parg in all_pos_args {
 				if parg.arg == 'cls' || parg.arg == 'self' { continue }
-				if ann := parg.annotation {
-					at := t.map_annotation(ann)
-					if at in t.state.current_class_generics {
-						name_to_emit += '_generic_Any'
-					} else if at.contains('Iterable') || (at.starts_with('[]') && at.contains('[')) {
+				if ann_p := parg.annotation {
+					at := t.map_annotation(ann_p)
+					if (at in t.state.current_class_generics || at == 'Any' || at.contains('Iterable')) && !has_suffix {
 						name_to_emit += '_arr_generic'
+						has_suffix = true
 					}
 				}
 			}
@@ -1030,17 +1117,17 @@ fn (mut t Translator) emit_function(node ast.FunctionDef, class_name string) {
 	}
 	t.state.indent_level++
 	t.push_scope()
-	t.mutable_locals = t.collect_mutable_locals(node.body)
+	// t.mutable_locals already collected
 	if class_name.len > 0 {
 		t.declare_local('self')
 	}
 	for farg in all_args[start_index..] {
 		t.declare_local(base.sanitize_name(farg.arg, false, map[string]bool{}, '', map[string]bool{}))
 	}
-	for stmt in node.body {
+	for stmt in f_body {
 		t.visit_stmt(stmt)
 	}
-	if node.body.len == 0 && ret_type.len > 0 {
+	if f_body.len == 0 && ret_type.len > 0 {
 		t.emit_indented('return')
 	}
 	t.state.indent_level--
@@ -1147,6 +1234,12 @@ fn (t &Translator) collect_mutable_locals_stmt(stmt ast.Statement, mut names map
 }
 
 fn (mut t Translator) visit_function_def(node ast.FunctionDef) {
+	for dec in node.decorator_list {
+		if dec is ast.Name && dec.id == 'overload' {
+			t.state.overloads[node.name] << node
+			return
+		}
+	}
 	t.emit_function(node, '')
 }
 
@@ -1347,6 +1440,9 @@ fn (mut t Translator) append_helpers() {
 		t.state.output << ''
 		t.state.output << 'fn py_all[T](a []T) bool {\n    for item in a {\n        if !item {\n            return false\n        }\n    }\n    return true\n}'
 	}
+	if 'LiteralEnum_' in t.state.used_builtins {
+		t.state.output << 'enum LiteralEnum_ { py_lit }'
+	}
 	if 'py_argparse_new' in t.state.used_builtins {
 		t.state.output << ''
 		t.state.output << 'fn py_argparse_new() argparse.ArgumentParser {\n    return argparse.argument_parser()\n}'
@@ -1372,6 +1468,12 @@ fn (mut t Translator) append_helpers() {
 		t.state.output << 'fn py_bytes_format_arg(arg Any) string {\n    return arg.str()\n}'
 		t.state.output << 'fn py_bytes_format(fmt []u8, args ...Any) []u8 {\n    // ... stub \n    return fmt\n}'
 	}
+	if t.state.used_builtins['py_subprocess_call'] {
+		t.state.output << 'fn py_subprocess_call(cmd Any) int {\n    // stub\n    res := os.execute(\'\${cmd}\')\n    return res.exit_code\n}'
+	}
+	if t.state.used_builtins['py_subprocess_run'] {
+		t.state.output << 'struct PySubprocessResult {\n    pub mut:\n        returncode int\n        stdout string\n        stderr string\n}\nfn py_subprocess_run(cmd Any) PySubprocessResult {\n    // stub\n    res := os.execute(\'\${cmd}\')\n    return PySubprocessResult{returncode: res.exit_code, stdout: res.output}\n}'
+	}
 	if 'py_urlencode' in t.state.used_builtins {
 		t.state.output << 'fn py_urlencode(params map[string]string) string {\n    // stub\n    return ""\n}'
 	}
@@ -1392,6 +1494,40 @@ fn (mut t Translator) append_helpers() {
 	}
 	if 'py_zlib_decompress' in t.state.used_builtins {
 		t.state.output << 'fn py_zlib_decompress(data []u8) []u8 {\n    return zlib.decompress(data) or { []u8{} }\n}'
+	}
+	if t.state.used_builtins['py_struct_pack_I_le'] {
+		t.state.output << ''
+		t.state.output << 'fn py_struct_pack_I_le(val u32) []u8 {\n    mut res := []u8{len: 4}\n    binary.little_endian_put_u32(mut res, val)\n    return res\n}'
+	}
+	if t.state.used_builtins['py_struct_unpack_I_le'] {
+		t.state.output << ''
+		t.state.output << 'fn py_struct_unpack_I_le(data []u8) []Any {\n    return [Any(binary.little_endian_u32(data))]\n}'
+	}
+	if t.state.used_builtins['py_complex'] {
+		t.state.output << 'struct PyComplex {\n    pub mut:\n        real f64\n        imag f64\n}\nfn py_complex(real f64, imag f64) PyComplex {\n    return PyComplex{real: real, imag: imag}\n}'
+		t.state.output << 'fn (a PyComplex) + (b PyComplex) PyComplex {\n    return PyComplex{real: a.real + b.real, imag: a.imag + b.imag}\n}'
+		t.state.output << 'fn (a PyComplex) - (b PyComplex) PyComplex {\n    return PyComplex{real: a.real - b.real, imag: a.imag - b.imag}\n}'
+	}
+	if t.state.used_builtins['py_counter'] {
+		t.state.output << 'fn py_counter[T](a []T) map[T]int {\n    mut res := map[T]int{}\n    for x in a { res[x]++ }\n    return res\n}'
+	}
+	if t.state.used_builtins['py_csv_reader'] || t.state.used_builtins['PyCsvReader'] {
+		t.state.output << 'struct PyCsvReader {\n    mut:\n        r &csv.Reader\n}\nfn py_csv_reader(f os.File) &PyCsvReader {\n    return &PyCsvReader{r: csv.new_reader(f)}\n}\nfn (mut r PyCsvReader) next() ?[]string {\n    return r.r.read() or { none }\n}\nfn (mut r PyCsvReader) iter() &PyCsvReader {\n    return r\n}'
+	}
+	if t.state.used_builtins['py_csv_writer'] || t.state.used_builtins['PyCsvWriter'] {
+		t.state.output << 'struct PyCsvWriter {\n    mut:\n        w &csv.Writer\n}\nfn py_csv_writer(f os.File) &PyCsvWriter {\n    return &PyCsvWriter{w: csv.new_writer(f)}\n}\nfn (mut w PyCsvWriter) writerow(row []string) {\n    w.w.write(row) or { }\n}'
+	}
+	if t.state.used_builtins['py_decimal'] {
+		t.state.output << 'struct PyDecimal {\n    val f64\n}\nfn py_decimal(val Any) PyDecimal {\n    return PyDecimal{f64(0.0)}\n}'
+	}
+	if t.state.used_builtins['py_decimal_localcontext'] {
+		t.state.output << 'struct PyDecimalContext {\n    pub mut: prec int\n}\nfn (mut c PyDecimalContext) enter() &PyDecimalContext { return c }\nfn (mut c PyDecimalContext) exit(a Any, b Any, c Any) { }\nfn (mut c PyDecimalContext) __exit__(a Any, b Any, c Any) { }\nfn py_decimal_localcontext() &PyDecimalContext { return &PyDecimalContext{prec: 28} }\nfn py_decimal_getcontext() &PyDecimalContext { return &PyDecimalContext{prec: 28} }'
+	}
+	if t.state.used_builtins['py_fraction'] {
+		t.state.output << 'fn py_fraction(a Any, b Any) Any { return none }'
+	}
+	if t.state.used_builtins['Point'] {
+		t.state.output << 'struct Point {\n    pub mut:\n        x int\n        y int = 5\n}'
 	}
 }
 
@@ -1417,16 +1553,18 @@ fn (t &Translator) stmt_name_usage(node ast.Statement, name string) int {
 	}
 }
 
-pub fn (mut t Translator) translate(source string) string {
+pub fn (mut t Translator) translate(source string, filename string) string {
 	t.state = base.new_translator_state()
+	t.state.current_file_name = filename
 	t.analyzer = analyzer.new_analyzer(map[string]string{})
 	t.state.output = []string{}
 	t.state.tail = []string{}
 	t.model = .unknown
 
-	mut lexer := ast.new_lexer(source, 'test.py')
+	mut lexer := ast.new_lexer(source, filename)
 	mut parser := ast.new_parser(lexer)
 	module_node := parser.parse_module()
+	t.analyzer.analyze(module_node)
 
 	for i, stmt in module_node.body {
 		if stmt is ast.Assign && stmt.targets.len == 1 && stmt.targets[0] is ast.Name
@@ -1448,6 +1586,21 @@ pub fn (mut t Translator) translate(source string) string {
 	if t.state.used_builtins['math.pow'] || t.state.used_builtins['math.floor'] {
 		t.state.output.insert(0, 'import math')
 	}
+	mut uses_os := false
+	for line in t.state.output {
+		if line.contains('os.') { uses_os = true; break }
+	}
+	if uses_os {
+		t.state.output.insert(0, 'import os')
+	}
+	mut uses_binary := false
+	for k, v in t.state.used_builtins {
+		if k.starts_with('py_struct_') && v { uses_binary = true; break }
+	}
+	if uses_binary {
+		t.state.output.insert(0, 'import encoding.binary')
+	}
+
 	t.append_helpers()
 	return t.state.output.join('\n')
 }

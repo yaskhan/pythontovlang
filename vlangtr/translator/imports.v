@@ -41,10 +41,9 @@ pub fn (mut t Translator) visit_import(node ast.Import) {
 		if is_same_scc {
 			continue
 		}
-		if module_name == '__future__' {
+		if module_name in ['typing', 'unittest'] {
 			continue
 		}
-
 		if module_name == 'base64' {
 			t.state.output << 'import encoding.base64'
 			continue
@@ -82,10 +81,6 @@ pub fn (mut t Translator) visit_import_from(node ast.ImportFrom) {
 		return
 	}
 
-	if module_name == '__future__' {
-		return
-	}
-
 	mut is_same_scc := false
 	for scc_file in t.state.scc_files.keys() {
 		if matches_scc(module_name, scc_file) {
@@ -106,5 +101,9 @@ pub fn (mut t Translator) visit_import_from(node ast.ImportFrom) {
 		} else {
 			t.register_imported_symbol(as_name, '${module_name}.${name}')
 		}
+	}
+
+	if module_name in ['typing', 'unittest', '__future__'] {
+		return
 	}
 }

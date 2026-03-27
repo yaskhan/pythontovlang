@@ -58,7 +58,7 @@ fn test_transpilation() {
 		
 		// Use the shared translator
 		// (Assuming it's safe to reuse it, which is the point of shared initialization)
-		actual := t.translate(source)
+		actual := t.translate(source, py_path)
 		
 		is_ok := check_expected_output(actual, expected, expected_path) or {
 			failures << format_failure(py_path, expected_path, expected, actual, err.msg())

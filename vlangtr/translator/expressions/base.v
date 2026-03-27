@@ -9,7 +9,8 @@ pub struct ExprGen {
 pub mut:
 	model    &models.VType
 	analyzer &analyzer.Analyzer
-	state    &base.TranslatorState
+	state       &base.TranslatorState
+	target_type string
 }
 
 pub fn new_expr_gen(model &models.VType, type_analyzer &analyzer.Analyzer, state &base.TranslatorState) ExprGen {
@@ -28,6 +29,7 @@ fn (eg &ExprGen) type_ctx() base.TypeGuessingContext {
 		name_remap:         eg.state.name_remap
 		defined_classes:    eg.state.defined_classes
 		explicit_any_types: eg.analyzer.explicit_any_types
+		target_type:        eg.target_type
 	}
 }
 
@@ -221,7 +223,9 @@ pub fn (mut eg ExprGen) visit_constant(node ast.Constant) string {
 	}
 	if node.value.ends_with('j') && !node.value.starts_with("'") && !node.value.starts_with('"') {
 		content := node.value[..node.value.len - 1]
-		return 'py_complex(0.0, ${content})'
+		val := if content.contains('.') { content } else { '${content}.0' }
+		eg.state.used_builtins['py_complex'] = true
+		return 'py_complex(0.0, ${val})'
 	}
 	return node.value
 }
@@ -265,6 +269,13 @@ pub fn (mut eg ExprGen) visit_list(node ast.List) string {
 	for elt in node.elements {
 		values << eg.visit(elt)
 	}
+	if values.len == 0 {
+		list_type := if eg.target_type.starts_with('[]') { eg.target_type } else { eg.guess_type(node) }
+		if list_type.starts_with('[]') {
+			return '${list_type}{}'
+		}
+		return '[]'
+	}
 	return '[${values.join(', ')}]'
 }
 
@@ -277,8 +288,11 @@ pub fn (mut eg ExprGen) visit_tuple(node ast.Tuple) string {
 }
 
 pub fn (mut eg ExprGen) visit_dict(node ast.Dict) string {
+	dict_type := if eg.target_type.len > 0 { eg.target_type } else { 'Any' }
+	is_struct := dict_type in eg.state.defined_classes
+
 	if node.keys.len == 0 {
-		return 'map[string]Any{}'
+		return if is_struct { '${dict_type}{}' } else { 'map[string]Any{}' }
 	}
 	mut items := []string{}
 	for i, key in node.keys {
@@ -286,11 +300,18 @@ pub fn (mut eg ExprGen) visit_dict(node ast.Dict) string {
 			break
 		}
 		val := eg.visit(node.values[i])
+		if is_struct && key is ast.Constant && (key.token.typ == .string_tok || key.token.typ == .fstring_tok) {
+			items << '${key.value.trim('\'"')}: ${val}'
+			continue
+		}
 		if key is ast.NoneExpr {
 			items << val
 			continue
 		}
 		items << '${eg.visit(key)}: ${val}'
+	}
+	if is_struct {
+		return '${dict_type}{${items.join(', ')}}'
 	}
 	return '{${items.join(', ')}}'
 }
@@ -388,7 +409,7 @@ fn (mut eg ExprGen) lambda_param_type(annotation ?ast.Expression) string {
 
 fn (eg &ExprGen) lambda_return_type(body ast.Expression) string {
 	ret_type := eg.guess_type(body)
-	return if ret_type in ['Any', 'void', 'unknown'] { 'int' } else { ret_type }
+	return if ret_type in ['Any', 'void', 'unknown'] { 'Any' } else { ret_type }
 }
 
 pub fn (mut eg ExprGen) visit_await(node ast.Await) string {

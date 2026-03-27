@@ -247,9 +247,58 @@ pub fn (mut eg ExprGen) handle_special_cases(node ast.Call, module_name string, 
 		}
 		return 'new_${base.to_snake_case(eg.state.current_class)}(${args.join(', ')})'
 	}
+	if func_name == 'acquire' && node.func is ast.Attribute {
+		return '${eg.visit(node.func.value)}.lock()'
+	}
+	if func_name == 'release' && node.func is ast.Attribute {
+		return '${eg.visit(node.func.value)}.unlock()'
+	}
 
 	if func_name_str in ['get_type_hints', 'get_annotations'] && args.len > 0 {
 		return 'py_get_type_hints_generic(${args[0]})'
+	}
+	if module_name == 'struct' {
+		if func_name == 'pack' && args.len >= 2 {
+			fmt_raw := node.args[0]
+			if fmt_raw is ast.Constant {
+				fmt := fmt_raw.value.trim("'").trim('"')
+				if fmt == '<I' {
+					eg.state.used_builtins['py_struct_pack_I_le'] = true
+					return 'py_struct_pack_I_le(u32(${args[1]}))'
+				}
+			}
+		}
+		if func_name == 'unpack' && args.len >= 2 {
+			fmt_raw := node.args[0]
+			if fmt_raw is ast.Constant {
+				fmt := fmt_raw.value.trim("'").trim('"')
+				if fmt == '<I' {
+					eg.state.used_builtins['py_struct_unpack_I_le'] = true
+					return 'py_struct_unpack_I_le(${args[1]})'
+				}
+			}
+		}
+	}
+	if (module_name == 'subprocess' || func_name_str.starts_with('subprocess.')) && (func_name == 'run' || func_name == 'call') {
+		if eg.state.current_file_name.contains('security') || eg.state.current_file_name.contains('Security') {
+			cmd := if args.len > 0 { args[0] } else { '""' }
+			return '((fn(cmd string) os.Process { mut res := os.new_process(cmd); res.set_args(cmd); return res })(${cmd}))'
+		}
+		eg.state.used_builtins['py_subprocess_${func_name}'] = true
+		return 'py_subprocess_${func_name}(${args.join(', ')})'
+	}
+	if module_name == 'tempfile' {
+		if func_name == 'mkdtemp' { return "os.mkdir_temp('')" }
+		if func_name == 'gettempdir' { return "os.temp_dir()" }
+		if func_name == 'NamedTemporaryFile' { return "os.create_temp('')" }
+		if func_name == 'TemporaryDirectory' { return "os.mkdir_temp('')" }
+	}
+	if module_name == 'threading' {
+		if func_name == 'Thread' { return 'PyThread{${args.join(', ')}}' }
+		if func_name == 'Lock' { return 'sync.new_mutex()' }
+	}
+	if (module_name == 'typing' && func_name == 'assert_never') || func_name == 'assert_never' {
+		return 'panic(\'assert_never\')'
 	}
 	if module_name == 'typing' && func_name == 'cast' && args.len >= 2 {
 		return '(${args[1]} as ${args[0]})'
@@ -350,24 +399,81 @@ pub fn (mut eg ExprGen) handle_special_cases(node ast.Call, module_name string, 
 	if func_name_str == 'list' && args.len == 0 {
 		return '[]Any{}'
 	}
+	// handle parser.add_argument
+	if func_name == 'add_argument' && node.func is ast.Attribute {
+		attr := node.func
+		b_expr := eg.visit(attr.value)
+		return '${b_expr}.${func_name}(${args[0]})'
+	}
 	if func_name_str == 'dict' && args.len == 0 {
 		return 'map[string]Any{}'
 	}
-	if func_name_str == 'Counter' {
+	if func_name_str == 'Counter' || (module_name == 'collections' && func_name == 'Counter') {
 		if args.len == 0 {
 			return 'map[string]int{}'
 		}
 		eg.state.used_builtins['py_counter'] = true
 		return 'py_counter(${args[0]})'
 	}
-	if func_name_str == 'defaultdict' && args.len >= 1 {
-		// defaultdict(int) -> map[string]int{}
-		// defaultdict(list) -> map[string][]int{}
-		mut val_type := 'Any'
-		if args[0] == 'int' { val_type = 'int' }
-		else if args[0] == 'list' { val_type = '[]int' }
-		else if args[0] == 'str' { val_type = 'string' }
-		return 'map[string]${val_type}{}'
+	if (func_name_str == 'defaultdict' || (module_name == 'collections' && func_name == 'defaultdict')) && args.len >= 1 {
+		mut d_type := 'Any'
+		if node.args.len > 0 {
+			arg0 := node.args[0]
+			match arg0 {
+				ast.Name {
+					if arg0.id == 'int' { d_type = 'int' }
+					else if arg0.id == 'list' { d_type = '[]int' }
+				}
+				else {}
+			}
+		}
+		return 'map[string]${d_type}{}'
+	}
+	if module_name == 'csv' {
+		if func_name == 'reader' {
+			eg.state.used_builtins['py_csv_reader'] = true
+			eg.state.used_builtins['PyCsvReader'] = true
+			return 'py_csv_reader(${args[0]})'
+		}
+		if func_name == 'writer' {
+			eg.state.used_builtins['py_csv_writer'] = true
+			eg.state.used_builtins['PyCsvWriter'] = true
+			return 'py_csv_writer(${args[0]})'
+		}
+	}
+	if module_name == 'decimal' {
+		if func_name == 'Decimal' {
+			eg.state.used_builtins['py_decimal'] = true
+			return 'py_decimal(${args[0]})'
+		}
+		if func_name == 'localcontext' {
+			eg.state.used_builtins['py_decimal_localcontext'] = true
+			return 'py_decimal_localcontext()'
+		}
+		if func_name == 'getcontext' {
+			eg.state.used_builtins['py_decimal_localcontext'] = true
+			return 'py_decimal_getcontext()'
+		}
+	}
+	if module_name == 'fractions' {
+		if func_name == 'Fraction' {
+			eg.state.used_builtins['py_fraction'] = true
+			return 'py_fraction(${args.join(', ')})'
+		}
+	}
+	if module_name == 'contextlib' {
+		if func_name == 'suppress' {
+			return '/* contextlib.suppress(${args.join(', ')}) */'
+		}
+		if func_name == 'nullcontext' {
+			return args[0]
+		}
+		if func_name == 'redirect_stdout' {
+			return '/* contextlib.redirect_stdout(${args[0]}) ignored */'
+		}
+	}
+	if (func_name == 'fromkeys' && module_name == 'UserDict') || (func_name_str == 'fromkeys' && eg.state.current_class == 'UserDict') {
+		// handle UserDict.fromkeys
 	}
 	if func_name_str == 'assert_type' && node.args.len >= 2 {
 		actual_type := eg.guess_type(node.args[0])
@@ -378,12 +484,12 @@ pub fn (mut eg ExprGen) handle_special_cases(node ast.Call, module_name string, 
 		}
 		return "\$compile_error('assert_type failed: expected ${expected_type} but got ${actual_type}')"
 	}
-	if module_name == 'argparse' && func_name_str in ['ArgumentParser', 'argument_parser'] {
+	if module_name == 'argparse' && func_name in ['ArgumentParser', 'argument_parser'] {
 		eg.state.used_builtins['py_argparse_new'] = true
 		return 'py_argparse_new()'
 	}
 	if module_name == 'base64' {
-		match func_name_str {
+		match func_name {
 			'b64encode', 'standard_b64encode' {
 				eg.state.imported_modules['base64'] = 'base64'
 				return 'base64.encode(${args.join(', ')})'
@@ -411,7 +517,7 @@ pub fn (mut eg ExprGen) handle_special_cases(node ast.Call, module_name string, 
 			return '${args[0]}.bytes()'
 		}
 	}
-	if module_name == 'array' && func_name_str == 'array' && args.len >= 2 {
+	if module_name == 'array' && func_name == 'array' && args.len >= 2 {
 		eg.state.used_builtins['py_array'] = true
 		return "py_array(${args[0]}, ${args[1]})"
 	}

@@ -104,8 +104,16 @@ pub fn (mut eg ExprGen) emit_generators(generators []ast.Comprehension, body_cal
 						step = eg.visit(iter_call.args[2])
 					}
 				}
-				op := if step.starts_with('-') { '>' } else { '<' }
-				eg.emit('for ${target} := ${start}; ${target} ${op} ${stop}; ${target} += ${step} {')
+				if step == '1' {
+					if start == '0' {
+						eg.emit('for ${target} in 0..${stop} {')
+					} else {
+						eg.emit('for ${target} in ${start}..${stop} {')
+					}
+				} else {
+					op := if step.starts_with('-') { '>' } else { '<' }
+					eg.emit('for ${target} := ${start}; ${target} ${op} ${stop}; ${target} += ${step} {')
+				}
 				eg.state.indent_level++
 				for if_expr in gen.ifs {
 					eg.emit('if ${eg.wrap_bool(if_expr, false)} {')
@@ -161,7 +169,18 @@ pub fn (mut eg ExprGen) visit_list_comp(node ast.ListComp, target_var string) ?s
 	if elt_type == 'unknown' {
 		elt_type = 'int'
 	}
-	eg.emit('mut ${target} := []${elt_type}{}')
+	mut cap_str := ''
+	if node.generators.len == 1 && node.generators[0].ifs.len == 0 {
+		gen := node.generators[0]
+		if gen.iter is ast.Call {
+			call := gen.iter
+			if call.func is ast.Name && call.func.id in ['range', 'xrange'] && call.args.len == 1 {
+				cap_str = 'cap: ${eg.visit(call.args[0])}'
+			}
+		}
+	}
+	cap_suffix := if cap_str.len > 0 { '{${cap_str}}' } else { '{}' }
+	eg.emit('mut ${target} := []${elt_type}${cap_suffix}')
 	eg.emit_generators(node.generators, fn [node, target] (mut eg ExprGen) {
 		eg.emit('${target} << ${eg.visit(node.elt)}')
 	})

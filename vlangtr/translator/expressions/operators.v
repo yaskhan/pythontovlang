@@ -76,97 +76,119 @@ pub fn (mut eg ExprGen) visit_bin_op(node ast.BinaryOp) string {
 	right := eg.visit(node.right)
 	op := node.op.value
 
+	mut lhs := left
+	mut rhs := right
+	if left_type.contains('|') {
+		if op in ['+', '-', '*', '/', '//', '**'] {
+			lhs = '(${left} as int)'
+		} else if op == '==' || op == '!=' {
+			lhs = '(${left} as string)'
+		}
+	}
+	if right_type.contains('|') {
+		if op in ['+', '-', '*', '/', '//', '**'] {
+			rhs = '(${right} as int)'
+		} else if op == '==' || op == '!=' {
+			rhs = '(${right} as string)'
+		}
+	}
+
 	if op in ['and', 'or'] {
-		lhs := eg.wrap_bool(node.left, false)
-		rhs := eg.wrap_bool(node.right, false)
+		lhs_bool := eg.wrap_bool(node.left, false)
+		rhs_bool := eg.wrap_bool(node.right, false)
 		v_op := if op == 'and' { '&&' } else { '||' }
-		return '${lhs} ${v_op} ${rhs}'
+		return '${lhs_bool} ${v_op} ${rhs_bool}'
 	}
 
 	if op == '*' {
 		if left_type == 'string' || left_type == 'LiteralString' {
-			return '${left}.repeat(${right})'
+			return '${lhs}.repeat(${rhs})'
 		}
 		if right_type == 'string' || right_type == 'LiteralString' {
-			return '${right}.repeat(${left})'
+			return '${rhs}.repeat(${lhs})'
 		}
 		if node.left is ast.List && node.left.elements.len == 1 {
-			return eg.format_repeated_list_literal(node.left, right)
+			return eg.format_repeated_list_literal(node.left, rhs)
 		}
 		if node.right is ast.List && node.right.elements.len == 1 {
-			return eg.format_repeated_list_literal(node.right, left)
+			return eg.format_repeated_list_literal(node.right, lhs)
 		}
 		if left_type.starts_with('[]') || right_type.starts_with('[]') {
 			eg.state.used_builtins['py_repeat_list'] = true
 			return if left_type.starts_with('[]') {
-				'py_repeat_list(${left}, ${right})'
+				'py_repeat_list(${lhs}, ${rhs})'
 			} else {
-				'py_repeat_list(${right}, ${left})'
+				'py_repeat_list(${rhs}, ${lhs})'
 			}
 		}
 	}
 
 	if op == '@' {
-		return '${left}.matmul(${right})'
+		return '${lhs}.matmul(${rhs})'
 	}
 
 	if op == '**' {
 		eg.state.used_builtins['math.pow'] = true
 		if left_type == 'int' && right_type == 'int' {
-			return 'int(math.powi(f64(${left}), ${right}))'
+			return 'int(math.powi(f64(${lhs}), ${rhs}))'
 		}
-		return 'math.pow(f64(${left}), f64(${right}))'
+		return 'math.pow(f64(${lhs}), f64(${rhs}))'
 	}
 
 	if op == '//' {
 		eg.state.used_builtins['math.floor'] = true
 		if left_type == 'int' && right_type == 'int' {
-			return 'int(math.floor(f64(${left}) / f64(${right})))'
+			return 'int(math.floor(f64(${lhs}) / f64(${rhs})))'
 		}
-		return 'math.floor(${left} / ${right})'
+		return 'math.floor(${lhs} / ${rhs})'
 	}
 
 	if op == '%' {
-		if left_type == '[]u8' || (left.starts_with('[') && left.contains('u8(')) {
+		if left_type == '[]u8' || (lhs.starts_with('[') && lhs.contains('u8(')) {
 			eg.state.used_builtins['py_bytes_format'] = true
-			return eg.format_percent_bytes(left, node.right)
+			return eg.format_percent_bytes(lhs, node.right)
 		}
 		if left_type == 'string' || left_type == 'LiteralString' {
 			eg.state.used_string_format = true
-			return eg.format_percent_call(left, node.right)
+			return eg.format_percent_call(lhs, node.right)
 		}
 	}
 
-	if left_type == 'PyComplex' && right_type != 'PyComplex' {
-		return '${left} ${op} py_complex(f64(${right}), 0.0)'
-	}
-	if right_type == 'PyComplex' && left_type != 'PyComplex' {
-		return 'py_complex(f64(${left}), 0.0) ${op} ${right}'
+	is_complex := left_type == 'PyComplex' || right_type == 'PyComplex'
+
+	if is_complex {
+		eg.state.used_builtins['py_complex'] = true
+		if left_type == 'PyComplex' && right_type != 'PyComplex' {
+			return '${lhs} ${op} py_complex(f64(${rhs}), 0.0)'
+		}
+		if right_type == 'PyComplex' && left_type != 'PyComplex' {
+			return 'py_complex(f64(${lhs}), 0.0) ${op} ${rhs}'
+		}
 	}
 
 	if eg.is_set_type(left_type) && eg.is_set_type(right_type) {
 		match op {
 			'|' {
 				eg.state.used_builtins['py_set_union'] = true
-				return 'py_set_union(${left}, ${right})'
+				return 'py_set_union(${lhs}, ${rhs})'
 			}
 			'&' {
 				eg.state.used_builtins['py_set_intersection'] = true
-				return 'py_set_intersection(${left}, ${right})'
+				return 'py_set_intersection(${lhs}, ${rhs})'
 			}
 			'-' {
 				eg.state.used_builtins['py_set_difference'] = true
-				return 'py_set_difference(${left}, ${right})'
+				return 'py_set_difference(${lhs}, ${rhs})'
 			}
 			'^' {
 				eg.state.used_builtins['py_set_xor'] = true
-				return 'py_set_xor(${left}, ${right})'
+				return 'py_set_xor(${lhs}, ${rhs})'
 			}
 			else {}
 		}
 	}
 
-	return '${left} ${op} ${right}'
+	return '${lhs} ${op} ${rhs}'
 }
 
 fn (mut eg ExprGen) format_repeated_list_literal(list_node ast.List, len_expr string) string {
