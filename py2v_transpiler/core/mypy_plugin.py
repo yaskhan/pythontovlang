@@ -1,7 +1,7 @@
 from mypy.plugin import Plugin, ReportConfigContext
 from typing import Any, Dict, Optional, List, Union, cast, Set
 import json
-from mypy.nodes import Var, AssignmentStmt, OperatorAssignmentStmt, CallExpr, MypyFile, ClassDef, FuncDef, Block, IfStmt, WhileStmt, ForStmt, TryStmt, NameExpr, MemberExpr, IndexExpr, TupleExpr, ListExpr, DictExpr, SetExpr, SymbolNode
+from mypy.nodes import Var, AssignmentStmt, OperatorAssignmentStmt, CallExpr, MypyFile, ClassDef, FuncDef, FuncItem, Block, IfStmt, WhileStmt, ForStmt, TryStmt, NameExpr, MemberExpr, IndexExpr, TupleExpr, ListExpr, DictExpr, SetExpr, SymbolNode
 from collections import defaultdict
 
 # Global dictionary to store types without relying on the filesystem
@@ -45,9 +45,11 @@ class MutabilityVisitor:
             if node.info:
                 for sym in node.info.names.values(): self.visit(sym.node)
             for stmt in node.defs.body: self.visit(stmt)
-        elif isinstance(node, FuncDef):
-            for arg in node.arguments: self.visit(arg.variable)
-            self.visit(node.body)
+        elif isinstance(node, (FuncDef, FuncItem)):
+            if hasattr(node, 'arguments'):
+                for arg in node.arguments: self.visit(arg.variable)
+            if hasattr(node, 'body'):
+                self.visit(node.body)
         elif isinstance(node, Block):
             for stmt in node.body: self.visit(stmt)
         elif isinstance(node, IfStmt):
