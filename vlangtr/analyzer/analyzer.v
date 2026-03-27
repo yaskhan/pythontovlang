@@ -12,8 +12,8 @@ pub mut:
 }
 
 // new_analyzer creates a new Analyzer instance
-pub fn new_analyzer(type_data map[string]string) Analyzer {
-	mut a := Analyzer{
+pub fn new_analyzer(type_data map[string]string) &Analyzer {
+	mut a := &Analyzer{
 		TypeInferenceVisitorMixin: new_type_inference_visitor_mixin()
 		context:                   ''
 		stack:                     []string{}

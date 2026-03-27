@@ -10,8 +10,8 @@ import functions
 
 pub struct Translator {
 pub mut:
-	state    base.TranslatorState
-	analyzer analyzer.Analyzer
+	state    &base.TranslatorState
+	analyzer &analyzer.Analyzer
 	model    models.VType
 	mutable_locals map[string]bool
 	current_function_name string
@@ -76,7 +76,7 @@ fn (t &Translator) is_declared_local(name string) bool {
 }
 
 fn (mut t Translator) visit_expr(node ast.Expression) string {
-	eprintln('EXPR VISIT')
+	// eprintln('EXPR VISIT')
 	mut eg := expressions.new_expr_gen(&t.model, t.analyzer, t.state)
 	return eg.visit(node)
 }
@@ -215,8 +215,18 @@ pub fn (mut t Translator) translate(source string, filename string) string {
 	mut parser := ast.new_parser(lexer)
 	module_node := parser.parse_module()
 	t.analyzer.analyze(module_node)
+	for k, v in t.analyzer.class_hierarchy {
+		t.state.class_hierarchy[k] = v.clone()
+	}
+	for k, v in t.analyzer.main_to_mixins {
+		t.state.main_to_mixins[k] = v.clone()
+	}
+	for k, v in t.analyzer.overloaded_signatures {
+		t.state.overloaded_signatures[k] = v.clone()
+	}
+	t.state.class_hierarchy_initialized = true
 
-	for i, stmt in module_node.body {
+	for _, stmt in module_node.body {
 		// println('Processing stmt ${i}: ${stmt.str()}')
 		t.visit_stmt(stmt)
 	}
@@ -225,6 +235,12 @@ pub fn (mut t Translator) translate(source string, filename string) string {
 
 	if t.state.used_builtins['math.pow'] || t.state.used_builtins['math.floor'] {
 		t.state.output.insert(0, 'import math')
+	}
+	if t.state.used_builtins['encoding.base64'] {
+		t.state.output.insert(0, 'import encoding.base64')
+	}
+	if t.state.used_builtins['compress.zlib'] {
+		t.state.output.insert(0, 'import compress.zlib')
 	}
 	mut uses_os := false
 	for line in t.state.output {

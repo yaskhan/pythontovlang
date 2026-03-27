@@ -62,6 +62,7 @@ pub mut:
 	single_dispatch_functions    map[string]map[string]string
 	known_interfaces             map[string]bool
 	class_hierarchy              map[string][]string
+	main_to_mixins               map[string][]string
 	type_guards                  map[string]string
 	property_setters             map[string]map[string]bool
 	function_names               map[string]bool
@@ -97,8 +98,8 @@ pub mut:
 }
 
 // new_translator_state creates a new TranslatorState instance
-pub fn new_translator_state() TranslatorState {
-	return TranslatorState{
+pub fn new_translator_state() &TranslatorState {
+	return &TranslatorState{
 		type_inference:               unsafe { nil }
 		compatibility:                unsafe { nil }
 		decorator_processor:          unsafe { nil }
@@ -145,6 +146,7 @@ pub fn new_translator_state() TranslatorState {
 		single_dispatch_functions:    map[string]map[string]string{}
 		known_interfaces:             map[string]bool{}
 		class_hierarchy:              map[string][]string{}
+		main_to_mixins:               map[string][]string{}
 		property_setters:             map[string]map[string]bool{}
 		function_names:               map[string]bool{}
 		overloaded_signatures:        map[string][]map[string]string{}

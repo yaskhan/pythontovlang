@@ -41,6 +41,57 @@ fn (mut t Translator) visit_stmt(node ast.Statement) {
 	}
 }
 
+fn (mut t Translator) visit_destructuring(target ast.Expression, source_expr string, source_type string) {
+	if target is ast.Tuple || target is ast.List {
+		tmp_var := 'py_destruct_${t.state.unique_id_counter}'
+		t.state.unique_id_counter++
+		t.emit_indented('${tmp_var} := ${source_expr}')
+		
+		mut elements := []ast.Expression{}
+		if target is ast.Tuple { elements = target.elements.clone() }
+		else if target is ast.List { elements = target.elements.clone() }
+		
+		mut starred_idx := -1
+		for i, elt in elements {
+			if elt is ast.Starred {
+				starred_idx = i
+				break
+			}
+		}
+		
+		is_tuple := source_type.starts_with('TupleStruct_')
+		
+		if starred_idx == -1 {
+			for i, elt in elements {
+				t.visit_destructuring(elt, if is_tuple { '${tmp_var}.it_${i}' } else { '${tmp_var}[${i}]' }, 'unknown')
+			}
+		} else {
+			for i := 0; i < starred_idx; i++ {
+				t.visit_destructuring(elements[i], if is_tuple { '${tmp_var}.it_${i}' } else { '${tmp_var}[${i}]' }, 'unknown')
+			}
+			star_elt := elements[starred_idx] as ast.Starred
+			trailing := elements.len - 1 - starred_idx
+			slice_expr := if trailing == 0 { '${tmp_var}[${starred_idx}..]' } else { '${tmp_var}[${starred_idx}..(${tmp_var}.len - ${trailing})]' }
+			t.visit_destructuring(star_elt.value, slice_expr, 'unknown')
+			
+			for i := starred_idx + 1; i < elements.len; i++ {
+				offset := elements.len - i
+				t.visit_destructuring(elements[i], if is_tuple { '${tmp_var}.it_${i}' } else { '${tmp_var}[(${tmp_var}.len - ${offset})]' }, 'unknown')
+			}
+		}
+	} else if target is ast.Name {
+		lhs := base.sanitize_name(target.id, false, map[string]bool{}, '', map[string]bool{})
+		if t.is_declared_local(lhs) {
+			t.emit_indented('${lhs} = ${source_expr}')
+		} else {
+			t.emit_indented('${lhs} := ${source_expr}')
+			t.declare_local(lhs)
+		}
+	} else {
+		t.emit_indented('${t.visit_expr(target)} = ${source_expr}')
+	}
+}
+
 fn (mut t Translator) visit_expr_stmt(node ast.Expr) {
 	// println('Visiting ExprStmt: ${node.str()}')
 	val := node.value
@@ -98,6 +149,52 @@ fn (mut t Translator) visit_assign(node ast.Assign) {
 	target := node.targets[0]
 	mut eg := expressions.new_expr_gen(&t.model, t.analyzer, t.state)
 	mut rhs := ''
+	
+	if node.targets.len > 1 {
+		mut all_names := true
+		for tgt in node.targets {
+			if tgt !is ast.Name { all_names = false; break }
+		}
+		if all_names && node.value is ast.Tuple && node.value.elements.len == node.targets.len {
+			mut names := []string{}
+			mut values := []string{}
+			for i, tgt in node.targets {
+				if tgt is ast.Name {
+					names << base.sanitize_name(tgt.id, false, map[string]bool{}, '', map[string]bool{})
+					values << eg.visit(node.value.elements[i])
+				}
+			}
+			
+			mut is_decl := false
+			for name in names {
+				if !t.is_declared_local(name) { is_decl = true; break }
+			}
+			
+			if is_decl {
+				t.emit_indented('${names.join(", ")} := ${values.join(", ")}')
+				for name in names { t.declare_local(name) }
+			} else {
+				t.emit_indented('${names.join(", ")} = ${values.join(", ")}')
+			}
+			return
+		}
+
+		rhs = eg.visit(node.value)
+		tmp := 'py_assign_tmp_${t.state.unique_id_counter}'
+		t.state.unique_id_counter++
+		t.emit_indented('${tmp} := ${rhs}')
+		for tgt in node.targets {
+			t.visit_destructuring(tgt, tmp, 'unknown')
+		}
+		return
+	}
+
+	if target is ast.List || target is ast.Tuple {
+		rhs = eg.visit(node.value)
+		t.visit_destructuring(target, rhs, 'unknown')
+		return
+	}
+
 	if target is ast.Name && (node.value is ast.ListComp || node.value is ast.DictComp || node.value is ast.SetComp) {
 		lhs := base.sanitize_name(target.id, false, map[string]bool{}, '', map[string]bool{})
 		val := node.value
@@ -108,7 +205,6 @@ fn (mut t Translator) visit_assign(node ast.Assign) {
 		} else if val is ast.SetComp {
 			rhs = eg.visit_set_comp(val, lhs) or { '' }
 		}
-		// t.state = eg.state // State is now a pointer, no need to reassign
 		if rhs == lhs { return }
 	} else {
 		mut target_type := ''
@@ -214,11 +310,6 @@ fn (mut t Translator) visit_aug_assign(node ast.AugAssign) {
 	}
 	value_expr := t.visit_expr(node.value)
 
-	if node.op.value == '+=' && node.value is ast.Constant && (node.value as ast.Constant).value == '1' {
-		t.emit_indented('${target_expr}++')
-		return
-	}
-
 	if node.op.value in ['**', '**='] {
 		t.state.used_builtins['math.pow'] = true
 		target_type := t.guess_type(node.target)
@@ -249,8 +340,16 @@ fn (mut t Translator) visit_aug_assign(node ast.AugAssign) {
 	t.emit_indented('${target_expr} ${node.op.value} ${value_expr}')
 }
 
-fn (mut t Translator) visit_delete_stmt(_ ast.Delete) {
-	t.emit_indented('//##LLM@@ del statement not lowered.')
+fn (mut t Translator) visit_delete_stmt(node ast.Delete) {
+	for target in node.targets {
+		if target is ast.Subscript {
+			t.emit_indented('${t.visit_expr(target.value)}.delete(${t.visit_expr(target.slice)})')
+		} else if target is ast.Attribute {
+			t.emit_indented('//##LLM@@ \'del ${t.visit_expr(target)}\' statement ignored')
+		} else {
+			t.emit_indented('//##LLM@@ \'del ${t.visit_expr(target)}\' statement ignored')
+		}
+	}
 }
 
 fn (mut t Translator) visit_assert(node ast.Assert) {

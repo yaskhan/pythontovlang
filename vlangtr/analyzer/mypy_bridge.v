@@ -26,5 +26,5 @@ pub fn new_mypy_result() MypyResult {
 }
 
 pub fn is_mypy_available() bool {
-	return false
+	return true
 }

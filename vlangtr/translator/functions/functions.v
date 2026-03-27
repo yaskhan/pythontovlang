@@ -36,15 +36,15 @@ pub struct FunctionVisitEnv {
 pub mut:
 	state             &base.TranslatorState
 	analyzer          analyzer.Analyzer
-	visit_stmt_fn     fn (ast.Statement)
-	visit_expr_fn     fn (ast.Expression) string
-	emit_fn           fn (string)
-	emit_constant_fn  fn (string)
-	indent_fn         fn () string
-	push_scope_fn     fn ()
-	pop_scope_fn      fn ()
-	declare_local_fn  fn (string)
-	map_annotation_fn fn (ast.Expression) string
+	visit_stmt_fn     fn (ast.Statement) = unsafe { nil }
+	visit_expr_fn     fn (ast.Expression) string = unsafe { nil }
+	emit_fn           fn (string) = unsafe { nil }
+	emit_constant_fn  fn (string) = unsafe { nil }
+	indent_fn         fn () string = unsafe { nil }
+	push_scope_fn     fn () = unsafe { nil }
+	pop_scope_fn      fn () = unsafe { nil }
+	declare_local_fn  fn (string) = unsafe { nil }
+	map_annotation_fn fn (ast.Expression) string = unsafe { nil }
 	source_mapping    bool
 }
 

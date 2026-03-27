@@ -886,11 +886,30 @@ pub fn (mut t TypeInferenceVisitorMixin) visit_function_def(node ast.FunctionDef
 	}
 	t.store_call_signature(node.name, sig)
 
+	mut is_overload := false
 	for decorator in node.decorator_list {
 		t.visit_expr(decorator)
+		dec_name := t.render_expr(decorator)
+		if dec_name.ends_with('overload') {
+			is_overload = true
+		}
 	}
+
 	for type_param in node.type_params {
 		t.visit_type_param(type_param)
+	}
+
+	if is_overload {
+		mut sig_info := map[string]string{}
+		for i, p in signature_args {
+			sig_info[p.arg] = arg_types[i]
+		}
+		sig_info['return'] = return_type
+		
+		qual_name := t.get_qualified_name(node.name)
+		t.overloaded_signatures[qual_name] << sig_info
+		// We don't visit the body of @overload stubs
+		return
 	}
 
 	t.push_scope(node.name)
@@ -1072,9 +1091,6 @@ pub fn (mut t TypeInferenceVisitorMixin) visit_ann_assign(node ast.AnnAssign) {
 		v_type = 'string'
 	}
 	
-	is_class_var := annotation_str.contains('ClassVar[') || annotation_str.starts_with('ClassVar')
-	is_readonly := annotation_str.contains('ReadOnly[') || annotation_str.starts_with('ReadOnly')
-	
 	if annotation_str.starts_with('Literal[') || annotation_str.starts_with('typing.Literal[') {
 		if node.target is ast.Name {
 			// Extract literal value
@@ -1115,10 +1131,6 @@ pub fn (mut t TypeInferenceVisitorMixin) visit_ann_assign(node ast.AnnAssign) {
 			t.store_type(target_name, v_type)
 		}
 		
-		if is_readonly {
-			// In V, we might use a dedicated map for this or just rely on state later.
-			// The analyzer visitor mixin doesn't have a readonly map yet.
-		}
 	}
 
 	if value_expr := node.value {

@@ -5,7 +5,7 @@ import ast
 import base
 
 pub fn (mut eg ExprGen) visit_call(node ast.Call) string {
-	func_name_str, fullname := eg.extract_func_info(node)
+	func_name_str, _ := eg.extract_func_info(node)
 	loc_key := '${node.token.line}:${node.token.column}'
 	call_sig := eg.get_call_signature(func_name_str, loc_key)
 
@@ -22,7 +22,7 @@ pub fn (mut eg ExprGen) visit_call(node ast.Call) string {
 		return eg.handle_get_type_hints(node, args)
 	}
 
-	full_func_name := eg.visit(node.func)
+	_ = eg.visit(node.func)
 	if special := eg.handle_special_cases(node, module_name, func_name, func_name_str,
 		args, call_sig, keyword_args)
 	{
@@ -141,9 +141,10 @@ pub fn (mut eg ExprGen) process_keywords(node ast.Call, call_sig ?analyzer.CallS
 						needs_comment = true
 					}
 				} else if kw.value is ast.Name {
-					// Known signature + variable: subscript access
-					for aname in sig.arg_names[args.len..] {
-						args << "${kw.value.id}['${aname}']"
+					if args.len < sig.arg_names.len {
+						for aname in sig.arg_names[args.len..] {
+							args << "${kw.value.id}['${aname}']"
+						}
 					}
 				} else {
 					args << eg.visit(kw.value)
@@ -230,6 +231,56 @@ pub fn (mut eg ExprGen) handle_special_cases(node ast.Call, module_name string, 
 		}
 	}
 
+	if func_name_str in ['assert_type', 'typing.assert_type'] && args.len == 2 {
+		val_type := eg.guess_type(node.args[0])
+		expected_p_type := eg.visit(node.args[1])
+		expected_v_type := eg.map_assert_type_name(expected_p_type)
+		if val_type == expected_v_type {
+			return '// assert_type(${args[0]}, ${expected_p_type}) passed statically'
+		} else {
+			return "\$compile_error('assert_type failed: expected ${expected_v_type} but got ${val_type}')"
+		}
+	}
+	if func_name_str == 'bool' {
+		if args.len == 0 { return 'false' }
+		if args[0] == 'none' { return 'false' }
+	}
+	if func_name_str == 'str' {
+		if args.len > 0 {
+			return '${args[0]}.str()'
+		}
+		return "''"
+	}
+	
+	if func_name_str in ['any', 'all', 'sum'] {
+		eg.state.used_builtins['py_${func_name_str}'] = true
+		return 'py_${func_name_str}(${args.join(', ')})'
+	}
+	if func_name_str in ['bytes', 'bytearray'] {
+		if args.len > 0 {
+			if args[0].starts_with("'") || args[0].starts_with('"') {
+				return '${args[0]}.bytes()'
+			}
+			if eg.guess_type(node.args[0]) == 'int' {
+				return '[]u8{len: ${args[0]}}'
+			}
+		}
+		eg.state.used_builtins['py_${func_name_str}'] = true
+		return 'py_${func_name_str}(${args.join(', ')})'
+	}
+	if func_name_str == 'sorted' {
+		eg.state.used_builtins['py_sorted'] = true
+		mut sorted_args := args.clone()
+		if 'reverse' !in keyword_args && args.len < 2 {
+			sorted_args << 'false'
+		}
+		return 'py_sorted(${sorted_args.join(', ')})'
+	}
+	if func_name_str == 'reversed' {
+		eg.state.used_builtins['py_reversed'] = true
+		return 'py_reversed(${args.join(', ')})'
+	}
+
 	if func_name_str in eg.state.defined_classes {
 		return 'new_${base.to_snake_case(func_name_str)}(${args.join(', ')})'
 	}
@@ -239,6 +290,31 @@ pub fn (mut eg ExprGen) handle_special_cases(node ast.Call, module_name string, 
 	}
 	if func_name == 'release' && node.func is ast.Attribute {
 		return '${eg.visit(node.func.value)}.unlock()'
+	}
+
+	if module_name == 'argparse' {
+		if func_name == 'ArgumentParser' {
+			eg.state.used_builtins['py_argparse_new'] = true
+			return 'py_argparse_new()'
+		}
+	}
+
+	if module_name == 'array' {
+		if func_name == 'array' {
+			eg.state.used_builtins['py_array'] = true
+			return 'py_array(${args.join(', ')})'
+		}
+	}
+
+	if module_name == 'base64' {
+		eg.state.used_builtins['encoding.base64'] = true
+		match func_name {
+			'b64encode', 'standard_b64encode' { return 'base64.encode(${args[0]})' }
+			'b64decode', 'standard_b64decode' { return 'base64.decode(${args[0]})' }
+			'urlsafe_b64encode' { return 'base64.url_encode(${args[0]})' }
+			'urlsafe_b64decode' { return 'base64.url_decode(${args[0]})' }
+			else { none }
+		}
 	}
 
 	if module_name == 'struct' {
@@ -284,15 +360,18 @@ pub fn (mut eg ExprGen) handle_special_cases(node ast.Call, module_name string, 
 
 	if func_name_str == 'print' {
 		mut print_args := []string{}
-		for i, arg in args {
-			v_node := node.args[i]
-			if v_node is ast.Constant && (v_node.value.starts_with("'") || v_node.value.starts_with('"') || v_node.value.starts_with('b')) {
+		for arg in args {
+			if arg.starts_with("'") || arg.starts_with('"') {
 				print_args << arg
 			} else {
 				print_args << "'\${${arg}}'"
 			}
 		}
 		return 'println(${print_args.join(', ')})'
+	}
+
+	if func_name_str == 'len' && args.len == 1 {
+		return '${args[0]}.len'
 	}
 
 	if func_name_str == 'int' {
@@ -343,6 +422,11 @@ pub fn (mut eg ExprGen) handle_special_cases(node ast.Call, module_name string, 
 		return 'py_gzip_${func_name}(${args.join(', ')})'
 	}
 
+	if module_name == 'zlib' && func_name in ['compress', 'decompress'] {
+		eg.state.used_builtins['py_zlib_${func_name}'] = true
+		return 'py_zlib_${func_name}(${args.join(', ')})'
+	}
+
 	if module_name == 'copy' && func_name in ['copy', 'deepcopy'] {
 		return 'py_${func_name}(${args.join(', ')})'
 	}
@@ -366,6 +450,10 @@ pub fn (mut eg ExprGen) handle_special_cases(node ast.Call, module_name string, 
 pub fn (mut eg ExprGen) handle_via_mapper(node ast.Call, module_name string, func_name string, args []string) ?string {
 	if module_name == 'typing' && func_name == 'cast' && args.len >= 2 {
 		return '(${args[1]} as ${args[0]})'
+	}
+	if module_name == 'typing' && func_name == 'NewType' && args.len >= 2 {
+		name := args[0].trim("'").trim('"')
+		return 'type ${name} = ${args[1]}'
 	}
 	// Add more mapper logic if needed
 	return none
@@ -409,7 +497,7 @@ pub fn (mut eg ExprGen) process_mutated_args(func_name_str string, args []string
 	return final_args
 }
 
-fn map_assert_type_name(type_name string) string {
+fn (eg &ExprGen) map_assert_type_name(type_name string) string {
 	return match type_name {
 		'float' { 'f64' }
 		'int' { 'int' }
@@ -429,6 +517,13 @@ pub fn (mut eg ExprGen) resolve_module_and_func(node ast.Call, func_name_str str
 			if name in eg.state.imported_symbols {
 				return name, attr.attr
 			}
+		}
+	}
+	if func_name_str in eg.state.imported_symbols {
+		sym := eg.state.imported_symbols[func_name_str]
+		if sym.contains('.') {
+			parts := sym.split('.')
+			return parts[0], parts[1]
 		}
 	}
 	return '', func_name_str

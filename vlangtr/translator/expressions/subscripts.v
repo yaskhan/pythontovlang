@@ -18,7 +18,7 @@ pub fn (mut eg ExprGen) visit_subscript(node ast.Subscript) string {
 	pure_val_type := val_type.trim_left('&')
 
 	// TypedDict access d["a"] -> d.a
-	if (pure_val_type in eg.state.dataclasses || pure_val_type in eg.state.defined_classes) {
+	if pure_val_type in eg.state.dataclasses || pure_val_type in eg.state.defined_classes {
 		if node.slice is ast.Constant && (node.slice.token.typ == .string_tok || node.slice.token.typ == .fstring_tok) {
 			field := node.slice.value.trim('\'"')
 			return '${value}.${field}'

@@ -1,7 +1,6 @@
 module classes
 
 import ast
-import base
 
 pub struct FieldDefInfo {
 pub mut:
@@ -325,7 +324,7 @@ fn (h ClassFieldsHandler) build_visibility_blocks(fields []FieldDefInfo, mut out
 		} else if is_private {
 			if f.is_mutated { priv_mut_fields << f.def } else { priv_fields << f.def }
 		} else {
-			if f.is_mutated { pub_mut_fields << f.def } else { pub_fields << f.def }
+			if f.is_readonly { pub_fields << f.def } else { pub_mut_fields << f.def }
 		}
 	}
 

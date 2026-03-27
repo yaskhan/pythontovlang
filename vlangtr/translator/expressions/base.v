@@ -5,16 +5,17 @@ import ast
 import base
 import models
 
+@[heap]
 pub struct ExprGen {
 pub mut:
 	model    &models.VType
-	analyzer analyzer.Analyzer
-	state       base.TranslatorState
+	analyzer &analyzer.Analyzer
+	state    &base.TranslatorState
 	target_type string
 }
 
-pub fn new_expr_gen(model &models.VType, type_analyzer analyzer.Analyzer, state base.TranslatorState) ExprGen {
-	return ExprGen{
+pub fn new_expr_gen(model &models.VType, type_analyzer &analyzer.Analyzer, state &base.TranslatorState) &ExprGen {
+	return &ExprGen{
 		model:    unsafe { model }
 		analyzer: type_analyzer
 		state:    state
@@ -56,7 +57,7 @@ fn (mut eg ExprGen) emit(line string) {
 }
 
 pub fn (mut eg ExprGen) visit(node ast.Expression) string {
-	// println('ExprGen Visiting ${typeof(node).name}')
+	// println('ExprGen Visiting: ' + typeof(node).name)
 	match node {
 		ast.Name { return eg.visit_name(node) }
 		ast.Constant { return eg.visit_constant(node) }

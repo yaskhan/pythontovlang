@@ -187,7 +187,35 @@ pub fn (mut eg ExprGen) visit_list_comp(node ast.ListComp, target_var string) ?s
 	return target
 }
 
+pub fn (mut eg ExprGen) visit_generator_exp_inline(node ast.GeneratorExp) ?string {
+	if node.generators.len == 1 && node.generators[0].ifs.len == 0 {
+		gen := node.generators[0]
+		if gen.target is ast.Name {
+			target_id := gen.target.id
+			iter_expr := eg.visit(gen.iter)
+			
+			// Remap target_id to 'it' for V map
+			prev_remap := eg.state.name_remap[target_id] or { '' }
+			eg.state.name_remap[target_id] = 'it'
+			elt_expr := eg.visit(node.elt)
+			if prev_remap.len > 0 {
+				eg.state.name_remap[target_id] = prev_remap
+			} else {
+				eg.state.name_remap.delete(target_id)
+			}
+			
+			return '${iter_expr}.map(${elt_expr})'
+		}
+	}
+	return none
+}
+
 pub fn (mut eg ExprGen) visit_generator_exp(node ast.GeneratorExp, target_var string) ?string {
+	if target_var.len == 0 {
+		if res := eg.visit_generator_exp_inline(node) {
+			return res
+		}
+	}
 	list_like := ast.ListComp{
 		token:      node.token
 		elt:        node.elt

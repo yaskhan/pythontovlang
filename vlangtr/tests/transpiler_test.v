@@ -58,7 +58,7 @@ fn test_transpilation() {
 		
 		// Initialize a new translator for each file
 		mut t := translator.new_translator()
-		eprintln('Translating ${py_path}...')
+		// eprintln('Translating ${py_path}...')
 		actual := t.translate(source, py_path)
 		
 		is_ok := check_expected_output(actual, expected, expected_path) or {

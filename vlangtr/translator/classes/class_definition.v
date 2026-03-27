@@ -78,7 +78,7 @@ pub fn (mut h ClassDefinitionHandler) visit_class_def(node ast.ClassDef, mut env
 		for f in mixin_fields { fields << f }
 	}
 
-	base_fields, current_class_bases, is_enum, is_int_enum, is_flag, is_unittest, is_protocol, is_named_tuple, is_typed_dict := classes.class_bases_handler.process_bases(node, struct_name, mut env)
+	base_fields, current_class_bases, is_enum, is_int_enum, is_flag, is_unittest, is_protocol, _, is_typed_dict := classes.class_bases_handler.process_bases(node, struct_name, mut env)
 	env.state.current_class_bases = current_class_bases
 	for f in base_fields { fields << f }
 
@@ -148,10 +148,9 @@ pub fn (mut h ClassDefinitionHandler) visit_class_def(node ast.ClassDef, mut env
 
 	if is_unittest {
 		env.state.current_class_is_unittest = true
-		for method in methods {
-			env.visit_stmt_fn(method)
-		}
-	} else if is_protocol {
+	}
+
+	if is_protocol {
 		generics_str := get_generics_with_variance_str(&env)
 		is_exported := env.state.is_exported(node.name)
 		
@@ -195,7 +194,15 @@ pub fn (mut h ClassDefinitionHandler) visit_class_def(node ast.ClassDef, mut env
 		mut struct_fields_str := []string{}
 		classes.class_fields_handler.build_visibility_blocks(fields, mut struct_fields_str, is_typed_dict)
 
-		if node.name in env.state.class_hierarchy && !node.name.ends_with('Mixin') {
+		mut is_base_for_others := false
+		for _, bases in env.state.class_hierarchy {
+			if node.name in bases {
+				is_base_for_others = true
+				break
+			}
+		}
+
+		if (is_base_for_others || is_protocol || is_abc) && !node.name.ends_with('Mixin') {
 			struct_name_for_body = '${struct_name}_Impl'
 			env.state.current_class = struct_name_for_body
 			env.state.class_to_impl[struct_name] = struct_name_for_body
@@ -205,6 +212,7 @@ pub fn (mut h ClassDefinitionHandler) visit_class_def(node ast.ClassDef, mut env
 				methods, doc_comment, decorators, generics_str, is_exported, env.source_mapping,
 				node, struct_fields_str, mut env)
 			env.emit_struct_fn(interface_def)
+			env.state.known_interfaces[struct_name] = true
 		}
 
 		generics_str := get_generics_with_variance_str(&env)
@@ -251,6 +259,47 @@ pub fn (mut h ClassDefinitionHandler) visit_class_def(node ast.ClassDef, mut env
 			meta_const_name := '${base.to_snake_case(struct_name)}_meta'
 			env.emit_constant_fn('pub const ${meta_const_name} = &${meta_struct_name}{}')
 		}
+
+		// Generate factory function new_X for simple struct if it has __init__
+		if struct_name_for_body == struct_name && !is_enum && !is_flag {
+			mut init_method_opt := ?ast.FunctionDef(none)
+			for m in methods {
+				if m.name == '__init__' {
+					init_method_opt = m
+					break
+				}
+			}
+			if init_method := init_method_opt {
+				prefix := if env.state.is_exported(struct_name) { 'pub ' } else { '' }
+				factory_name := get_factory_name(struct_name, &env)
+				generics := get_generics_with_variance_str(&env)
+				mut factory_args := []string{}
+				mut struct_init := []string{}
+				mut call_args := []string{}
+				
+				start_idx := if init_method.args.args.len > 0 && init_method.args.args[0].arg in ['self', 'cls'] { 1 } else { 0 }
+				for i := start_idx; i < init_method.args.args.len; i++ {
+					arg := init_method.args.args[i]
+					name := sanitize_name(arg.arg, false)
+					mut a_type := 'Any'
+					if ann := arg.annotation {
+						a_type = map_python_type(env.visit_expr_fn(ann), struct_name, false, mut env)
+					}
+					factory_args << '${name} ${a_type}'
+					struct_init << '${name}: ${name}'
+					call_args << name
+				}
+				
+				mut f_code := []string{}
+				f_code << '${prefix}fn ${factory_name}${generics}(${factory_args.join(", ")}) &${struct_name}${generics} {'
+				f_code << '    mut self := &${struct_name}${generics}{}'
+				f_code << '    self.init(${call_args.join(", ")})'
+				f_code << '    return self'
+				f_code << '}'
+				env.emit_function_fn(f_code.join('\n'))
+			}
+		}
+
 		if is_dataclass && has_post_init {
 			if factory_code := classes.class_fields_handler.generate_dataclass_factory(
 				struct_name, dataclass_metadata, body, has_post_init, mut env) {

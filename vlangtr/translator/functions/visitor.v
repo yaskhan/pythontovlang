@@ -1,8 +1,6 @@
 module functions
 
 import ast
-import analyzer
-import base
 
 pub struct FunctionsVisitorHandler {}
 
