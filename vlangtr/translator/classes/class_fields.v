@@ -251,32 +251,51 @@ fn (h ClassFieldsHandler) process_dataclass_fields(
 	mut dataclass_field_order []string,
 	mut env ClassVisitEnv,
 ) ([]string, map[string]bool, []string) {
-	_ = body
-	_ = struct_name
-	_ = added_fields
-	_ = dataclass_field_order
-	_ = env
 	if dataclass_metadata.len == 0 {
 		return []string{}, added_fields, dataclass_field_order
 	}
-	if 'attributes' !in dataclass_metadata {
-		return []string{}, added_fields, dataclass_field_order
-	}
-	// The translated Python metadata shape is still incomplete in V, so we keep this
-	// as a guarded hook instead of duplicating class attribute handling.
+	// Note: metadata should contain 'attributes' as a JSON-like string in V translation of Python map
+	// but currently it's a map[string]string.
+	// For now, we rely on the body scan in process_class_attributes which usually handles dataclasses too.
 	return []string{}, added_fields, dataclass_field_order
 }
 
 fn (h ClassFieldsHandler) generate_dataclass_factory(
 	struct_name string,
 	dataclass_metadata map[string]string,
-	_ []ast.Statement,
+	body []ast.Statement,
 	has_post_init bool,
-	_ ClassVisitEnv,
+	mut env ClassVisitEnv,
 ) ?string {
-	_ = struct_name
-	_ = has_post_init
-	_ = dataclass_metadata
+	if !has_post_init {
+		return none
+	}
+	// Find __init__ or dataclass info to build factory
+	for stmt in body {
+		if stmt is ast.FunctionDef && stmt.name == '__init__' {
+			mut args_str := []string{}
+			mut call_args := []string{}
+			mut struct_init := []string{}
+			
+			for i, arg in stmt.args.args {
+				if i == 0 && arg.arg in ['self', 'cls'] { continue }
+				mut arg_type := 'Any'
+				if ann := arg.annotation {
+					arg_type = map_python_type(env.visit_expr_fn(ann), struct_name, false, mut env)
+				}
+				args_str << '${arg.arg} ${arg_type}'
+				call_args << arg.arg
+				struct_init << '${arg.arg}: ${arg.arg}'
+			}
+			
+			res := 'fn new_${base.to_snake_case(struct_name)}(${args_str.join(", ")}) &${struct_name} {\n' +
+				   '    mut res := &${struct_name}{${struct_init.join(", ")}}\n' +
+				   '    res.init(${call_args.join(", ")})\n' +
+				   '    return res\n' +
+				   '}'
+			return res
+		}
+	}
 	return none
 }
 

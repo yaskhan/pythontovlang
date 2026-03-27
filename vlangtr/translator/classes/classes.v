@@ -29,8 +29,8 @@ pub fn new_classes_module() ClassesModule {
 
 pub struct ClassVisitEnv {
 pub mut:
-	state            base.TranslatorState
-	analyzer         analyzer.Analyzer
+	state            &base.TranslatorState
+	analyzer         &analyzer.Analyzer
 	visit_stmt_fn    fn (ast.Statement)
 	visit_expr_fn    fn (ast.Expression) string
 	emit_struct_fn   fn (string)
@@ -40,8 +40,8 @@ pub mut:
 }
 
 pub fn new_class_visit_env(
-	state base.TranslatorState,
-	analyzer_ref analyzer.Analyzer,
+	state &base.TranslatorState,
+	analyzer_ref &analyzer.Analyzer,
 	visit_stmt_fn fn (ast.Statement),
 	visit_expr_fn fn (ast.Expression) string,
 	emit_struct_fn fn (string),

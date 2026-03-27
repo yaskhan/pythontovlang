@@ -26,7 +26,7 @@ pub fn new_transpiler() Transpiler {
 pub fn (t Transpiler) transpile(source_code string) string {
 	_ = t
 	mut tr := translator.new_translator()
-	return tr.translate(source_code)
+	return tr.translate(source_code, '')
 }
 
 pub fn generate_all_helpers(output_path string) bool {
