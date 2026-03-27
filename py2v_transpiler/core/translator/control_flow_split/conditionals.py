@@ -1,5 +1,9 @@
 import ast
+import re
 from ..base import TranslatorBase
+
+# Pre-compiled regular expression for TypeGuard and TypeIs narrowing
+_TYPEGUARD_RE = re.compile(r'(?:typing\.|typing_extensions\.)?(?:TypeGuard|TypeIs)\[(.*?)\]')
 
 class ConditionalsMixin(TranslatorBase):
     """Handling conditional statements: if, elif, else"""
@@ -269,8 +273,7 @@ class ConditionalsMixin(TranslatorBase):
                     arg_node = call_node.args[0]
                     if isinstance(arg_node, ast.Name):
                         arg_name = self._sanitize_name(arg_node.id)
-                        import re
-                        m = re.search(r'(?:typing\.|typing_extensions\.)?(?:TypeGuard|TypeIs)\[(.*?)\]', ret_typ)
+                        m = _TYPEGUARD_RE.search(ret_typ)
                         if m:
                             inner_type = m.group(1)
                             v_narrowed_type = self._map_type(inner_type)

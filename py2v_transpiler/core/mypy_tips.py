@@ -1,6 +1,9 @@
 
 import re
 
+# Pre-compiled regex for extracting mypy error codes
+_MYPY_CODE_RE = re.compile(r"\[([a-z-]+)\]")
+
 MYPY_TIPS = {
     "union-attr": "In V, you must explicitly check the type (e.g., using `if x is Type`) before accessing a union attribute.",
     "arg-type": "In V, function arguments are strictly typed. Ensure the passed value matches the expected type or use a sum type.",
@@ -25,7 +28,7 @@ def get_mypy_tips(mypy_output: str) -> str:
     if not mypy_output:
         return ""
 
-    found_codes = set(re.findall(r"\[([a-z-]+)\]", mypy_output))
+    found_codes = set(_MYPY_CODE_RE.findall(mypy_output))
     tips = []
 
     for code in sorted(found_codes):
