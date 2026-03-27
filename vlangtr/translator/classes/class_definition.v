@@ -14,6 +14,8 @@ pub fn (mut h ClassDefinitionHandler) visit_class_def(node ast.ClassDef, mut env
 	if h.class_stack.len == 0 {
 		env.state.defined_top_level_symbols[node.name] = true
 	}
+	env.state.defined_classes[struct_name] = map[string]bool{}
+	env.state.defined_classes[node.name] = map[string]bool{}
 
 	classes.pydantic_handler.mark_pydantic_model(node, struct_name, mut env)
 
@@ -217,6 +219,7 @@ pub fn (mut h ClassDefinitionHandler) visit_class_def(node ast.ClassDef, mut env
 		struct_parts << '@[heap]'
 		struct_parts << '${pub_prefix}struct ${struct_name_for_body}${generics_str} {'
 		if fields.len > 0 {
+			struct_parts << 'pub mut:'
 			struct_parts << fields.join('\n')
 		}
 		struct_parts << '}'
@@ -234,7 +237,7 @@ pub fn (mut h ClassDefinitionHandler) visit_class_def(node ast.ClassDef, mut env
 			meta_parts << '}'
 			env.emit_struct_fn(meta_parts.join('\n'))
 			meta_const_name := '${base.to_snake_case(struct_name)}_meta'
-			env.emit_constant_fn('pub ${meta_const_name} = &${meta_struct_name}{}')
+			env.emit_constant_fn('pub const ${meta_const_name} = &${meta_struct_name}{}')
 		}
 		if is_dataclass && has_post_init {
 			if factory_code := classes.class_fields_handler.generate_dataclass_factory(

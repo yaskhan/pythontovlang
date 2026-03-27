@@ -50,39 +50,39 @@ pub fn (mut e ModuleEmitter) add_constant(code string) {
 	e.constants << code
 }
 
-pub fn (e &ModuleEmitter) emit() string {
-	mut parts := []string{}
+	pub fn (e &ModuleEmitter) emit() string {
+		mut parts := []string{}
 
-	if e.imports.len > 0 {
-		mut names := e.imports.keys()
+		if e.imports.len > 0 {
+			mut names := e.imports.keys()
 		names.sort()
 		for name in names {
-			parts << 'import ${name}'
+				parts << 'import ${name}'
+			}
 		}
-	}
 
-	if e.helper_structs.len > 0 {
-		parts << e.helper_structs.join('\n\n')
-	}
+		if e.constants.len > 0 {
+			parts << e.constants.join('\n')
+		}
 
-	if e.helper_functions.len > 0 {
-		parts << e.helper_functions.join('\n\n')
-	}
+		if e.helper_structs.len > 0 {
+			parts << e.helper_structs.join('\n\n')
+		}
 
-	if e.constants.len > 0 {
-		parts << e.constants.join('\n')
-	}
+		if e.init_statements.len > 0 {
+			parts << 'fn init() {\n${e.init_statements.join("\n")}\n}'
+		}
 
-	if e.init_statements.len > 0 {
-		parts << 'fn init() {\n${e.init_statements.join("\n")}\n}'
-	}
+		if e.main_statements.len > 0 {
+			parts << 'fn main() {\n${e.main_statements.join("\n")}\n}'
+		}
 
-	if e.main_statements.len > 0 {
-		parts << 'fn main() {\n${e.main_statements.join("\n")}\n}'
-	}
+		if e.helper_functions.len > 0 {
+			parts << e.helper_functions.join('\n\n')
+		}
 
-	return parts.join('\n\n')
-}
+		return parts.join('\n\n')
+	}
 
 fn noop_visit_stmt(_ ast.Statement) {}
 
@@ -365,6 +365,23 @@ fn (mut m ModuleTranslator) append_runtime_helpers() {
 
 	if m.state.used_builtins['py_is_identical'] {
 		m.emitter.add_helper_function('fn py_is_identical[T, U](a T, b U) bool {\n    return voidptr(&a) == voidptr(&b)\n}')
+	}
+
+	if m.state.used_builtins['py_any'] {
+		m.emitter.add_helper_function('fn py_any[T](a []T) bool {\n    for item in a {\n        if item {\n            return true\n        }\n    }\n    return false\n}')
+	}
+
+	if m.state.used_builtins['py_all'] {
+		m.emitter.add_helper_function('fn py_all[T](a []T) bool {\n    for item in a {\n        if !item {\n            return false\n        }\n    }\n    return true\n}')
+	}
+
+	if m.state.used_builtins['py_argparse_new'] {
+		m.emitter.add_import('argparse')
+		m.emitter.add_helper_function('fn py_argparse_new() argparse.ArgumentParser {\n    return argparse.argument_parser()\n}')
+	}
+
+	if m.state.used_builtins['py_array'] {
+		m.emitter.add_helper_function('fn py_array[T](typecode string, items []T) []T {\n    _ = typecode\n    return items\n}')
 	}
 
 	if m.state.used_builtins['py_repeat_list'] {

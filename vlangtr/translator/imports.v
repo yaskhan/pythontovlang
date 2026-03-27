@@ -45,8 +45,25 @@ pub fn (mut t Translator) visit_import(node ast.Import) {
 			continue
 		}
 
+		if module_name == 'base64' {
+			t.state.output << 'import encoding.base64'
+			continue
+		}
+		if module_name == 'uuid' {
+			t.state.output << 'import rand'
+			continue
+		}
+		if module_name == 'urllib.parse' {
+			t.state.output << 'import net.urllib'
+			continue
+		}
 		if module_name == 'os' || module_name == 'math' || module_name == 'strconv' {
-			t.output << 'import ${module_name}'
+			t.state.output << 'import ${module_name}'
+			continue
+		}
+		if module_name == 'gzip' || module_name == 'zlib' {
+			t.state.output << 'import compress.${module_name}'
+			continue
 		}
 	}
 }

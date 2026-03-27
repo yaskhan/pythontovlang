@@ -7,16 +7,16 @@ import models
 
 pub struct ExprGen {
 pub mut:
-	model    models.VType
-	analyzer analyzer.Analyzer
-	state    base.TranslatorState
+	model    &models.VType
+	analyzer &analyzer.Analyzer
+	state    &base.TranslatorState
 }
 
-pub fn new_expr_gen(model &models.VType, type_analyzer &analyzer.Analyzer) ExprGen {
+pub fn new_expr_gen(model &models.VType, type_analyzer &analyzer.Analyzer, state &base.TranslatorState) ExprGen {
 	return ExprGen{
-		model:    *model
-		analyzer: *type_analyzer
-		state:    base.new_translator_state()
+		model:    unsafe { model }
+		analyzer: unsafe { type_analyzer }
+		state:    unsafe { state }
 	}
 }
 
@@ -78,6 +78,7 @@ pub fn (mut eg ExprGen) visit(node ast.Expression) string {
 		ast.JoinedStr { return eg.visit_joined_str(node) }
 		ast.FormattedValue { return eg.visit_formatted_value(node) }
 		ast.Lambda { return eg.visit_lambda(node) }
+		ast.Await { return eg.visit_await(node) }
 		ast.NamedExpr { return eg.visit_named_expr(node) }
 		else { return '/* unsupported expr */' }
 	}
@@ -198,6 +199,10 @@ pub fn (mut eg ExprGen) visit_constant(node ast.Constant) string {
 	if node.value == 'False' {
 		return 'false'
 	}
+	if node.value.starts_with("b'") || node.value.starts_with('b"') {
+		content := eg.extract_string_content(node.value[1..])
+		return eg.bytes_literal_to_v(content)
+	}
 	if node.token.typ == .tstring_tok || node.value.starts_with('__py2v_t__')
 		|| node.value.starts_with('t\'') || node.value.starts_with('t"') {
 		mut content := node.value
@@ -214,7 +219,45 @@ pub fn (mut eg ExprGen) visit_constant(node ast.Constant) string {
 		}
 		return "'${node.value}'"
 	}
+	if node.value.ends_with('j') && !node.value.starts_with("'") && !node.value.starts_with('"') {
+		content := node.value[..node.value.len - 1]
+		return 'py_complex(0.0, ${content})'
+	}
 	return node.value
+}
+
+fn (eg &ExprGen) bytes_literal_to_v(content string) string {
+	if content.len == 0 {
+		return '[]u8{}'
+	}
+	mut items := []string{}
+	mut i := 0
+	for i < content.len {
+		ch := content[i]
+		if ch == `\\` && i + 1 < content.len {
+			next := content[i + 1]
+			if next == `x` && i + 3 < content.len {
+				hex := content[i + 2..i + 4]
+				items << 'u8(0x${hex})'
+				i += 4
+				continue
+			}
+			match next {
+				`n` { items << 'u8(0x0a)' }
+				`r` { items << 'u8(0x0d)' }
+				`t` { items << 'u8(0x09)' }
+				`\\` { items << 'u8(0x5c)' }
+				`'` { items << 'u8(0x27)' }
+				`"` { items << 'u8(0x22)' }
+				else { items << 'u8(0x${next.hex()})' }
+			}
+			i += 2
+			continue
+		}
+		items << 'u8(0x${ch.hex()})'
+		i++
+	}
+	return '[${items.join(', ')}]'
 }
 
 pub fn (mut eg ExprGen) visit_list(node ast.List) string {
@@ -234,6 +277,9 @@ pub fn (mut eg ExprGen) visit_tuple(node ast.Tuple) string {
 }
 
 pub fn (mut eg ExprGen) visit_dict(node ast.Dict) string {
+	if node.keys.len == 0 {
+		return 'map[string]Any{}'
+	}
 	mut items := []string{}
 	for i, key in node.keys {
 		if i >= node.values.len {
@@ -309,15 +355,44 @@ pub fn (mut eg ExprGen) visit_formatted_value(node ast.FormattedValue) string {
 pub fn (mut eg ExprGen) visit_lambda(node ast.Lambda) string {
 	mut params := []string{}
 	for arg in node.args.posonlyargs {
-		params << arg.arg
+		params << '${arg.arg} ${eg.lambda_param_type(arg.annotation)}'
 	}
 	for arg in node.args.args {
-		params << arg.arg
+		params << '${arg.arg} ${eg.lambda_param_type(arg.annotation)}'
 	}
 	for arg in node.args.kwonlyargs {
-		params << arg.arg
+		params << '${arg.arg} ${eg.lambda_param_type(arg.annotation)}'
 	}
-	return 'fn (${params.join(', ')}) { return ${eg.visit(node.body)} }'
+	if va := node.args.vararg {
+		params << '${va.arg} []Any'
+	}
+	ret_type := eg.lambda_return_type(node.body)
+	return 'fn (${params.join(', ')}) ${ret_type} { return ${eg.visit(node.body)} }'
+}
+
+fn (mut eg ExprGen) lambda_param_type(annotation ?ast.Expression) string {
+	if ann := annotation {
+		if ann is ast.Name {
+			return match ann.id {
+				'float' { 'f64' }
+				'int' { 'int' }
+				'str' { 'string' }
+				'bool' { 'bool' }
+				else { eg.visit(ann) }
+			}
+		}
+		return eg.visit(ann)
+	}
+	return 'int'
+}
+
+fn (eg &ExprGen) lambda_return_type(body ast.Expression) string {
+	ret_type := eg.guess_type(body)
+	return if ret_type in ['Any', 'void', 'unknown'] { 'int' } else { ret_type }
+}
+
+pub fn (mut eg ExprGen) visit_await(node ast.Await) string {
+	return '/* await */ ${eg.visit(node.value)}'
 }
 
 pub fn (mut eg ExprGen) visit_named_expr(node ast.NamedExpr) string {

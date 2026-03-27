@@ -216,6 +216,11 @@ fn (h ClassFieldsHandler) process_class_attributes(
 					if field_name in added_fields {
 						continue
 					}
+					// Register as class variable for static access
+					field_type := guess_type(stmt.value, &env)
+					value_str := env.visit_expr_fn(stmt.value)
+					h.set_class_var(struct_name, field_name, map_python_type(field_type, struct_name, false, mut env), value_str, mut env)
+
 					added_fields[field_name] = true
 					if is_dataclass {
 						dataclass_field_order << field_name
@@ -223,15 +228,14 @@ fn (h ClassFieldsHandler) process_class_attributes(
 					if target.id == '__slots__' {
 						continue
 					}
-					mut field_type := guess_type(stmt.value, &env)
-					if field_type == 'Any' {
-						field_type = 'Any'
+					mut v_field_type := field_type
+					if v_field_type == 'Any' {
+						v_field_type = 'Any'
 					}
-					if field_type != 'Any' {
-						field_type = map_python_type(field_type, struct_name, false, mut env)
+					if v_field_type != 'Any' {
+						v_field_type = map_python_type(v_field_type, struct_name, false, mut env)
 					}
-					value := env.visit_expr_fn(stmt.value)
-					fields << h.get_field_def(field_name, field_type, value)
+					fields << h.get_field_def(field_name, v_field_type, value_str)
 				}
 			}
 		}

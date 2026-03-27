@@ -2,6 +2,7 @@ module expressions
 
 import analyzer
 import ast
+import base
 
 pub fn (mut eg ExprGen) visit_call(node ast.Call) string {
 	func_name_str, _ := eg.extract_func_info(node)
@@ -14,7 +15,8 @@ pub fn (mut eg ExprGen) visit_call(node ast.Call) string {
 	}
 
 	module_name, func_name := eg.resolve_module_and_func(node, func_name_str)
-	if special := eg.handle_special_cases(node, module_name, func_name, func_name_str,
+	full_func_name := eg.visit(node.func)
+	if special := eg.handle_special_cases(node, module_name, func_name, full_func_name,
 		args, call_sig)
 	{
 		return special
@@ -108,7 +110,7 @@ pub fn (mut eg ExprGen) process_keywords(node ast.Call, call_sig ?analyzer.CallS
 				final_args << sig.defaults[name]
 			}
 		}
-		if sig.has_kwarg && keyword_args.len > 0 {
+		if (sig.has_kwarg || !has_sig) && keyword_args.len > 0 {
 			mut items := []string{}
 			for key, value in keyword_args {
 				items << "'${key}': ${value}"
@@ -116,6 +118,13 @@ pub fn (mut eg ExprGen) process_keywords(node ast.Call, call_sig ?analyzer.CallS
 			final_args << '{${items.join(', ')}}'
 			keyword_args.clear()
 		}
+	} else if keyword_args.len > 0 {
+		mut items := []string{}
+		for key, value in keyword_args {
+			items << "'${key}': ${value}"
+		}
+		final_args << '{${items.join(', ')}}'
+		keyword_args.clear()
 	}
 	return keyword_args, final_args, needs_comment
 }
@@ -195,7 +204,7 @@ pub fn (mut eg ExprGen) resolve_name_call(func_node ast.Name, func_name_str stri
 		return 'os', 'open'
 	}
 	if func_node.id in ['hasattr', 'getattr', 'setattr', 'delattr', 'eval', 'exec', 'compile',
-		'type', 'super', 'abs', 'pow', 'divmod'] {
+		'type', 'super', 'abs', 'pow', 'divmod', 'str', 'String'] {
 		return 'builtins', func_node.id
 	}
 	return '', func_name_str
@@ -203,20 +212,106 @@ pub fn (mut eg ExprGen) resolve_name_call(func_node ast.Name, func_name_str stri
 
 pub fn (mut eg ExprGen) handle_special_cases(node ast.Call, module_name string, func_name string, func_name_str string, args []string, call_sig ?analyzer.CallSignature) ?string {
 	_ = call_sig
+	// Unittest assertions
+	if func_name_str.starts_with('self.assert') {
+		if func_name_str == 'self.assert_equal' || func_name_str == 'self.assert_count_equal' {
+			return 'assert ${args[0]} == ${args[1]}'
+		}
+		if func_name_str == 'self.assert_true' {
+			return 'assert ${args[0]}'
+		}
+		if func_name_str == 'self.assert_false' {
+			return 'assert !(${args[0]})'
+		}
+		if func_name_str == 'self.assert_not_equal' {
+			return 'assert ${args[0]} != ${args[1]}'
+		}
+		if func_name_str == 'self.assert_is_none' {
+			return 'assert ${args[0]} == none'
+		}
+		if func_name_str == 'self.assert_is_not_none' {
+			return 'assert ${args[0]} != none'
+		}
+		if func_name_str == 'self.assert_in' {
+			return 'assert ${args[0]} in ${args[1]}'
+		}
+	}
+
+	if func_name_str in eg.state.defined_classes {
+		return 'new_${base.to_snake_case(func_name_str)}(${args.join(', ')})'
+	}
+	if func_name_str == 'cls' && eg.state.current_class.len > 0 {
+		if eg.state.current_class_generics.len > 0 && args.len == 0 {
+			generics_str := eg.state.current_class_generics.join(', ')
+			return '&${eg.state.current_class}[${generics_str}]{}'
+		}
+		return 'new_${base.to_snake_case(eg.state.current_class)}(${args.join(', ')})'
+	}
+
 	if func_name_str in ['get_type_hints', 'get_annotations'] && args.len > 0 {
 		return 'py_get_type_hints_generic(${args[0]})'
 	}
 	if module_name == 'typing' && func_name == 'cast' && args.len >= 2 {
-		return args[1]
+		return '(${args[1]} as ${args[0]})'
+	}
+	if func_name_str == 'map' && args.len == 2 {
+		return '${args[1]}.map(${args[0]})'
+	}
+	if func_name_str == 'filter' && args.len == 2 {
+		return '${args[1]}.filter(${args[0]})'
+	}
+	if func_name_str == 'NewType' && args.len >= 2 {
+		name := args[0].trim("'").trim('"')
+		return 'type ${name} = ${args[1]}'
 	}
 	if module_name == 'unittest' && func_name == 'main' {
 		return '// unittest.main() ignored'
+	}
+	if module_name == 'gzip' && func_name in ['compress', 'decompress'] {
+		eg.state.used_builtins['py_gzip_${func_name}'] = true
+		return 'py_gzip_${func_name}(${args.join(', ')})'
+	}
+	if module_name == 'zlib' && func_name in ['compress', 'decompress'] {
+		eg.state.used_builtins['py_zlib_${func_name}'] = true
+		return 'py_zlib_${func_name}(${args.join(', ')})'
+	}
+	if module_name == 'copy' && func_name in ['copy', 'deepcopy'] {
+		return 'py_${func_name}(${args.join(', ')})'
+	}
+	if module_name == 'urllib.parse' && func_name == 'urlencode' {
+		eg.state.used_builtins['py_urlencode'] = true
+		return 'py_urlencode(${args.join(', ')})'
+	}
+	if module_name == 'urllib.parse' && func_name == 'urlparse' {
+		eg.state.used_builtins['py_urlparse'] = true
+		return 'py_urlparse(${args.join(', ')})'
+	}
+	if module_name == 'urllib.parse' && func_name in ['quote', 'quote_plus'] {
+		return 'urllib.query_escape(${args.join(', ')})'
+	}
+	if module_name == 'urllib.parse' && func_name in ['unquote', 'unquote_plus'] {
+		eg.state.used_builtins['py_urllib_unquote'] = true
+		return 'py_urllib_unquote(${args.join(', ')})'
+	}
+	if module_name == 'uuid' && func_name == 'uuid4' {
+		return 'rand.uuid_v4()'
+	}
+	if module_name == 'builtins' && func_name in ['str', 'String'] && args.len == 1 && args[0].contains('uuid_v4') {
+		return '${args[0]}.str()'
 	}
 	if module_name == 'os' && func_name == 'open' {
 		return 'os.open(${args.join(', ')})'
 	}
 	if func_name_str == 'print' {
-		return 'println(${args.join(', ')})'
+		mut new_args := []string{}
+		for arg in args {
+			if arg.starts_with("'") && arg.ends_with("'") {
+				new_args << arg
+			} else {
+				new_args << "'\${${arg}}'"
+			}
+		}
+		return 'println(${new_args.join(', ')})'
 	}
 	if func_name_str == 'input' {
 		if args.len > 0 {
@@ -258,6 +353,86 @@ pub fn (mut eg ExprGen) handle_special_cases(node ast.Call, module_name string, 
 	if func_name_str == 'dict' && args.len == 0 {
 		return 'map[string]Any{}'
 	}
+	if func_name_str == 'Counter' {
+		if args.len == 0 {
+			return 'map[string]int{}'
+		}
+		eg.state.used_builtins['py_counter'] = true
+		return 'py_counter(${args[0]})'
+	}
+	if func_name_str == 'defaultdict' && args.len >= 1 {
+		// defaultdict(int) -> map[string]int{}
+		// defaultdict(list) -> map[string][]int{}
+		mut val_type := 'Any'
+		if args[0] == 'int' { val_type = 'int' }
+		else if args[0] == 'list' { val_type = '[]int' }
+		else if args[0] == 'str' { val_type = 'string' }
+		return 'map[string]${val_type}{}'
+	}
+	if func_name_str == 'assert_type' && node.args.len >= 2 {
+		actual_type := eg.guess_type(node.args[0])
+		expected_raw := eg.visit(node.args[1])
+		expected_type := map_assert_type_name(expected_raw)
+		if actual_type == expected_type {
+			return '// assert_type(${args[0]}, ${expected_raw}) passed statically'
+		}
+		return "\$compile_error('assert_type failed: expected ${expected_type} but got ${actual_type}')"
+	}
+	if module_name == 'argparse' && func_name_str in ['ArgumentParser', 'argument_parser'] {
+		eg.state.used_builtins['py_argparse_new'] = true
+		return 'py_argparse_new()'
+	}
+	if module_name == 'base64' {
+		match func_name_str {
+			'b64encode', 'standard_b64encode' {
+				eg.state.imported_modules['base64'] = 'base64'
+				return 'base64.encode(${args.join(', ')})'
+			}
+			'b64decode', 'standard_b64decode' {
+				eg.state.imported_modules['base64'] = 'base64'
+				return 'base64.decode(${args.join(', ')})'
+			}
+			'urlsafe_b64encode' {
+				eg.state.imported_modules['base64'] = 'base64'
+				return 'base64.url_encode(${args.join(', ')})'
+			}
+			'urlsafe_b64decode' {
+				eg.state.imported_modules['base64'] = 'base64'
+				return 'base64.url_decode(${args.join(', ')})'
+			}
+			else {}
+		}
+	}
+	if func_name_str == 'bytes' {
+		if args.len == 1 {
+			return '${args[0]}.bytes()'
+		}
+		if args.len >= 2 {
+			return '${args[0]}.bytes()'
+		}
+	}
+	if module_name == 'array' && func_name_str == 'array' && args.len >= 2 {
+		eg.state.used_builtins['py_array'] = true
+		return "py_array(${args[0]}, ${args[1]})"
+	}
+	if func_name_str in ['any', 'all'] && node.args.len == 1 {
+		if gen := eg.generator_exp_to_map_expr(node.args[0]) {
+			if func_name_str == 'any' {
+				eg.state.used_builtins['py_any'] = true
+				return 'py_any(${gen})'
+			}
+			eg.state.used_builtins['py_all'] = true
+			return 'py_all(${gen})'
+		}
+	}
+	if func_name_str == 'any' && args.len == 1 {
+		eg.state.used_builtins['py_any'] = true
+		return 'py_any(${args[0]})'
+	}
+	if func_name_str == 'all' && args.len == 1 {
+		eg.state.used_builtins['py_all'] = true
+		return 'py_all(${args[0]})'
+	}
 	if func_name_str == 'set' && args.len == 0 {
 		return 'datatypes.Set[string]{}'
 	}
@@ -278,6 +453,7 @@ pub fn (mut eg ExprGen) handle_special_cases(node ast.Call, module_name string, 
 		return 'py_sorted(${args.join(', ')}, false)'
 	}
 	if func_name_str == 'reversed' {
+		eg.state.used_builtins['py_reversed'] = true
 		return 'py_reversed(${args.join(', ')})'
 	}
 	if node.func is ast.Attribute && node.func.value is ast.Call && node.func.attr == '__init__' {
@@ -286,6 +462,27 @@ pub fn (mut eg ExprGen) handle_special_cases(node ast.Call, module_name string, 
 			full_args = full_args[1..].clone()
 		}
 		return '${eg.visit(node.func.value)}.${node.func.attr}(${full_args.join(', ')})'
+	}
+	return none
+}
+
+fn (mut eg ExprGen) generator_exp_to_map_expr(expr ast.Expression) ?string {
+	if expr is ast.GeneratorExp {
+		gen := expr
+		if gen.generators.len != 1 {
+			return none
+		}
+		first := gen.generators[0]
+		if first.ifs.len > 0 {
+			return none
+		}
+		if first.target !is ast.Name {
+			return none
+		}
+		target := first.target as ast.Name
+		iter_expr := eg.visit(first.iter)
+		body_expr := eg.visit(gen.elt).replace(target.id, 'it')
+		return '${iter_expr}.map(${body_expr})'
 	}
 	return none
 }
@@ -351,4 +548,14 @@ pub fn (mut eg ExprGen) process_mutated_args(func_name_str string, args []string
 		}
 	}
 	return final_args
+}
+
+fn map_assert_type_name(type_name string) string {
+	return match type_name {
+		'float' { 'f64' }
+		'int' { 'int' }
+		'str' { 'string' }
+		'bool' { 'bool' }
+		else { type_name }
+	}
 }

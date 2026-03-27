@@ -1,4 +1,4 @@
-﻿module base
+module base
 
 import ast
 
@@ -22,6 +22,7 @@ pub mut:
 	config              voidptr
 
 	output                       []string
+	tail                         []string
 	known_v_types                map[string]string
 	indent_level                 int
 	in_main                      bool
@@ -34,6 +35,7 @@ pub mut:
 	current_class_is_unittest    bool
 	is_unittest_class            bool
 	zip_counter                  int
+	match_counter                int
 	defined_classes              map[string]map[string]bool
 	class_vars                   map[string][]map[string]string
 	class_to_impl                map[string]string
@@ -82,6 +84,7 @@ pub mut:
 	scope_names                  []string
 	constrained_typevars         map[string]bool
 	current_function_return_type string
+	current_assignment_type      string
 	in_pydantic_validator        bool
 	in_init                      bool
 	current_node                 voidptr
@@ -163,6 +166,7 @@ pub fn new_translator_state() TranslatorState {
 		scope_names:                  []string{}
 		constrained_typevars:         map[string]bool{}
 		current_function_return_type: ''
+		current_assignment_type:      ''
 		in_pydantic_validator:        false
 		in_init:                      false
 		current_node:                 unsafe { nil }
@@ -181,6 +185,12 @@ pub fn (s &TranslatorState) indent() string {
 pub fn (mut s TranslatorState) create_temp() string {
 	s.unique_id_counter++
 	return 'py_aug_tmp_${s.unique_id_counter}'
+}
+
+// create_temp_with_prefix создает временную переменную с заданным префиксом
+pub fn (mut s TranslatorState) create_temp_with_prefix(prefix string) string {
+	s.unique_id_counter++
+	return '${prefix}${s.unique_id_counter}'
 }
 
 // get_source_info возвращает информацию об исходном коде

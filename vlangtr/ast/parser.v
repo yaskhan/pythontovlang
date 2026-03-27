@@ -1446,6 +1446,7 @@ fn (mut p Parser) parse_string_literal() ?Expression {
 	tok := p.current_token
 	mut parts := []Expression{}
 	mut has_fstring := false
+	mut has_bytes := false
 
 	for p.current_is(.fstring_tok) || p.current_is(.string_tok) || p.current_is(.tstring_tok) {
 		if p.current_is(.fstring_tok) {
@@ -1454,15 +1455,41 @@ fn (mut p Parser) parse_string_literal() ?Expression {
 			parts << fparts
 		} else {
 			prefix := if p.current_is(.tstring_tok) { 't' } else { '' }
+			if p.current_token.value.starts_with("b'") || p.current_token.value.starts_with('b"') {
+				has_bytes = true
+				parts << Constant{
+					token: p.current_token
+					value: p.current_token.value
+				}
+				p.advance()
+				continue
+			}
 			parts << Constant{
 				token: p.current_token
-				value: "${prefix}'${p.current_token.value}'"
+				value: "${prefix}${p.current_token.value}"
 			}
 			p.advance()
 		}
 	}
 
 	if !has_fstring {
+		if has_bytes {
+			mut val := ''
+			for part in parts {
+				if part is Constant {
+					v := part.value
+					if v.starts_with("b'") || v.starts_with('b"') {
+						val += v[2..v.len - 1]
+					} else {
+						val += v
+					}
+				}
+			}
+			return Constant{
+				token: tok
+				value: "b'${val}'"
+			}
+		}
 		// Concatenate all constant parts into one
 		mut val := ''
 		mut is_t := false
@@ -1482,7 +1509,7 @@ fn (mut p Parser) parse_string_literal() ?Expression {
 		prefix := if is_t { 't' } else { '' }
 		return Constant{
 			token: tok
-			value: "${prefix}'${val}'"
+			value: "${prefix}${val}"
 		}
 	}
 

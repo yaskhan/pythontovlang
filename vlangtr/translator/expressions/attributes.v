@@ -67,12 +67,33 @@ pub fn (mut eg ExprGen) visit_attribute(node ast.Attribute) string {
 		return '${obj}__${attr_name}'
 	}
 
-	if obj_base in eg.state.defined_classes || obj_type in eg.state.defined_classes {
+	if obj_base in eg.state.defined_classes || obj_type in eg.state.defined_classes || eg.state.class_vars.keys().contains(obj_type) {
 		target_class := if obj_base in eg.state.defined_classes { obj_base } else { obj_type }
 		if defining := base.find_defining_class_for_static_method(target_class, node.attr,
 			eg.analyzer.static_methods, eg.analyzer.class_methods, eg.analyzer.class_hierarchy)
 		{
 			return '${defining}_${attr_name}'
+		}
+
+		// Class variable access with inheritance support
+		mut classes_to_check := [target_class]
+		mut seen := map[string]bool{}
+		for classes_to_check.len > 0 {
+			cls := classes_to_check[0]
+			classes_to_check.delete(0)
+			if cls in seen { continue }
+			seen[cls] = true
+			if cvars := eg.state.class_vars[cls] {
+				for cvar in cvars {
+					if cvar['name'] == node.attr {
+						meta_const := '${base.to_snake_case(cls)}_meta'
+						return '${meta_const}.${attr_name}'
+					}
+				}
+			}
+			if parents := eg.state.class_hierarchy[cls] {
+				for p in parents { classes_to_check << p }
+			}
 		}
 	}
 

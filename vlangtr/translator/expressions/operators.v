@@ -91,14 +91,10 @@ pub fn (mut eg ExprGen) visit_bin_op(node ast.BinaryOp) string {
 			return '${right}.repeat(${left})'
 		}
 		if node.left is ast.List && node.left.elements.len == 1 {
-			init_val := eg.visit(node.left.elements[0])
-			elem_type := eg.guess_type(node.left.elements[0])
-			return '[]${elem_type}{len: ${right}, init: ${init_val}}'
+			return eg.format_repeated_list_literal(node.left, right)
 		}
 		if node.right is ast.List && node.right.elements.len == 1 {
-			init_val := eg.visit(node.right.elements[0])
-			elem_type := eg.guess_type(node.right.elements[0])
-			return '[]${elem_type}{len: ${left}, init: ${init_val}}'
+			return eg.format_repeated_list_literal(node.right, left)
 		}
 		if left_type.starts_with('[]') || right_type.starts_with('[]') {
 			eg.state.used_builtins['py_repeat_list'] = true
@@ -131,7 +127,7 @@ pub fn (mut eg ExprGen) visit_bin_op(node ast.BinaryOp) string {
 	}
 
 	if op == '%' {
-		if left.starts_with('b\'') || left.starts_with('b"') {
+		if left_type == '[]u8' || (left.starts_with('[') && left.contains('u8(')) {
 			eg.state.used_builtins['py_bytes_format'] = true
 			return eg.format_percent_bytes(left, node.right)
 		}
@@ -173,6 +169,30 @@ pub fn (mut eg ExprGen) visit_bin_op(node ast.BinaryOp) string {
 	return '${left} ${op} ${right}'
 }
 
+fn (mut eg ExprGen) format_repeated_list_literal(list_node ast.List, len_expr string) string {
+	if list_node.elements.len == 0 {
+		return '[]Any{len: ${len_expr}, init: none}'
+	}
+	elt := list_node.elements[0]
+	if is_none_expr(elt) {
+		elem_type := eg.repeated_list_none_type()
+		return '[]${elem_type}{len: ${len_expr}, init: none}'
+	}
+	init_val := eg.visit(elt)
+	elem_type := eg.guess_type(elt)
+	return '[]${elem_type}{len: ${len_expr}, init: ${init_val}}'
+}
+
+fn (eg &ExprGen) repeated_list_none_type() string {
+	if eg.state.current_assignment_type.starts_with('[]?') {
+		return eg.state.current_assignment_type[2..]
+	}
+	if eg.state.current_assignment_type.starts_with('[]') {
+		return '?${eg.state.current_assignment_type[2..]}'
+	}
+	return '?Any'
+}
+
 pub fn (mut eg ExprGen) visit_unary_op(node ast.UnaryOp) string {
 	if node.op.value == 'not' {
 		return eg.wrap_bool(node.operand, true)
@@ -199,64 +219,7 @@ pub fn (mut eg ExprGen) visit_compare(node ast.Compare) string {
 	}
 
 	if node.ops.len == 1 && comparators.len == 2 {
-		left := comparators[0]
-		right := comparators[1]
-		op := node.ops[0].value
-		left_type := eg.guess_type(node.left)
-		if op in ['is', '=='] && is_none_expr(node.comparators[0]) {
-			if eg.should_use_is_none_type(node.left, left_type) {
-				return '${left} is NoneType'
-			}
-			return '${left} == none'
-		}
-		if op in ['is not', '!='] && is_none_expr(node.comparators[0]) {
-			if eg.should_use_is_none_type(node.left, left_type) {
-				return '${left} !is NoneType'
-			}
-			return '${left} != none'
-		}
-		if op == 'is' {
-			eg.state.used_builtins['py_is_identical'] = true
-			return 'py_is_identical(${left}, ${right})'
-		}
-		if op == 'is not' {
-			eg.state.used_builtins['py_is_identical'] = true
-			return '!py_is_identical(${left}, ${right})'
-		}
-		if op == 'in' {
-			if is_none_expr(node.left) {
-				return '${right}.any(it == none)'
-			}
-			return '${left} in ${right}'
-		}
-		if op == 'not in' {
-			if is_none_expr(node.left) {
-				return '!${right}.any(it == none)'
-			}
-			return '${left} !in ${right}'
-		}
-		if eg.is_set_type(left_type) {
-			match op {
-				'<=' {
-					eg.state.used_builtins['py_set_subset'] = true
-					return 'py_set_subset(${left}, ${right})'
-				}
-				'<' {
-					eg.state.used_builtins['py_set_strict_subset'] = true
-					return 'py_set_strict_subset(${left}, ${right})'
-				}
-				'>=' {
-					eg.state.used_builtins['py_set_superset'] = true
-					return 'py_set_superset(${left}, ${right})'
-				}
-				'>' {
-					eg.state.used_builtins['py_set_strict_superset'] = true
-					return 'py_set_strict_superset(${left}, ${right})'
-				}
-				else {}
-			}
-		}
-		return '${left} ${op} ${right}'
+		return eg.translate_single_comparison(comparators[0], node.ops[0].value, comparators[1], node.left, node.comparators[0])
 	}
 
 	mut parts := []string{}
@@ -264,7 +227,79 @@ pub fn (mut eg ExprGen) visit_compare(node ast.Compare) string {
 		if i + 1 >= comparators.len {
 			break
 		}
-		parts << '(${comparators[i]} ${op.value} ${comparators[i + 1]})'
+		left_node := if i == 0 { node.left } else { node.comparators[i-1] }
+		right_node := node.comparators[i]
+		res := eg.translate_single_comparison(comparators[i], op.value, comparators[i + 1], left_node, right_node)
+		parts << '(${res})'
 	}
 	return parts.join(' && ')
+}
+
+fn (mut eg ExprGen) translate_single_comparison(left string, op string, right string, left_expr ast.Expression, right_expr ast.Expression) string {
+	left_type := eg.guess_type(left_expr)
+	if op in ['is', '=='] && is_none_expr(right_expr) {
+		if eg.should_use_is_none_type(left_expr, left_type) {
+			return '${left} is NoneType'
+		}
+		return '${left} == none'
+	}
+	if op in ['is not', '!='] && is_none_expr(right_expr) {
+		if eg.should_use_is_none_type(left_expr, left_type) {
+			return '${left} !is NoneType'
+		}
+		return '${left} != none'
+	}
+	if op == 'is' {
+		if is_none_expr(left_expr) {
+			return '${left} == ${right}'
+		}
+		eg.state.used_builtins['py_is_identical'] = true
+		return 'py_is_identical(${left}, ${right})'
+	}
+	if op == 'is not' {
+		if is_none_expr(left_expr) {
+			return '${left} != ${right}'
+		}
+		eg.state.used_builtins['py_is_identical'] = true
+		return '!py_is_identical(${left}, ${right})'
+	}
+	if op == 'in' {
+		if is_none_expr(left_expr) {
+			return '${right}.any(it == ${left})'
+		}
+		return '${left} in ${right}'
+	}
+	if op == 'not in' {
+		if is_none_expr(left_expr) {
+			return '!${right}.any(it == ${left})'
+		}
+		return '${left} !in ${right}'
+	}
+	if eg.is_set_type(left_type) {
+		match op {
+			'<=' {
+				eg.state.used_builtins['py_set_subset'] = true
+				return 'py_set_subset(${left}, ${right})'
+			}
+			'<' {
+				eg.state.used_builtins['py_set_strict_subset'] = true
+				return 'py_set_strict_subset(${left}, ${right})'
+			}
+			'>=' {
+				eg.state.used_builtins['py_set_superset'] = true
+				return 'py_set_superset(${left}, ${right})'
+			}
+			'>' {
+				eg.state.used_builtins['py_set_strict_superset'] = true
+				return 'py_set_strict_superset(${left}, ${right})'
+			}
+			else {}
+		}
+	}
+	v_op := match op {
+		'is' { '==' }
+		'is not' { '!=' }
+		else { op }
+	}
+	return '${left} ${v_op} ${right}'
 }

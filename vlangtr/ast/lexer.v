@@ -272,9 +272,10 @@ fn (mut l Lexer) scan_string(prefix string) Token {
 			l.advance_char()
 			l.advance_char()
 		}
+		prefix_value := if prefix.to_lower().contains('b') { 'b' } else { '' }
 		return Token{
 			typ:      typ
-			value:    value
+			value:    "${prefix_value}'${value}'"
 			line:     l.line
 			column:   start_col
 			filename: l.filename
@@ -301,9 +302,10 @@ fn (mut l Lexer) scan_string(prefix string) Token {
 	if l.pos < l.source.len {
 		l.advance_char() // closing quote
 	}
+	prefix_value := if prefix.to_lower().contains('b') { 'b' } else { '' }
 	return Token{
 		typ:      typ
-		value:    value
+		value:    "${prefix_value}'${value}'"
 		line:     l.line
 		column:   start_col
 		filename: l.filename

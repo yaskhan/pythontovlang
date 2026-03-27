@@ -78,6 +78,9 @@ pub fn guess_type(node ast.Expression, ctx TypeGuessingContext, use_location boo
 fn guess_constant_type(node ast.Constant) string {
 	tok := node.token
 	if tok.typ == .string_tok || tok.typ == .fstring_tok || tok.typ == .tstring_tok {
+		if node.value.starts_with("b'") || node.value.starts_with('b"') {
+			return '[]u8'
+		}
 		return 'string'
 	}
 	if tok.typ == .number {
@@ -102,6 +105,9 @@ fn guess_type_call(node ast.Call, ctx TypeGuessingContext) string {
 		fid := node.func.id
 		if fid in ctx.defined_classes {
 			return fid
+		}
+		if fid.starts_with('new_') {
+			return base.sanitize_name(fid[4..], true, map[string]bool{}, '', map[string]bool{})
 		}
 		if fid == 'str' {
 			if node.args.len > 0 && is_literal_string_expr(node.args[0], ctx) {

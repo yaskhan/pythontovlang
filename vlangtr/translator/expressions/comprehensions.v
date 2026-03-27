@@ -48,6 +48,49 @@ pub fn (mut eg ExprGen) emit_generators(generators []ast.Comprehension, body_cal
 				}
 			}
 
+			if iter_call.func.id == 'zip' {
+				eg.state.zip_counter++
+				zip_id := eg.state.zip_counter
+				mut it_names := []string{}
+				for i, arg in iter_call.args {
+					it_name := 'py_zip_it${i + 1}_${zip_id}'
+					eg.emit('${it_name} := ${eg.visit(arg)}')
+					it_names << it_name
+				}
+				idx_name := 'py_i_${zip_id}'
+				v1_name := 'py_v1_${zip_id}'
+				eg.emit('for ${idx_name}, ${v1_name} in ${it_names[0]} {')
+				eg.state.indent_level++
+				mut v_names := [v1_name]
+				for i := 1; i < it_names.len; i++ {
+					eg.emit('if ${idx_name} >= ${it_names[i]}.len { break }')
+					vi_name := 'py_v${i + 1}_${zip_id}'
+					eg.emit('${vi_name} := ${it_names[i]}[${idx_name}]')
+					v_names << vi_name
+				}
+				if gen.target is ast.Tuple {
+					for i, elt in gen.target.elements {
+						eg.emit('${eg.visit(elt)} := ${v_names[i]}')
+					}
+				} else {
+					target_str := eg.visit(gen.target)
+					eg.emit('${target_str} := [${v_names.join(', ')}]')
+				}
+
+				for if_expr in gen.ifs {
+					eg.emit('if ${eg.wrap_bool(if_expr, false)} {')
+					eg.state.indent_level++
+				}
+				eg.emit_generators(rest, body_callback)
+				for _ in gen.ifs {
+					eg.state.indent_level--
+					eg.emit('}')
+				}
+				eg.state.indent_level--
+				eg.emit('}')
+				return
+			}
+
 			if iter_call.func.id in ['range', 'xrange'] {
 				mut start := '0'
 				mut stop := '0'
