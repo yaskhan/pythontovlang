@@ -8,16 +8,16 @@ import models
 pub struct ExprGen {
 pub mut:
 	model    &models.VType
-	analyzer &analyzer.Analyzer
-	state       &base.TranslatorState
+	analyzer analyzer.Analyzer
+	state       base.TranslatorState
 	target_type string
 }
 
-pub fn new_expr_gen(model &models.VType, type_analyzer &analyzer.Analyzer, state &base.TranslatorState) ExprGen {
+pub fn new_expr_gen(model &models.VType, type_analyzer analyzer.Analyzer, state base.TranslatorState) ExprGen {
 	return ExprGen{
 		model:    unsafe { model }
-		analyzer: unsafe { type_analyzer }
-		state:    unsafe { state }
+		analyzer: type_analyzer
+		state:    state
 	}
 }
 
@@ -56,6 +56,7 @@ fn (mut eg ExprGen) emit(line string) {
 }
 
 pub fn (mut eg ExprGen) visit(node ast.Expression) string {
+	// println('ExprGen Visiting ${typeof(node).name}')
 	match node {
 		ast.Name { return eg.visit_name(node) }
 		ast.Constant { return eg.visit_constant(node) }
@@ -420,4 +421,34 @@ pub fn (mut eg ExprGen) visit_named_expr(node ast.NamedExpr) string {
 	target := eg.visit(node.target)
 	value := eg.visit(node.value)
 	return '(${target} = ${value})'
+}
+fn (eg &ExprGen) map_python_type(type_str string, is_return bool) string {
+	opts := base.TypeMapOptions{
+		struct_name:        eg.state.current_class
+		allow_union:        true
+		register_sum_types: false
+		is_return:          is_return
+		generic_map:        eg.state.current_class_generic_map
+	}
+	mut ctx := base.TypeUtilsContext{
+		imported_symbols: eg.state.imported_symbols
+		scc_files:        eg.state.scc_files.keys()
+		used_builtins:    eg.state.used_builtins
+		warnings:         eg.state.warnings
+		config:           eg.state.config
+	}
+	return base.map_type(type_str, opts, mut ctx, noop_sum_type_registrar, noop_literal_registrar,
+		noop_tuple_registrar)
+}
+
+fn noop_sum_type_registrar(_ string) string {
+	return ''
+}
+
+fn noop_literal_registrar(_ []string) string {
+	return ''
+}
+
+fn noop_tuple_registrar(_ string) string {
+	return ''
 }

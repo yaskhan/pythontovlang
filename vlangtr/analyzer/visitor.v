@@ -476,6 +476,29 @@ pub fn (mut t TypeInferenceVisitorMixin) visit_subscript(node ast.Subscript) {
 	if node.ctx == .store {
 		t.mark_mutated_expr(node.value)
 	}
+	
+	// TypedDict tracking for read access
+	dict_name := t.expr_to_name(node.value)
+	if dict_name.len > 0 {
+		dict_type := t.get_type(dict_name)
+		if dict_type in t.typed_dicts {
+			mut key := ''
+			if node.slice is ast.Constant {
+				key = node.slice.value.trim('\'"')
+			} else if node.slice is ast.Name {
+				key = t.literal_types[node.slice.id] or { '' }
+			}
+			
+			if key.len > 0 {
+				field_type := t.get_type('${dict_type}.${key}')
+				if field_type != 'Any' {
+					loc_key := '${node.token.line}:${node.token.column}'
+					t.location_map[loc_key] = field_type
+				}
+			}
+		}
+	}
+
 	t.visit_expr(node.value)
 	t.visit_expr(node.slice)
 }
@@ -773,6 +796,7 @@ fn (mut t TypeInferenceVisitorMixin) collect_return_types(stmts []ast.Statement,
 					has_return_value = t.collect_return_types(case.body, mut found_types) || has_return_value
 				}
 			}
+			// Don't recurse into nested sub-functions or classes for return types of THIS function
 			ast.FunctionDef {}
 			ast.ClassDef {}
 			else {}
@@ -885,6 +909,9 @@ pub fn (mut t TypeInferenceVisitorMixin) visit_class_def(node ast.ClassDef) {
 		}
 	}
 	t.add_class_to_hierarchy(node.name, bases)
+	if 'TypedDict' in bases || 'typing.TypedDict' in bases {
+		t.typed_dicts[node.name] = true
+	}
 
 	for decorator in node.decorator_list {
 		t.visit_expr(decorator)
@@ -963,6 +990,27 @@ pub fn (mut t TypeInferenceVisitorMixin) visit_assign(node ast.Assign) {
 				t.mark_mutated_expr(target.value)
 				dict_name := t.expr_to_name(target.value)
 				if dict_name.len > 0 {
+					dict_type := t.get_type(dict_name)
+					if dict_type in t.typed_dicts {
+						// It's a TypedDict!
+						mut key := ''
+						if target.slice is ast.Constant {
+							key = target.slice.value.trim('\'"')
+						} else if target.slice is ast.Name {
+							key = t.literal_types[target.slice.id] or { '' }
+						}
+						
+						if key.len > 0 {
+							field_type := t.get_type('${dict_type}.${key}')
+							if field_type != 'Any' {
+								// We don't store MyDict['key'] type usually, but we could
+								// but here 'value_type' is what is being ASSIGNED.
+								// If we assign to a TypedDict field, we might want to check its type
+								// or just use it as a hint for the RHS if it was unknown.
+							}
+						}
+					}
+
 					if target.slice is ast.Slice {
 						current := t.type_map[dict_name] or { 'Any' }
 						if (current == 'Any' || current.contains('Any')) && value_type != 'Any' {
@@ -1023,33 +1071,56 @@ pub fn (mut t TypeInferenceVisitorMixin) visit_ann_assign(node ast.AnnAssign) {
 		|| annotation_str == 'typing_extensions.LiteralString' {
 		v_type = 'string'
 	}
+	
+	is_class_var := annotation_str.contains('ClassVar[') || annotation_str.starts_with('ClassVar')
+	is_readonly := annotation_str.contains('ReadOnly[') || annotation_str.starts_with('ReadOnly')
+	
+	if annotation_str.starts_with('Literal[') || annotation_str.starts_with('typing.Literal[') {
+		if node.target is ast.Name {
+			// Extract literal value
+			mut lit_val := if annotation_str.starts_with('Literal[') { annotation_str[8..annotation_str.len - 1] } else { annotation_str[15..annotation_str.len - 1] }
+			t.literal_types[node.target.id] = lit_val
+		}
+	}
+
 	if annotation_str == 'Any' || annotation_str == 'typing.Any' || annotation_str == 'typing_extensions.Any' {
 		if node.target is ast.Name {
 			t.store_explicit_any(node.target.id, '${node.target.token.line}:${node.target.token.column}')
 		} else if node.target is ast.Attribute {
 			if node.target.value is ast.Name && node.target.value.id == 'self' {
-				t.store_explicit_any('self.${node.target.attr}', '${node.target.token.line}:${node.target.token.column}')
 				t.store_explicit_any(node.target.attr, '${node.target.token.line}:${node.target.token.column}')
 			}
 		}
 	}
+
+	mut target_name := ''
 	if node.target is ast.Name {
-		if t.scope_names.len > 0 {
-			curr_scope := t.scope_names[t.scope_names.len - 1]
-			if curr_scope.len > 0 && curr_scope[0].is_capital() {
-				t.store_type('${curr_scope}.${node.target.id}', v_type)
-			} else {
-				t.store_type(node.target.id, v_type)
-			}
-		} else {
-			t.store_type(node.target.id, v_type)
-		}
+		target_name = node.target.id
 	} else if node.target is ast.Attribute {
 		if node.target.value is ast.Name && node.target.value.id == 'self' {
-			t.store_type('self.${node.target.attr}', v_type)
-			t.store_type(node.target.attr, v_type)
+			target_name = node.target.attr
 		}
 	}
+
+	if target_name.len > 0 {
+		if t.scope_names.len > 0 {
+			curr_scope := t.scope_names[t.scope_names.len - 1]
+			// If we are directly in a class scope (capitalized), store as class field
+			if curr_scope.len > 0 && curr_scope[0].is_capital() {
+				t.store_type('${curr_scope}.${target_name}', v_type)
+			} else {
+				t.store_type(target_name, v_type)
+			}
+		} else {
+			t.store_type(target_name, v_type)
+		}
+		
+		if is_readonly {
+			// In V, we might use a dedicated map for this or just rely on state later.
+			// The analyzer visitor mixin doesn't have a readonly map yet.
+		}
+	}
+
 	if value_expr := node.value {
 		t.visit_expr(value_expr)
 	}
@@ -1101,6 +1172,12 @@ pub fn (mut t TypeInferenceVisitorMixin) visit_call(node ast.Call) {
 			} else if attr.attr == 'md5' {
 				t.location_map[loc_key] = 'PyHashMd5'
 			}
+		}
+		
+		// Check for method-based mutability if object is a parameter
+		obj_name := t.expr_to_name(attr.value)
+		if obj_name.len > 0 {
+			// This part usually handled by FunctionMutabilityScanner but let's double check
 		}
 	}
 	if node.func is ast.Name {

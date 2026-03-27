@@ -38,6 +38,8 @@ pub mut:
 	scope_names           []string
 	explicit_any_types    map[string]bool
 	func_param_mutability map[string][]int
+	typed_dicts          map[string]bool
+	literal_types        map[string]string // map[var_name]literal_value
 }
 
 pub fn new_type_inference_base() TypeInferenceBase {
@@ -57,6 +59,8 @@ pub fn new_type_inference_base() TypeInferenceBase {
 		scope_names:           []string{}
 		explicit_any_types:    map[string]bool{}
 		func_param_mutability: map[string][]int{}
+		typed_dicts:          map[string]bool{}
+		literal_types:        map[string]string{}
 	}
 }
 

@@ -6,6 +6,7 @@ import base
 import expressions
 import models
 import classes
+import functions
 
 pub struct Translator {
 pub mut:
@@ -14,7 +15,8 @@ pub mut:
 	model    models.VType
 	mutable_locals map[string]bool
 	current_function_name string
-	classes_module classes.ClassesModule
+	classes_module   classes.ClassesModule
+	functions_module functions.FunctionsModule
 }
 
 pub fn new_translator() &Translator {
@@ -24,7 +26,8 @@ pub fn new_translator() &Translator {
 		model:    .unknown
 		mutable_locals: map[string]bool{}
 		current_function_name: ''
-		classes_module: classes.new_classes_module()
+		classes_module:   classes.new_classes_module()
+		functions_module: functions.new_functions_module()
 	}
 }
 
@@ -73,12 +76,13 @@ fn (t &Translator) is_declared_local(name string) bool {
 }
 
 fn (mut t Translator) visit_expr(node ast.Expression) string {
-	mut eg := expressions.new_expr_gen(&t.model, &t.analyzer, &t.state)
+	eprintln('EXPR VISIT')
+	mut eg := expressions.new_expr_gen(&t.model, t.analyzer, t.state)
 	return eg.visit(node)
 }
 
 fn (mut t Translator) guess_type(node ast.Expression) string {
-	mut eg := expressions.new_expr_gen(&t.model, &t.analyzer, &t.state)
+	mut eg := expressions.new_expr_gen(&t.model, t.analyzer, t.state)
 	return eg.guess_type(node)
 }
 
@@ -213,13 +217,7 @@ pub fn (mut t Translator) translate(source string, filename string) string {
 	t.analyzer.analyze(module_node)
 
 	for i, stmt in module_node.body {
-		if stmt is ast.Assign && stmt.targets.len == 1 && stmt.targets[0] is ast.Name
-			&& t.is_pure_literal_expr(stmt.value) {
-			target := stmt.targets[0] as ast.Name
-			if i + 1 < module_node.body.len {
-				_ = target
-			}
-		}
+		// println('Processing stmt ${i}: ${stmt.str()}')
 		t.visit_stmt(stmt)
 	}
 

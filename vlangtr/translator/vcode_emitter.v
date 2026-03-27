@@ -209,7 +209,7 @@ pub fn VCodeEmitter.emit_global_helpers(imports []string, structs []string, func
 
 	lines << 'pub struct Interpolation {'
 	lines << 'pub:'
-	lines << '    value       any'
+	lines << '    value       Any'
 	lines << '    expression  string'
 	lines << '    conversion  string'
 	lines << '    format_spec string'
@@ -223,8 +223,8 @@ pub fn VCodeEmitter.emit_global_helpers(imports []string, structs []string, func
 	lines << '}'
 	lines << ''
 
-	lines << 'pub fn (t Template) values() []any {'
-	lines << '    mut res := []any{cap: t.interpolations.len}'
+	lines << 'pub fn (t Template) values() []Any {'
+	lines << '    mut res := []Any{cap: t.interpolations.len}'
 	lines << '    for i in t.interpolations {'
 	lines << '        res << i.value'
 	lines << '    }'
@@ -249,7 +249,7 @@ pub fn VCodeEmitter.emit_global_helpers(imports []string, structs []string, func
 	lines << '}'
 	lines << ''
 
-	lines << 'pub type Any = Interpolation | NoneType | Template | []any | []u8 | bool | f64 | i64 | int | map[string]any | string'
+	lines << 'pub type Any = Interpolation | NoneType | Template | []Any | []u8 | bool | f64 | i64 | int | map[string]Any | string'
 	lines << ''
 
 	lines << 'pub enum PyAnnotationFormat { value forwardref string }'
@@ -264,7 +264,7 @@ pub fn VCodeEmitter.emit_global_helpers(imports []string, structs []string, func
 	lines << '}'
 	lines << ''
 
-	lines << 'pub fn py_get_type_hints_generic(obj any) map[string]string {'
+	lines << 'pub fn py_get_type_hints_generic(obj Any) map[string]string {'
 	lines << '    return map[string]string{}'
 	lines << '}'
 	lines << ''

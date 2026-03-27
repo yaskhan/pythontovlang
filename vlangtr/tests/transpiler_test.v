@@ -20,7 +20,7 @@ struct MarkerHit {
 }
 
 fn test_transpilation() {
-	mut t := translator.new_translator()
+	println('STARTING TEST_TRANSPILATION')
 	
 	// Cases are in vlangtr/tests/cases
 	// Note: @FILE is the current file path
@@ -56,8 +56,9 @@ fn test_transpilation() {
 		source := os.read_file(py_path) or { continue }
 		expected := os.read_file(expected_path) or { continue }
 		
-		// Use the shared translator
-		// (Assuming it's safe to reuse it, which is the point of shared initialization)
+		// Initialize a new translator for each file
+		mut t := translator.new_translator()
+		eprintln('Translating ${py_path}...')
 		actual := t.translate(source, py_path)
 		
 		is_ok := check_expected_output(actual, expected, expected_path) or {

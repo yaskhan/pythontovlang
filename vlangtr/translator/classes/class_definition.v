@@ -68,19 +68,19 @@ pub fn (mut h ClassDefinitionHandler) visit_class_def(node ast.ClassDef, mut env
 	is_mixin := struct_name in env.analyzer.mixin_to_main
 	is_main_struct := struct_name in env.analyzer.main_to_mixins
 
-	mut fields := []string{}
+	mut fields := []FieldDefInfo{}
 	mut dataclass_field_order := []string{}
 	mut added_fields := map[string]bool{}
 
 	if is_main_struct {
 		mixin_fields := classes.class_fields_handler.collect_mixin_fields(struct_name, mut added_fields,
 			is_main_struct, mut env)
-		fields << mixin_fields
+		for f in mixin_fields { fields << f }
 	}
 
-	base_fields, current_class_bases, is_enum, is_int_enum, is_flag, is_unittest, is_protocol, _, is_typed_dict := classes.class_bases_handler.process_bases(node, struct_name, mut env)
+	base_fields, current_class_bases, is_enum, is_int_enum, is_flag, is_unittest, is_protocol, is_named_tuple, is_typed_dict := classes.class_bases_handler.process_bases(node, struct_name, mut env)
 	env.state.current_class_bases = current_class_bases
-	fields << base_fields
+	for f in base_fields { fields << f }
 
 	is_abc := classes.class_bases_handler.is_abstract_base_class(node, struct_name, &env)
 	if is_abc {
@@ -115,18 +115,14 @@ pub fn (mut h ClassDefinitionHandler) visit_class_def(node ast.ClassDef, mut env
 	}
 
 	if is_dataclass && dataclass_metadata.len > 0 {
-		dc_fields, updated_added_fields, updated_dataclass_field_order := classes.class_fields_handler.process_dataclass_fields(
+		dc_fields := classes.class_fields_handler.process_dataclass_fields(
 			body, struct_name, dataclass_metadata, mut added_fields, mut dataclass_field_order, mut env)
-		fields << dc_fields
-		_ = updated_added_fields
-		_ = updated_dataclass_field_order
+		for f in dc_fields { fields << f }
 	}
 
-	class_fields, updated_added_fields, updated_dataclass_field_order := classes.class_fields_handler.process_class_attributes(body, struct_name,
-		mut added_fields, is_dataclass, is_typed_dict, map[string]string{}, mut dataclass_field_order, mut env)
-	fields << class_fields
-	_ = updated_added_fields
-	_ = updated_dataclass_field_order
+	class_attr_fields := classes.class_fields_handler.process_class_attributes(body, struct_name,
+		mut added_fields, is_dataclass, is_typed_dict, dataclass_metadata, mut dataclass_field_order, mut env)
+	for f in class_attr_fields { fields << f }
 
 	namedtuple_metadata := if !is_dataclass {
 		classes.class_fields_handler.get_namedtuple_metadata(node, struct_name, &env) or { map[string]string{} }
@@ -134,10 +130,20 @@ pub fn (mut h ClassDefinitionHandler) visit_class_def(node ast.ClassDef, mut env
 		map[string]string{}
 	}
 	if namedtuple_metadata.len > 0 {
-		nt_fields, updated_added_fields2 := classes.class_fields_handler.process_namedtuple_fields(
+		nt_fields := classes.class_fields_handler.process_namedtuple_fields(
 			struct_name, namedtuple_metadata, mut added_fields, mut env)
-		fields << nt_fields
-		_ = updated_added_fields2
+		for f in nt_fields { fields << f }
+	}
+
+	// For non-enums and non-unittests, we might have __init__ fields
+	if !is_enum && !is_int_enum && !is_flag && !is_unittest {
+		init_fields := classes.class_fields_handler.collect_init_fields(node, mut added_fields, struct_name, mut env)
+		for f in init_fields { fields << f }
+	}
+
+	// Register dataclass/typeddict field order
+	if is_dataclass || is_typed_dict {
+		env.state.dataclasses[struct_name] = dataclass_field_order
 	}
 
 	if is_unittest {
@@ -148,9 +154,13 @@ pub fn (mut h ClassDefinitionHandler) visit_class_def(node ast.ClassDef, mut env
 	} else if is_protocol {
 		generics_str := get_generics_with_variance_str(&env)
 		is_exported := env.state.is_exported(node.name)
+		
+		mut interface_fields_str := []string{}
+		classes.class_fields_handler.build_visibility_blocks(fields, mut interface_fields_str, is_typed_dict)
+		
 		interface_def := classes.special_classes_handler.generate_interface_definition(struct_name,
 			methods, doc_comment, decorators, generics_str, is_exported, env.source_mapping, node,
-			fields, mut env)
+			interface_fields_str, mut env)
 		env.emit_struct_fn(interface_def)
 		if !node.name.ends_with('Mixin') && node.name in env.state.class_hierarchy {
 			impl_name := '${struct_name}_Impl'
@@ -162,8 +172,8 @@ pub fn (mut h ClassDefinitionHandler) visit_class_def(node ast.ClassDef, mut env
 			}
 			impl_parts << '@[heap]'
 			impl_parts << 'pub struct ${impl_name}${generics_str} {'
-			if fields.len > 0 {
-				impl_parts << fields.join('\n')
+			if interface_fields_str.len > 0 {
+				impl_parts << interface_fields_str.join('\n')
 			}
 			impl_parts << '}'
 			env.emit_struct_fn(impl_parts.join('\n'))
@@ -182,6 +192,9 @@ pub fn (mut h ClassDefinitionHandler) visit_class_def(node ast.ClassDef, mut env
 			enum_fields, is_flag, is_int_enum, is_exported))
 	} else {
 		mut struct_name_for_body := struct_name
+		mut struct_fields_str := []string{}
+		classes.class_fields_handler.build_visibility_blocks(fields, mut struct_fields_str, is_typed_dict)
+
 		if node.name in env.state.class_hierarchy && !node.name.ends_with('Mixin') {
 			struct_name_for_body = '${struct_name}_Impl'
 			env.state.current_class = struct_name_for_body
@@ -190,7 +203,7 @@ pub fn (mut h ClassDefinitionHandler) visit_class_def(node ast.ClassDef, mut env
 			is_exported := env.state.is_exported(node.name)
 			interface_def := classes.special_classes_handler.generate_interface_definition(struct_name,
 				methods, doc_comment, decorators, generics_str, is_exported, env.source_mapping,
-				node, fields, mut env)
+				node, struct_fields_str, mut env)
 			env.emit_struct_fn(interface_def)
 		}
 
@@ -218,9 +231,8 @@ pub fn (mut h ClassDefinitionHandler) visit_class_def(node ast.ClassDef, mut env
 		}
 		struct_parts << '@[heap]'
 		struct_parts << '${pub_prefix}struct ${struct_name_for_body}${generics_str} {'
-		if fields.len > 0 {
-			struct_parts << 'pub mut:'
-			struct_parts << fields.join('\n')
+		if struct_fields_str.len > 0 {
+			struct_parts << struct_fields_str.join('\n')
 		}
 		struct_parts << '}'
 		env.emit_struct_fn(struct_parts.join('\n'))
@@ -241,7 +253,7 @@ pub fn (mut h ClassDefinitionHandler) visit_class_def(node ast.ClassDef, mut env
 		}
 		if is_dataclass && has_post_init {
 			if factory_code := classes.class_fields_handler.generate_dataclass_factory(
-				struct_name, dataclass_metadata, body, has_post_init, env) {
+				struct_name, dataclass_metadata, body, has_post_init, mut env) {
 				env.emit_function_fn(factory_code)
 			}
 		}

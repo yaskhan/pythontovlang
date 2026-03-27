@@ -199,19 +199,22 @@ pub fn get_full_self_type(struct_name string, current_class string, current_clas
 }
 
 // find_defining_class_for_class_var locates a class where a class variable is declared.
-pub fn find_defining_class_for_class_var(class_name string, var_name string, class_vars map[string][]string, class_hierarchy map[string][]string) ?string {
+pub fn find_defining_class_for_class_var(class_name string, var_name string, class_vars map[string][]map[string]string, class_hierarchy map[string][]string) ?string {
 	mut visited := map[string]bool{}
 	mut stack := [class_name]
 	for stack.len > 0 {
-		curr := stack[stack.len - 1]
-		stack = stack[..stack.len - 1].clone()
+		curr := stack.pop()
 		if curr in visited {
 			continue
 		}
 		visited[curr] = true
 
-		if curr in class_vars && var_name in class_vars[curr] {
-			return curr
+		if curr in class_vars {
+			for var_info in class_vars[curr] {
+				if var_info['name'] == var_name {
+					return curr
+				}
+			}
 		}
 
 		if curr in class_hierarchy {

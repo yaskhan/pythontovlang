@@ -42,6 +42,7 @@ fn (mut t Translator) visit_stmt(node ast.Statement) {
 }
 
 fn (mut t Translator) visit_expr_stmt(node ast.Expr) {
+	// println('Visiting ExprStmt: ${node.str()}')
 	val := node.value
 	if val is ast.Constant {
 		if val.token.typ == .string_tok || val.token.typ == .fstring_tok {
@@ -95,7 +96,7 @@ fn (mut t Translator) visit_assign(node ast.Assign) {
 		return
 	}
 	target := node.targets[0]
-	mut eg := expressions.new_expr_gen(&t.model, &t.analyzer, &t.state)
+	mut eg := expressions.new_expr_gen(&t.model, t.analyzer, t.state)
 	mut rhs := ''
 	if target is ast.Name && (node.value is ast.ListComp || node.value is ast.DictComp || node.value is ast.SetComp) {
 		lhs := base.sanitize_name(target.id, false, map[string]bool{}, '', map[string]bool{})
@@ -178,7 +179,7 @@ fn (mut t Translator) visit_ann_assign(node ast.AnnAssign) {
 			lhs := base.sanitize_name(node.target.id, false, map[string]bool{}, '', map[string]bool{})
 			mut prev_assignment_type := t.state.current_assignment_type
 			t.state.current_assignment_type = t.map_annotation(node.annotation)
-			mut eg := expressions.new_expr_gen(&t.model, &t.analyzer, &t.state)
+			mut eg := expressions.new_expr_gen(&t.model, t.analyzer, t.state)
 			eg.target_type = t.state.current_assignment_type
 			mut rhs_text := eg.visit(value)
 			t.state.current_assignment_type = prev_assignment_type

@@ -54,8 +54,26 @@ pub fn (h ClassMethodsHandler) separate_methods(body []ast.Statement) ([]ast.Fun
 }
 
 pub fn (h ClassMethodsHandler) rename_dunder_methods(mut methods []ast.FunctionDef, has_str bool) {
-	_ = methods
-	_ = has_str
+	for mut method in methods {
+		orig_name := method.name
+		if orig_name == '__str__' {
+			method.name = 'str'
+		} else if orig_name == '__repr__' {
+			if has_str {
+				method.name = 'repr'
+			} else {
+				method.name = 'str'
+			}
+		} else if orig_name == '__next__' {
+			method.name = 'next'
+		} else if orig_name == '__iter__' {
+			method.name = 'iter'
+		} else if orig_name == '__await__' {
+			method.name = 'await_'
+		} else if orig_name == '__post_init__' {
+			method.name = 'post_init'
+		}
+	}
 }
 
 pub fn (h ClassMethodsHandler) has_method(methods []ast.FunctionDef, method_name string) bool {

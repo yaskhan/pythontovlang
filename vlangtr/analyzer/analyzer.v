@@ -3,6 +3,7 @@ module analyzer
 import ast
 
 // Analyzer - основная структура для анализа Python кода
+@[heap]
 pub struct Analyzer {
 	TypeInferenceVisitorMixin
 pub mut:

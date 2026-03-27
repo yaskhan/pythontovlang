@@ -81,10 +81,10 @@ pub fn (h SpecialClassesHandler) generate_interface_definition(
 }
 
 pub fn (h SpecialClassesHandler) extract_docstring(body []ast.Statement) (string, []ast.Statement) {
-	if body.len > 0 && body[0] is ast.ExprStmt {
-		stmt := body[0] as ast.ExprStmt
-		if stmt.value is ast.Constant && (stmt.value as ast.Constant).value.starts_with("'") {
-			val := (stmt.value as ast.Constant).value.trim("'\"")
+	if body.len > 0 && body[0] is ast.Expr {
+		stmt := body[0] as ast.Expr
+		if stmt.value is ast.Constant {
+			val := stmt.value.value.trim("'\"")
 			return '/* ${val} */\n', body[1..].clone()
 		}
 	}

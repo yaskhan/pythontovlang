@@ -49,40 +49,43 @@ pub fn (mut e ModuleEmitter) add_main_statement(code string) {
 pub fn (mut e ModuleEmitter) add_constant(code string) {
 	e.constants << code
 }
+pub fn (mut e ModuleEmitter) add_helper_import(name string) {
+	e.imports[name] = true
+}
 
-	pub fn (e &ModuleEmitter) emit() string {
-		mut parts := []string{}
+pub fn (e &ModuleEmitter) emit() string {
+	mut parts := []string{}
 
-		if e.imports.len > 0 {
-			mut names := e.imports.keys()
+	if e.imports.len > 0 {
+		mut names := e.imports.keys()
 		names.sort()
 		for name in names {
-				parts << 'import ${name}'
-			}
+			parts << 'import ${name}'
 		}
-
-		if e.constants.len > 0 {
-			parts << e.constants.join('\n')
-		}
-
-		if e.helper_structs.len > 0 {
-			parts << e.helper_structs.join('\n\n')
-		}
-
-		if e.init_statements.len > 0 {
-			parts << 'fn init() {\n${e.init_statements.join("\n")}\n}'
-		}
-
-		if e.main_statements.len > 0 {
-			parts << 'fn main() {\n${e.main_statements.join("\n")}\n}'
-		}
-
-		if e.helper_functions.len > 0 {
-			parts << e.helper_functions.join('\n\n')
-		}
-
-		return parts.join('\n\n')
 	}
+
+	if e.constants.len > 0 {
+		parts << e.constants.join('\n')
+	}
+
+	if e.helper_structs.len > 0 {
+		parts << e.helper_structs.join('\n\n')
+	}
+
+	if e.init_statements.len > 0 {
+		parts << 'fn init() {\n' + e.init_statements.join('\n') + '\n}'
+	}
+
+	if e.main_statements.len > 0 {
+		parts << 'fn main() {\n' + e.main_statements.join('\n') + '\n}'
+	}
+
+	if e.helper_functions.len > 0 {
+		parts << e.helper_functions.join('\n\n')
+	}
+
+	return parts.join('\n\n')
+}
 
 fn noop_visit_stmt(_ ast.Statement) {}
 
@@ -169,143 +172,266 @@ fn (mut m ModuleTranslator) collect_declared_names_from_block(body []ast.Stateme
 
 fn (mut m ModuleTranslator) collect_declared_names_from_stmt(stmt ast.Statement, mut names map[string]bool) {
 	match stmt {
-		ast.Import {
-			for alias in stmt.names {
-				name := alias.asname or { alias.name }
-				names[name] = true
-			}
-		}
-		ast.ImportFrom {
-			for alias in stmt.names {
-				name := alias.asname or { alias.name }
-				names[name] = true
-			}
-		}
+		ast.FunctionDef { names[stmt.name] = true }
+		ast.ClassDef { names[stmt.name] = true }
+		ast.Import { for n in stmt.names { names[if val := n.asname { val } else { n.name }] = true } }
+		ast.ImportFrom { for n in stmt.names { names[if val := n.asname { val } else { n.name }] = true } }
 		ast.Assign {
 			for target in stmt.targets {
-				if target is ast.Name {
-					names[target.id] = true
-					if target.id == '__all__' && stmt.value is ast.List {
-						m.has_module_all = true
-						mut all_names := []string{}
-						for elt in stmt.value.elements {
-							if elt is ast.Constant {
-								all_names << clean_string_constant(elt.value)
-							}
-						}
-						m.state.module_all = all_names
-					}
-					if target.id == '__all__' && stmt.value is ast.Tuple {
-						m.has_module_all = true
-						mut all_names := []string{}
-						for elt in stmt.value.elements {
-							if elt is ast.Constant {
-								all_names << clean_string_constant(elt.value)
-							}
-						}
-						m.state.module_all = all_names
-					}
-				}
+				m.collect_names_from_expr(target, mut names)
 			}
 		}
 		ast.AnnAssign {
-			if stmt.target is ast.Name {
-				names[stmt.target.id] = true
-				if stmt.target.id == '__all__' {
-					m.has_module_all = true
-				}
-			}
-		}
-		ast.FunctionDef {
-			names[stmt.name] = true
-		}
-		ast.ClassDef {
-			names[stmt.name] = true
-		}
-		ast.If {
-			m.collect_declared_names_from_block(stmt.body, mut names)
-			m.collect_declared_names_from_block(stmt.orelse, mut names)
-		}
-		ast.For {
-			m.collect_declared_names_from_block(stmt.body, mut names)
-			m.collect_declared_names_from_block(stmt.orelse, mut names)
-		}
-		ast.While {
-			m.collect_declared_names_from_block(stmt.body, mut names)
-			m.collect_declared_names_from_block(stmt.orelse, mut names)
-		}
-		ast.With {
-			m.collect_declared_names_from_block(stmt.body, mut names)
-		}
-		ast.Try {
-			m.collect_declared_names_from_block(stmt.body, mut names)
-			m.collect_declared_names_from_block(stmt.orelse, mut names)
-			m.collect_declared_names_from_block(stmt.finalbody, mut names)
-			for handler in stmt.handlers {
-				m.collect_declared_names_from_block(handler.body, mut names)
-			}
-		}
-		ast.TryStar {
-			m.collect_declared_names_from_block(stmt.body, mut names)
-			m.collect_declared_names_from_block(stmt.orelse, mut names)
-			m.collect_declared_names_from_block(stmt.finalbody, mut names)
-			for handler in stmt.handlers {
-				m.collect_declared_names_from_block(handler.body, mut names)
-			}
+			m.collect_names_from_expr(stmt.target, mut names)
 		}
 		else {}
 	}
 }
 
-fn (mut m ModuleTranslator) collect_global_names_from_block(body []ast.Statement, mut names map[string]bool) {
-	for stmt in body {
-		m.collect_global_names_from_stmt(stmt, mut names)
+
+fn (mut m ModuleTranslator) collect_assigned_names(n []ast.Statement, mut names map[string]bool) {
+	for stmt in n {
+		match stmt {
+			ast.Assign {
+				for t in stmt.targets {
+					m.collect_names_from_expr(t, mut names)
+				}
+				// Special check for __all__
+				for t in stmt.targets {
+					if t is ast.Name && t.id == '__all__' {
+						if stmt.value is ast.List {
+							m.has_module_all = true
+							for elt in stmt.value.elements {
+								if elt is ast.Constant {
+									m.state.module_all << clean_string_constant(elt.value)
+								}
+							}
+						} else if stmt.value is ast.Tuple {
+							m.has_module_all = true
+							for elt in stmt.value.elements {
+								if elt is ast.Constant {
+									m.state.module_all << clean_string_constant(elt.value)
+								}
+							}
+						}
+					}
+				}
+			}
+			ast.AnnAssign {
+				m.collect_names_from_expr(stmt.target, mut names)
+				if stmt.target is ast.Name && stmt.target.id == '__all__' {
+					m.has_module_all = true
+				}
+			}
+			ast.If {
+				m.collect_assigned_names(stmt.body, mut names)
+				m.collect_assigned_names(stmt.orelse, mut names)
+			}
+			ast.For {
+				m.collect_assigned_names(stmt.body, mut names)
+				m.collect_assigned_names(stmt.orelse, mut names)
+			}
+			ast.While {
+				m.collect_assigned_names(stmt.body, mut names)
+				m.collect_assigned_names(stmt.orelse, mut names)
+			}
+			ast.With {
+				m.collect_assigned_names(stmt.body, mut names)
+			}
+			ast.Try {
+				m.collect_assigned_names(stmt.body, mut names)
+				m.collect_assigned_names(stmt.orelse, mut names)
+				m.collect_assigned_names(stmt.finalbody, mut names)
+				for h in stmt.handlers {
+					m.collect_assigned_names(h.body, mut names)
+				}
+			}
+			ast.TryStar {
+				m.collect_assigned_names(stmt.body, mut names)
+				m.collect_assigned_names(stmt.orelse, mut names)
+				m.collect_assigned_names(stmt.finalbody, mut names)
+				for h in stmt.handlers {
+					m.collect_assigned_names(h.body, mut names)
+				}
+			}
+			ast.Import {
+				for alias in stmt.names {
+					names[alias.asname or { alias.name }] = true
+				}
+			}
+			ast.ImportFrom {
+				for alias in stmt.names {
+					names[alias.asname or { alias.name }] = true
+				}
+			}
+			ast.FunctionDef {
+				names[stmt.name] = true
+			}
+			ast.ClassDef {
+				names[stmt.name] = true
+			}
+			else {}
+		}
 	}
 }
 
-fn (mut m ModuleTranslator) collect_global_names_from_stmt(stmt ast.Statement, mut names map[string]bool) {
-	match stmt {
-		ast.Global {
-			for name in stmt.names {
-				names[name] = true
+fn (m &ModuleTranslator) collect_names_from_expr(expr ast.Expression, mut names map[string]bool) {
+	match expr {
+		ast.Name {
+			names[expr.id] = true
+		}
+		ast.Tuple {
+			for elt in expr.elements {
+				m.collect_names_from_expr(elt, mut names)
 			}
 		}
-		ast.FunctionDef {
-			m.collect_global_names_from_block(stmt.body, mut names)
+		ast.List {
+			for elt in expr.elements {
+				m.collect_names_from_expr(elt, mut names)
+			}
 		}
-		ast.ClassDef {
-			m.collect_global_names_from_block(stmt.body, mut names)
+		ast.Starred {
+			m.collect_names_from_expr(expr.value, mut names)
 		}
+		else {}
+	}
+}
+
+fn (m &ModuleTranslator) collect_global_refs(node ast.ASTNode, top_level map[string]bool, mut assigned_locally map[string]bool, mut globals map[string]bool) {
+	if node is ast.Module {
+		for s in node.body { m.walk_stmt_refs(s, top_level, assigned_locally, mut globals) }
+	} else if node is ast.FunctionDef {
+		mut inner_assigned := assigned_locally.clone()
+		for arg in node.args.args { inner_assigned[arg.arg] = true }
+		for arg in node.args.posonlyargs { inner_assigned[arg.arg] = true }
+		for arg in node.args.kwonlyargs { inner_assigned[arg.arg] = true }
+		if va := node.args.vararg { inner_assigned[va.arg] = true }
+		if ka := node.args.kwarg { inner_assigned[ka.arg] = true }
+		
+		m.collect_inner_assignments(node.body, mut inner_assigned)
+		m.collect_inner_refs(node.body, top_level, inner_assigned, mut globals)
+	} else if node is ast.ClassDef {
+		mut inner_assigned := assigned_locally.clone()
+		m.collect_inner_assignments(node.body, mut inner_assigned)
+		m.collect_inner_refs(node.body, top_level, inner_assigned, mut globals)
+	}
+}
+
+fn (m &ModuleTranslator) collect_inner_assignments(body []ast.Statement, mut assigned map[string]bool) {
+	for stmt in body {
+		match stmt {
+			ast.Assign {
+				for t in stmt.targets { m.collect_names_from_expr(t, mut assigned) }
+			}
+			ast.AnnAssign {
+				m.collect_names_from_expr(stmt.target, mut assigned)
+			}
+			ast.If {
+				m.collect_inner_assignments(stmt.body, mut assigned)
+				m.collect_inner_assignments(stmt.orelse, mut assigned)
+			}
+			ast.For {
+				m.collect_names_from_expr(stmt.target, mut assigned)
+				m.collect_inner_assignments(stmt.body, mut assigned)
+				m.collect_inner_assignments(stmt.orelse, mut assigned)
+			}
+			ast.While {
+				m.collect_inner_assignments(stmt.body, mut assigned)
+				m.collect_inner_assignments(stmt.orelse, mut assigned)
+			}
+			ast.With {
+				for item in stmt.items {
+					if opt := item.optional_vars { m.collect_names_from_expr(opt, mut assigned) }
+				}
+				m.collect_inner_assignments(stmt.body, mut assigned)
+			}
+			ast.Try {
+				m.collect_inner_assignments(stmt.body, mut assigned)
+				for h in stmt.handlers {
+					if n := h.name { assigned[n] = true }
+					m.collect_inner_assignments(h.body, mut assigned)
+				}
+				m.collect_inner_assignments(stmt.orelse, mut assigned)
+				m.collect_inner_assignments(stmt.finalbody, mut assigned)
+			}
+			else {}
+		}
+	}
+}
+
+fn (m &ModuleTranslator) collect_inner_refs(body []ast.Statement, top_level map[string]bool, assigned map[string]bool, mut globals map[string]bool) {
+	for stmt in body {
+		m.walk_stmt_refs(stmt, top_level, assigned, mut globals)
+	}
+}
+
+fn (m &ModuleTranslator) walk_stmt_refs(s ast.Statement, top_level map[string]bool, assigned map[string]bool, mut globals map[string]bool) {
+	match s {
+		ast.Expr { m.walk_expr_refs(s.value, top_level, assigned, mut globals) }
+		ast.Assign {
+			for t in s.targets { m.walk_expr_refs(t, top_level, assigned, mut globals) }
+			m.walk_expr_refs(s.value, top_level, assigned, mut globals)
+		}
+		ast.AnnAssign {
+			m.walk_expr_refs(s.target, top_level, assigned, mut globals)
+			if v := s.value { m.walk_expr_refs(v, top_level, assigned, mut globals) }
+		}
+		ast.Return { if v := s.value { m.walk_expr_refs(v, top_level, assigned, mut globals) } }
 		ast.If {
-			m.collect_global_names_from_block(stmt.body, mut names)
-			m.collect_global_names_from_block(stmt.orelse, mut names)
-		}
-		ast.For {
-			m.collect_global_names_from_block(stmt.body, mut names)
-			m.collect_global_names_from_block(stmt.orelse, mut names)
+			m.walk_expr_refs(s.test, top_level, assigned, mut globals)
+			for item in s.body { m.walk_stmt_refs(item, top_level, assigned, mut globals) }
+			for item in s.orelse { m.walk_stmt_refs(item, top_level, assigned, mut globals) }
 		}
 		ast.While {
-			m.collect_global_names_from_block(stmt.body, mut names)
-			m.collect_global_names_from_block(stmt.orelse, mut names)
+			m.walk_expr_refs(s.test, top_level, assigned, mut globals)
+			for item in s.body { m.walk_stmt_refs(item, top_level, assigned, mut globals) }
+			for item in s.orelse { m.walk_stmt_refs(item, top_level, assigned, mut globals) }
 		}
-		ast.With {
-			m.collect_global_names_from_block(stmt.body, mut names)
+		ast.For {
+			m.walk_expr_refs(s.target, top_level, assigned, mut globals)
+			m.walk_expr_refs(s.iter, top_level, assigned, mut globals)
+			for item in s.body { m.walk_stmt_refs(item, top_level, assigned, mut globals) }
+			for item in s.orelse { m.walk_stmt_refs(item, top_level, assigned, mut globals) }
 		}
-		ast.Try {
-			m.collect_global_names_from_block(stmt.body, mut names)
-			m.collect_global_names_from_block(stmt.orelse, mut names)
-			m.collect_global_names_from_block(stmt.finalbody, mut names)
-			for handler in stmt.handlers {
-				m.collect_global_names_from_block(handler.body, mut names)
+		ast.Global {
+			for name in s.names { globals[name] = true }
+		}
+		else {}
+	}
+}
+
+fn (m &ModuleTranslator) walk_expr_refs(e ast.Expression, top_level map[string]bool, assigned map[string]bool, mut globals map[string]bool) {
+	match e {
+		ast.Name {
+			if e.ctx == .load && e.id in top_level && e.id !in assigned {
+				globals[e.id] = true
 			}
 		}
-		ast.TryStar {
-			m.collect_global_names_from_block(stmt.body, mut names)
-			m.collect_global_names_from_block(stmt.orelse, mut names)
-			m.collect_global_names_from_block(stmt.finalbody, mut names)
-			for handler in stmt.handlers {
-				m.collect_global_names_from_block(handler.body, mut names)
-			}
+		ast.Call {
+			m.walk_expr_refs(e.func, top_level, assigned, mut globals)
+			for a in e.args { m.walk_expr_refs(a, top_level, assigned, mut globals) }
+		}
+		ast.Attribute { m.walk_expr_refs(e.value, top_level, assigned, mut globals) }
+		ast.BinaryOp {
+			m.walk_expr_refs(e.left, top_level, assigned, mut globals)
+			m.walk_expr_refs(e.right, top_level, assigned, mut globals)
+		}
+		ast.UnaryOp { m.walk_expr_refs(e.operand, top_level, assigned, mut globals) }
+		ast.IfExp {
+			m.walk_expr_refs(e.test, top_level, assigned, mut globals)
+			m.walk_expr_refs(e.body, top_level, assigned, mut globals)
+			m.walk_expr_refs(e.orelse, top_level, assigned, mut globals)
+		}
+		ast.Compare {
+			m.walk_expr_refs(e.left, top_level, assigned, mut globals)
+			for c in e.comparators { m.walk_expr_refs(c, top_level, assigned, mut globals) }
+		}
+		ast.Tuple { for item in e.elements { m.walk_expr_refs(item, top_level, assigned, mut globals) } }
+		ast.List { for item in e.elements { m.walk_expr_refs(item, top_level, assigned, mut globals) } }
+		ast.Set { for item in e.elements { m.walk_expr_refs(item, top_level, assigned, mut globals) } }
+		ast.Dict {
+			for k in e.keys { m.walk_expr_refs(k, top_level, assigned, mut globals) }
+			for v in e.values { m.walk_expr_refs(v, top_level, assigned, mut globals) }
 		}
 		else {}
 	}
@@ -314,20 +440,44 @@ fn (mut m ModuleTranslator) collect_global_names_from_stmt(stmt ast.Statement, m
 fn (mut m ModuleTranslator) scan_module_symbols(node ast.Module) {
 	m.state.module_all = []string{}
 	m.has_module_all = false
-	mut module_scope_names := map[string]bool{}
-	mut global_names := m.state.global_vars.clone()
-
+	
+	// Pre-scan for __all__
 	for stmt in node.body {
-		m.collect_declared_names_from_stmt(stmt, mut module_scope_names)
-		m.collect_global_names_from_stmt(stmt, mut global_names)
+		if stmt is ast.Assign {
+			for target in stmt.targets {
+				if target is ast.Name && target.id == '__all__' {
+					if stmt.value is ast.List {
+						m.has_module_all = true
+						for elt in stmt.value.elements {
+							if elt is ast.Constant {
+								m.state.module_all << clean_string_constant(elt.value)
+							}
+						}
+					} else if stmt.value is ast.Tuple {
+						m.has_module_all = true
+						for elt in stmt.value.elements {
+							if elt is ast.Constant {
+								m.state.module_all << clean_string_constant(elt.value)
+							}
+						}
+					}
+				}
+			}
+		}
 	}
 
-	for name in module_scope_names.keys() {
+	mut top_level_names := map[string]bool{}
+	m.collect_assigned_names(node.body, mut top_level_names)
+	
+	for name in top_level_names.keys() {
 		m.record_defined_symbol(name)
-		global_names[name] = true
 	}
-
-	for name in global_names.keys() {
+	
+	mut globals := map[string]bool{}
+	mut assigned_locally := map[string]bool{}
+	m.collect_global_refs(node, top_level_names, mut assigned_locally, mut globals)
+	
+	for name in globals.keys() {
 		m.state.global_vars[name] = true
 	}
 }
@@ -354,109 +504,314 @@ fn (mut m ModuleTranslator) extract_docstring(body []ast.Statement) ([]ast.State
 
 fn (mut m ModuleTranslator) append_runtime_helpers() {
 	if m.state.used_builtins['math.pow'] || m.state.used_builtins['math.floor'] || m.state.used_builtins['py_round'] {
-		m.emitter.add_import('math')
+		m.emitter.add_helper_import('math')
 	}
 	if m.state.used_builtins['py_set_union'] || m.state.used_builtins['py_set_intersection']
 		|| m.state.used_builtins['py_set_difference'] || m.state.used_builtins['py_set_xor']
 		|| m.state.used_builtins['py_set_subset'] || m.state.used_builtins['py_set_strict_subset']
 		|| m.state.used_builtins['py_set_superset'] || m.state.used_builtins['py_set_strict_superset'] {
-		m.emitter.add_import('datatypes')
+		m.emitter.add_helper_import('datatypes')
+	}
+
+	// Single dispatchers
+	for func_name, registry in m.state.single_dispatch_functions {
+		mut lines := []string{}
+		lines << 'fn ${func_name}(arg Any) {'
+		lines << '    // Singledispatch implementation'
+		
+		default_impl := registry['default'] or { '' }
+		mut first := true
+		for type_name, impl_name in registry {
+			if type_name == 'default' { continue }
+			pfx := if first { 'if' } else { ' else if' }
+			lines << '    ${pfx} arg is ${type_name} {'
+			lines << '        ${impl_name}(arg as ${type_name})'
+			lines << '    }'
+			first = false
+		}
+		if default_impl.len > 0 {
+			if first {
+				lines << '    ${default_impl}(arg)'
+			} else {
+				lines << '    else {'
+				lines << '        ${default_impl}(arg)'
+				lines << '    }'
+			}
+		}
+		lines << '}'
+		m.emitter.add_helper_function(lines.join('\n'))
 	}
 
 	if m.state.used_builtins['py_is_identical'] {
-		m.emitter.add_helper_function('fn py_is_identical[T, U](a T, b U) bool {\n    return voidptr(&a) == voidptr(&b)\n}')
+		m.emitter.add_helper_function('fn py_is_identical[T, U](a T, b U) bool {
+    return voidptr(&a) == voidptr(&b)
+}')
 	}
 
 	if m.state.used_builtins['py_any'] {
-		m.emitter.add_helper_function('fn py_any[T](a []T) bool {\n    for item in a {\n        if item {\n            return true\n        }\n    }\n    return false\n}')
+		m.emitter.add_helper_function('fn py_any[T](a []T) bool {
+    for item in a {
+        if item {
+            return true
+        }
+    }
+    return false
+}')
 	}
 
 	if m.state.used_builtins['py_all'] {
-		m.emitter.add_helper_function('fn py_all[T](a []T) bool {\n    for item in a {\n        if !item {\n            return false\n        }\n    }\n    return true\n}')
+		m.emitter.add_helper_function('fn py_all[T](a []T) bool {
+    for item in a {
+        if !item {
+            return false
+        }
+    }
+    return true
+}')
 	}
 
-	if m.state.used_builtins['py_argparse_new'] {
-		m.emitter.add_import('argparse')
-		m.emitter.add_helper_function('fn py_argparse_new() argparse.ArgumentParser {\n    return argparse.argument_parser()\n}')
+	if m.state.used_builtins['py_argparse_new'] || m.state.imported_modules.values().contains('argparse') {
+		m.emitter.add_helper_import('os')
+		m.emitter.add_helper_struct('struct PyArgDef { name string }')
+		m.emitter.add_helper_struct('struct PyArgumentParser { mut: definitions []PyArgDef }')
+		m.emitter.add_helper_function('fn py_argparse_new() PyArgumentParser { return PyArgumentParser{} }')
+		m.emitter.add_helper_function('fn (mut p PyArgumentParser) add_argument(name string) { p.definitions << PyArgDef{name: name} }')
+		m.emitter.add_helper_function("fn (mut p PyArgumentParser) parse_args() map[string]string {
+    mut args := map[string]string{}
+    for i := 0; i < os.args.len; i++ {
+        arg := os.args[i]
+        if arg.starts_with('--') {
+            key := arg[2..]
+            val := if i + 1 < os.args.len { os.args[i+1] } else { '' }
+            args[key] = val
+        }
+    }
+    return args
+}")
 	}
 
-	if m.state.used_builtins['py_array'] {
-		m.emitter.add_helper_function('fn py_array[T](typecode string, items []T) []T {\n    _ = typecode\n    return items\n}')
+	if m.state.used_builtins['py_array'] || m.state.imported_modules.values().contains('array') {
+		m.emitter.add_helper_function('fn py_array[T](code string, init []T) []T { return init }')
+	}
+
+	if m.state.used_builtins['py_repeat'] {
+		m.emitter.add_helper_function('fn py_repeat[T](val T, n int) []T { return []T{len: n, init: val} }')
 	}
 
 	if m.state.used_builtins['py_repeat_list'] {
-		m.emitter.add_helper_function('fn py_repeat_list[T](a []T, n int) []T {\n    mut res := []T{cap: a.len * n}\n    for _ in 0 .. n {\n        res << a\n    }\n    return res\n}')
+		m.emitter.add_helper_function('fn py_repeat_list[T](a []T, n int) []T {
+    mut res := []T{cap: a.len * n}
+    for _ in 0 .. n {
+        res << a
+    }
+    return res
+}')
 	}
 
-	if m.state.used_builtins['py_complex'] || m.state.used_complex {
-		m.emitter.add_helper_struct('struct PyComplex {\n    re f64\n    im f64\n}')
-		m.emitter.add_helper_function('fn py_complex(re f64, im f64) PyComplex {\n    return PyComplex{re: re, im: im}\n}')
-		m.emitter.add_helper_function("fn (z PyComplex) str() string {\n    sign := if z.im >= 0 { '+' } else { '-' }\n    im_abs := if z.im >= 0 { z.im } else { -z.im }\n    return '(' + z.re.str() + sign + im_abs.str() + 'j)'\n}")
+	if m.state.used_builtins['py_round'] {
+		m.emitter.add_helper_function('fn py_round(number f64, ndigits int) f64 {
+    p := math.pow(10, f64(ndigits))
+    return math.round(number * p) / p
+}')
+	}
+
+	if m.state.used_complex {
+		m.emitter.add_helper_struct('struct PyComplex { re f64 im f64 }')
+		m.emitter.add_helper_function('fn py_complex(re f64, im f64) PyComplex { return PyComplex{re: re, im: im} }')
+		m.emitter.add_helper_function('fn (a PyComplex) + (b PyComplex) PyComplex { return PyComplex{re: a.re + b.re, im: a.im + b.im} }')
+		m.emitter.add_helper_function('fn (a PyComplex) - (b PyComplex) PyComplex { return PyComplex{re: a.re - b.re, im: a.im - b.im} }')
+		m.emitter.add_helper_function('fn (a PyComplex) * (b PyComplex) PyComplex { return PyComplex{re: a.re * b.re - a.im * b.im, im: a.re * b.im + a.im * b.re} }')
+		m.emitter.add_helper_function('fn (a PyComplex) / (b PyComplex) PyComplex {
+    denom := b.re * b.re + b.im * b.im
+    return PyComplex{re: (a.re * b.re + a.im * b.im) / denom, im: (a.im * b.re - a.re * b.im) / denom}
+}')
+		m.emitter.add_helper_function('fn (z PyComplex) str() string {
+    sign := if z.im >= 0 { "+" } else { "-" }
+    im_abs := if z.im >= 0 { z.im } else { -z.im }
+    return "(\x24{z.re}\x24{sign}\x24{im_abs}j)"
+}')
 	}
 
 	if m.state.used_list_concat {
-		m.emitter.add_helper_function('fn py_list_concat[T](lists ...[]T) []T {\n    mut res := []T{}\n    for l in lists {\n        res << l\n    }\n    return res\n}')
+		m.emitter.add_helper_function('fn py_list_concat[T](lists ...[]T) []T {
+    mut res := []T{}
+    for l in lists {
+        res << l
+    }
+    return res
+}')
 	}
 
 	if m.state.used_dict_merge {
-		m.emitter.add_helper_function('fn py_dict_merge[K, V](dicts ...map[K]V) map[K]V {\n    mut res := map[K]V{}\n    for d in dicts {\n        for k, v in d {\n            res[k] = v\n        }\n    }\n    return res\n}')
+		m.emitter.add_helper_function('fn py_dict_merge[K, V](dicts ...map[K]V) map[K]V {
+    mut res := map[K]V{}
+    for d in dicts {
+        for k, v in d {
+            res[k] = v
+        }
+    }
+    return res
+}')
 	}
 
-	if m.state.used_string_format {
-		m.emitter.add_helper_function('fn py_string_format(fmt string, args ...string) string {\n    mut res := fmt\n    for arg in args {\n        res = res.replace_first(\'%s\', arg)\n    }\n    return res\n}')
-	}
-
-	if m.state.used_builtins['py_bytes_format'] {
-		m.emitter.add_helper_function('fn py_bytes_format_arg(arg Any) string {\n    return arg.str()\n}')
-		m.emitter.add_helper_function('fn py_bytes_format(fmt string, args ...string) string {\n    mut res := fmt\n    for arg in args {\n        res = res.replace_first(\'%s\', arg)\n    }\n    return res\n}')
+	if m.state.used_string_format || m.state.used_builtins['py_bytes_format'] {
+		m.emitter.add_helper_import('strconv')
+		m.emitter.add_helper_import('strings')
+		
+				m.emitter.add_helper_function('fn py_string_format(fmt string, args ...Any) string {
+    mut res := strings.new_builder(fmt.len + 16)
+    mut arg_idx := 0
+    mut i := 0
+    for i < fmt.len {
+        if fmt[i] == `%` {
+            if i + 1 < fmt.len {
+                if fmt[i+1] == `%` {
+                    res.write_string("%")
+                    i += 2
+                    continue
+                }
+                // Handle simple placeholders %s, %d, %f, %r
+                mut j := i + 1
+				mut flag_zero := false
+				for j < fmt.len && (fmt[j] == `0` || fmt[j] == `-`) { 
+					if fmt[j] == `0` { flag_zero = true }
+					j++ 
+				}
+				mut width := 0
+				for j < fmt.len && fmt[j].is_digit() {
+					width = width * 10 + int(fmt[j] - `0`)
+					j++
+				}
+                if j < fmt.len {
+                    spec := fmt[j]
+                    if arg_idx < args.len {
+                        arg := args[arg_idx]
+                        arg_idx++
+                        mut s := ""
+                        if spec == `s` { s = "\x24{arg}" }
+                        else if spec == `d` { s = "\x24{arg}" }
+                        else if spec == `f` { s = "\x24{arg}" }
+                        else if spec == `r` { s = "\x24{arg}" }
+						
+						if width > s.len {
+							if flag_zero { s = "0".repeat(width - s.len) + s }
+							else { s = " ".repeat(width - s.len) + s }
+						}
+                        res.write_string(s)
+                        i = j + 1
+                        continue
+                    }
+                }
+            }
+        }
+        res.write_u8(fmt[i])
+        i++
+    }
+    return res.str()
+}')
 	}
 
 	if m.state.used_builtins['py_repr'] {
-		m.emitter.add_helper_function('fn py_repr(arg Any) string {\n    return arg.str()\n}')
+		m.emitter.add_helper_function('fn py_repr(arg Any) string { return "\x24{arg}" }')
 	}
 
 	if m.state.used_builtins['py_ascii'] {
-		m.emitter.add_helper_function('fn py_ascii(arg Any) string {\n    return arg.str()\n}')
+		m.emitter.add_helper_function('fn py_ascii(arg Any) string { return "\x24{arg}" }')
 	}
 
-	if m.state.used_builtins['py_set_union'] {
-		m.emitter.add_helper_function('fn py_set_union[K](a datatypes.Set[K], b datatypes.Set[K]) datatypes.Set[K] {\n    mut res := a.clone()\n    for k, _ in b.elements {\n        res.add(k)\n    }\n    return res\n}')
+	if m.state.used_builtins['py_format'] {
+		m.emitter.add_helper_import('strconv')
+		m.emitter.add_helper_function('fn py_format(val Any, fmt string) string {
+    // Basic format implementation
+    if fmt == "" { return "\x24{val}" }
+    return "\x24{val}" // TODO: format spec parsing
+}')
 	}
 
-	if m.state.used_builtins['py_set_intersection'] {
-		m.emitter.add_helper_function('fn py_set_intersection[K](a datatypes.Set[K], b datatypes.Set[K]) datatypes.Set[K] {\n    mut res := datatypes.Set[K]{}\n    for k, _ in a.elements {\n        if k in b.elements {\n            res.add(k)\n        }\n    }\n    return res\n}')
+	if m.state.used_builtins['py_bytes_format'] {
+		m.emitter.add_helper_function('fn py_bytes_format(fmt []u8, args ...Any) []u8 {
+    // Simplistic bytes formatting
+    return fmt // TODO: bytes formatting
+}')
 	}
 
-	if m.state.used_builtins['py_set_difference'] {
-		m.emitter.add_helper_function('fn py_set_difference[K](a datatypes.Set[K], b datatypes.Set[K]) datatypes.Set[K] {\n    mut res := datatypes.Set[K]{}\n    for k, _ in a.elements {\n        if k !in b.elements {\n            res.add(k)\n        }\n    }\n    return res\n}')
+	if m.state.used_builtins['py_subscript_int'] {
+		m.emitter.add_helper_function('fn py_subscript_int[T](a []T, idx int) T {
+    if idx < 0 { return a[a.len + idx] }
+    return a[idx]
+}')
 	}
 
-	if m.state.used_builtins['py_set_xor'] {
-		m.emitter.add_helper_function('fn py_set_xor[K](a datatypes.Set[K], b datatypes.Set[K]) datatypes.Set[K] {\n    mut res := datatypes.Set[K]{}\n    for k, _ in a.elements {\n        if k !in b.elements {\n            res.add(k)\n        }\n    }\n    for k, _ in b.elements {\n        if k !in a.elements {\n            res.add(k)\n        }\n    }\n    return res\n}')
+	if m.state.used_builtins['py_subscript_i64'] {
+		m.emitter.add_helper_function('fn py_subscript_i64[T](a []T, idx i64) T {
+    i := int(idx)
+    if i < 0 { return a[a.len + i] }
+    return a[i]
+}')
 	}
 
-	if m.state.used_builtins['py_set_subset'] {
-		m.emitter.add_helper_function('fn py_set_subset[K](a datatypes.Set[K], b datatypes.Set[K]) bool {\n    for k, _ in a.elements {\n        if k !in b.elements {\n            return false\n        }\n    }\n    return true\n}')
+	// itertools
+	itertools_used := m.state.imported_modules.values().contains('itertools') || m.state.used_builtins['py_chain'] || m.state.used_builtins['py_count'] || m.state.used_builtins['py_cycle']
+	if itertools_used {
+		m.emitter.add_helper_function('fn py_chain[T](args ...[]T) []T {
+    mut res := []T{}
+    for arg in args { res << arg }
+    return res
+}')
+		m.emitter.add_helper_struct('struct PyCountIterator { mut: val int step int }')
+		m.emitter.add_helper_function('fn (mut i PyCountIterator) next() ?int {
+    val := i.val
+    i.val += i.step
+    return val
+}')
+		m.emitter.add_helper_function('fn py_count(start int, step int) PyCountIterator { return PyCountIterator{val: start, step: step} }')
+		
+		m.emitter.add_helper_struct('struct PyCycleIterator[T] { data []T mut: idx int }')
+		m.emitter.add_helper_function('fn (mut i PyCycleIterator[T]) next() ?T {
+    if i.data.len == 0 { return none }
+    val := i.data[i.idx]
+    i.idx = (i.idx + 1) % i.data.len
+    return val
+}')
+		m.emitter.add_helper_function('fn py_cycle[T](data []T) PyCycleIterator[T] { return PyCycleIterator[T]{data: data} }')
+		
+		m.emitter.add_helper_function('fn py_repeat[T](val T, n int) []T { return []T{len: n, init: val} }')
 	}
 
-	if m.state.used_builtins['py_set_strict_subset'] {
-		m.emitter.add_helper_function('fn py_set_strict_subset[K](a datatypes.Set[K], b datatypes.Set[K]) bool {\n    return a.elements.len < b.elements.len && py_set_subset(a, b)\n}')
+	// collections
+	if m.state.imported_modules.values().contains('collections') || m.state.used_builtins['py_counter'] {
+		m.emitter.add_helper_function('fn py_counter[T](a []T) map[T]int {
+    mut m := map[T]int{}
+    for x in a { m[x]++ }
+    return m
+}')
 	}
 
-	if m.state.used_builtins['py_set_superset'] {
-		m.emitter.add_helper_function('fn py_set_superset[K](a datatypes.Set[K], b datatypes.Set[K]) bool {\n    return py_set_subset(b, a)\n}')
+	// functools
+	if m.state.imported_modules.values().contains('functools') || m.state.used_builtins['py_reduce'] {
+		m.emitter.add_helper_function('fn py_reduce[T](op fn (acc T, x T) T, iter []T) T {
+    if iter.len == 0 { panic("reduce() of empty sequence") }
+    mut acc := iter[0]
+    for i in 1..iter.len { acc = op(acc, iter[i]) }
+    return acc
+}')
 	}
 
-	if m.state.used_builtins['py_set_strict_superset'] {
-		m.emitter.add_helper_function('fn py_set_strict_superset[K](a datatypes.Set[K], b datatypes.Set[K]) bool {\n    return a.elements.len > b.elements.len && py_set_superset(a, b)\n}')
+	if 'py_sorted' in m.state.used_builtins || 'sorted' in m.state.used_builtins {
+		m.emitter.add_helper_function('fn py_sorted[T](a []T, reverse bool) []T {
+    mut b := a.clone()
+    b.sort()
+    if reverse { b.reverse() }
+    return b
+}')
 	}
 
-	if 'py_sorted' in m.state.used_builtins {
-		m.emitter.add_helper_function('fn py_sorted[T](a []T, reverse bool) []T {\n    mut b := a.clone()\n    b.sort()\n    if reverse {\n        b.reverse()\n    }\n    return b\n}')
-	}
-
-	if 'reversed' in m.state.used_builtins {
-		m.emitter.add_helper_function('fn py_reversed[T](a []T) []T {\n    mut b := a.clone()\n    b.reverse()\n    return b\n}')
+	if 'reversed' in m.state.used_builtins || 'py_reversed' in m.state.used_builtins {
+		m.emitter.add_helper_function('fn py_reversed[T](a []T) []T {
+    mut b := a.clone()
+    b.reverse()
+    return b
+}')
 	}
 }
 
@@ -487,23 +842,24 @@ pub fn (mut m ModuleTranslator) visit_module(node ast.Module) string {
 
 		m.state.output = []string{}
 		if m.source_mapping {
-			m.state.output << '// @line: ${m.state.get_source_info(stmt)}'
+			m.state.output << '// @line: ${m.state.get_source_info(stmt.get_token())}'
 		}
+		
 		if stmt is ast.FunctionDef || stmt is ast.ClassDef || stmt is ast.Import || stmt is ast.ImportFrom {
+			m.state.in_main = false
 			m.visit_stmt_fn(stmt)
+			m.state.in_main = true
 		} else {
-			if stmt is ast.If && m.is_name_main(stmt) {
-				m.visit_stmt_fn(stmt)
-			} else {
-				m.visit_stmt_fn(stmt)
-			}
+			m.visit_stmt_fn(stmt)
 		}
 
 		for line in m.state.output {
 			if stmt is ast.If && m.is_name_main(stmt) {
-				m.emitter.add_main_statement(line)
+				m.emitter.add_main_statement(line.trim_space())
+			} else if line.trim_space().starts_with('import ') {
+				m.emitter.add_import(line.trim_space()['import '.len..].trim_space())
 			} else {
-				m.emitter.add_init_statement(line)
+				m.emitter.add_init_statement(line.trim_space())
 			}
 		}
 	}

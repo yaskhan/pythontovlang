@@ -11,6 +11,7 @@ struct ExportConfigLike {
 }
 
 // TranslatorState - состояние транслятора
+@[heap]
 pub struct TranslatorState {
 pub mut:
 	type_inference      voidptr
@@ -196,13 +197,9 @@ pub fn (mut s TranslatorState) create_temp_with_prefix(prefix string) string {
 }
 
 // get_source_info возвращает информацию об исходном коде
-pub fn (s &TranslatorState) get_source_info(node voidptr) string {
-	if node == unsafe { nil } {
-		return '${s.current_file_name}:?:?'
-	}
-	h := unsafe { &SourceTokenCarrier(node) }
-	if h.token.line > 0 {
-		return '${s.current_file_name}:${h.token.line}:${h.token.column}'
+pub fn (s &TranslatorState) get_source_info(t ast.Token) string {
+	if t.line > 0 {
+		return '${s.current_file_name}:${t.line}:${t.column}'
 	}
 	return '${s.current_file_name}:?:?'
 }

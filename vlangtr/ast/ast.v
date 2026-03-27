@@ -10,19 +10,22 @@ pub interface ASTNode {
 // ==================== EXPRESSIONS ====================
 
 pub interface Expression {
-	ASTNode
+	get_token() Token
+	str() string
 }
 
 // ==================== STATEMENTS ====================
 
 pub interface Statement {
-	ASTNode
+	get_token() Token
+	str() string
 }
 
 // ==================== PATTERN ====================
 
 pub interface Pattern {
-	ASTNode
+	get_token() Token
+	str() string
 }
 
 // ??????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????
@@ -47,11 +50,11 @@ pub mut:
 	ctx ExprContext
 }
 
-fn (n &Name) get_token() Token {
+pub fn (n &Name) get_token() Token {
 	return n.token
 }
 
-fn (n &Name) str() string {
+pub fn (n &Name) str() string {
 	return 'Name(id=\'${n.id}\', ctx=${n.ctx})'
 }
 
@@ -63,11 +66,11 @@ pub:
 	value string // Store as string for simplicity in debug output, or use any
 }
 
-fn (n &Constant) get_token() Token {
+pub fn (n &Constant) get_token() Token {
 	return n.token
 }
 
-fn (n &Constant) str() string {
+pub fn (n &Constant) str() string {
 	return 'Constant(value=${n.value})'
 }
 
@@ -77,11 +80,11 @@ pub:
 	token Token
 }
 
-fn (n &NoneExpr) get_token() Token {
+pub fn (n &NoneExpr) get_token() Token {
 	return n.token
 }
 
-fn (n &NoneExpr) str() string {
+pub fn (n &NoneExpr) str() string {
 	return 'None'
 }
 
@@ -95,11 +98,11 @@ pub:
 	format_spec ?Expression // JoinedStr
 }
 
-fn (n &FormattedValue) get_token() Token {
+pub fn (n &FormattedValue) get_token() Token {
 	return n.token
 }
 
-fn (n &FormattedValue) str() string {
+pub fn (n &FormattedValue) str() string {
 	return 'FormattedValue'
 }
 
@@ -111,11 +114,11 @@ pub:
 	values []Expression // Constant or FormattedValue
 }
 
-fn (n &JoinedStr) get_token() Token {
+pub fn (n &JoinedStr) get_token() Token {
 	return n.token
 }
 
-fn (n &JoinedStr) str() string {
+pub fn (n &JoinedStr) str() string {
 	return 'JoinedStr'
 }
 
@@ -129,11 +132,11 @@ pub mut:
 	ctx ExprContext
 }
 
-fn (n &List) get_token() Token {
+pub fn (n &List) get_token() Token {
 	return n.token
 }
 
-fn (n &List) str() string {
+pub fn (n &List) str() string {
 	return 'List(elts=[...], ctx=${n.ctx})'
 }
 
@@ -152,11 +155,11 @@ pub:
 	values []Expression
 }
 
-fn (n &Dict) get_token() Token {
+pub fn (n &Dict) get_token() Token {
 	return n.token
 }
 
-fn (n &Dict) str() string {
+pub fn (n &Dict) str() string {
 	return 'Dict(keys=[...], values=[...])'
 }
 
@@ -170,11 +173,11 @@ pub mut:
 	ctx ExprContext
 }
 
-fn (n &Tuple) get_token() Token {
+pub fn (n &Tuple) get_token() Token {
 	return n.token
 }
 
-fn (n &Tuple) str() string {
+pub fn (n &Tuple) str() string {
 	return 'Tuple(elts=[...], ctx=${n.ctx})'
 }
 
@@ -186,11 +189,11 @@ pub:
 	elements []Expression
 }
 
-fn (n &Set) get_token() Token {
+pub fn (n &Set) get_token() Token {
 	return n.token
 }
 
-fn (n &Set) str() string {
+pub fn (n &Set) str() string {
 	return 'Set(elts=[...])'
 }
 
@@ -204,11 +207,11 @@ pub:
 	right Expression
 }
 
-fn (n &BinaryOp) get_token() Token {
+pub fn (n &BinaryOp) get_token() Token {
 	return n.token
 }
 
-fn (n &BinaryOp) str() string {
+pub fn (n &BinaryOp) str() string {
 	return 'BinOp(op=${n.op.value})'
 }
 
@@ -221,11 +224,11 @@ pub:
 	operand Expression
 }
 
-fn (n &UnaryOp) get_token() Token {
+pub fn (n &UnaryOp) get_token() Token {
 	return n.token
 }
 
-fn (n &UnaryOp) str() string {
+pub fn (n &UnaryOp) str() string {
 	return 'UnaryOp(op=${n.op.value})'
 }
 
@@ -239,11 +242,11 @@ pub:
 	comparators []Expression
 }
 
-fn (n &Compare) get_token() Token {
+pub fn (n &Compare) get_token() Token {
 	return n.token
 }
 
-fn (n &Compare) str() string {
+pub fn (n &Compare) str() string {
 	return 'Compare'
 }
 
@@ -263,11 +266,11 @@ pub:
 	keywords []KeywordArg
 }
 
-fn (n &Call) get_token() Token {
+pub fn (n &Call) get_token() Token {
 	return n.token
 }
 
-fn (n &Call) str() string {
+pub fn (n &Call) str() string {
 	return 'Call(func=${n.func.str()})'
 }
 
@@ -282,11 +285,11 @@ pub mut:
 	ctx ExprContext
 }
 
-fn (n &Attribute) get_token() Token {
+pub fn (n &Attribute) get_token() Token {
 	return n.token
 }
 
-fn (n &Attribute) str() string {
+pub fn (n &Attribute) str() string {
 	return 'Attribute(attr=\'${n.attr}\', ctx=${n.ctx})'
 }
 
@@ -301,11 +304,11 @@ pub mut:
 	ctx ExprContext
 }
 
-fn (n &Subscript) get_token() Token {
+pub fn (n &Subscript) get_token() Token {
 	return n.token
 }
 
-fn (n &Subscript) str() string {
+pub fn (n &Subscript) str() string {
 	return 'Subscript(ctx=${n.ctx})'
 }
 
@@ -319,11 +322,11 @@ pub:
 	step  ?Expression
 }
 
-fn (n &Slice) get_token() Token {
+pub fn (n &Slice) get_token() Token {
 	return n.token
 }
 
-fn (n &Slice) str() string {
+pub fn (n &Slice) str() string {
 	return 'Slice'
 }
 
@@ -336,11 +339,11 @@ pub:
 	body  Expression
 }
 
-fn (n &Lambda) get_token() Token {
+pub fn (n &Lambda) get_token() Token {
 	return n.token
 }
 
-fn (n &Lambda) str() string {
+pub fn (n &Lambda) str() string {
 	return 'Lambda'
 }
 
@@ -361,11 +364,11 @@ pub:
 	generators []Comprehension
 }
 
-fn (n &ListComp) get_token() Token {
+pub fn (n &ListComp) get_token() Token {
 	return n.token
 }
 
-fn (n &ListComp) str() string {
+pub fn (n &ListComp) str() string {
 	return 'ListComp'
 }
 
@@ -379,11 +382,11 @@ pub:
 	generators []Comprehension
 }
 
-fn (n &DictComp) get_token() Token {
+pub fn (n &DictComp) get_token() Token {
 	return n.token
 }
 
-fn (n &DictComp) str() string {
+pub fn (n &DictComp) str() string {
 	return 'DictComp'
 }
 
@@ -396,11 +399,11 @@ pub:
 	generators []Comprehension
 }
 
-fn (n &SetComp) get_token() Token {
+pub fn (n &SetComp) get_token() Token {
 	return n.token
 }
 
-fn (n &SetComp) str() string {
+pub fn (n &SetComp) str() string {
 	return 'SetComp'
 }
 
@@ -413,11 +416,11 @@ pub:
 	generators []Comprehension
 }
 
-fn (n &GeneratorExp) get_token() Token {
+pub fn (n &GeneratorExp) get_token() Token {
 	return n.token
 }
 
-fn (n &GeneratorExp) str() string {
+pub fn (n &GeneratorExp) str() string {
 	return 'GeneratorExp'
 }
 
@@ -429,11 +432,11 @@ pub:
 	value Expression
 }
 
-fn (n &Await) get_token() Token {
+pub fn (n &Await) get_token() Token {
 	return n.token
 }
 
-fn (n &Await) str() string {
+pub fn (n &Await) str() string {
 	return 'Await'
 }
 
@@ -445,11 +448,11 @@ pub:
 	value ?Expression
 }
 
-fn (n &Yield) get_token() Token {
+pub fn (n &Yield) get_token() Token {
 	return n.token
 }
 
-fn (n &Yield) str() string {
+pub fn (n &Yield) str() string {
 	return 'Yield'
 }
 
@@ -461,11 +464,11 @@ pub:
 	value Expression
 }
 
-fn (n &YieldFrom) get_token() Token {
+pub fn (n &YieldFrom) get_token() Token {
 	return n.token
 }
 
-fn (n &YieldFrom) str() string {
+pub fn (n &YieldFrom) str() string {
 	return 'YieldFrom'
 }
 
@@ -479,11 +482,11 @@ pub mut:
 	ctx   ExprContext
 }
 
-fn (n &Starred) get_token() Token {
+pub fn (n &Starred) get_token() Token {
 	return n.token
 }
 
-fn (n &Starred) str() string {
+pub fn (n &Starred) str() string {
 	return 'Starred(ctx=${n.ctx})'
 }
 
@@ -497,11 +500,11 @@ pub:
 	orelse Expression
 }
 
-fn (n &IfExp) get_token() Token {
+pub fn (n &IfExp) get_token() Token {
 	return n.token
 }
 
-fn (n &IfExp) str() string {
+pub fn (n &IfExp) str() string {
 	return 'IfExp'
 }
 
@@ -514,11 +517,11 @@ pub:
 	value  Expression
 }
 
-fn (n &NamedExpr) get_token() Token {
+pub fn (n &NamedExpr) get_token() Token {
 	return n.token
 }
 
-fn (n &NamedExpr) str() string {
+pub fn (n &NamedExpr) str() string {
 	return 'NamedExpr'
 }
 
@@ -533,11 +536,11 @@ pub:
 	filename string
 }
 
-fn (n &Module) get_token() Token {
+pub fn (n &Module) get_token() Token {
 	return n.token
 }
 
-fn (n &Module) str() string {
+pub fn (n &Module) str() string {
 	return 'Module(body=[...])'
 }
 
@@ -549,11 +552,11 @@ pub:
 	value Expression
 }
 
-fn (n &Expr) get_token() Token {
+pub fn (n &Expr) get_token() Token {
 	return n.token
 }
 
-fn (n &Expr) str() string {
+pub fn (n &Expr) str() string {
 	return 'Expr'
 }
 
@@ -566,11 +569,11 @@ pub:
 	value   Expression
 }
 
-fn (n &Assign) get_token() Token {
+pub fn (n &Assign) get_token() Token {
 	return n.token
 }
 
-fn (n &Assign) str() string {
+pub fn (n &Assign) str() string {
 	return 'Assign'
 }
 
@@ -584,11 +587,11 @@ pub:
 	value  Expression
 }
 
-fn (n &AugAssign) get_token() Token {
+pub fn (n &AugAssign) get_token() Token {
 	return n.token
 }
 
-fn (n &AugAssign) str() string {
+pub fn (n &AugAssign) str() string {
 	return 'AugAssign'
 }
 
@@ -603,11 +606,11 @@ pub:
 	simple     int
 }
 
-fn (n &AnnAssign) get_token() Token {
+pub fn (n &AnnAssign) get_token() Token {
 	return n.token
 }
 
-fn (n &AnnAssign) str() string {
+pub fn (n &AnnAssign) str() string {
 	return 'AnnAssign'
 }
 
@@ -621,11 +624,11 @@ pub:
 	orelse []Statement
 }
 
-fn (n &If) get_token() Token {
+pub fn (n &If) get_token() Token {
 	return n.token
 }
 
-fn (n &If) str() string {
+pub fn (n &If) str() string {
 	return 'If'
 }
 
@@ -639,11 +642,11 @@ pub:
 	orelse []Statement
 }
 
-fn (n &While) get_token() Token {
+pub fn (n &While) get_token() Token {
 	return n.token
 }
 
-fn (n &While) str() string {
+pub fn (n &While) str() string {
 	return 'While'
 }
 
@@ -659,11 +662,11 @@ pub:
 	is_async bool
 }
 
-fn (n &For) get_token() Token {
+pub fn (n &For) get_token() Token {
 	return n.token
 }
 
-fn (n &For) str() string {
+pub fn (n &For) str() string {
 	return 'For'
 }
 
@@ -683,11 +686,11 @@ pub:
 	is_async bool
 }
 
-fn (n &With) get_token() Token {
+pub fn (n &With) get_token() Token {
 	return n.token
 }
 
-fn (n &With) str() string {
+pub fn (n &With) str() string {
 	return 'With'
 }
 
@@ -713,6 +716,7 @@ pub:
 pub struct FunctionDef {
 pub:
 	token          Token
+pub mut:
 	name           string
 	args           Arguments
 	body           []Statement
@@ -722,11 +726,11 @@ pub:
 	type_params    []TypeParam
 }
 
-fn (n &FunctionDef) get_token() Token {
+pub fn (n &FunctionDef) get_token() Token {
 	return n.token
 }
 
-fn (n &FunctionDef) str() string {
+pub fn (n &FunctionDef) str() string {
 	return 'FunctionDef(name=\'${n.name}\')'
 }
 
@@ -738,11 +742,11 @@ pub:
 	value ?Expression
 }
 
-fn (n &Return) get_token() Token {
+pub fn (n &Return) get_token() Token {
 	return n.token
 }
 
-fn (n &Return) str() string {
+pub fn (n &Return) str() string {
 	return 'Return'
 }
 
@@ -759,11 +763,11 @@ pub:
 	type_params    []TypeParam
 }
 
-fn (n &ClassDef) get_token() Token {
+pub fn (n &ClassDef) get_token() Token {
 	return n.token
 }
 
-fn (n &ClassDef) str() string {
+pub fn (n &ClassDef) str() string {
 	return 'ClassDef(name=\'${n.name}\')'
 }
 
@@ -781,11 +785,11 @@ pub:
 	names []Alias
 }
 
-fn (n &Import) get_token() Token {
+pub fn (n &Import) get_token() Token {
 	return n.token
 }
 
-fn (n &Import) str() string {
+pub fn (n &Import) str() string {
 	return 'Import'
 }
 
@@ -799,11 +803,11 @@ pub:
 	level  int
 }
 
-fn (n &ImportFrom) get_token() Token {
+pub fn (n &ImportFrom) get_token() Token {
 	return n.token
 }
 
-fn (n &ImportFrom) str() string {
+pub fn (n &ImportFrom) str() string {
 	return 'ImportFrom'
 }
 
@@ -815,11 +819,11 @@ pub:
 	names []string
 }
 
-fn (n &Global) get_token() Token {
+pub fn (n &Global) get_token() Token {
 	return n.token
 }
 
-fn (n &Global) str() string {
+pub fn (n &Global) str() string {
 	return 'Global'
 }
 
@@ -831,11 +835,11 @@ pub:
 	names []string
 }
 
-fn (n &Nonlocal) get_token() Token {
+pub fn (n &Nonlocal) get_token() Token {
 	return n.token
 }
 
-fn (n &Nonlocal) str() string {
+pub fn (n &Nonlocal) str() string {
 	return 'Nonlocal'
 }
 
@@ -848,11 +852,11 @@ pub:
 	msg   ?Expression
 }
 
-fn (n &Assert) get_token() Token {
+pub fn (n &Assert) get_token() Token {
 	return n.token
 }
 
-fn (n &Assert) str() string {
+pub fn (n &Assert) str() string {
 	return 'Assert'
 }
 
@@ -865,11 +869,11 @@ pub:
 	cause ?Expression
 }
 
-fn (n &Raise) get_token() Token {
+pub fn (n &Raise) get_token() Token {
 	return n.token
 }
 
-fn (n &Raise) str() string {
+pub fn (n &Raise) str() string {
 	return 'Raise'
 }
 
@@ -892,11 +896,11 @@ pub:
 	finalbody []Statement
 }
 
-fn (n &Try) get_token() Token {
+pub fn (n &Try) get_token() Token {
 	return n.token
 }
 
-fn (n &Try) str() string {
+pub fn (n &Try) str() string {
 	return 'Try'
 }
 
@@ -909,11 +913,11 @@ pub:
 	finalbody []Statement
 }
 
-fn (n &TryStar) get_token() Token {
+pub fn (n &TryStar) get_token() Token {
 	return n.token
 }
 
-fn (n &TryStar) str() string {
+pub fn (n &TryStar) str() string {
 	return 'TryStar'
 }
 
@@ -932,11 +936,11 @@ pub:
 	kind     TypeParamKind
 }
 
-fn (n &TypeParam) get_token() Token {
+pub fn (n &TypeParam) get_token() Token {
 	return n.token
 }
 
-fn (n &TypeParam) str() string {
+pub fn (n &TypeParam) str() string {
 	return 'TypeParam(name=\'${n.name}\')'
 }
 
@@ -948,11 +952,11 @@ pub:
 	value       Expression
 }
 
-fn (n &TypeAlias) get_token() Token {
+pub fn (n &TypeAlias) get_token() Token {
 	return n.token
 }
 
-fn (n &TypeAlias) str() string {
+pub fn (n &TypeAlias) str() string {
 	return 'TypeAlias(name=\'${n.name}\')'
 }
 
@@ -963,11 +967,11 @@ pub:
 	token Token
 }
 
-fn (n &Pass) get_token() Token {
+pub fn (n &Pass) get_token() Token {
 	return n.token
 }
 
-fn (n &Pass) str() string {
+pub fn (n &Pass) str() string {
 	return 'Pass'
 }
 
@@ -978,11 +982,11 @@ pub:
 	token Token
 }
 
-fn (n &Break) get_token() Token {
+pub fn (n &Break) get_token() Token {
 	return n.token
 }
 
-fn (n &Break) str() string {
+pub fn (n &Break) str() string {
 	return 'Break'
 }
 
@@ -993,11 +997,11 @@ pub:
 	token Token
 }
 
-fn (n &Continue) get_token() Token {
+pub fn (n &Continue) get_token() Token {
 	return n.token
 }
 
-fn (n &Continue) str() string {
+pub fn (n &Continue) str() string {
 	return 'Continue'
 }
 
@@ -1009,11 +1013,11 @@ pub:
 	targets []Expression
 }
 
-fn (n &Delete) get_token() Token {
+pub fn (n &Delete) get_token() Token {
 	return n.token
 }
 
-fn (n &Delete) str() string {
+pub fn (n &Delete) str() string {
 	return 'Delete'
 }
 
@@ -1033,11 +1037,11 @@ pub:
 	cases   []MatchCase
 }
 
-fn (n &Match) get_token() Token {
+pub fn (n &Match) get_token() Token {
 	return n.token
 }
 
-fn (n &Match) str() string {
+pub fn (n &Match) str() string {
 	return 'Match'
 }
 
@@ -1051,11 +1055,11 @@ pub:
 	value Expression
 }
 
-fn (n &MatchValue) get_token() Token {
+pub fn (n &MatchValue) get_token() Token {
 	return n.token
 }
 
-fn (n &MatchValue) str() string {
+pub fn (n &MatchValue) str() string {
 	return 'MatchValue'
 }
 
@@ -1067,11 +1071,11 @@ pub:
 	value Token
 }
 
-fn (n &MatchSingleton) get_token() Token {
+pub fn (n &MatchSingleton) get_token() Token {
 	return n.token
 }
 
-fn (n &MatchSingleton) str() string {
+pub fn (n &MatchSingleton) str() string {
 	return 'MatchSingleton'
 }
 
@@ -1083,11 +1087,11 @@ pub:
 	patterns []Pattern
 }
 
-fn (n &MatchSequence) get_token() Token {
+pub fn (n &MatchSequence) get_token() Token {
 	return n.token
 }
 
-fn (n &MatchSequence) str() string {
+pub fn (n &MatchSequence) str() string {
 	return 'MatchSequence'
 }
 
@@ -1101,11 +1105,11 @@ pub:
 	rest     ?string
 }
 
-fn (n &MatchMapping) get_token() Token {
+pub fn (n &MatchMapping) get_token() Token {
 	return n.token
 }
 
-fn (n &MatchMapping) str() string {
+pub fn (n &MatchMapping) str() string {
 	return 'MatchMapping'
 }
 
@@ -1120,11 +1124,11 @@ pub:
 	kwd_patterns []Pattern
 }
 
-fn (n &MatchClass) get_token() Token {
+pub fn (n &MatchClass) get_token() Token {
 	return n.token
 }
 
-fn (n &MatchClass) str() string {
+pub fn (n &MatchClass) str() string {
 	return 'MatchClass'
 }
 
@@ -1136,11 +1140,11 @@ pub:
 	name  ?string
 }
 
-fn (n &MatchStar) get_token() Token {
+pub fn (n &MatchStar) get_token() Token {
 	return n.token
 }
 
-fn (n &MatchStar) str() string {
+pub fn (n &MatchStar) str() string {
 	return 'MatchStar'
 }
 
@@ -1153,11 +1157,11 @@ pub:
 	name    ?string
 }
 
-fn (n &MatchAs) get_token() Token {
+pub fn (n &MatchAs) get_token() Token {
 	return n.token
 }
 
-fn (n &MatchAs) str() string {
+pub fn (n &MatchAs) str() string {
 	return 'MatchAs'
 }
 
@@ -1169,10 +1173,10 @@ pub:
 	patterns []Pattern
 }
 
-fn (n &MatchOr) get_token() Token {
+pub fn (n &MatchOr) get_token() Token {
 	return n.token
 }
 
-fn (n &MatchOr) str() string {
+pub fn (n &MatchOr) str() string {
 	return 'MatchOr'
 }
