@@ -10,7 +10,7 @@ struct ExportConfigLike {
 	include_all_symbols bool
 }
 
-// TranslatorState - состояние транслятора
+// TranslatorState - translator state
 @[heap]
 pub struct TranslatorState {
 pub mut:
@@ -96,7 +96,7 @@ pub mut:
 	class_hierarchy_initialized  bool
 }
 
-// new_translator_state создает новый экземпляр TranslatorState
+// new_translator_state creates a new TranslatorState instance
 pub fn new_translator_state() TranslatorState {
 	return TranslatorState{
 		type_inference:               unsafe { nil }
@@ -179,24 +179,24 @@ pub fn new_translator_state() TranslatorState {
 	}
 }
 
-// indent возвращает строку отступа
+// indent returns indentation string
 pub fn (s &TranslatorState) indent() string {
 	return '    '.repeat(s.indent_level)
 }
 
-// create_temp создает временную переменную
+// create_temp creates a temporary variable
 pub fn (mut s TranslatorState) create_temp() string {
 	s.unique_id_counter++
 	return 'py_aug_tmp_${s.unique_id_counter}'
 }
 
-// create_temp_with_prefix создает временную переменную с заданным префиксом
+// create_temp_with_prefix creates a temporary variable with given prefix
 pub fn (mut s TranslatorState) create_temp_with_prefix(prefix string) string {
 	s.unique_id_counter++
 	return '${prefix}${s.unique_id_counter}'
 }
 
-// get_source_info возвращает информацию об исходном коде
+// get_source_info returns source code information
 pub fn (s &TranslatorState) get_source_info(t ast.Token) string {
 	if t.line > 0 {
 		return '${s.current_file_name}:${t.line}:${t.column}'
@@ -204,7 +204,7 @@ pub fn (s &TranslatorState) get_source_info(t ast.Token) string {
 	return '${s.current_file_name}:?:?'
 }
 
-// update_class_hierarchy обновляет иерархию классов
+// update_class_hierarchy updates class hierarchy
 pub fn (mut s TranslatorState) update_class_hierarchy() {
 	if s.class_hierarchy_initialized {
 		return
@@ -232,7 +232,7 @@ pub fn (mut s TranslatorState) update_class_hierarchy() {
 	s.class_hierarchy_initialized = true
 }
 
-// is_top_level_symbol проверяет, является ли имя символом верхнего уровня
+// is_top_level_symbol checks if name is a top-level symbol
 pub fn (s &TranslatorState) is_top_level_symbol(name string) bool {
 	if s.current_class.len > 0 {
 		return false
@@ -245,7 +245,7 @@ pub fn (s &TranslatorState) is_top_level_symbol(name string) bool {
 	return true
 }
 
-// is_exported проверяет, должен ли символ быть публичным
+// is_exported checks if symbol should be public
 pub fn (s &TranslatorState) is_exported(name string) bool {
 	if s.config == unsafe { nil } {
 		return false
@@ -260,7 +260,7 @@ pub fn (s &TranslatorState) is_exported(name string) bool {
 	return !name.starts_with('_')
 }
 
-// collect_assigned_vars собирает имена всех присвоенных переменных
+// collect_assigned_vars collects names of all assigned variables
 pub fn (s &TranslatorState) collect_assigned_nodes(nodes []voidptr) map[string]bool {
 	mut assigned := map[string]bool{}
 	for node in nodes {

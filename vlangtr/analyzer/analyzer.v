@@ -2,7 +2,7 @@ module analyzer
 
 import ast
 
-// Analyzer - основная структура для анализа Python кода
+// Analyzer - main structure for Python code analysis
 @[heap]
 pub struct Analyzer {
 	TypeInferenceVisitorMixin
@@ -11,7 +11,7 @@ pub mut:
 	stack                 []string
 }
 
-// new_analyzer создает новый экземпляр Analyzer
+// new_analyzer creates a new Analyzer instance
 pub fn new_analyzer(type_data map[string]string) Analyzer {
 	mut a := Analyzer{
 		TypeInferenceVisitorMixin: new_type_inference_visitor_mixin()
@@ -22,12 +22,12 @@ pub fn new_analyzer(type_data map[string]string) Analyzer {
 	return a
 }
 
-// analyze запускает анализ Python кода
+// analyze runs Python code analysis
 pub fn (mut a Analyzer) analyze(node ast.Module) {
 	a.visit_module(node)
 }
 
-// get_type возвращает тип переменной
+// get_type returns variable type
 pub fn (a Analyzer) get_type(name string) ?string {
 	if name in a.type_map {
 		return a.type_map[name]
@@ -35,12 +35,12 @@ pub fn (a Analyzer) get_type(name string) ?string {
 	return none
 }
 
-// set_type устанавливает тип переменной
+// set_type sets variable type
 pub fn (mut a Analyzer) set_type(name string, typ string) {
 	a.type_map[name] = typ
 }
 
-// get_raw_type возвращает сырую строку типа
+// get_raw_type returns raw type string
 pub fn (a Analyzer) get_raw_type(name string) ?string {
 	if name in a.raw_type_map {
 		return a.raw_type_map[name]
@@ -48,12 +48,12 @@ pub fn (a Analyzer) get_raw_type(name string) ?string {
 	return none
 }
 
-// set_raw_type устанавливает сырую строку типа
+// set_raw_type sets raw type string
 pub fn (mut a Analyzer) set_raw_type(name string, typ string) {
 	a.raw_type_map[name] = typ
 }
 
-// get_mutability возвращает информацию о мутабельности
+// get_mutability returns mutability information
 pub fn (a Analyzer) get_mutability(name string) ?MutabilityInfo {
 	if name in a.mutability_map {
 		return a.mutability_map[name]
@@ -61,17 +61,17 @@ pub fn (a Analyzer) get_mutability(name string) ?MutabilityInfo {
 	return none
 }
 
-// set_mutability устанавливает информацию о мутабельности
+// set_mutability sets mutability information
 pub fn (mut a Analyzer) set_mutability(name string, info MutabilityInfo) {
 	a.mutability_map[name] = info
 }
 
-// add_class_to_hierarchy добавляет класс в иерархию
+// add_class_to_hierarchy adds class to hierarchy
 pub fn (mut a Analyzer) add_class_to_hierarchy(class_name string, bases []string) {
 	a.class_hierarchy[class_name] = bases
 }
 
-// get_class_bases возвращает базовые классы
+// get_class_bases returns base classes
 pub fn (a Analyzer) get_class_bases(class_name string) []string {
 	if class_name in a.class_hierarchy {
 		return a.class_hierarchy[class_name]

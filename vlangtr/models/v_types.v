@@ -1,6 +1,6 @@
 module models
 
-// VType - типы данных V
+// VType - V data types
 pub enum VType {
 	int
 	float
@@ -14,7 +14,7 @@ pub enum VType {
 	unknown
 }
 
-// get_tuple_struct_name генерирует имя структуры для Python Tuple
+// get_tuple_struct_name generates struct name for Python Tuple
 pub fn get_tuple_struct_name(types_str string) string {
 	field_types := types_str.split(',').map(it.trim_space())
 	mut name_parts := []string{}
@@ -29,7 +29,7 @@ pub fn get_tuple_struct_name(types_str string) string {
 	return 'TupleStruct_${name_parts.join('')}'
 }
 
-// map_python_type_to_v маппит Python тип в V тип
+// map_python_type_to_v maps Python type to V type
 pub fn map_python_type_to_v(py_type string, self_name string, allow_union bool, generic_map map[string]string, sum_type_registrar fn (string) string, literal_registrar fn ([]string) string, tuple_registrar fn (string) string) string {
 	if py_type.len == 0 {
 		return 'void'
@@ -112,7 +112,7 @@ pub fn map_python_type_to_v(py_type string, self_name string, allow_union bool, 
 	return map_basic_type(clean_type)
 }
 
-// map_complex_type обрабатывает сложные типы
+// map_complex_type handles complex types
 fn map_complex_type(py_type string, self_name string, allow_union bool, generic_map map[string]string, sum_type_registrar fn (string) string, literal_registrar fn ([]string) string, tuple_registrar fn (string) string) string {
 	// Extract base type and arguments
 	mut base_type := ''
@@ -282,7 +282,7 @@ fn map_complex_type(py_type string, self_name string, allow_union bool, generic_
 	return '${base_type}[${mapped_args.join(', ')}]'
 }
 
-// split_args разделяет аргументы типа с учетом вложенности
+// split_args splits type arguments considering nesting
 fn split_args(args_str string) []string {
 	mut result := []string{}
 	mut depth := 0
@@ -315,7 +315,7 @@ fn split_args(args_str string) []string {
 	return result
 }
 
-// _map_basic_type маппит базовые типы
+// _map_basic_type maps basic types
 fn map_basic_type(name string) string {
 	mut clean_name := name
 

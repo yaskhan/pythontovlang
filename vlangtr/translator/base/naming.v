@@ -1,24 +1,24 @@
 module base
 
-// NamingMixin - миксин для утилит именования и санитизации идентификаторов
+// NamingMixin - mixin for naming utilities and identifier sanitization
 
-// to_snake_case преобразует CamelCase или UPPER_CASE в snake_case
+// to_snake_case converts CamelCase or UPPER_CASE to snake_case
 pub fn to_snake_case(name string) string {
 	if name.len == 0 || name == '_' {
 		return name
 	}
 
-	// Сохраняем внутренние маркеры
+	// Preserve internal markers
 	if name.contains('__py2v_gen') {
 		return name
 	}
 
-	// Обрабатываем UPPER_CASE константы
+	// Handle UPPER_CASE constants
 	if name.is_upper() {
 		return name
 	}
 
-	// Обрабатываем уже разделенные имена
+	// Handle already separated names
 	if name.contains('_') {
 		mut parts := []string{}
 		for p in name.split('_') {
@@ -46,7 +46,7 @@ pub fn to_snake_case(name string) string {
 	return res.join('')
 }
 
-// get_factory_name возвращает snake_case имя фабрики для заданного имени структуры
+// get_factory_name returns snake_case factory name for the given struct name
 pub fn get_factory_name(struct_name string, hierarchy map[string][]string) string {
 	base_name := struct_name.split('[')[0]
 	sanitized := to_snake_case(base_name)
@@ -66,25 +66,25 @@ pub fn get_factory_name(struct_name string, hierarchy map[string][]string) strin
 	return 'new_${sanitized}'
 }
 
-// sanitize_name санитизирует идентификаторы Python для соответствия V
+// sanitize_name sanitizes Python identifiers to comply with V
 pub fn sanitize_name(name string, is_type bool, reserved_words map[string]bool, scc_prefix string, local_vars map[string]bool) string {
 	if name.len == 0 {
 		return name
 	}
 
-	// Зарезервированные типы V сохраняются как есть
+	// V reserved types are kept as is
 	v_reserved_types := ['int', 'string', 'bool', 'f64', 'f32', 'i64', 'byte', 'rune', 'void',
 		'Any', 'none', 'i8', 'i16', 'i32', 'u16', 'u32', 'u64']
 	if name in v_reserved_types {
 		return name
 	}
 
-	// Внутренние маркеры сохраняются как есть
+	// Internal markers are kept as is
 	if name.contains('__py2v_gen') {
 		return name
 	}
 
-	// V compliance: нет ведущих подчеркиваний
+	// V compliance: no leading underscores
 	mut clean_name := name
 	mut prefix_count := 0
 	for clean_name.starts_with('_') && clean_name != '_' {
@@ -97,7 +97,7 @@ pub fn sanitize_name(name string, is_type bool, reserved_words map[string]bool, 
 	}
 
 	if is_type {
-		// PascalCase для типов
+		// PascalCase for types
 		mut parts := []string{}
 		for p in clean_name.split('_') {
 			if p.len > 0 {
@@ -109,7 +109,7 @@ pub fn sanitize_name(name string, is_type bool, reserved_words map[string]bool, 
 		} else {
 			clean_name[0].ascii_str().to_upper() + clean_name[1..]
 		}
-		// V structs не могут иметь подчеркивания
+		// V structs cannot have underscores
 		res = res.replace('_', '')
 		res += '_'.repeat(prefix_count)
 
@@ -119,7 +119,7 @@ pub fn sanitize_name(name string, is_type bool, reserved_words map[string]bool, 
 		return res
 	}
 
-	// Остальные: snake_case
+	// Others: snake_case
 	mut sanitized := to_snake_case(clean_name)
 	sanitized += '_'.repeat(prefix_count)
 
@@ -127,7 +127,7 @@ pub fn sanitize_name(name string, is_type bool, reserved_words map[string]bool, 
 		return 'py_${sanitized}'
 	}
 
-	// SCC коллизия
+	// SCC collision
 	if scc_prefix.len > 0 && !sanitized.starts_with('py_') && sanitized !in local_vars {
 		if !sanitized.starts_with(scc_prefix + '__') {
 			return '${scc_prefix}__${sanitized}'
@@ -137,7 +137,7 @@ pub fn sanitize_name(name string, is_type bool, reserved_words map[string]bool, 
 	return sanitized
 }
 
-// mangle_name реализует правила Python name mangling для приватных атрибутов
+// mangle_name implements Python name mangling rules for private attributes
 pub fn mangle_name(name string, class_name string) string {
 	if class_name.len > 0 && name.starts_with('__') && !name.ends_with('__') {
 		s_class := sanitize_name(class_name, true, map[string]bool{}, '', map[string]bool{}).trim_right('_')

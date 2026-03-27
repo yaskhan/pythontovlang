@@ -1,48 +1,48 @@
-# Тесты `vlangtr`
+# Tests `vlangtr`
 
-В этой папке лежат основные тесты V-части транспилятора.
+This folder contains the main tests for the V-part of the transpiler.
 
-## Что здесь есть
+## What's here
 
-- `transpiler_test.v` - основной harness для сравнения Python-входа и V-выхода.
-- `remaining_expr_tests_test.v` - точечные тесты для отдельных выражений и операторов.
-- `cases/` - набор входных `.py` файлов и ожидаемых `.expected.v` файлов.
+- `transpiler_test.v` - main harness for comparing Python input and V output.
+- `remaining_expr_tests_test.v` - targeted tests for individual expressions and operators.
+- `cases/` - a collection of input `.py` files and expected `.expected.v` files.
 
-## Как устроен `transpiler_test.v`
+## How `transpiler_test.v` works
 
-Основной тест проходит по всем `.py` файлам внутри `cases/` рекурсивно:
+The main test iterates through all `.py` files inside `cases/` recursively:
 
-1. находит Python-файл;
-2. ищет рядом файл с тем же именем и расширением `.expected.v`;
-3. прогоняет исходник через `translator.new_translator()`;
-4. сравнивает результат с expected.
+1. finds a Python file;
+2. looks for a file with the same name and `.expected.v` extension nearby;
+3. runs the source through `translator.new_translator()`;
+4. compares the result with expected.
 
-Если `.expected.v` отсутствует, кейс пропускается.
+If `.expected.v` is missing, the case is skipped.
 
-### Статистика
+### Statistics
 
-В конце запуска печатается сводка:
+At the end of the run, a summary is printed:
 
-- `total` - сколько `.py` файлов найдено;
-- `checked` - сколько кейсов реально сравнилось;
-- `passed` - сколько совпало;
-- `failed` - сколько упало;
-- `skipped` - сколько пропущено;
-- `success_rate` - процент успешных проверок.
+- `total` - how many `.py` files were found;
+- `checked` - how many cases were actually compared;
+- `passed` - how many matched;
+- `failed` - how many failed;
+- `skipped` - how many were skipped;
+- `success_rate` - percentage of successful checks.
 
-Если есть ошибки, harness не останавливается на первой, а собирает все проблемные кейсы и выводит их списком.
+If there are errors, the harness doesn't stop at the first one, but collects all problematic cases and lists them.
 
-## Директивы в `.expected.v`
+## Directives in `.expected.v`
 
-Обычный expected-файл сравнивается целиком.
+A regular expected-file is compared as a whole.
 
-Если в файле есть директивы, он проверяется как набор правил по подстрокам:
+If the file contains directives, it's checked as a set of substring rules:
 
-- `@@in# "snippet"` - фрагмент должен присутствовать;
-- `@@notin# "snippet"` - фрагмента быть не должно;
-- `@@or# "snippet"` - альтернативный фрагмент для предыдущего `@@in#`.
+- `@@in# "snippet"` - the fragment must be present;
+- `@@notin# "snippet"` - the fragment must not be present;
+- `@@or# "snippet"` - an alternative fragment for the previous `@@in#`.
 
-Примеры:
+Examples:
 
 ```v
 @@in# "b := py_any(a)"
@@ -50,25 +50,25 @@
 @@in# "assert False" @@or# "assert false"
 ```
 
-Если directive-синтаксис сломан, expected-файл считается ошибочным и тест падает с указанием имени файла и строки.
+If the directive syntax is broken, the expected-file is considered invalid and the test fails with the file name and line number.
 
 ## `cases/`
 
-Структура `cases/` повторяет дерево исходных Python-кейсов.
+The structure of `cases/` mirrors the tree of source Python cases.
 
-Для каждого кейса обычно лежат:
+For each case, there are usually:
 
-- `something.py` - вход;
-- `something.expected.v` - ожидаемый V-результат;
-- иногда вложенные подпапки для группировки по подсистемам.
+- `something.py` - input;
+- `something.expected.v` - expected V result;
+- sometimes nested subfolders for grouping by subsystem.
 
-Папка `cases/generated/` содержит автосгенерированные пары кейсов из старого `py2v_transpiler/tests/translator`.
+The `cases/generated/` folder contains auto-generated case pairs from the old `py2v_transpiler/tests/translator`.
 
 ## `remaining_expr_tests_test.v`
 
-Этот файл не использует `cases/`.
+This file doesn't use `cases/`.
 
-Он проверяет отдельные выражения напрямую через `translator.expressions.ExprGen`:
+It checks individual expressions directly through `translator.expressions.ExprGen`:
 
 - `assert`
 - `//`
@@ -76,32 +76,32 @@
 - `round`
 - `isinstance`
 - `issubclass`
-- `%`-форматирование строк
+- `%`-string formatting
 
-Такой формат удобен для локальной проверки отдельного оператора, когда не нужен полный transpiler pipeline.
+This format is convenient for local checking of a single operator when a full transpiler pipeline is not needed.
 
-## Как запускать
+## How to run
 
-Запуск всех V-тестов:
+Run all V-tests:
 
 ```bash
 v -enable-globals test vlangtr/tests
 ```
 
-Запуск только основного harness:
+Run only the main harness:
 
 ```bash
 v -enable-globals test vlangtr/tests/transpiler_test.v
 ```
 
-Запуск только тестов выражений:
+Run only expression tests:
 
 ```bash
 v -enable-globals test vlangtr/tests/remaining_expr_tests_test.v
 ```
 
-## Практика
+## Practice
 
-- Для новых кейсов транспиляции добавляй пару `*.py` + `*.expected.v` в `cases/`.
-- Для маленьких регрессий по выражениям лучше добавлять тест в `remaining_expr_tests_test.v`.
-- Временные проверочные файлы для отладки лучше держать в `debug/`, а не в `tests/`.
+- For new transpilation cases, add a pair `*.py` + `*.expected.v` to `cases/`.
+- For small expression regressions, it's better to add a test to `remaining_expr_tests_test.v`.
+- Temporary debug files are better kept in `debug/` rather than `tests/`.

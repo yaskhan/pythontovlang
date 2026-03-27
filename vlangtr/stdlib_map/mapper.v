@@ -1,13 +1,13 @@
 module stdlib_map
 
-// StdLibMapper - маппер стандартной библиотеки Python в V
+// StdLibMapper - Python standard library mapper to V
 pub struct StdLibMapper {
 pub mut:
 	mappings  map[string]map[string]string
 	v_imports map[string][]string
 }
 
-// new_stdlib_mapper создает новый экземпляр StdLibMapper
+// new_stdlib_mapper creates a new StdLibMapper instance
 pub fn new_stdlib_mapper() StdLibMapper {
 	mut mapper := StdLibMapper{
 		mappings: map[string]map[string]string{}
@@ -18,7 +18,7 @@ pub fn new_stdlib_mapper() StdLibMapper {
 	return mapper
 }
 
-// init_mappings инициализирует маппинги
+// init_mappings initializes mappings
 fn (mut m StdLibMapper) init_mappings() {
 	// Math
 	m.mappings['math'] = {
@@ -352,7 +352,7 @@ fn (mut m StdLibMapper) init_mappings() {
 	}
 }
 
-// init_imports инициализирует импорты
+// init_imports initializes imports
 fn (mut m StdLibMapper) init_imports() {
 	m.v_imports['math'] = ['math']
 	m.v_imports['random'] = ['rand']
@@ -389,10 +389,10 @@ fn (mut m StdLibMapper) init_imports() {
 	m.v_imports['string'] = ['strings']
 }
 
-// get_mapping возвращает V код для вызова Python функции
+// get_mapping returns V code for Python function call
 pub fn (m &StdLibMapper) get_mapping(module string, func string, args []string) ?string {
 	if module !in m.mappings {
-		// Обрабатываем подмодули
+		// Handle submodules
 		if module.contains('.') {
 			parts := module.split('.')
 			for i := parts.len - 1; i > 0; i-- {
@@ -415,10 +415,10 @@ pub fn (m &StdLibMapper) get_mapping(module string, func string, args []string) 
 	return '${handler}(${args.join(", ")})'
 }
 
-// get_constant_mapping возвращает V код для константы Python
+// get_constant_mapping returns V code for Python constant
 pub fn (m &StdLibMapper) get_constant_mapping(module string, name string) ?string {
 	if module !in m.mappings {
-		// Обрабатываем подмодули
+		// Handle submodules
 		if module.contains('.') {
 			parts := module.split('.')
 			for i := parts.len - 1; i > 0; i-- {
@@ -440,13 +440,13 @@ pub fn (m &StdLibMapper) get_constant_mapping(module string, name string) ?strin
 	return module_map[name]
 }
 
-// get_imports возвращает список V импортов для Python модуля
+// get_imports returns list of V imports for Python module
 pub fn (m &StdLibMapper) get_imports(module string) ?[]string {
 	if module in m.v_imports {
 		return m.v_imports[module]
 	}
 
-	// Обрабатываем подмодули
+	// Handle submodules
 	if module.contains('.') {
 		parts := module.split('.')
 		for i := parts.len - 1; i > 0; i-- {
