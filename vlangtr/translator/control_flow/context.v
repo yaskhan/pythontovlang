@@ -72,16 +72,21 @@ fn (mut m ControlFlowModule) visit_with_item(item ast.WithItem) {
 	}
 
 	if is_suppress {
-		m.emit(context_expr)
+		m.emit('/* ${context_expr} */')
 		return
 	}
 
 	if is_nullcontext {
 		if opt := item.optional_vars {
 			var_name := m.visit_expr(opt)
-			m.emit('${var_name} := ${context_expr}')
+			// Handle cases like 'with nullcontext(1) as x:'
+			mut val_expr := context_expr
+			if val_expr.starts_with('py_contextlib_nullcontext(') && val_expr.ends_with(')') {
+				val_expr = val_expr['py_contextlib_nullcontext('.len .. val_expr.len - 1]
+			}
+			m.emit('${var_name} := ${val_expr}')
 		} else {
-			m.emit('_ = ${context_expr}')
+			m.emit('/* nullcontext */')
 		}
 		return
 	}

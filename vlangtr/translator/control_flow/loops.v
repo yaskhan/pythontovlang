@@ -190,7 +190,8 @@ pub fn (mut m ControlFlowModule) visit_for(node ast.For) {
 			start := m.visit_expr(range_args[0])
 			stop := m.visit_expr(range_args[1])
 			step := m.visit_expr(range_args[2])
-			m.emit('for ${target} := ${start}; ${target} < ${stop}; ${target} += ${step} {')
+			cmp := if step.starts_with('-') { '>' } else { '<' }
+			m.emit('for ${target} := ${start}; ${target} ${cmp} ${stop}; ${target} += ${step} {')
 			m.env.state.indent_level++
 			for stmt in node.body {
 				m.visit_stmt(stmt)

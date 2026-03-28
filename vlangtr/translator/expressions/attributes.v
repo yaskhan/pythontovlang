@@ -2,6 +2,7 @@ module expressions
 
 import ast
 import base
+import stdlib_map
 
 pub fn (mut eg ExprGen) visit_attribute(node ast.Attribute) string {
 	// Handle module attributes
@@ -9,9 +10,14 @@ pub fn (mut eg ExprGen) visit_attribute(node ast.Attribute) string {
 		module_name := eg.state.imported_modules[node.value.id]
 		if node.attr == '__name__' { return "'${module_name}'" }
 		
-		// Mapped constant or function
-		// (Mapper check should go here if we had one)
-		
+		if eg.state.mapper != unsafe { nil } {
+			mapper := unsafe { &stdlib_map.StdLibMapper(eg.state.mapper) }
+			if res := mapper.get_mapping(module_name, node.attr, []) {
+				eg.state.used_builtins[res] = true
+				return res
+			}
+		}
+
 		is_class := node.attr.len > 0 && node.attr[0].is_capital()
 		return '${module_name}.${base.sanitize_name(node.attr, is_class, map[string]bool{}, "", map[string]bool{})}'
 	}
@@ -72,16 +78,36 @@ pub fn (mut eg ExprGen) visit_attribute(node ast.Attribute) string {
 
 	mut res := "${obj}.${attr_name}"
 
+	obj_name := eg.analyzer.render_expr(node.value)
+	full_name := '${obj_name}.${node.attr}'
+	if remapped := eg.state.name_remap[full_name] {
+		return remapped
+	}
+
 	// Narrowing/Casting
 	loc_key := '${node.token.line}:${node.token.column}'
-	v_attr_base := eg.map_python_type(eg.guess_type_no_loc(node), false)
-	if narrowed := eg.analyzer.location_map[loc_key] {
-		v_attr_narrowed := eg.map_python_type(narrowed, false)
-		if v_attr_narrowed != v_attr_base && v_attr_narrowed != 'Any' {
-			if v_attr_base == 'Any' || v_attr_base.starts_with('SumType_') {
-				res = "(${res} as ${v_attr_narrowed})"
-			}
+	v_attr_base := eg.map_python_type(eg.guess_type_no_loc(node), true)
+	
+	mut original_type := v_attr_base
+	obj_type_clean := if obj_type.contains('[') { obj_type.all_before('[') } else { obj_type }
+	struct_field_key := '${obj_type_clean}.${node.attr}'
+	if base_field_type := eg.analyzer.get_type(struct_field_key) {
+		if base_field_type != 'Any' && base_field_type != 'unknown' {
+			original_type = eg.map_python_type(base_field_type, true)
 		}
+	}
+
+	mut current := v_attr_base
+	if narrowed := eg.analyzer.location_map[loc_key] {
+		current = eg.map_python_type(narrowed, true)
+	} else if inferred := eg.analyzer.get_type(full_name) {
+		if inferred != 'Any' && inferred != 'unknown' {
+			current = eg.map_python_type(inferred, true)
+		}
+	}
+
+	if current != original_type && current != 'Any' && original_type.contains('|') {
+		res = "(${res} as ${current})"
 	}
 
 	return res

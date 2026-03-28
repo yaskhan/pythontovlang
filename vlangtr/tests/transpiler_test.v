@@ -165,6 +165,12 @@ fn parse_expected_rules(expected string, expected_path string) !ExpectedRules {
 			continue
 		}
 
+		if line.starts_with('@@or#') && rules.required.len > 0 {
+			// Special case: @@or# at the start of a line appends to the previous group
+			parse_expected_line(line, expected_path, idx + 1, mut rules)!
+			continue
+		}
+
 		if !line.contains('@@') {
 			rules.required << ExpectedGroup{
 				alternatives: [line]
@@ -226,10 +232,14 @@ fn parse_expected_line(line string, expected_path string, line_no int, mut rules
 			}
 			'@@or#' {
 				if !has_group {
-					current_group = ExpectedGroup{
-						alternatives: [snippet]
+					if rules.required.len > 0 {
+						rules.required[rules.required.len - 1].alternatives << snippet
+					} else {
+						current_group = ExpectedGroup{
+							alternatives: [snippet]
+						}
+						has_group = true
 					}
-					has_group = true
 				} else {
 					current_group.alternatives << snippet
 				}
@@ -300,7 +310,7 @@ fn clean_expected_snippet(snippet string) string {
 			cleaned = cleaned[1..cleaned.len - 1].trim_space()
 		}
 	}
-	return cleaned
+	return cleaned.replace('\\"', '"').replace("\\'", "'")
 }
 
 fn normalize_text(code string) string {

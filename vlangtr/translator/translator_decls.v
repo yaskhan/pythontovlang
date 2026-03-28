@@ -8,6 +8,8 @@ import functions
 
 
 fn (mut t Translator) visit_function_def(node &ast.FunctionDef) {
+	prev_func := t.current_function_name
+	t.current_function_name = node.name
 	mut env := functions.new_function_visit_env(
 		t.state,
 		t.analyzer,
@@ -38,9 +40,13 @@ fn (mut t Translator) visit_function_def(node &ast.FunctionDef) {
 		fn [mut t] (ann ast.Expression) string {
 			return t.map_annotation(ann)
 		},
+		fn [mut t] (type_str string, struct_name string, allow_union bool, register bool, is_return bool) string {
+			return t.map_annotation_str(type_str, struct_name, allow_union, register, is_return)
+		},
 		false,
 	)
 	t.functions_module.visit_function_def(node, mut env)
+	t.current_function_name = prev_func
 }
 
 fn (mut t Translator) visit_class_def(node &ast.ClassDef) {

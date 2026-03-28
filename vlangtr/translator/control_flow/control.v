@@ -38,3 +38,25 @@ pub fn (mut m ControlFlowModule) visit_continue(_ ast.Continue) {
 	}
 	m.emit('continue')
 }
+pub fn (mut m ControlFlowModule) visit_return(node ast.Return) {
+	if m.env.state.scope_names.len > 0 {
+		last_scope := m.env.state.scope_names[m.env.state.scope_names.len - 1]
+		if last_scope == '__next__' || last_scope == 'next' {
+			if node.value == none {
+				m.emit('return none')
+				return
+			}
+		}
+	}
+
+	if val := node.value {
+		expr := m.visit_expr(val)
+		if expr.len > 0 {
+			m.emit('return ${expr}')
+		} else {
+			m.emit('return')
+		}
+	} else {
+		m.emit('return')
+	}
+}

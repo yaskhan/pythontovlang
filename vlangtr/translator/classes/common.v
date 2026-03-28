@@ -59,7 +59,11 @@ fn get_factory_name(struct_name string, env &ClassVisitEnv) string {
 }
 
 fn get_generics_with_variance_str(env &ClassVisitEnv) string {
-	return base.get_generics_with_variance_str(env.state.current_class_generics,
+	mut v_generics := []string{}
+	for py_name in env.state.current_class_generics {
+		v_generics << env.state.current_class_generic_map[py_name] or { py_name }
+	}
+	return base.get_generics_with_variance_str(v_generics,
 		env.state.current_class_generic_map, env.state.generic_variance, env.state.generic_defaults)
 }
 

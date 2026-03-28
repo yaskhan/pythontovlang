@@ -125,7 +125,7 @@ fn (mut m StdLibMapper) init_mappings() {
 		'move':      'os.mv(__ARGS__) or { panic(err) }'
 		'rmtree':    'os.rmdir_all(__ARGS__) or { panic(err) }'
 		'copytree':  'os.cp_all(__ARGS__, true) or { panic(err) }'
-		'which':     'os.find_abs_path_of_executable(__ARGS__)'
+		'which':     'os.find_abs_path_of_executable(__ARGS__) or { \'\' }'
 		'chown':     'os.chown(__ARGS__) or { panic(err) }'
 	}
 

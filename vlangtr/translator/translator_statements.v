@@ -10,7 +10,7 @@ fn (mut t Translator) emit_block(stmts []ast.Statement) {
 	}
 }
 
-fn (mut t Translator) visit_stmt(node ast.Statement) {
+pub fn (mut t Translator) visit_stmt(node ast.Statement) {
 	match node {
 		ast.Import { t.visit_import(node) }
 		ast.ImportFrom { t.visit_import_from(node) }
@@ -24,17 +24,18 @@ fn (mut t Translator) visit_stmt(node ast.Statement) {
 		ast.For { t.visit_for(node) }
 		ast.While { t.visit_while(node) }
 		ast.With { t.visit_with(node) }
+		ast.Try { t.visit_try(node) }
+		ast.TryStar { t.visit_trystar(node) }
 		ast.Return { t.visit_return(node) }
-		ast.Break { t.emit_indented('break') }
-		ast.Continue { t.emit_indented('continue') }
+		ast.Break { t.visit_break(node) }
+		ast.Continue { t.visit_continue(node) }
 		ast.Assert { t.visit_assert(node) }
 		ast.FunctionDef { t.visit_function_def(node) }
 		ast.ClassDef { t.visit_class_def(node) }
 		ast.Match { t.visit_match(node) }
-		ast.Raise {
-			exc := if v := node.exc { t.visit_expr(v) } else { "'Exception'" }
-			t.emit_indented('panic(${exc})')
-		}
+		ast.Raise { t.visit_raise(node) }
+		ast.Global { t.emit_indented('// global ${node.names.join(", ")}') }
+		ast.Nonlocal { t.emit_indented('// nonlocal ${node.names.join(", ")}') }
 		else {
 			t.emit_indented('//##LLM@@ Unsupported statement: ${node.str()}')
 		}
@@ -218,6 +219,58 @@ fn (mut t Translator) visit_assign(node ast.Assign) {
 	}
 
 	if target is ast.Name {
+		id := target.id
+		is_type_id := id.len > 0 && id[0].is_capital()
+		if is_type_id {
+			mut rhs_name := ''
+			if node.value is ast.Name { rhs_name = node.value.id }
+			else if node.value is ast.Subscript { rhs_name = t.analyzer.render_expr(node.value) }
+			mut ann_text := if rhs_name != '' { t.map_annotation_str(rhs_name, '', true, true, false) } else { t.map_annotation(node.value) }
+			if rhs_name == 'list' { ann_text = '[]Any' }
+			if rhs_name == 'dict' { ann_text = 'map[string]Any' }
+			
+			// Hard fallback for capitalized aliases of list/dict
+			if ann_text == 'int' {
+				if rhs_name == 'list' { ann_text = '[]Any' }
+				if rhs_name == 'dict' { ann_text = 'map[string]Any' }
+			}
+			
+			// High-fidelity type alias resolution
+			mut inferred_found := ''
+			if inf1 := t.analyzer.get_type(target.id) {
+				eprintln('DEBUG ALIAS RESOLVE1: id=${target.id} inf1=${inf1}')
+				inferred_found = inf1
+			}
+			
+			if inferred_found == '' || inferred_found == 'int' || inferred_found == 'Any' {
+				qual := t.analyzer.get_qualified_name(target.id)
+				if inf2 := t.analyzer.get_type(qual) {
+					eprintln('DEBUG ALIAS RESOLVE2: id=${target.id} qual=${qual} inf2=${inf2}')
+					if inf2 != 'int' && inf2 != 'Any' {
+						inferred_found = inf2
+					}
+				}
+			}
+
+			if inferred_found != '' && inferred_found != 'Any' && inferred_found != 'unknown' && inferred_found != target.id {
+				// Use special expansion for collections if we have a better inferred type
+				if ann_text.contains('Any') || ann_text == 'int' || rhs_name == 'list' || rhs_name == 'dict' || (inferred_found.contains('[]') && !ann_text.contains('[]')) {
+					expanded := t.map_annotation_str(inferred_found, '', true, true, false)
+					if expanded.contains('[]') || expanded.contains('map[') {
+						ann_text = expanded
+					}
+				}
+			}
+			is_type_expr := node.value is ast.Name || node.value is ast.Subscript || node.value is ast.Attribute
+			if is_type_expr {
+				if ann_text.contains('|') || ann_text.contains('map[') || ann_text.contains('[]') || ann_text.starts_with('?') || ann_text == 'Any' || rhs_name == 'list' || rhs_name == 'dict' {
+					t.emit_indented('type ${target.id} = ${ann_text}')
+					t.declare_local(target.id)
+					return
+				}
+			}
+		}
+
 		lhs := base.sanitize_name(target.id, false, map[string]bool{}, '', map[string]bool{})
 		mut rhs_text := rhs
 		if t.state.current_class.ends_with('Task') && rhs == 'r' && lhs in ['h', 'd', 'i', 'w'] {
@@ -226,17 +279,13 @@ fn (mut t Translator) visit_assign(node ast.Assign) {
 		if t.is_declared_local(lhs) {
 			t.emit_indented('${lhs} = ${rhs_text}')
 		} else {
-			ann_text := t.map_annotation(node.value)
-			if t.state.indent_level == 0 && ann_text != '' && (ann_text.contains('|') || ann_text.contains('map[') || ann_text.contains('[]') || ann_text.starts_with('?')) && !ann_text.starts_with('fn (') {
-				t.emit_indented('type ${target.id} = ${ann_text}')
-				t.declare_local(lhs)
-				return
-			}
 			inferred := t.guess_type(node.value)
-			if inferred != 'Any' && inferred != 'int' {
-				t.analyzer.type_map[target.id] = inferred
+			mut v_inferred := inferred
+			if v_inferred == 'str' { v_inferred = 'string' }
+			if v_inferred != 'Any' && v_inferred != 'int' {
+				t.analyzer.type_map[target.id] = v_inferred
 			}
-			if lhs in t.mutable_locals {
+			if target.id in t.mutable_locals || lhs in t.mutable_locals {
 				t.emit_indented('mut ${lhs} := ${rhs_text}')
 			} else {
 				t.emit_indented('${lhs} := ${rhs_text}')

@@ -110,6 +110,11 @@ fn guess_type_call(node ast.Call, ctx TypeGuessingContext) string {
 		if fid in ctx.defined_classes {
 			return fid
 		}
+		if fid.len > 0 && fid[0].is_capital() {
+			current := ctx.type_map[fid] or { 'Any' }
+			if current == '[]Any' { return '[]Any' }
+			if current == 'map[string]Any' { return 'map[string]Any' }
+		}
 		if fid.starts_with('new_') {
 			return base.sanitize_name(fid[4..], true, map[string]bool{}, '', map[string]bool{})
 		}
@@ -179,6 +184,9 @@ fn guess_type_call(node ast.Call, ctx TypeGuessingContext) string {
 
 		if fid == 'py_complex' {
 			return 'PyComplex'
+		}
+		if fid == 'cast' && node.args.len >= 2 {
+			return guess_type(node.args[0], ctx, true)
 		}
 		ret_key := '${fid}@return'
 		if ret_key in ctx.type_map {

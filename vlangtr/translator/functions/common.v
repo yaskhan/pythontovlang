@@ -135,33 +135,38 @@ pub fn extract_implicit_generics(
 ) []string {
 	mut implicit_generics := map[string]bool{}
 
+	mut all_type_vars := type_vars.clone()
+	for cg in current_class_generics {
+		all_type_vars[cg] = true
+	}
+
 	for param in node.args.posonlyargs {
 		if annotation := param.annotation {
-			scan_type_expr(annotation, type_vars, mut implicit_generics)
+			scan_type_expr(annotation, all_type_vars, mut implicit_generics)
 		}
 	}
 	for param in node.args.args {
 		if annotation := param.annotation {
-			scan_type_expr(annotation, type_vars, mut implicit_generics)
+			scan_type_expr(annotation, all_type_vars, mut implicit_generics)
 		}
 	}
 	for param in node.args.kwonlyargs {
 		if annotation := param.annotation {
-			scan_type_expr(annotation, type_vars, mut implicit_generics)
+			scan_type_expr(annotation, all_type_vars, mut implicit_generics)
 		}
 	}
 	if vararg := node.args.vararg {
 		if annotation := vararg.annotation {
-			scan_type_expr(annotation, type_vars, mut implicit_generics)
+			scan_type_expr(annotation, all_type_vars, mut implicit_generics)
 		}
 	}
 	if kwarg := node.args.kwarg {
 		if annotation := kwarg.annotation {
-			scan_type_expr(annotation, type_vars, mut implicit_generics)
+			scan_type_expr(annotation, all_type_vars, mut implicit_generics)
 		}
 	}
 	if returns := node.returns {
-		scan_type_expr(returns, type_vars, mut implicit_generics)
+		scan_type_expr(returns, all_type_vars, mut implicit_generics)
 	}
 
 	mut filtered := map[string]bool{}
@@ -171,9 +176,11 @@ pub fn extract_implicit_generics(
 		}
 	}
 
+/*
 	for gen in current_class_generics {
 		filtered.delete(gen)
 	}
+*/
 
 	mut result := filtered.keys()
 	result.sort()

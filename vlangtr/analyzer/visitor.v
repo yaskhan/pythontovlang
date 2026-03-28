@@ -49,6 +49,11 @@ fn (mut t TypeInferenceVisitorMixin) store_type(name string, typ string) {
 		if qualified != name {
 			t.type_map[qualified] = typ
 		}
+	} else if name.contains('.') {
+		short := name.all_after_last('.')
+		if short.len > 0 && (!t.has_type(short) || t.get_type(short) == 'Any') {
+			t.type_map[short] = typ
+		}
 	}
 }
 
@@ -61,6 +66,11 @@ fn (mut t TypeInferenceVisitorMixin) store_call_signature(name string, sig CallS
 		qualified := t.get_qualified_name(name)
 		if qualified != name {
 			t.call_signatures[qualified] = sig
+		}
+	} else if name.contains('.') {
+		short := name.all_after_last('.')
+		if short.len > 0 && short !in t.call_signatures {
+			t.call_signatures[short] = sig
 		}
 	}
 }
@@ -227,7 +237,7 @@ fn (mut t TypeInferenceVisitorMixin) expr_to_type_string(node ast.Expression) st
 	}
 }
 
-fn (mut t TypeInferenceVisitorMixin) render_expr(node ast.Expression) string {
+pub fn (t &TypeInferenceVisitorMixin) render_expr(node ast.Expression) string {
 	return match node {
 		ast.Name { node.id }
 		ast.NoneExpr { 'none' }
@@ -252,7 +262,7 @@ fn (mut t TypeInferenceVisitorMixin) render_expr(node ast.Expression) string {
 			}
 		}
 		ast.List { '[' + node.elements.map(t.render_expr(it)).join(', ') + ']' }
-		ast.Tuple { '[' + node.elements.map(t.render_expr(it)).join(', ') + ']' }
+		ast.Tuple { node.elements.map(t.render_expr(it)).join(', ') }
 		ast.Set { '{' + node.elements.map(t.render_expr(it)).join(', ') + '}' }
 		ast.Dict {
 			mut items := []string{}
@@ -861,10 +871,23 @@ pub fn (mut t TypeInferenceVisitorMixin) visit_function_def(node ast.FunctionDef
 	}
 
 	mut return_type := 'void'
+	mut narrowed_type_opt := ?string(none)
+	mut is_type_is := false
 	if return_annotation := node.returns {
 		py_return := t.expr_to_type_string(return_annotation)
 		if py_return.len > 0 {
-			return_type = map_python_type_to_v(py_return)
+			if py_return.starts_with('TypeGuard[') || py_return.starts_with('TypeIs[') || 
+			   py_return.starts_with('typing.TypeGuard[') || py_return.starts_with('typing.TypeIs[') {
+				is_type_is = py_return.contains('TypeIs')
+				bracket_idx := py_return.index('[') or { -1 }
+				if bracket_idx >= 0 {
+					narrowed := py_return[bracket_idx + 1..py_return.len - 1].trim_space()
+					narrowed_type_opt = map_python_type_to_v(narrowed)
+				}
+				return_type = 'bool'
+			} else {
+				return_type = map_python_type_to_v(py_return)
+			}
 		}
 	} else if node.name !in ['__init__', '__post_init__', 'setUp', 'tearDown'] {
 		return_type = t.infer_return_type(node.body)
@@ -883,16 +906,27 @@ pub fn (mut t TypeInferenceVisitorMixin) visit_function_def(node ast.FunctionDef
 		has_init:    false
 		has_vararg:  node.args.vararg != none
 		has_kwarg:   node.args.kwarg != none
+		narrowed_type: narrowed_type_opt
+		is_type_is:  is_type_is
 	}
 	t.store_call_signature(node.name, sig)
 
 	mut is_overload := false
+	mut is_property := false
 	for decorator in node.decorator_list {
 		t.visit_expr(decorator)
 		dec_name := t.render_expr(decorator)
 		if dec_name.ends_with('overload') {
 			is_overload = true
 		}
+		if dec_name == 'property' {
+			is_property = true
+		}
+	}
+
+	if is_property {
+		full_prop_name := t.get_qualified_name(node.name)
+		t.type_map[full_prop_name] = return_type
 	}
 
 	for type_param in node.type_params {
@@ -1001,14 +1035,21 @@ pub fn (mut t TypeInferenceVisitorMixin) visit_assign(node ast.Assign) {
 				if target.id in t.mutability_map {
 					t.mark_reassigned_expr(target)
 				}
-				if value_type != 'Any' && (!t.has_type(target.id) || t.get_type(target.id) == 'Any') {
-					t.store_type(target.id, value_type)
+				current := t.get_type(target.id)
+				is_cap := target.id.len > 0 && target.id[0].is_capital()
+				if value_type != 'Any' {
+					if current == 'Any' || (current == 'int' && (value_type.contains('[]') || value_type.contains('map['))) || (is_cap && value_type.contains('[]') && (current == '[]Any' || current == 'int')) {
+						t.store_type(target.id, value_type)
+					}
 				}
 			}
 			ast.Attribute {
 				t.mark_mutated_expr(target)
+				obj_name := t.render_expr(target.value)
+				if obj_name.len > 0 {
+					t.store_type('${obj_name}.${target.attr}', value_type)
+				}
 				if target.value is ast.Name && target.value.id == 'self' {
-					t.store_type('self.${target.attr}', value_type)
 					t.store_type(target.attr, value_type)
 				}
 			}
@@ -1178,8 +1219,8 @@ pub fn (mut t TypeInferenceVisitorMixin) visit_call(node ast.Call) {
 			elt_type := t.guess_expr_type(node.args[0])
 			if obj_name.len > 0 && elt_type != 'Any' {
 				new_type := '[]${elt_type}'
-				current := t.type_map[obj_name] or { 'Any' }
-				if current == 'Any' || current == '[]Any' || current.contains('Any') {
+				current := t.get_type(obj_name)
+				if current == 'Any' || current == '[]Any' || current == 'int' || current.contains('Any') {
 					t.store_type(obj_name, new_type)
 				}
 			}
@@ -1208,7 +1249,8 @@ pub fn (mut t TypeInferenceVisitorMixin) visit_call(node ast.Call) {
 				}
 			}
 		}
-		if func_name !in ['list', 'set', 'dict'] && (!t.has_type(func_name) || t.get_type(func_name) == 'Any') {
+		is_cap := func_name.len > 0 && func_name[0].is_capital()
+		if !is_cap && func_name !in ['list', 'set', 'dict'] && (!t.has_type(func_name) || t.get_type(func_name) == 'Any') {
 			t.store_type(func_name, 'fn (...Any) Any')
 		}
 	}
@@ -1277,4 +1319,3 @@ fn (mut t TypeInferenceVisitorMixin) visit_pattern(node ast.Pattern) {
 		else {}
 	}
 }
-

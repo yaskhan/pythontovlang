@@ -21,7 +21,7 @@ pub fn (h FunctionsOverloadHandler) handle_overloads(node &ast.FunctionDef, stru
 	generate_overload_variants(
 		node, struct_name, struct_name.len > 0, dec_info,
 		false, mut env.state, &env.analyzer, env.visit_expr_fn,
-		env.indent_fn, env.emit_fn, sanitize_name_fn, map_type_fn,
+		env.indent_fn, env.emit_fn, base.sanitize_name_helper, env.map_type_fn,
 		get_full_self_type_fn, get_factory_name_fn, mangle_name_fn,
 		is_exported_fn, get_source_info_fn, extract_implicit_generics_fn,
 		get_generic_map_fn, get_all_active_v_generics_fn, get_generics_with_variance_str_fn,
@@ -70,6 +70,7 @@ pub mut:
 	pop_scope_fn      fn () = unsafe { nil }
 	declare_local_fn  fn (string) = unsafe { nil }
 	map_annotation_fn fn (ast.Expression) string = unsafe { nil }
+	map_type_fn       fn (string, string, bool, bool, bool) string = unsafe { nil }
 	source_mapping    bool
 }
 
@@ -85,6 +86,7 @@ pub fn new_function_visit_env(
 	pop_scope_fn fn (),
 	declare_local_fn fn (string),
 	map_annotation_fn fn (ast.Expression) string,
+	map_type_fn fn (string, string, bool, bool, bool) string,
 	source_mapping bool,
 ) FunctionVisitEnv {
 	return FunctionVisitEnv{
@@ -99,6 +101,7 @@ pub fn new_function_visit_env(
 		pop_scope_fn:      pop_scope_fn
 		declare_local_fn:  declare_local_fn
 		map_annotation_fn: map_annotation_fn
+		map_type_fn:       map_type_fn
 		source_mapping:    source_mapping
 	}
 }

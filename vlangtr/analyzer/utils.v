@@ -90,7 +90,7 @@ pub fn map_python_type_to_v(py_type string) string {
 		'float' {
 			return 'f64'
 		}
-		'str' {
+		'str', 'string' {
 			return 'string'
 		}
 		'bool' {
@@ -103,7 +103,7 @@ pub fn map_python_type_to_v(py_type string) string {
 			return '[]u8'
 		}
 		'None' {
-			return 'void'
+			return 'none'
 		}
 		'Any' {
 			return 'Any'
@@ -145,6 +145,14 @@ pub fn map_python_type_to_v(py_type string) string {
 					return '?' + non_none[0]
 				}
 				return if non_none.len > 0 { non_none.join(' | ') } else { 'Any' }
+			}
+			if clean_type.contains('|') {
+				parts := clean_type.split('|').map(it.trim_space())
+				mut mapped := []string{}
+				for p in parts {
+					mapped << map_python_type_to_v(p)
+				}
+				return mapped.join(' | ')
 			}
 			return clean_type
 		}

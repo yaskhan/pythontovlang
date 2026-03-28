@@ -89,7 +89,7 @@ pub fn map_python_type_to_v(py_type string, self_name string, allow_union bool, 
 		'None' { return 'none' }
 		'Any' { return 'Any' }
 		'object' { return 'Any' }
-		'Self' { return self_name }
+		// 'Self', 'typing.Self' { return if self_name.len > 0 { '&' + self_name } else { 'Self' } }
 		'builtins.int' { return 'int' }
 		'builtins.float' { return 'f64' }
 		'builtins.str' { return 'string' }
@@ -107,6 +107,10 @@ pub fn map_python_type_to_v(py_type string, self_name string, allow_union bool, 
 		return map_complex_type(clean_type, self_name, allow_union, generic_map, sum_type_registrar,
 			literal_registrar, tuple_registrar)
 	}
+
+	// Registrar should be called before simple fallback
+	reg_res := sum_type_registrar(clean_type)
+	if reg_res.len > 0 { return reg_res }
 
 	// Fallback to basic type mapping
 	return map_basic_type(clean_type)
@@ -127,6 +131,12 @@ fn map_complex_type(py_type string, self_name string, allow_union bool, generic_
 	} else {
 		base_type = py_type
 	}
+
+	// Normalize base_type by removing 'typing.' or 'typing_extensions.' prefix
+	if base_type.contains('.') {
+		base_type = base_type.all_after('.')
+	}
+	// eprintln('DEBUG map_complex_type: base_type=${base_type} py_type=${py_type}')
 
 	// Parse arguments
 	mut args := []string{}
@@ -211,10 +221,14 @@ fn map_complex_type(py_type string, self_name string, allow_union bool, generic_
 
 			union_str := unique_args.join(' | ')
 			if sum_type_registrar != unsafe { nil } {
+				mut reg_res := ''
 				if non_none.len < unique_args.len {
-					return '?${sum_type_registrar(non_none.join(' | '))}'
+					reg_res = sum_type_registrar(non_none.join(' | '))
+					if reg_res != '' { return '?${reg_res}' }
+				} else {
+					reg_res = sum_type_registrar(union_str)
+					if reg_res != '' { return reg_res }
 				}
-				return sum_type_registrar(union_str)
 			}
 
 			if allow_union {
@@ -336,7 +350,7 @@ fn map_basic_type(name string) string {
 		'None':                            'none'
 		'Any':                             'Any'
 		'object':                          'Any'
-		'list':                            '[]int'
+		'list':                            '[]Any'
 		'dict':                            'map[string]int'
 		'tuple':                           '[]int'
 		'set':                             'map[int]bool'
@@ -347,7 +361,7 @@ fn map_basic_type(name string) string {
 		'BinaryIO':                        'os.File'
 		'StringIO':                        'strings.Builder'
 		'io.StringIO':                     'strings.Builder'
-		'NoReturn':                        'void'
+		'NoReturn':                        'noreturn'
 		'List':                            '[]Any'
 		'Dict':                            'map[string]Any'
 		'Tuple':                           '[]Any'
@@ -370,7 +384,7 @@ fn map_basic_type(name string) string {
 		'typing.Callable':                 'fn (...Any) Any'
 		'typing_extensions.Callable':      'fn (...Any) Any'
 		'typing_extensions.Union':         'Any'
-		'typing.NoReturn':                 'void'
+		'typing.NoReturn':                 'noreturn'
 		'typing.Sequence':                 '[]Any'
 		'typing.Iterable':                 '[]Any'
 		'typing.Mapping':                  'map[string]Any'

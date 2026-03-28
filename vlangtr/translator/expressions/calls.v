@@ -30,8 +30,13 @@ pub fn (mut eg ExprGen) visit_call(node ast.Call) string {
 		return special
 	}
 
-	if mapped := eg.handle_via_mapper(node, module_name, func_name, args) {
-		return mapped
+	if mapped_val := eg.handle_via_mapper(node, module_name, func_name, args) {
+		if mapped_val.contains('(') {
+			eg.state.used_builtins[mapped_val.all_before('(')] = true
+		} else {
+			eg.state.used_builtins[mapped_val] = true
+		}
+		return mapped_val
 	}
 
 	if overload := eg.handle_overloads(node, call_sig, args) {
@@ -212,18 +217,19 @@ pub fn (mut eg ExprGen) handle_special_cases(node ast.Call, module_name string, 
 	}
 
 	if func_name_str.starts_with('self.assert') {
-		return match func_name_str {
-			'self.assert_equal', 'self.assert_count_equal' { 'assert ${args[0]} == ${args[1]}' }
-			'self.assert_true' { 'assert ${args[0]}' }
-			'self.assert_false' { 'assert !(${args[0]})' }
-			'self.assert_not_equal' { 'assert ${args[0]} != ${args[1]}' }
-			'self.assert_is_none' { 'assert ${args[0]} is none' }
-			'self.assert_is_not_none' { 'assert ${args[0]} !is none' }
-			'self.assert_in' { 'assert ${args[0]} in ${args[1]}' }
-			'self.assert_not_in' { 'assert ${args[0]} !in ${args[1]}' }
-			'self.assert_is' { 'assert ${args[0]} == ${args[1]}' }
-			'self.assert_is_not' { 'assert ${args[0]} != ${args[1]}' }
-			'self.assert_raises' { '/* assert_raises ignored */' }
+		name := func_name_str.replace('self.', '')
+		return match name {
+			'assertEqual', 'assert_equal', 'assertCountEqual', 'assert_count_equal' { 'assert ${args[0]} == ${args[1]}' }
+			'assertTrue', 'assert_true' { 'assert ${args[0]}' }
+			'assertFalse', 'assert_false' { 'assert !(${args[0]})' }
+			'assertNotEqual', 'assert_not_equal' { 'assert ${args[0]} != ${args[1]}' }
+			'assertIsNone', 'assert_is_none' { 'assert ${args[0]} == none' }
+			'assertIsNotNone', 'assert_is_not_none' { 'assert ${args[0]} != none' }
+			'assertIn', 'assert_in' { 'assert ${args[0]} in ${args[1]}' }
+			'assertNotIn', 'assert_not_in' { 'assert ${args[0]} !in ${args[1]}' }
+			'assertIs', 'assert_is' { 'assert ${args[0]} == ${args[1]}' }
+			'assertIsNot', 'assert_is_not' { 'assert ${args[0]} != ${args[1]}' }
+			'assertRaises', 'assert_raises' { '/* assert_raises ignored */' }
 			else { none }
 		}
 	}
@@ -237,6 +243,9 @@ pub fn (mut eg ExprGen) handle_special_cases(node ast.Call, module_name string, 
 		} else {
 			return "\$compile_error('assert_type failed: expected ${expected_v_type} but got ${val_type}')"
 		}
+	}
+	if func_name_str in ['assert_never', 'typing.assert_never'] {
+		return 'panic(\'assert_never reached\')'
 	}
 	if func_name_str == 'bool' {
 		if args.len == 0 { return 'false' }
@@ -288,10 +297,10 @@ pub fn (mut eg ExprGen) handle_special_cases(node ast.Call, module_name string, 
 		return 'new_${base.to_snake_case(func_name_str)}(${args.join(', ')})'
 	}
 
-	if func_name == 'acquire' && node.func is ast.Attribute {
+	if (func_name == 'acquire' || func_name_str.ends_with('.acquire')) && node.func is ast.Attribute {
 		return '${eg.visit(node.func.value)}.lock()'
 	}
-	if func_name == 'release' && node.func is ast.Attribute {
+	if (func_name == 'release' || func_name_str.ends_with('.release')) && node.func is ast.Attribute {
 		return '${eg.visit(node.func.value)}.unlock()'
 	}
 
@@ -328,6 +337,10 @@ pub fn (mut eg ExprGen) handle_special_cases(node ast.Call, module_name string, 
 					eg.state.used_builtins['py_struct_pack_I_le'] = true
 					return 'py_struct_pack_I_le(u32(${args[1]}))'
 				}
+				if fmt == '>I' {
+					eg.state.used_builtins['py_struct_pack_I_be'] = true
+					return 'py_struct_pack_I_be(u32(${args[1]}))'
+				}
 			}
 		}
 		if func_name == 'unpack' && args.len >= 2 {
@@ -351,7 +364,10 @@ pub fn (mut eg ExprGen) handle_special_cases(node ast.Call, module_name string, 
 			'mkdtemp' { "os.mkdir_temp('')" }
 			'gettempdir' { "os.temp_dir()" }
 			'NamedTemporaryFile', 'TemporaryFile' { "os.create_temp('')" }
-			'TemporaryDirectory' { "os.mkdir_temp('')" }
+			'TemporaryDirectory' { 
+				eg.state.used_builtins['py_tempfile_tempdir'] = true
+				"py_tempfile_tempdir()" 
+			}
 			else { none }
 		}
 	}
@@ -423,7 +439,8 @@ pub fn (mut eg ExprGen) handle_special_cases(node ast.Call, module_name string, 
 	}
 
 	if func_name_str == 'isinstance' && args.len >= 2 {
-		return '${args[0]} is ${args[1]}'
+		v_type := eg.map_python_type(args[1], false)
+		return '${args[0]} is ${v_type}'
 	}
 
 	if func_name_str == 'list' && args.len == 0 { return '[]Any{}' }
@@ -577,8 +594,23 @@ pub fn (mut eg ExprGen) handle_fallback_call(node ast.Call, func_name_str string
 pub fn (mut eg ExprGen) handle_object_method_call(node ast.Call, func_node ast.Expression, func_name_str string, args []string) ?string {
 	if func_node !is ast.Attribute { return none }
 	attr := (func_node as ast.Attribute).attr
-	obj_type := eg.guess_type((func_node as ast.Attribute).value)
-	obj := eg.visit((func_node as ast.Attribute).value)
+	receiver_expr := (func_node as ast.Attribute).value
+	mut obj_type_raw := eg.guess_type(receiver_expr)
+	mut obj := eg.visit(receiver_expr)
+	
+	// Check for receiver narrowing
+	receiver_token := receiver_expr.get_token()
+	loc_key := '${receiver_token.line}:${receiver_token.column}'
+	if narrowed := eg.analyzer.location_map[loc_key] {
+		v_narrowed := eg.map_python_type(narrowed, false)
+		v_obj_base := eg.map_python_type(obj_type_raw, false)
+		if v_narrowed != v_obj_base && v_narrowed != 'Any' {
+			obj = "(${obj} as ${v_narrowed})"
+			obj_type_raw = narrowed
+		}
+	}
+	obj_type := eg.map_python_type(obj_type_raw, false)
+	mut recv := "${obj}"
 
 	// List methods
 	if obj_type.starts_with('[]') || obj_type == 'Any' {
@@ -600,20 +632,30 @@ pub fn (mut eg ExprGen) handle_object_method_call(node ast.Call, func_node ast.E
 	}
 
 	// String methods
-	if obj_type == 'string' || obj_type == 'Any' {
-		if attr == 'lower' { return '${obj}.to_lower()' }
-		if attr == 'upper' { return '${obj}.to_upper()' }
-		if attr == 'capitalize' { return '${obj}.capitalize()' }
-		if attr == 'title' { return '${obj}.title()' }
-		if attr == 'strip' { return if args.len == 0 { '${obj}.trim_space()' } else { '${obj}.trim(${args[0]})' } }
-		if attr == 'split' { return if args.len == 0 { '${obj}.fields()' } else { '${obj}.split(${args[0]})' } }
-		if attr == 'join' && args.len == 1 { return '${args[0]}.join(${obj})' }
-		if attr == 'startswith' && args.len >= 1 { return '${obj}.starts_with(${args[0]})' }
-		if attr == 'endswith' && args.len >= 1 { return '${obj}.ends_with(${args[0]})' }
-		if attr == 'isdigit' { return '${obj}.runes().all(it.is_digit())' }
-		if attr == 'isalpha' { return '${obj}.runes().all(it.is_letter())' }
-		if attr == 'isalnum' { return '${obj}.runes().all(it.is_letter() || it.is_digit())' }
-		if attr == 'replace' { return if args.len == 2 { '${obj}.replace(${args[0]}, ${args[1]})' } else { '${obj}.replace_n(${args[0]}, ${args[1]}, ${args[2]})' } }
+	mut current_type := obj_type
+	receiver_token_str := receiver_expr.get_token()
+	loc_key_str := '${receiver_token_str.line}:${receiver_token_str.column}'
+	if narrowed := eg.analyzer.location_map[loc_key_str] {
+		current_type = eg.map_python_type(narrowed, false)
+	} else if inferred := eg.analyzer.get_type(eg.analyzer.render_expr(receiver_expr)) {
+		if inferred != 'Any' && inferred != 'unknown' {
+			current_type = eg.map_python_type(inferred, false)
+		}
+	}
+		if current_type == 'string' || current_type == 'Any' {
+		if attr == 'lower' { return '${recv}.to_lower()' }
+		if attr == 'upper' { return '${recv}.to_upper()' }
+		if attr == 'capitalize' { return '${recv}.capitalize()' }
+		if attr == 'title' { return '${recv}.title()' }
+		if attr == 'strip' { return if args.len == 0 { '${recv}.trim_space()' } else { '${recv}.trim(${args[0]})' } }
+		if attr == 'split' { return if args.len == 0 { '${recv}.fields()' } else { '${recv}.split(${args[0]})' } }
+		if attr == 'join' && args.len == 1 { return '${args[0]}.join(${recv})' }
+		if attr == 'startswith' && args.len >= 1 { return '${recv}.starts_with(${args[0]})' }
+		if attr == 'endswith' && args.len >= 1 { return '${recv}.ends_with(${args[0]})' }
+		if attr == 'isdigit' { return '${recv}.runes().all(it.is_digit())' }
+		if attr == 'isalpha' { return '${recv}.runes().all(it.is_letter())' }
+		if attr == 'isalnum' { return '${recv}.runes().all(it.is_letter() || it.is_digit())' }
+		if attr == 'replace' { return if args.len == 2 { '${recv}.replace(${args[0]}, ${args[1]})' } else { '${recv}.replace_n(${args[0]}, ${args[1]}, ${args[2]})' } }
 	}
 
 	return none

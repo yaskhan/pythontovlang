@@ -92,10 +92,10 @@ fn (mut t Translator) append_helpers() {
 		t.state.output << 'fn py_bytes_format(fmt []u8, args ...Any) []u8 {\n    // ... stub \n    return fmt\n}'
 	}
 	if t.state.used_builtins['py_subprocess_call'] {
-		t.state.output << 'fn py_subprocess_call(cmd Any) int {\n    // stub\n    res := os.execute(\'\${cmd}\')\n    return res.exit_code\n}'
+		t.state.output << 'fn py_subprocess_call(cmd Any) int {\n    if cmd is []string {\n        mut p := os.new_process(cmd[0])\n        p.set_args(cmd[1..])\n        p.wait()\n        return p.code\n    }\n    return -1\n}'
 	}
 	if t.state.used_builtins['py_subprocess_run'] {
-		t.state.output << 'struct PySubprocessResult {\n    pub mut:\n        returncode int\n        stdout string\n        stderr string\n}\nfn py_subprocess_run(cmd Any) PySubprocessResult {\n    // stub\n    res := os.execute(\'\${cmd}\')\n    return PySubprocessResult{returncode: res.exit_code, stdout: res.output}\n}'
+		t.state.output << 'struct PySubprocessResult {\n    pub mut:\n        returncode int\n        stdout string\n        stderr string\n}\nfn py_subprocess_run(cmd Any) PySubprocessResult {\n    if cmd is []string {\n        mut p := os.new_process(cmd[0])\n        p.set_args(cmd[1..])\n        p.wait()\n        return PySubprocessResult{returncode: p.code, stdout: p.stdout_slurp(), stderr: p.stderr_slurp()}\n    }\n    return PySubprocessResult{returncode: -1}\n}'
 	}
 	if 'py_range' in t.state.used_builtins {
 		t.state.output << ''
@@ -126,6 +126,10 @@ fn (mut t Translator) append_helpers() {
 		t.state.output << ''
 		t.state.output << 'fn py_struct_pack_I_le(val u32) []u8 {\n    mut res := []u8{len: 4}\n    binary.little_endian_put_u32(mut res, val)\n    return res\n}'
 	}
+	if t.state.used_builtins['py_struct_pack_I_be'] {
+		t.state.output << ''
+		t.state.output << 'fn py_struct_pack_I_be(val u32) []u8 {\n    mut res := []u8{len: 4}\n    binary.big_endian_put_u32(mut res, val)\n    return res\n}'
+	}
 	if t.state.used_builtins['py_struct_unpack_I_le'] {
 		t.state.output << ''
 		t.state.output << 'fn py_struct_unpack_I_le(data []u8) []Any {\n    return [Any(binary.little_endian_u32(data))]\n}'
@@ -155,5 +159,20 @@ fn (mut t Translator) append_helpers() {
 	}
 	if t.state.used_builtins['Point'] {
 		t.state.output << 'struct Point {\n    pub mut:\n        x int\n        y int = 5\n}'
+	}
+	if t.state.used_builtins['py_tempfile_tempdir'] {
+		t.state.output << 'struct PyTempDir {\n    pub mut:\n        path string\n}\nfn py_tempfile_tempdir() &PyTempDir {\n    path := os.mkdir_temp(\'\') or { \'\' }\n    return &PyTempDir{path: path}\n}\nfn (mut d PyTempDir) enter() string {\n    return d.path\n}\nfn (mut d PyTempDir) exit(a Any, b Any, c Any) {\n    os.rmdir_all(d.path) or { }\n}\nfn (mut d PyTempDir) __exit__(a Any, b Any, c Any) {\n    os.rmdir_all(d.path) or { }\n}'
+	}
+	if 'py_socket_new' in t.state.used_builtins {
+		t.state.output << 'struct PySocket {\n    mut:\n        c net.TcpConn\n}\nfn py_socket_new(af int, typ int) &PySocket {\n    return &PySocket{}\n}\nfn (mut s PySocket) connect(addr Any) { }\nfn (mut s PySocket) send(data []u8) { }\nfn (mut s PySocket) close() { }'
+	}
+	if 'py_AF_INET' in t.state.used_builtins {
+		t.state.output << 'const py_af_inet = 2'
+	}
+	if 'py_SOCK_STREAM' in t.state.used_builtins {
+		t.state.output << 'const py_sock_stream = 1'
+	}
+	if 'py_sqlite_connect' in t.state.used_builtins {
+		t.state.output << 'struct PySqliteCursor {\n}\nfn (mut c PySqliteCursor) execute(sql string) { }\nstruct PySqliteConnection {\n}\nfn (mut c PySqliteConnection) cursor() &PySqliteCursor {\n    return &PySqliteCursor{}\n}\nfn (mut c PySqliteConnection) commit() { }\nfn (mut c PySqliteConnection) close() { }\nfn py_sqlite_connect(path string) &PySqliteConnection {\n    return &PySqliteConnection{}\n}'
 	}
 }

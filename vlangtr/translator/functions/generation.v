@@ -30,6 +30,32 @@ pub fn (h FunctionsGenerationHandler) generate_function(
 	mut injected_start := []string{}
 	mut injected_end := []string{}
 	
+	dec_info := h.get_decorator_info(node, struct_name, env)
+	
+	mut name_remap_revert := map[string]string{}
+	defer {
+		for k, v in name_remap_revert {
+			if v == '__DELETED__' {
+				env.state.name_remap.delete(k)
+			} else {
+				env.state.name_remap[k] = v
+			}
+		}
+	}
+	
+	if dec_info.is_classmethod {
+		if 'cls' in env.state.name_remap {
+			name_remap_revert['cls'] = env.state.name_remap['cls']
+		} else {
+			name_remap_revert['cls'] = '__DELETED__'
+		}
+		env.state.name_remap['cls'] = struct_name
+	}
+
+	mut func_name := sanitize_name(node.name, false)
+	mut is_property := dec_info.is_property
+	mut is_setter := false
+	
 	for decorator in node.decorator_list {
 		mut dec_name := ''
 		if decorator is ast.Call {
@@ -39,6 +65,15 @@ pub fn (h FunctionsGenerationHandler) generate_function(
 		}
 		
 		output << '// @${dec_name}'
+		
+		if dec_name.ends_with('.setter') {
+			func_name = 'set_${func_name}'
+			is_setter = true
+		}
+		
+		if dec_name.ends_with('property') {
+			is_property = true
+		}
 		
 		if dec_name.ends_with('staticmethod') {
 			is_static = true
@@ -62,7 +97,6 @@ pub fn (h FunctionsGenerationHandler) generate_function(
 	args << node.args.kwonlyargs
 
 	mut receiver_str := ''
-	mut func_name := sanitize_name(node.name, false)
 	orig_name := node.name
 	
 	// Name mangling for static/class methods
@@ -119,6 +153,25 @@ pub fn (h FunctionsGenerationHandler) generate_function(
 		mut a_type := 'Any'
 		if ann := arg.annotation {
 			a_type = env.map_annotation_fn(ann)
+		} else if is_setter {
+			// In V, setters must match the getter's return type.
+			mut prop_name := node.name
+			// The decorator is `@x.setter`, so we look for property `x`
+			for decorator in node.decorator_list {
+				dec_name := env.visit_expr_fn(decorator)
+				if dec_name.ends_with('.setter') {
+					prop_name = dec_name.replace('.setter', '')
+					break
+				}
+			}
+			
+			lookup_name := if struct_name.len > 0 { '${struct_name}.${prop_name}' } else { prop_name }
+			if inferred := env.analyzer.get_type(lookup_name) {
+				if inferred != 'Any' && inferred != 'unknown' {
+					can_use_union := false
+					a_type = env.map_type_fn(inferred, struct_name, can_use_union, true, false)
+				}
+			}
 		}
 		args_str_list << '${name} ${a_type}'
 		annotations_data[name] = a_type
@@ -129,7 +182,8 @@ pub fn (h FunctionsGenerationHandler) generate_function(
 		args_names << '...${name}'
 		mut a_type := 'Any'
 		if ann := vararg.annotation {
-			a_type = env.map_annotation_fn(ann)
+			can_use_union := env.state.current_class == ''
+			a_type = env.map_type_fn(env.visit_expr_fn(ann), '', can_use_union, true, false)
 		}
 		// V varargs use the element type: ...T
 		if a_type.starts_with('[]') {
@@ -141,10 +195,17 @@ pub fn (h FunctionsGenerationHandler) generate_function(
 
 	mut ret_type := 'void'
 	if ann := node.returns {
-		ret_type = env.map_annotation_fn(ann)
+		ret_type = env.map_type_fn(env.visit_expr_fn(ann), struct_name, !is_property, true, true)
+	}
+	if func_name in ['str', 'repr'] {
+		ret_type = 'string'
 	}
 	if ret_type != 'void' { annotations_data['return'] = ret_type }
 
+	if ret_type == 'noreturn' {
+		// Handled via attr_pfx below
+	}
+	
 	if is_deprecated {
 		if deprecated_message.len > 0 {
 			output << '@[deprecated: \'${deprecated_message}\']'
@@ -153,12 +214,39 @@ pub fn (h FunctionsGenerationHandler) generate_function(
 		}
 	}
 
+	mut is_noreturn := false
+	if ret_type == 'noreturn' {
+		is_noreturn = true
+		ret_type = 'void'
+	}
+
 	pub_pfx := if env.state.is_exported(node.name) { 'pub ' } else { '' }
-	ret_suffix := if ret_type != 'void' { ' ${ret_type}' } else { '' }
+	ret_suffix := if ret_type != 'void' && !is_noreturn { ' ${ret_type}' } else { '' }
+	attr_pfx := if is_noreturn { '[noreturn]\n' } else { '' }
 	
 	real_func_name := if cache_wrapper_needed { '${func_name}__impl' } else { func_name }
 	
-	output << '${pub_pfx}fn ${receiver_str}${real_func_name}(${args_str_list.join(", ")})${ret_suffix} {'
+	mut func_generics := extract_implicit_generics(node, env.analyzer.type_vars, map[string]bool{},
+		env.state.current_class_generics, base.sanitize_name_helper)
+	
+	if is_method && (is_static || dec_info.is_classmethod) {
+		for cg in env.state.current_class_generics {
+			if cg !in func_generics { func_generics << cg }
+		}
+	}
+	
+	v_gen_map := base.get_generic_map(func_generics, [env.state.current_class_generic_map])
+	mut combined_gen_map := env.state.current_class_generic_map.clone()
+	for k, v in v_gen_map { combined_gen_map[k] = v }
+	
+	mut v_gens_to_declare := []string{}
+	for py_name in func_generics {
+		v_gens_to_declare << combined_gen_map[py_name] or { py_name }
+	}
+	
+	gen_s := base.get_generics_with_variance_str(v_gens_to_declare, combined_gen_map, env.state.generic_variance, env.state.generic_defaults)
+	
+	output << '${attr_pfx}${pub_pfx}fn ${receiver_str}${real_func_name}${gen_s}(${args_str_list.join(", ")})${ret_suffix} {'
 	for start_stmt in injected_start {
 		output << '    ${start_stmt}'
 	}

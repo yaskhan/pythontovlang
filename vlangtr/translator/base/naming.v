@@ -137,6 +137,11 @@ pub fn sanitize_name(name string, is_type bool, reserved_words map[string]bool, 
 	return sanitized
 }
 
+// sanitize_name_helper - simple proxy for sanitize_name
+pub fn sanitize_name_helper(name string, is_type bool) string {
+	return sanitize_name(name, is_type, map[string]bool{}, '', map[string]bool{})
+}
+
 // mangle_name implements Python name mangling rules for private attributes
 pub fn mangle_name(name string, class_name string) string {
 	if class_name.len > 0 && name.starts_with('__') && !name.ends_with('__') {

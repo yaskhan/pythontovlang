@@ -2,6 +2,7 @@ module translator
 
 import ast
 import base
+import analyzer
 
 pub struct ModuleEmitter {
 pub mut:
@@ -27,11 +28,15 @@ pub fn new_module_emitter() ModuleEmitter {
 }
 
 pub fn (mut e ModuleEmitter) add_helper_struct(code string) {
-	e.helper_structs << code
+	if code !in e.helper_structs {
+		e.helper_structs << code
+	}
 }
 
 pub fn (mut e ModuleEmitter) add_helper_function(code string) {
-	e.helper_functions << code
+	if code !in e.helper_functions {
+		e.helper_functions << code
+	}
 }
 
 pub fn (mut e ModuleEmitter) add_import(name string) {
@@ -102,8 +107,9 @@ fn clean_string_constant(value string) string {
 
 pub struct ModuleTranslator {
 pub mut:
-	state         base.TranslatorState
+	state         &base.TranslatorState
 	emitter       ModuleEmitter
+	coroutine_handler analyzer.CoroutineHandler
 	visit_stmt_fn fn (ast.Statement) = noop_visit_stmt
 	source_mapping bool
 	strict_exports bool
@@ -111,24 +117,27 @@ pub mut:
 }
 
 pub fn new_module_translator(
-	state base.TranslatorState,
+	mut state &base.TranslatorState,
 	visit_stmt_fn fn (ast.Statement),
 ) ModuleTranslator {
-	return ModuleTranslator{
-		state:         state
-		emitter:       new_module_emitter()
-		visit_stmt_fn: visit_stmt_fn
-		has_module_all: false
+	mut m := ModuleTranslator{
+		state:             state
+		emitter:           new_module_emitter()
+		coroutine_handler: analyzer.new_coroutine_handler()
+		visit_stmt_fn:     visit_stmt_fn
+		has_module_all:    false
 	}
+	m.state.coroutine_handler = &m.coroutine_handler
+	return m
 }
 
 pub fn new_module_translator_with_flags(
-	state base.TranslatorState,
+	mut state &base.TranslatorState,
 	visit_stmt_fn fn (ast.Statement),
 	source_mapping bool,
 	strict_exports bool,
 ) ModuleTranslator {
-	mut mt := new_module_translator(state, visit_stmt_fn)
+	mut mt := new_module_translator(mut state, visit_stmt_fn)
 	mt.source_mapping = source_mapping
 	mt.strict_exports = strict_exports
 	return mt
@@ -512,19 +521,43 @@ fn (mut m ModuleTranslator) append_runtime_helpers() {
 		|| m.state.used_builtins['py_set_superset'] || m.state.used_builtins['py_set_strict_superset']
 		|| m.state.used_builtins['py_set_from_list'] || m.state.used_builtins['py_set_from_iter'] {
 		m.emitter.add_helper_import('datatypes')
+		if m.state.used_builtins['py_set_union'] {
+			m.emitter.add_helper_function('fn py_set_union[K](a datatypes.Set[K], b datatypes.Set[K]) datatypes.Set[K] {
+    mut res := a.clone()
+    for k, _ in b.elements { res.add(k) }
+    return res
+}')
+		}
+		if m.state.used_builtins['py_set_intersection'] {
+			m.emitter.add_helper_function('fn py_set_intersection[K](a datatypes.Set[K], b datatypes.Set[K]) datatypes.Set[K] {
+    mut res := datatypes.Set[K]{}
+    for k, _ in a.elements { if k in b.elements { res.add(k) } }
+    return res
+}')
+		}
 	}
 	
 	if m.state.imported_modules.values().contains('tempfile') {
 		m.emitter.add_helper_import('os')
-		m.emitter.add_helper_struct('struct PyTempDir {\n    path string\n}')
-		m.emitter.add_helper_function('fn (d PyTempDir) close() {\n    os.rmdir_all(d.path) or {}\n}')
-		m.emitter.add_helper_function('fn py_temp_dir() PyTempDir {\n    p := os.mkdir_temp(\'\') or { panic(err) }\n    return PyTempDir{path: p}\n}')
-		m.emitter.add_helper_function('fn py_named_temp_file() os.File {\n    f, _ := os.create_temp(\'\') or { panic(err) }\n    return f\n}')
+		m.emitter.add_helper_struct('struct PyTempDir { path string }')
+		m.emitter.add_helper_function('fn (d PyTempDir) close() { os.rmdir_all(d.path) or {} }')
+		m.emitter.add_helper_function("fn py_temp_dir() PyTempDir {
+    p := os.mkdir_temp('') or { panic(err) }
+    return PyTempDir{path: p}
+}")
+		m.emitter.add_helper_function("fn py_named_temp_file() os.File {
+    f, _ := os.create_temp('') or { panic(err) }
+    return f
+}")
 	}
 
 	if m.state.imported_modules.values().contains('logging') {
 		m.emitter.add_helper_import('log')
-		m.emitter.add_helper_function('fn py_get_logger(name string) log.Log {\n    mut l := log.Log{}\n    l.set_level(.info)\n    return l\n}')
+		m.emitter.add_helper_function('fn py_get_logger(name string) log.Log {
+    mut l := log.Log{}
+    l.set_level(.info)
+    return l
+}')
 	}
 
 	// Single dispatchers
@@ -557,124 +590,11 @@ fn (mut m ModuleTranslator) append_runtime_helpers() {
 	}
 
 	if m.state.used_builtins['py_is_identical'] {
-		m.emitter.add_helper_function('fn py_is_identical[T, U](a T, b U) bool {
-    return voidptr(&a) == voidptr(&b)
-}')
+		m.emitter.add_helper_function('fn py_is_identical[T, U](a T, b U) bool { return voidptr(&a) == voidptr(&b) }')
 	}
 
-	if m.state.used_builtins['py_any'] {
-		m.emitter.add_helper_function('pub fn py_any[T](a []T) bool {
-    for it in a {
-        \x24if T is bool { if it { return true } }
-        \x24else \x24if T is int || T is i64 { if it != 0 { return true } }
-        \x24else \x24if T is f64 { if it != 0.0 { return true } }
-        \x24else \x24if T is string { if it.len > 0 { return true } }
-        \x24else \x24if T is Any { if py_bool(it) { return true } }
-        \x24else { if it != none { return true } }
-    }
-    return false
-}')
-	}
 
-	if m.state.used_builtins['py_all'] {
-		m.emitter.add_helper_function('pub fn py_all[T](a []T) bool {
-    for it in a {
-        \x24if T is bool { if !it { return false } }
-        \x24else \x24if T is int || T is i64 { if it == 0 { return false } }
-        \x24else \x24if T is f64 { if it == 0.0 { return false } }
-        \x24else \x24if T is string { if it.len == 0 { return false } }
-        \x24else \x24if T is Any { if !py_bool(it) { return false } }
-        \x24else { if it == none { return false } }
-    }
-    return true
-}')
-	}
 
-	if m.state.used_builtins['py_argparse_new'] || m.state.imported_modules.values().contains('argparse') {
-		m.emitter.add_helper_import('os')
-		m.emitter.add_helper_struct('struct PyArgDef { name string }')
-		m.emitter.add_helper_struct('struct PyArgumentParser { mut: definitions []PyArgDef }')
-		m.emitter.add_helper_function('fn py_argparse_new() PyArgumentParser { return PyArgumentParser{} }')
-		m.emitter.add_helper_function('fn (mut p PyArgumentParser) add_argument(name string) { p.definitions << PyArgDef{name: name} }')
-		m.emitter.add_helper_function("fn (mut p PyArgumentParser) parse_args() map[string]string {
-    mut args := map[string]string{}
-    for i := 0; i < os.args.len; i++ {
-        arg := os.args[i]
-        if arg.starts_with('--') {
-            key := arg[2..]
-            val := if i + 1 < os.args.len { os.args[i+1] } else { '' }
-            args[key] = val
-        }
-    }
-    return args
-}")
-	}
-
-	if m.state.used_builtins['py_array'] || m.state.imported_modules.values().contains('array') {
-		m.emitter.add_helper_function('fn py_array[T](code string, init []T) []T { return init }')
-	}
-
-	if m.state.used_builtins['py_repeat'] {
-		m.emitter.add_helper_function('fn py_repeat[T](val T, n int) []T { return []T{len: n, init: val} }')
-	}
-
-	if m.state.used_builtins['py_repeat_list'] {
-		m.emitter.add_helper_function('fn py_repeat_list[T](a []T, n int) []T {
-    mut res := []T{cap: a.len * n}
-    for _ in 0 .. n {
-        res << a
-    }
-    return res
-}')
-	}
-
-	if m.state.used_builtins['py_round'] {
-		m.emitter.add_helper_function('fn py_round(number f64, ndigits int) f64 {
-    p := math.pow(10, f64(ndigits))
-    return math.round(number * p) / p
-}')
-	}
-
-	if m.state.used_complex {
-		m.emitter.add_helper_struct('struct PyComplex { re f64 im f64 }')
-		m.emitter.add_helper_function('fn py_complex(re f64, im f64) PyComplex { return PyComplex{re: re, im: im} }')
-		m.emitter.add_helper_function('fn (a PyComplex) + (b PyComplex) PyComplex { return PyComplex{re: a.re + b.re, im: a.im + b.im} }')
-		m.emitter.add_helper_function('fn (a PyComplex) - (b PyComplex) PyComplex { return PyComplex{re: a.re - b.re, im: a.im - b.im} }')
-		m.emitter.add_helper_function('fn (a PyComplex) * (b PyComplex) PyComplex { return PyComplex{re: a.re * b.re - a.im * b.im, im: a.re * b.im + a.im * b.re} }')
-		m.emitter.add_helper_function('fn (a PyComplex) / (b PyComplex) PyComplex {
-    denom := b.re * b.re + b.im * b.im
-    return PyComplex{re: (a.re * b.re + a.im * b.im) / denom, im: (a.im * b.re - a.re * b.im) / denom}
-}')
-		m.emitter.add_helper_function('fn (z PyComplex) str() string {
-    sign := if z.im >= 0 { "+" } else { "-" }
-    im_abs := if z.im >= 0 { z.im } else { -z.im }
-    return "(\x24{z.re}\x24{sign}\x24{im_abs}j)"
-}')
-	}
-
-	if m.state.imported_modules.values().contains('pathlib') {
-		m.emitter.add_helper_import('os')
-		m.emitter.add_helper_struct('struct PyPath {\n    path string\n}')
-		m.emitter.add_helper_function('fn py_path_new(p string) PyPath {\n    return PyPath{path: p}\n}')
-		m.emitter.add_helper_function('fn (p PyPath) / (other string) PyPath {\n    return PyPath{path: os.join_path(p.path, other)}\n}')
-		m.emitter.add_helper_function('fn (p PyPath) exists() bool {\n    return os.exists(p.path)\n}')
-		m.emitter.add_helper_function('fn (p PyPath) is_dir() bool {\n    return os.is_dir(p.path)\n}')
-		m.emitter.add_helper_function('fn (p PyPath) is_file() bool {\n    return os.is_file(p.path)\n}')
-		m.emitter.add_helper_function('fn (p PyPath) read_text() string {\n    return os.read_file(p.path) or { panic(err) }\n}')
-		m.emitter.add_helper_function('fn (p PyPath) write_text(text string) {\n    os.write_file(p.path, text) or { panic(err) }\n}')
-		m.emitter.add_helper_function('fn (p PyPath) str() string {\n    return p.path\n}')
-	}
-
-	if m.state.imported_modules.values().contains('urllib.request') || m.state.imported_modules.values().contains('http.client') {
-		m.emitter.add_helper_import('net.http')
-		m.emitter.add_helper_struct('struct PyHttpResponse {\n    body string\n}')
-		m.emitter.add_helper_function('fn (r PyHttpResponse) read() string {\n    return r.body\n}')
-		m.emitter.add_helper_function('fn py_urlopen(url string) PyHttpResponse {\n    resp := http.get(url) or { panic(err) }\n    return PyHttpResponse{body: resp.body}\n}')
-		m.emitter.add_helper_struct('struct PyHttpConnection {\n    host string\nmut:\n    resp PyHttpResponse\n}')
-		m.emitter.add_helper_function('fn py_http_connection(host string) PyHttpConnection {\n    return PyHttpConnection{host: host}\n}')
-		m.emitter.add_helper_function('fn (mut c PyHttpConnection) request(method string, path string) {\n    url := \'http://\x24{c.host}\x24{path}\'\n    resp := http.fetch(http.FetchConfig{url: url, method: method}) or { panic(err) }\n    c.resp = PyHttpResponse{body: resp.body}\n}')
-		m.emitter.add_helper_function('fn (c PyHttpConnection) getresponse() PyHttpResponse {\n    return c.resp\n}')
-	}
 
 	if m.state.used_list_concat {
 		m.emitter.add_helper_function('fn py_list_concat[T](lists ...[]T) []T {
@@ -882,33 +802,6 @@ fn py_bytes_format(fmt []u8, args Any) []u8 {
 }')
 	}
 
-	// itertools
-	itertools_used := m.state.imported_modules.values().contains('itertools') || m.state.used_builtins['py_chain'] || m.state.used_builtins['py_count'] || m.state.used_builtins['py_cycle']
-	if itertools_used {
-		m.emitter.add_helper_function('fn py_chain[T](args ...[]T) []T {
-    mut res := []T{}
-    for arg in args { res << arg }
-    return res
-}')
-		m.emitter.add_helper_struct('struct PyCountIterator { mut: val int step int }')
-		m.emitter.add_helper_function('fn (mut i PyCountIterator) next() ?int {
-    val := i.val
-    i.val += i.step
-    return val
-}')
-		m.emitter.add_helper_function('fn py_count(start int, step int) PyCountIterator { return PyCountIterator{val: start, step: step} }')
-		
-		m.emitter.add_helper_struct('struct PyCycleIterator[T] { data []T mut: idx int }')
-		m.emitter.add_helper_function('fn (mut i PyCycleIterator[T]) next() ?T {
-    if i.data.len == 0 { return none }
-    val := i.data[i.idx]
-    i.idx = (i.idx + 1) % i.data.len
-    return val
-}')
-		m.emitter.add_helper_function('fn py_cycle[T](data []T) PyCycleIterator[T] { return PyCycleIterator[T]{data: data} }')
-		
-		m.emitter.add_helper_function('fn py_repeat[T](val T, n int) []T { return []T{len: n, init: val} }')
-	}
 
 	if 'py_any' in m.state.used_builtins {
 		m.emitter.add_helper_function('fn py_any[T](a []T) bool {
@@ -962,7 +855,7 @@ fn py_bytes_format(fmt []u8, args Any) []u8 {
 		m.emitter.add_helper_function('fn (z PyComplex) str() string {
     sign := if z.im >= 0 { "+" } else { "-" }
     im_abs := if z.im >= 0 { z.im } else { -z.im }
-    return "(${z.re}${sign}${im_abs}j)"
+    return "(\x24{z.re}\x24{sign}\x24{im_abs}j)"
 }')
 	}
 
@@ -1171,6 +1064,24 @@ fn py_bytes_format(fmt []u8, args Any) []u8 {
     if res == none { g.open = false }
     return res
 }')
+		m.emitter.add_helper_function('fn (mut g PyGenerator[T]) send(val Any) ?T {
+    if !g.open { panic("StopIteration") }
+    g.in_ <- PyGeneratorInput{val: val}
+    res := <-g.out
+    if res == none { g.open = false }
+    return res
+}')
+		m.emitter.add_helper_function('fn (mut g PyGenerator[T]) throw(msg string) ?T {
+    if !g.open { panic("StopIteration") }
+    g.in_ <- PyGeneratorInput{is_exc: true, exc_msg: msg}
+    res := <-g.out
+    if res == none { g.open = false }
+    return res
+}')
+		m.emitter.add_helper_function('fn (mut g PyGenerator[T]) close() {
+    g.open = false
+    g.in_.close()
+}')
 		m.emitter.add_helper_function('fn py_yield[T](ch_out chan T, ch_in chan PyGeneratorInput, val T) Any {
     ch_out <- val
     inp := <-ch_in
@@ -1205,6 +1116,255 @@ fn py_bytes_format(fmt []u8, args Any) []u8 {
 }')
 	}
 
+	if m.state.imported_modules.values().contains('tempfile') {
+		m.emitter.add_helper_import('os')
+		m.emitter.add_helper_struct('struct PyTempDir { path string }')
+		m.emitter.add_helper_function('fn (d PyTempDir) close() { os.rmdir_all(d.path) or {} }')
+		m.emitter.add_helper_function('fn py_temp_dir() PyTempDir {
+    p := os.mkdir_temp("") or { panic(err) }
+    return PyTempDir{path: p}
+}')
+		m.emitter.add_helper_function('fn py_named_temp_file() os.File {
+    f, _ := os.create_temp("") or { panic(err) }
+    return f
+}')
+	}
+
+	if m.state.imported_modules.values().contains('logging') {
+		m.emitter.add_helper_import('log')
+		m.emitter.add_helper_function('fn py_get_logger(name string) log.Log {
+    mut l := log.Log{}
+    l.set_level(.info)
+    return l
+}')
+	}
+
+	if m.state.imported_modules.values().contains('argparse') {
+		m.emitter.add_helper_import('os')
+		m.emitter.add_helper_struct('struct PyArgDef { name string }')
+		m.emitter.add_helper_struct('struct PyArgumentParser { mut: definitions []PyArgDef }')
+		m.emitter.add_helper_function('fn py_argparse_new() PyArgumentParser { return PyArgumentParser{} }')
+		m.emitter.add_helper_function('fn (mut p PyArgumentParser) add_argument(name string) {
+    p.definitions << PyArgDef{name: name}
+}')
+		m.emitter.add_helper_function('fn (mut p PyArgumentParser) parse_args() map[string]string {
+    mut args := map[string]string{}
+    for i := 0; i < os.args.len; i++ {
+        arg := os.args[i]
+        if arg.starts_with("--") {
+            key := arg[2..]
+            val := if i + 1 < os.args.len { os.args[i+1] } else { "" }
+            args[key] = val
+        }
+    }
+    return args
+}')
+	}
+
+	if m.state.imported_modules.values().contains('itertools') {
+		m.emitter.add_helper_function('fn py_chain[T](args ...[]T) []T {
+    mut res := []T{}
+    for arg in args { res << arg }
+    return res
+}')
+		m.emitter.add_helper_struct('struct PyCountIterator { mut: val int step int }')
+		m.emitter.add_helper_function('fn (mut i PyCountIterator) next() ?int {
+    val := i.val
+    i.val += i.step
+    return val
+}')
+		m.emitter.add_helper_function('fn py_count(start int, step int) PyCountIterator { return PyCountIterator{val: start, step: step} }')
+	}
+
+	if m.state.imported_modules.values().contains('pathlib') || m.state.used_builtins['py_path_new'] {
+		m.emitter.add_helper_import('os')
+		m.emitter.add_helper_struct('struct PyPath { path string }')
+		m.emitter.add_helper_function('fn py_path_new(p string) PyPath { return PyPath{path: p} }')
+		m.emitter.add_helper_function('fn (p PyPath) / (other string) PyPath { return PyPath{path: os.join_path(p.path, other)} }')
+		m.emitter.add_helper_function('fn (p PyPath) exists() bool { return os.exists(p.path) }')
+		m.emitter.add_helper_function('fn (p PyPath) is_dir() bool { return os.is_dir(p.path) }')
+		m.emitter.add_helper_function('fn (p PyPath) is_file() bool { return os.is_file(p.path) }')
+		m.emitter.add_helper_function('fn (p PyPath) read_text() string { return os.read_file(p.path) or { panic(err) } }')
+		m.emitter.add_helper_function('fn (p PyPath) write_text(text string) { os.write_file(p.path, text) or { panic(err) } }')
+		m.emitter.add_helper_function('fn (p PyPath) str() string { return p.path }')
+	}
+
+	if m.state.imported_modules.values().contains('urllib.request') {
+		m.emitter.add_helper_import('net.http')
+		m.emitter.add_helper_struct('struct PyHttpResponse { body string }')
+		m.emitter.add_helper_function('fn (r PyHttpResponse) read() string { return r.body }')
+		m.emitter.add_helper_function('fn py_urlopen(url string) PyHttpResponse {
+    resp := http.get(url) or { panic(err) }
+    return PyHttpResponse{body: resp.body}
+}')
+	}
+
+	if m.state.imported_modules.values().contains('csv') {
+		m.emitter.add_helper_import('encoding.csv')
+		m.emitter.add_helper_struct('struct PyCsvReader { mut: reader csv.Reader }')
+		m.emitter.add_helper_function('fn py_csv_reader(f os.File) PyCsvReader { return PyCsvReader{reader: csv.new_reader(f)} }')
+		m.emitter.add_helper_function('fn (mut r PyCsvReader) next() ?[]string {
+    res := r.reader.read() or { return none }
+    return res
+}')
+		m.emitter.add_helper_struct('struct PyCsvWriter { mut: writer csv.Writer }')
+		m.emitter.add_helper_function('fn py_csv_writer(f os.File) PyCsvWriter { return PyCsvWriter{writer: csv.new_writer(f)} }')
+		m.emitter.add_helper_function('fn (mut w PyCsvWriter) writerow(row []string) { w.writer.write(row) or { panic(err) } }')
+	}
+
+	if m.state.imported_modules.values().contains('sqlite3') {
+		m.emitter.add_helper_import('db.sqlite')
+		m.emitter.add_helper_struct('struct PySqliteConnection { db sqlite.DB }')
+		m.emitter.add_helper_function('fn py_sqlite_connect(path string) PySqliteConnection {
+    db := sqlite.connect(path) or { panic(err) }
+    return PySqliteConnection{db: db}
+}')
+		m.emitter.add_helper_struct('struct PySqliteCursor { db sqlite.DB mut: rows []sqlite.Row }')
+		m.emitter.add_helper_function('fn (c PySqliteConnection) cursor() PySqliteCursor { return PySqliteCursor{db: c.db} }')
+		m.emitter.add_helper_function('fn (mut c PySqliteCursor) execute(sql string) {
+    rows := c.db.exec(sql) or { panic(err) }
+    c.rows = rows
+}')
+		m.emitter.add_helper_function('fn (c PySqliteCursor) fetchall() []sqlite.Row { return c.rows }')
+		m.emitter.add_helper_function('fn (c PySqliteConnection) commit() { c.db.exec("COMMIT") or {} }')
+		m.emitter.add_helper_function('fn (c PySqliteConnection) close() { c.db.close() or {} }')
+	}
+
+	if m.state.imported_modules.values().contains('subprocess') {
+		m.emitter.add_helper_import('os')
+		m.emitter.add_helper_struct('struct PyCompletedProcess { returncode int stdout string stderr string }')
+		m.emitter.add_helper_function('fn py_subprocess_run(args []string) PyCompletedProcess {
+    if args.len == 0 { return PyCompletedProcess{returncode: 1, stdout: "", stderr: "No arguments"} }
+    mut p := os.new_process(args[0])
+    p.set_args(args[1..])
+    p.set_redirect_stdio()
+    p.run()
+    p.wait()
+    res := PyCompletedProcess{returncode: p.code, stdout: p.stdout_slurp(), stderr: p.stderr_slurp()}
+    p.close()
+    return res
+}')
+		m.emitter.add_helper_function('fn py_subprocess_call(args []string) int {
+    if args.len == 0 { return 1 }
+    mut p := os.new_process(args[0])
+    p.set_args(args[1..])
+    p.run()
+    p.wait()
+    code := p.code
+    p.close()
+    return code
+}')
+	}
+
+	if m.state.imported_modules.values().contains('platform') {
+		m.emitter.add_helper_function('fn py_platform_machine() string { return os.uname().machine }')
+	}
+
+	if m.state.imported_modules.values().contains('hashlib') {
+		m.emitter.add_helper_import('crypto.sha256')
+		m.emitter.add_helper_import('crypto.md5')
+		m.emitter.add_helper_struct('struct PyHashSha256 { mut: data []u8 }')
+		m.emitter.add_helper_function('fn py_hash_sha256(data []u8) PyHashSha256 { return PyHashSha256{data: data} }')
+		m.emitter.add_helper_function('fn (mut h PyHashSha256) update(data []u8) { h.data << data }')
+		m.emitter.add_helper_function('fn (h PyHashSha256) digest() []u8 { return sha256.sum(h.data) }')
+		m.emitter.add_helper_function('fn (h PyHashSha256) hexdigest() string { return sha256.hexhash(h.data) }')
+		m.emitter.add_helper_struct('struct PyHashMd5 { mut: data []u8 }')
+		m.emitter.add_helper_function('fn py_hash_md5(data []u8) PyHashMd5 { return PyHashMd5{data: data} }')
+		m.emitter.add_helper_function('fn (mut h PyHashMd5) update(data []u8) { h.data << data }')
+		m.emitter.add_helper_function('fn (h PyHashMd5) digest() []u8 { return md5.sum(h.data) }')
+		m.emitter.add_helper_function('fn (h PyHashMd5) hexdigest() string { return md5.hexhash(h.data) }')
+	}
+
+	if m.state.imported_modules.values().contains('urllib.parse') || m.state.used_builtins['py_urllib_unquote'] {
+		m.emitter.add_helper_import('net.urllib')
+		m.emitter.add_helper_function('fn py_urllib_unquote(s string) string { return urllib.query_unescape(s) or { s } }')
+		m.emitter.add_helper_function('fn py_urlencode(params map[string]string) string {
+    mut v := urllib.new_values(map[string][]string{})
+    for key, val in params { v.add(key, val) }
+    return v.encode()
+}')
+		m.emitter.add_helper_function('fn py_urlparse(url string) urllib.URL { return urllib.parse(url) or { urllib.URL{} } }')
+	}
+
+	if m.state.imported_modules.values().contains('zlib') {
+		m.emitter.add_helper_import('compress.zlib')
+		m.emitter.add_helper_function('fn py_zlib_compress(data []u8) []u8 { return zlib.compress(data) or { panic(err) } }')
+		m.emitter.add_helper_function('fn py_zlib_decompress(data []u8) []u8 { return zlib.decompress(data) or { panic(err) } }')
+	}
+
+	if m.state.imported_modules.values().contains('gzip') {
+		m.emitter.add_helper_import('compress.gzip')
+		m.emitter.add_helper_function('fn py_gzip_compress(data []u8) []u8 { return gzip.compress(data) or { panic(err) } }')
+		m.emitter.add_helper_function('fn py_gzip_decompress(data []u8) []u8 { return gzip.decompress(data) or { panic(err) } }')
+	}
+
+	if m.state.imported_modules.values().contains('copy') || m.state.used_builtins['py_copy'] || m.state.used_builtins['py_deepcopy'] {
+		m.emitter.add_helper_function("fn py_copy[T](x T) T {
+    \x24if T is array { return x.clone() }
+    \x24else \x24if T is map { return x.clone() }
+    \x24else { return x }
+}")
+		m.emitter.add_helper_function("fn py_deepcopy[T](x T) T {
+    \x24if T is array { return x.clone() }
+    \x24else \x24if T is map { return x.clone() }
+    \x24else { return x }
+}")
+	}
+
+	if m.state.used_builtins['py_os_path_split'] {
+		m.emitter.add_helper_import('os')
+		m.emitter.add_helper_function('fn py_os_path_split(path string) []string { return [os.dir(path), os.base(path)] }')
+	}
+
+	if m.state.imported_modules.values().contains('struct') {
+		m.emitter.add_helper_import('encoding.binary')
+		m.emitter.add_helper_function('// struct.pack with dynamic formats is not implemented. Use specific helpers.')
+		m.emitter.add_helper_function('fn py_struct_pack_I_be(val u32) []u8 { mut buf := []u8{len: 4} binary.big_endian_put_u32(mut buf, val) return buf }')
+		m.emitter.add_helper_function('fn py_struct_unpack_I_be(buf []u8) u32 { return binary.big_endian_u32(buf) }')
+		m.emitter.add_helper_function('fn py_struct_pack_i_be(val int) []u8 { mut buf := []u8{len: 4} binary.big_endian_put_u32(mut buf, u32(val)) return buf }')
+		m.emitter.add_helper_function('fn py_struct_unpack_i_be(buf []u8) int { return int(binary.big_endian_u32(buf)) }')
+	}
+
+	if m.state.imported_modules.values().contains('array') {
+		m.emitter.add_helper_function('fn py_array[T](code string, init []T) []T { return init }')
+	}
+
+	if m.state.imported_modules.values().contains('fractions') {
+		m.emitter.add_helper_import('math.fractions')
+		m.emitter.add_helper_function('fn py_fraction(val Any) fractions.Fraction {
+    \x24if val is int { return fractions.fraction(i64(val), 1) }
+    \x24else \x24if val is f64 { return fractions.from_f64(f64(val)) }
+    return fractions.fraction(0, 1)
+}')
+	}
+
+	if m.state.imported_modules.values().contains('statistics') {
+		m.emitter.add_helper_import('math')
+		m.emitter.add_helper_function('fn py_statistics_mean[T](data []T) f64 {
+    if data.len == 0 { return 0.0 }
+    mut sum := f64(0)
+    for x in data { sum += f64(x) }
+    return sum / f64(data.len)
+}')
+		m.emitter.add_helper_function('fn py_statistics_median[T](data []T) f64 {
+    if data.len == 0 { return 0.0 }
+    mut sd := data.clone()
+    sd.sort()
+    m := sd.len / 2
+    if sd.len % 2 == 1 { return f64(sd[m]) }
+    return (f64(sd[m-1]) + f64(sd[m])) / 2.0
+}')
+	}
+
+	if m.state.imported_modules.values().contains('decimal') {
+		m.emitter.add_helper_struct('type Decimal = f64')
+		m.emitter.add_helper_function('fn py_decimal(val Any) Decimal {
+    \x24if val is f64 { return val }
+    \x24else \x24if val is int { return f64(val) }
+    \x24else \x24if val is string { return val.f64() }
+    return 0.0
+}')
+	}
 	if m.state.used_builtins['py_os_path_split'] {
 		m.emitter.add_helper_import('os')
 		m.emitter.add_helper_function('fn py_os_path_split(path string) []string { return [os.dir(path), os.base(path)] }')
@@ -1217,9 +1377,69 @@ fn py_bytes_format(fmt []u8, args Any) []u8 {
     return [path[..path.len - ext.len], ext]
 }')
 	}
+
+	if m.state.used_builtins['py_dict_pop'] {
+		m.emitter.add_helper_function('fn py_dict_pop[K, V](mut d map[K]V, key K, default V) V {
+    if key in d {
+        val := d[key]
+        d.delete(key)
+        return val
+    }
+    return default
+}')
+	}
+
+	if m.state.used_builtins['py_dict_update'] {
+		m.emitter.add_helper_function('fn py_dict_update[K, V](mut d map[K]V, other ...map[K]V) map[K]V {
+    for o in other { for k, v in o { d[k] = v } }
+    return d
+}')
+	}
+
+	if m.state.used_builtins['py_repr'] {
+		m.emitter.add_helper_function("fn py_repr(val Any) string {
+    if val is string { return \"'\" + val + \"'\" }
+    return \"\x24{val}\"
+}")
+	}
+
+	if m.state.used_builtins['py_ascii'] {
+		m.emitter.add_helper_function("fn py_ascii(val Any) string {
+    s := \"\x24{val}\"
+    mut res := ''
+    for c in s {
+        if c < 128 { res += c.ascii_str() }
+        else { res += '\\\\u' + int(c).hex() }
+    }
+    return res
+}")
+	}
+
+	if m.state.used_builtins['py_dict_setdefault'] {
+		m.emitter.add_helper_function('fn py_dict_setdefault[K, V](mut d map[K]V, key K, default V) V {
+    if key in d { return d[key] }
+    d[key] = default
+    return default
+}')
+	}
+
+	if m.state.used_builtins['py_dict_residual'] {
+		m.emitter.add_helper_function('fn py_dict_residual[K, V](m map[K]V, exclude []K) map[K]Any {
+    mut res := map[K]Any{}
+    for k, v in m { if k !in exclude { res[k] = Any(v) } }
+    return res
+}')
+	}
+
+	if m.state.imported_modules.values().contains('pickle') {
+		m.emitter.add_helper_import('json')
+		m.emitter.add_helper_function('fn py_pickle_dumps[T](obj T) string { return json.encode(obj) }')
+		m.emitter.add_helper_function('fn py_pickle_loads[T](s string) T { return json.decode(T, s) or { panic(err) } }')
+	}
 }
 
 pub fn (mut m ModuleTranslator) visit_module(node ast.Module) string {
+	m.coroutine_handler.scan_module(node)
 	m.scan_module_symbols(node)
 	m.emitter.module_name = m.state.current_module_name
 
@@ -1262,6 +1482,10 @@ pub fn (mut m ModuleTranslator) visit_module(node ast.Module) string {
 				m.emitter.add_main_statement(line.trim_space())
 			} else if line.trim_space().starts_with('import ') {
 				m.emitter.add_import(line.trim_space()['import '.len..].trim_space())
+			} else if stmt is ast.FunctionDef {
+				m.emitter.add_helper_function(line)
+			} else if stmt is ast.ClassDef {
+				m.emitter.add_helper_struct(line) // For now, handle as block
 			} else {
 				m.emitter.add_init_statement(line.trim_space())
 			}

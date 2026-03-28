@@ -10,6 +10,12 @@ struct ExportConfigLike {
 	include_all_symbols bool
 }
 
+pub struct TypeGuardInfo {
+pub:
+	narrowed_type string
+	is_type_is    bool
+}
+
 // TranslatorState - translator state
 @[heap]
 pub struct TranslatorState {
@@ -63,7 +69,7 @@ pub mut:
 	known_interfaces             map[string]bool
 	class_hierarchy              map[string][]string
 	main_to_mixins               map[string][]string
-	type_guards                  map[string]string
+	type_guards                  map[string]TypeGuardInfo
 	property_setters             map[string]map[string]bool
 	function_names               map[string]bool
 	overloaded_signatures        map[string][]map[string]string

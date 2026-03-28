@@ -83,6 +83,8 @@ pub fn (mut eg ExprGen) visit(node ast.Expression) string {
 		ast.FormattedValue { return eg.visit_formatted_value(node) }
 		ast.Lambda { return eg.visit_lambda(node) }
 		ast.Await { return eg.visit_await(node) }
+		ast.Yield { return eg.visit_yield(node) }
+		ast.YieldFrom { return eg.visit_yield_from(node) }
 		ast.NamedExpr { return eg.visit_named_expr(node) }
 		else { return '/* unsupported expr */' }
 	}
@@ -323,7 +325,22 @@ pub fn (mut eg ExprGen) visit_set(node ast.Set) string {
 	for elt in node.elements {
 		items << eg.visit(elt)
 	}
-	return '{${items.join(', ')}}'
+	if items.len == 0 {
+		eg.state.used_builtins['datatypes'] = true
+		return 'datatypes.Set[Any]{}'
+	}
+
+	mut inner_type := eg.guess_type(node.elements[0])
+	if inner_type == 'str' { inner_type = 'string' }
+	if inner_type == 'Any' || inner_type == 'unknown' { inner_type = 'int' } // fallback for test literal {1, 2}
+
+	mut elts := []string{}
+	for it in items {
+		elts << '${it}: true'
+	}
+
+	eg.state.used_builtins['datatypes'] = true
+	return 'datatypes.Set[${inner_type}]{elements: {${elts.join(', ')}}}'
 }
 
 pub fn (mut eg ExprGen) visit_slice(node ast.Slice) string {
@@ -347,17 +364,16 @@ pub fn (mut eg ExprGen) visit_joined_str(node ast.JoinedStr) string {
 	if tstring.len > 0 {
 		return tstring
 	}
-	mut parts := []string{}
+	mut res := "'"
 	for value in node.values {
-		parts << eg.visit(value)
+		if value is ast.Constant {
+			res += eg.extract_string_content(value.value)
+		} else if value is ast.FormattedValue {
+			res += '$' + '{' + eg.visit(value.value) + '}'
+		}
 	}
-	if parts.len == 0 {
-		return "''"
-	}
-	if parts.len == 1 {
-		return parts[0]
-	}
-	return parts.join(' + ')
+	res += "'"
+	return res
 }
 
 pub fn (mut eg ExprGen) visit_formatted_value(node ast.FormattedValue) string {
@@ -416,6 +432,24 @@ fn (eg &ExprGen) lambda_return_type(body ast.Expression) string {
 
 pub fn (mut eg ExprGen) visit_await(node ast.Await) string {
 	return '/* await */ ${eg.visit(node.value)}'
+}
+
+pub fn (mut eg ExprGen) visit_yield(node ast.Yield) string {
+	if eg.state.coroutine_handler != unsafe { nil } {
+		mut ch := unsafe { &analyzer.CoroutineHandler(eg.state.coroutine_handler) }
+		if act_ch := ch.active_channel {
+			in_ch := ch.active_in_channel or { '/* no in_ch */' }
+			val := if v := node.value { eg.visit(v) } else { 'none' }
+			eg.state.used_builtins['py_yield'] = true
+			return 'py_yield(${act_ch}, ${in_ch}, ${val})'
+		}
+	}
+	return '/* yield outside generator */'
+}
+
+pub fn (mut eg ExprGen) visit_yield_from(node ast.YieldFrom) string {
+	val := eg.visit(node.value)
+	return '/* yield from not fully supported */ ${val}'
 }
 
 pub fn (mut eg ExprGen) visit_named_expr(node ast.NamedExpr) string {

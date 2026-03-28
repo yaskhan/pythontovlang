@@ -29,13 +29,39 @@ pub fn (mut h ClassDefinitionHandler) visit_class_def(node &ast.ClassDef, mut en
 	prev_is_unittest := env.state.current_class_is_unittest
 	prev_body := env.state.current_class_body.clone()
 
+	// Extract class-level generics from PEP 695 type_params or Generic[T]/Protocol[T]
+	mut py_generics := []string{}
+	for tp in node.type_params {
+		py_generics << tp.name
+	}
+	for base_expr in node.bases {
+		if base_expr is ast.Subscript {
+			b_name := env.visit_expr_fn(base_expr.value)
+			if b_name in ['Generic', 'Protocol', 'typing.Generic', 'typing.Protocol'] {
+				if base_expr.slice is ast.Tuple {
+					for elt in base_expr.slice.elements {
+						gn := env.visit_expr_fn(elt)
+						if gn.len > 0 { py_generics << gn }
+					}
+				} else {
+					gn := env.visit_expr_fn(base_expr.slice)
+					if gn.len > 0 { py_generics << gn }
+				}
+			}
+		}
+	}
+
 	env.state.current_class = struct_name
 	env.state.current_class_body = node.body.clone()
-	env.state.current_class_generics = []string{}
+	env.state.current_class_generics = py_generics.clone()
 	env.state.current_class_generic_map = map[string]string{}
 	env.state.current_class_bases = []string{}
 	env.state.current_class_generic_bases = map[string]string{}
 	env.state.current_class_is_unittest = false
+
+	if py_generics.len > 0 {
+		env.state.current_class_generic_map = base.get_generic_map(py_generics, [])
+	}
 
 	if classes.pydantic_handler.is_pydantic_model(node) {
 		mut p_env := pydantic_support.new_pydantic_visit_env(
@@ -243,7 +269,9 @@ pub fn (mut h ClassDefinitionHandler) visit_class_def(node &ast.ClassDef, mut en
 			struct_parts << struct_fields_str.join('\n')
 		}
 		struct_parts << '}'
-		env.emit_struct_fn(struct_parts.join('\n'))
+		if !is_unittest {
+			env.emit_struct_fn(struct_parts.join('\n'))
+		}
 
 		class_vars := env.state.class_vars[struct_name] or { []map[string]string{} }
 		if class_vars.len > 0 {

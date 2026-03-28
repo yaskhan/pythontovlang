@@ -124,7 +124,7 @@ pub fn map_type(type_str string, opts TypeMapOptions, mut ctx TypeUtilsContext, 
 	}
 
 	basic_v_types := ['Any', 'int', 'string', 'bool', 'void', 'none', 'f64', 'i64', 'u32', 'u64',
-		'i8', 'i16', 'u8', 'u16', 'Final', 'ClassVar', 'LiteralString', 'Self']
+		'i8', 'i16', 'u8', 'u16', 'Final', 'ClassVar', 'LiteralString', 'noreturn']
 	if v_type in basic_v_types {
 		return v_type
 	}

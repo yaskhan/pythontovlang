@@ -62,9 +62,20 @@ pub fn generate_overload_variants(
 		ret_type := sig['return'] or { 'void' }
 		ret_suffix := if ret_type != 'void' { ' ${ret_type}' } else { '' }
 		
-		gen_s := if state.current_class_generics.len > 0 {
-			'[${state.current_class_generics.join(", ")}]'
-		} else { '' }
+		// Extract implicit generics for this signature
+		mut func_generics := extract_implicit_generics(node, state.type_vars, map[string]bool{},
+			state.current_class_generics, sanitize_fn)
+		
+		v_gen_map := base.get_generic_map(func_generics, [state.current_class_generic_map])
+		mut combined_gen_map := state.current_class_generic_map.clone()
+		for k, v in v_gen_map { combined_gen_map[k] = v }
+		
+		mut v_gens_to_declare := []string{}
+		for py_name in func_generics {
+			v_gens_to_declare << combined_gen_map[py_name] or { py_name }
+		}
+		
+		gen_s := base.get_generics_with_variance_str(v_gens_to_declare, combined_gen_map, state.generic_variance, state.generic_defaults)
 
 		pub_pfx := if is_exported_c(node.name) { 'pub ' } else { '' }
 		
@@ -85,8 +96,7 @@ pub fn generate_overload_variants(
 			receiver_str = '(cls ${struct_name}${gen_s_class}) ' // simplified, usually takes node.args.args[0]
 		}
 
-		mut out_parts := []string{}
-		out_parts << '${indent_fn()}${deprecated_attr}${pub_pfx}${receiver_str}fn ${func_name}${gen_s}(${args_str_list.join(", ")})${ret_suffix} {'
+		emit_fn('${indent_fn()}${deprecated_attr}${pub_pfx}${receiver_str}fn ${func_name}${gen_s}(${args_str_list.join(", ")})${ret_suffix} {')
 		
 		// Visit implementation body
 		state.indent_level++
@@ -95,7 +105,6 @@ pub fn generate_overload_variants(
 		}
 		state.indent_level--
 		
-		out_parts << '${indent_fn()}}'
-		emit_fn(out_parts.join('\n'))
+		emit_fn('${indent_fn()}}')
 	}
 }
