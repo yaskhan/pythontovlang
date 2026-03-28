@@ -2,6 +2,7 @@ module translator
 
 import ast
 import base
+import stdlib_map
 
 fn matches_scc(module_name string, scc_file string) bool {
 	if scc_file.len == 0 {
@@ -41,27 +42,22 @@ pub fn (mut t Translator) visit_import(node ast.Import) {
 		if is_same_scc {
 			continue
 		}
-		if module_name in ['typing', 'unittest'] {
+		if module_name in ['typing', 'unittest', '__future__'] {
 			continue
 		}
-		if module_name == 'base64' {
-			t.state.output << 'import encoding.base64'
-			continue
+		
+		if t.state.mapper != unsafe { nil } {
+			mapper := unsafe { &stdlib_map.StdLibMapper(t.state.mapper) }
+			if v_imps := mapper.get_imports(module_name) {
+				for imp in v_imps {
+					t.state.output << 'import ${imp}'
+				}
+				continue
+			}
 		}
-		if module_name == 'uuid' {
-			t.state.output << 'import rand'
-			continue
-		}
-		if module_name == 'urllib.parse' {
-			t.state.output << 'import net.urllib'
-			continue
-		}
-		if module_name == 'os' || module_name == 'math' || module_name == 'strconv' {
-			t.state.output << 'import ${module_name}'
-			continue
-		}
-		if module_name == 'gzip' || module_name == 'zlib' {
-			t.state.output << 'import compress.${module_name}'
+
+		if module_name == 'strconv' {
+			t.state.output << 'import strconv'
 			continue
 		}
 	}
@@ -105,5 +101,14 @@ pub fn (mut t Translator) visit_import_from(node ast.ImportFrom) {
 
 	if module_name in ['typing', 'unittest', '__future__'] {
 		return
+	}
+
+	if t.state.mapper != unsafe { nil } {
+		mapper := unsafe { &stdlib_map.StdLibMapper(t.state.mapper) }
+		if v_imps := mapper.get_imports(module_name) {
+			for imp in v_imps {
+				t.state.output << 'import ${imp}'
+			}
+		}
 	}
 }

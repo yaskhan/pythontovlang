@@ -965,6 +965,13 @@ pub fn (mut t TypeInferenceVisitorMixin) visit_assign(node ast.Assign) {
 	t.visit_expr(node.value)
 	value_type := match node.value {
 		ast.Call {
+			if node.value.func is ast.Name && node.value.func.id == 'TypeVar' {
+				for tgt in node.targets {
+					if tgt is ast.Name {
+						t.type_vars[tgt.id] = true
+					}
+				}
+			}
 			if node.value.func is ast.Attribute {
 				call_attr := node.value.func
 				if call_attr.value is ast.Name && call_attr.value.id == 'hashlib' {

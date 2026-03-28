@@ -7,7 +7,7 @@ import functions
 // Class translation logic has been moved to classes/ module.
 
 
-fn (mut t Translator) visit_function_def(node ast.FunctionDef) {
+fn (mut t Translator) visit_function_def(node &ast.FunctionDef) {
 	mut env := functions.new_function_visit_env(
 		t.state,
 		t.analyzer,
@@ -43,7 +43,7 @@ fn (mut t Translator) visit_function_def(node ast.FunctionDef) {
 	t.functions_module.visit_function_def(node, mut env)
 }
 
-fn (mut t Translator) visit_class_def(node ast.ClassDef) {
+fn (mut t Translator) visit_class_def(node &ast.ClassDef) {
 	mut env := classes.new_class_visit_env(
 		t.state,
 		t.analyzer,

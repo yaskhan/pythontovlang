@@ -509,8 +509,22 @@ fn (mut m ModuleTranslator) append_runtime_helpers() {
 	if m.state.used_builtins['py_set_union'] || m.state.used_builtins['py_set_intersection']
 		|| m.state.used_builtins['py_set_difference'] || m.state.used_builtins['py_set_xor']
 		|| m.state.used_builtins['py_set_subset'] || m.state.used_builtins['py_set_strict_subset']
-		|| m.state.used_builtins['py_set_superset'] || m.state.used_builtins['py_set_strict_superset'] {
+		|| m.state.used_builtins['py_set_superset'] || m.state.used_builtins['py_set_strict_superset']
+		|| m.state.used_builtins['py_set_from_list'] || m.state.used_builtins['py_set_from_iter'] {
 		m.emitter.add_helper_import('datatypes')
+	}
+	
+	if m.state.imported_modules.values().contains('tempfile') {
+		m.emitter.add_helper_import('os')
+		m.emitter.add_helper_struct('struct PyTempDir {\n    path string\n}')
+		m.emitter.add_helper_function('fn (d PyTempDir) close() {\n    os.rmdir_all(d.path) or {}\n}')
+		m.emitter.add_helper_function('fn py_temp_dir() PyTempDir {\n    p := os.mkdir_temp(\'\') or { panic(err) }\n    return PyTempDir{path: p}\n}')
+		m.emitter.add_helper_function('fn py_named_temp_file() os.File {\n    f, _ := os.create_temp(\'\') or { panic(err) }\n    return f\n}')
+	}
+
+	if m.state.imported_modules.values().contains('logging') {
+		m.emitter.add_helper_import('log')
+		m.emitter.add_helper_function('fn py_get_logger(name string) log.Log {\n    mut l := log.Log{}\n    l.set_level(.info)\n    return l\n}')
 	}
 
 	// Single dispatchers
@@ -549,22 +563,28 @@ fn (mut m ModuleTranslator) append_runtime_helpers() {
 	}
 
 	if m.state.used_builtins['py_any'] {
-		m.emitter.add_helper_function('fn py_any[T](a []T) bool {
-    for item in a {
-        if item {
-            return true
-        }
+		m.emitter.add_helper_function('pub fn py_any[T](a []T) bool {
+    for it in a {
+        \x24if T is bool { if it { return true } }
+        \x24else \x24if T is int || T is i64 { if it != 0 { return true } }
+        \x24else \x24if T is f64 { if it != 0.0 { return true } }
+        \x24else \x24if T is string { if it.len > 0 { return true } }
+        \x24else \x24if T is Any { if py_bool(it) { return true } }
+        \x24else { if it != none { return true } }
     }
     return false
 }')
 	}
 
 	if m.state.used_builtins['py_all'] {
-		m.emitter.add_helper_function('fn py_all[T](a []T) bool {
-    for item in a {
-        if !item {
-            return false
-        }
+		m.emitter.add_helper_function('pub fn py_all[T](a []T) bool {
+    for it in a {
+        \x24if T is bool { if !it { return false } }
+        \x24else \x24if T is int || T is i64 { if it == 0 { return false } }
+        \x24else \x24if T is f64 { if it == 0.0 { return false } }
+        \x24else \x24if T is string { if it.len == 0 { return false } }
+        \x24else \x24if T is Any { if !py_bool(it) { return false } }
+        \x24else { if it == none { return false } }
     }
     return true
 }')
@@ -630,6 +650,30 @@ fn (mut m ModuleTranslator) append_runtime_helpers() {
     im_abs := if z.im >= 0 { z.im } else { -z.im }
     return "(\x24{z.re}\x24{sign}\x24{im_abs}j)"
 }')
+	}
+
+	if m.state.imported_modules.values().contains('pathlib') {
+		m.emitter.add_helper_import('os')
+		m.emitter.add_helper_struct('struct PyPath {\n    path string\n}')
+		m.emitter.add_helper_function('fn py_path_new(p string) PyPath {\n    return PyPath{path: p}\n}')
+		m.emitter.add_helper_function('fn (p PyPath) / (other string) PyPath {\n    return PyPath{path: os.join_path(p.path, other)}\n}')
+		m.emitter.add_helper_function('fn (p PyPath) exists() bool {\n    return os.exists(p.path)\n}')
+		m.emitter.add_helper_function('fn (p PyPath) is_dir() bool {\n    return os.is_dir(p.path)\n}')
+		m.emitter.add_helper_function('fn (p PyPath) is_file() bool {\n    return os.is_file(p.path)\n}')
+		m.emitter.add_helper_function('fn (p PyPath) read_text() string {\n    return os.read_file(p.path) or { panic(err) }\n}')
+		m.emitter.add_helper_function('fn (p PyPath) write_text(text string) {\n    os.write_file(p.path, text) or { panic(err) }\n}')
+		m.emitter.add_helper_function('fn (p PyPath) str() string {\n    return p.path\n}')
+	}
+
+	if m.state.imported_modules.values().contains('urllib.request') || m.state.imported_modules.values().contains('http.client') {
+		m.emitter.add_helper_import('net.http')
+		m.emitter.add_helper_struct('struct PyHttpResponse {\n    body string\n}')
+		m.emitter.add_helper_function('fn (r PyHttpResponse) read() string {\n    return r.body\n}')
+		m.emitter.add_helper_function('fn py_urlopen(url string) PyHttpResponse {\n    resp := http.get(url) or { panic(err) }\n    return PyHttpResponse{body: resp.body}\n}')
+		m.emitter.add_helper_struct('struct PyHttpConnection {\n    host string\nmut:\n    resp PyHttpResponse\n}')
+		m.emitter.add_helper_function('fn py_http_connection(host string) PyHttpConnection {\n    return PyHttpConnection{host: host}\n}')
+		m.emitter.add_helper_function('fn (mut c PyHttpConnection) request(method string, path string) {\n    url := \'http://\x24{c.host}\x24{path}\'\n    resp := http.fetch(http.FetchConfig{url: url, method: method}) or { panic(err) }\n    c.resp = PyHttpResponse{body: resp.body}\n}')
+		m.emitter.add_helper_function('fn (c PyHttpConnection) getresponse() PyHttpResponse {\n    return c.resp\n}')
 	}
 
 	if m.state.used_list_concat {
@@ -721,18 +765,106 @@ fn (mut m ModuleTranslator) append_runtime_helpers() {
 
 	if m.state.used_builtins['py_format'] {
 		m.emitter.add_helper_import('strconv')
-		m.emitter.add_helper_function('fn py_format(val Any, fmt string) string {
-    // Basic format implementation
-    if fmt == "" { return "\x24{val}" }
-    return "\x24{val}" // TODO: format spec parsing
-}')
+		m.emitter.add_helper_function("fn py_format(val Any, spec string) string {
+    if spec == '' {
+        if val is string { return val }
+        return '\x24{val}'
+    }
+    mut fill := ` `
+    mut align := `>`
+    mut s := spec
+    if s.len >= 2 && (s[1] == `<` || s[1] == `>` || s[1] == `^` || s[1] == `=`) {
+        fill = s[0]
+        align = s[1]
+        s = s[2..]
+    } else if s.len >= 1 && (s[0] == `<` || s[0] == `>` || s[0] == `^` || s[0] == `=`) {
+        align = s[0]
+        s = s[1..]
+    }
+    mut width := 0
+    mut j := 0
+    for j < s.len && s[j].is_digit() { j++ }
+    if j > 0 { width = s[..j].int(); s = s[j..] }
+    mut precision := -1
+    if s.starts_with('.') {
+        s = s[1..]
+        mut k := 0
+        for k < s.len && s[k].is_digit() { k++ }
+        if k > 0 { precision = s[..k].int(); s = s[k..] }
+    }
+    typ := if s.len > 0 { s[s.len-1] } else { `s` }
+    mut formatted := ''
+    if val is f64 {
+        if typ == `g` || typ == `G` { return val.str() }
+        prec := if precision >= 0 { precision } else { 6 }
+        formatted = strconv.format_f64(val, typ.to_lower(), prec, 64)
+        if typ.is_upper() { formatted = formatted.to_upper() }
+    } else { formatted = '\x24{val}' }
+    if width > formatted.len {
+        pad_len := width - formatted.len
+        if align == `<` { formatted = formatted + fill.ascii_str().repeat(pad_len) }
+        else if align == `>` { formatted = fill.ascii_str().repeat(pad_len) + formatted }
+        else if align == `^` {
+            left := pad_len / 2
+            right := pad_len - left
+            formatted = fill.ascii_str().repeat(left) + formatted + fill.ascii_str().repeat(right)
+        }
+    }
+    return formatted
+}")
 	}
 
 	if m.state.used_builtins['py_bytes_format'] {
-		m.emitter.add_helper_function('fn py_bytes_format(fmt []u8, args ...Any) []u8 {
-    // Simplistic bytes formatting
-    return fmt // TODO: bytes formatting
-}')
+		m.emitter.add_helper_import('strconv')
+		m.emitter.add_helper_import('strings')
+		m.emitter.add_helper_function("fn py_bytes_format_arg(arg Any) string {
+    if arg is []u8 { return arg.bytestr() }
+    return '\x24{arg}'
+}
+fn py_bytes_format(fmt []u8, args Any) []u8 {
+    fmt_str := fmt.bytestr()
+    mut arg_list := []Any{}
+    if args is []Any { arg_list = args } else { arg_list = [args] }
+    mut res := strings.new_builder(fmt_str.len + 16)
+    mut arg_idx := 0
+    mut i := 0
+    for i < fmt_str.len {
+        if fmt_str[i] == `%` {
+            if i + 1 < fmt_str.len {
+                if fmt_str[i+1] == `%` { res.write_string('%'); i += 2; continue }
+                mut j := i + 1
+                mut flag_zero := false
+                for j < fmt_str.len && (fmt_str[j] == `0` || fmt_str[j] == `-`) { 
+                    if fmt_str[j] == `0` { flag_zero = true }
+                    j++ 
+                }
+                mut width := 0
+                for j < fmt_str.len && fmt_str[j].is_digit() {
+                    width = width * 10 + int(fmt_str[j] - `0`)
+                    j++
+                }
+                if j < fmt_str.len {
+                    spec := fmt_str[j]
+                    if arg_idx < arg_list.len {
+                        arg := arg_list[arg_idx]
+                        arg_idx++
+                        mut s := py_bytes_format_arg(arg)
+                        if width > s.len {
+                            if flag_zero { s = '0'.repeat(width - s.len) + s }
+                            else { s = ' '.repeat(width - s.len) + s }
+                        }
+                        res.write_string(s)
+                        i = j + 1
+                        continue
+                    }
+                }
+            }
+        }
+        res.write_u8(fmt_str[i])
+        i++
+    }
+    return res.str().bytes()
+}")
 	}
 
 	if m.state.used_builtins['py_subscript_int'] {
@@ -778,6 +910,62 @@ fn (mut m ModuleTranslator) append_runtime_helpers() {
 		m.emitter.add_helper_function('fn py_repeat[T](val T, n int) []T { return []T{len: n, init: val} }')
 	}
 
+	if 'py_any' in m.state.used_builtins {
+		m.emitter.add_helper_function('fn py_any[T](a []T) bool {
+    for x in a { if py_bool(x) { return true } }
+    return false
+}')
+		m.state.used_builtins['py_bool'] = true
+	}
+
+	if 'py_all' in m.state.used_builtins {
+		m.emitter.add_helper_function('fn py_all[T](a []T) bool {
+    for x in a { if !py_bool(x) { return false } }
+    return true
+}')
+		m.state.used_builtins['py_bool'] = true
+	}
+
+	if 'py_is_identical' in m.state.used_builtins {
+		m.emitter.add_helper_function('fn py_is_identical[T, U](a T, b U) bool {
+    return voidptr(&a) == voidptr(&b)
+}')
+	}
+
+	if 'py_repeat_list' in m.state.used_builtins {
+		m.emitter.add_helper_function('fn py_repeat_list[T](a []T, n int) []T {
+    mut res := []T{cap: a.len * n}
+    for _ in 0 .. n { res << a }
+    return res
+}')
+	}
+
+	if 'py_round' in m.state.used_builtins || 'round' in m.state.used_builtins {
+		m.emitter.add_helper_import('math')
+		m.emitter.add_helper_function('fn py_round(number f64, ndigits int) f64 {
+    p := math.pow(10, f64(ndigits))
+    return math.round(number * p) / p
+}')
+	}
+
+	if m.state.used_complex {
+		m.emitter.add_helper_import('math')
+		m.emitter.add_helper_struct('struct PyComplex { re f64 im f64 }')
+		m.emitter.add_helper_function('fn py_complex(re f64, im f64) PyComplex { return PyComplex{re: re, im: im} }')
+		m.emitter.add_helper_function('fn (a PyComplex) + (b PyComplex) PyComplex { return PyComplex{re: a.re + b.re, im: a.im + b.im} }')
+		m.emitter.add_helper_function('fn (a PyComplex) - (b PyComplex) PyComplex { return PyComplex{re: a.re - b.re, im: a.im - b.im} }')
+		m.emitter.add_helper_function('fn (a PyComplex) * (b PyComplex) PyComplex { return PyComplex{re: a.re * b.re - a.im * b.im, im: a.re * b.im + a.im * b.re} }')
+		m.emitter.add_helper_function('fn (a PyComplex) / (b PyComplex) PyComplex {
+    denom := b.re * b.re + b.im * b.im
+    return PyComplex{re: (a.re * b.re + a.im * b.im) / denom, im: (a.im * b.re - a.re * b.im) / denom}
+}')
+		m.emitter.add_helper_function('fn (z PyComplex) str() string {
+    sign := if z.im >= 0 { "+" } else { "-" }
+    im_abs := if z.im >= 0 { z.im } else { -z.im }
+    return "(${z.re}${sign}${im_abs}j)"
+}')
+	}
+
 	// collections
 	if m.state.imported_modules.values().contains('collections') || m.state.used_builtins['py_counter'] {
 		m.emitter.add_helper_function('fn py_counter[T](a []T) map[T]int {
@@ -811,6 +999,222 @@ fn (mut m ModuleTranslator) append_runtime_helpers() {
     mut b := a.clone()
     b.reverse()
     return b
+}')
+	}
+	if m.state.used_builtins['py_list_pop_at'] {
+		m.emitter.add_helper_function('fn py_list_pop_at[T](mut a []T, index int) T {
+    mut i := index
+    if i < 0 { i += a.len }
+    res := a[i]
+    a.delete(i)
+    return res
+}')
+	}
+
+	if m.state.used_builtins['py_list_remove'] {
+		m.emitter.add_helper_function('fn py_list_remove[T](mut a []T, val T) {
+    idx := a.index(val)
+    if idx >= 0 { a.delete(idx) }
+}')
+	}
+
+	if m.state.used_builtins['py_dict_pop'] {
+		m.emitter.add_helper_function('fn py_dict_pop[K, V](mut d map[K]V, key K, default V) V {
+    if key in d {
+        val := d[key]
+        d.delete(key)
+        return val
+    }
+    return default
+}')
+	}
+
+	if m.state.used_builtins['py_dict_update'] {
+		m.emitter.add_helper_function('fn py_dict_update[K, V](mut d map[K]V, other ...map[K]V) map[K]V {
+    for o in other { for k, v in o { d[k] = v } }
+    return d
+}')
+	}
+
+	if m.state.used_builtins['py_dict_setdefault'] {
+		m.emitter.add_helper_function('fn py_dict_setdefault[K, V](mut d map[K]V, key K, default V) V {
+    if key in d { return d[key] }
+    d[key] = default
+    return default
+}')
+	}
+
+	if m.state.used_builtins['py_dict_fromkeys'] {
+		m.emitter.add_helper_function('fn py_dict_fromkeys[M, K, V](keys []K, val V) M {
+    mut res := M{}
+    for k in keys { res[k] = val }
+    return res
+}')
+	}
+
+	if m.state.used_builtins['py_set_union'] {
+		m.emitter.add_helper_function('fn py_set_union[K](a datatypes.Set[K], b datatypes.Set[K]) datatypes.Set[K] {
+    mut res := a.clone()
+    for k, _ in b.elements { res.add(k) }
+    return res
+}')
+	}
+
+	if m.state.used_builtins['py_set_intersection'] {
+		m.emitter.add_helper_function('fn py_set_intersection[K](a datatypes.Set[K], b datatypes.Set[K]) datatypes.Set[K] {
+    mut res := datatypes.Set[K]{}
+    for k, _ in a.elements { if k in b.elements { res.add(k) } }
+    return res
+}')
+	}
+
+	if m.state.used_builtins['py_bool'] {
+		m.emitter.add_helper_function('fn py_bool(val Any) bool {
+    if val is bool { return val }
+    if val is int { return val != 0 }
+    if val is i64 { return val != 0 }
+    if val is f64 { return val != 0.0 }
+    if val is string { return val.len > 0 }
+    if val is []Any { return val.len > 0 }
+    if val is map[string]Any { return val.len > 0 }
+    return true
+}')
+	}
+
+	if m.state.used_builtins['py_slice'] {
+		m.emitter.add_helper_function('fn py_slice(obj Any, lower ?Any, upper ?Any, step ?Any) Any {
+    if obj is string { return py_str_slice(obj, lower, upper, step) }
+    panic("py_slice: unsupported type")
+    return false
+}')
+	}
+
+	if m.state.used_builtins['py_str_slice'] {
+		m.emitter.add_helper_function('fn py_str_slice(s string, lower ?Any, upper ?Any, step ?Any) string {
+    mut l := 0
+    if v := lower { if v is int { l = v } }
+    mut u := s.len
+    if v := upper { if v is int { u = v } }
+    mut st := 1
+    if v := step { if v is int { st = v } }
+    if l < 0 { l += s.len }
+    if u < 0 { u += s.len }
+    if l < 0 { l = 0 }
+    if u > s.len { u = s.len }
+    if st == 1 { return s[l..u] }
+    runes := s.runes()
+    mut res := []rune{}
+    if st > 0 { for i := l; i < u; i += st { if i >= 0 && i < runes.len { res << runes[i] } } }
+    else { for i := l; i > u; i += st { if i >= 0 && i < runes.len { res << runes[i] } } }
+    return res.string()
+}')
+	}
+
+	if m.state.used_builtins['py_min'] {
+		m.emitter.add_helper_function('fn py_min[T](a []T) T {
+    if a.len == 0 { panic("min() arg is an empty sequence") }
+    mut m := a[0]
+    for x in a { if x < m { m = x } }
+    return m
+}')
+	}
+
+	if m.state.used_builtins['py_max'] {
+		m.emitter.add_helper_function('fn py_max[T](a []T) T {
+    if a.len == 0 { panic("max() arg is an empty sequence") }
+    mut m := a[0]
+    for x in a { if x > m { m = x } }
+    return m
+}')
+	}
+
+	if 'py_zip' in m.state.used_builtins {
+		m.emitter.add_helper_struct('struct PyZipItem[T, U] { pub: a T b U }')
+		m.emitter.add_helper_function('fn py_zip[T, U](a []T, b []U) []PyZipItem[T, U] {
+    mut res := []PyZipItem[T, U]{}
+    limit := if a.len < b.len { a.len } else { b.len }
+    for i in 0..limit { res << PyZipItem[T, U]{a: a[i], b: b[i]} }
+    return res
+}')
+	}
+
+	if 'py_enumerate' in m.state.used_builtins {
+		m.emitter.add_helper_struct('struct PyEnumerateItem[T] { pub: index int value T }')
+		m.emitter.add_helper_function('fn py_enumerate[T](a []T) []PyEnumerateItem[T] {
+    mut res := []PyEnumerateItem[T]{}
+    for i, x in a { res << PyEnumerateItem[T]{index: i, value: x} }
+    return res
+}')
+	}
+
+	if 'py_range' in m.state.used_builtins {
+		m.emitter.add_helper_function('fn py_range(args ...int) []int {
+    mut res := []int{}
+    if args.len == 1 { for i in 0..args[0] { res << i } }
+    else if args.len == 2 { for i in args[0]..args[1] { res << i } }
+    else if args.len == 3 {
+        start, stop, step := args[0], args[1], args[2]
+        if step > 0 { for i := start; i < stop; i += step { res << i } }
+        else if step < 0 { for i := start; i > stop; i += step { res << i } }
+    }
+    return res
+}')
+	}
+
+	if m.state.used_builtins['py_yield'] || m.state.used_builtins['PyGenerator'] {
+		m.emitter.add_helper_struct('struct PyGeneratorInput { val Any is_exc bool exc_msg string }')
+		m.emitter.add_helper_struct('struct PyGenerator[T] { mut: out chan T in_ chan PyGeneratorInput open bool = true }')
+		m.emitter.add_helper_function('fn (mut g PyGenerator[T]) next() ?T {
+    if !g.open { return none }
+    g.in_ <- PyGeneratorInput{val: 0}
+    res := <-g.out
+    if res == none { g.open = false }
+    return res
+}')
+		m.emitter.add_helper_function('fn py_yield[T](ch_out chan T, ch_in chan PyGeneratorInput, val T) Any {
+    ch_out <- val
+    inp := <-ch_in
+    if inp.is_exc { panic(inp.exc_msg) }
+    return inp.val
+}')
+	}
+
+	if m.state.used_builtins['py_divmod'] {
+		m.emitter.add_helper_import('math')
+		m.emitter.add_helper_function('fn py_divmod[T](a T, b T) []T {
+    \x24if T is f64 {
+        q := math.floor(a / b)
+        r := a - q * b
+        return [q, r]
+    } \x24else {
+        return [a / b, a % b]
+    }
+}')
+	}
+
+	if m.state.used_builtins['py_random_sample'] {
+		m.emitter.add_helper_import('rand')
+		m.emitter.add_helper_function('fn py_random_sample[T](a []T, k int) []T {
+    if k > a.len { panic("sample larger than population") }
+    mut res := []T{}
+    mut indices := []int{len: a.len}
+    for i in 0..a.len { indices[i] = i }
+    rand.shuffle(mut indices) or { panic(err) }
+    for i in 0..k { res << a[indices[i]] }
+    return res
+}')
+	}
+
+	if m.state.used_builtins['py_os_path_split'] {
+		m.emitter.add_helper_import('os')
+		m.emitter.add_helper_function('fn py_os_path_split(path string) []string { return [os.dir(path), os.base(path)] }')
+	}
+
+	if m.state.used_builtins['py_os_path_splitext'] {
+		m.emitter.add_helper_import('os')
+		m.emitter.add_helper_function('fn py_os_path_splitext(path string) []string {
+    ext := os.file_ext(path)
+    return [path[..path.len - ext.len], ext]
 }')
 	}
 }

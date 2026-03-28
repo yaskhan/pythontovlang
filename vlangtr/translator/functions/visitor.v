@@ -12,5 +12,5 @@ pub fn (h FunctionsVisitorHandler) visit_function_def(node &ast.FunctionDef, mut
 			return
 		}
 	}
-	m.generation_handler.generate_function(node, env.state.current_class, mut env)
+	m.generation_handler.generate_function(node, env.state.current_class, mut env, mut m)
 }

@@ -76,15 +76,15 @@ fn (mut t Translator) append_helpers() {
 	}
 	if 'py_sorted' in t.state.used_builtins {
 		t.state.output << ''
-		t.state.output << 'fn py_sorted[T](a []T, reverse bool) []T {'
-		t.state.output << '    // ...'
-		t.state.output << '}'
+		t.state.output << 'fn py_sorted[T](a []T, reverse bool) []T {\n    mut res := a.clone()\n    res.sort()\n    if reverse { res.reverse() }\n    return res\n}'
 	}
 	if 'py_reversed' in t.state.used_builtins {
 		t.state.output << ''
-		t.state.output << 'fn py_reversed[T](a []T) []T {'
-		t.state.output << '    // ...'
-		t.state.output << '}'
+		t.state.output << 'fn py_reversed[T](a []T) []T {\n    mut res := a.clone()\n    res.reverse()\n    return res\n}'
+	}
+	if 'py_next' in t.state.used_builtins {
+		t.state.output << ''
+		t.state.output << 'fn py_next(mut it Any, args ...Any) Any {\n    // stub for next() on iterators\n    return none\n}'
 	}
 	if 'py_bytes_format' in t.state.used_builtins {
 		t.state.output << ''
@@ -96,6 +96,10 @@ fn (mut t Translator) append_helpers() {
 	}
 	if t.state.used_builtins['py_subprocess_run'] {
 		t.state.output << 'struct PySubprocessResult {\n    pub mut:\n        returncode int\n        stdout string\n        stderr string\n}\nfn py_subprocess_run(cmd Any) PySubprocessResult {\n    // stub\n    res := os.execute(\'\${cmd}\')\n    return PySubprocessResult{returncode: res.exit_code, stdout: res.output}\n}'
+	}
+	if 'py_range' in t.state.used_builtins {
+		t.state.output << ''
+		t.state.output << 'fn py_range(args ...int) []int {\n    mut res := []int{}\n    mut start := 0\n    mut stop := 0\n    mut step := 1\n    if args.len == 1 {\n        stop = args[0]\n    } else if args.len == 2 {\n        start = args[0]\n        stop = args[1]\n    } else if args.len >= 3 {\n        start = args[0]\n        stop = args[1]\n        step = args[2]\n    }\n    if step > 0 {\n        for i := start; i < stop; i += step {\n            res << i\n        }\n    } else if step < 0 {\n        for i := start; i > stop; i += step {\n            res << i\n        }\n    }\n    return res\n}'
 	}
 	if 'py_urlencode' in t.state.used_builtins {
 		t.state.output << 'fn py_urlencode(params map[string]string) string {\n    // stub\n    return ""\n}'

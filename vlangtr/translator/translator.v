@@ -7,6 +7,7 @@ import expressions
 import models
 import classes
 import functions
+import stdlib_map
 
 pub struct Translator {
 pub mut:
@@ -20,7 +21,7 @@ pub mut:
 }
 
 pub fn new_translator() &Translator {
-	return &Translator{
+	mut t := &Translator{
 		state:    base.new_translator_state()
 		analyzer: analyzer.new_analyzer(map[string]string{})
 		model:    .unknown
@@ -29,6 +30,8 @@ pub fn new_translator() &Translator {
 		classes_module:   classes.new_classes_module()
 		functions_module: functions.new_functions_module()
 	}
+	t.state.mapper = stdlib_map.new_stdlib_mapper()
+	return t
 }
 
 fn (mut t Translator) emit(line string) {
@@ -203,6 +206,7 @@ fn (t &Translator) annotation_raw_name(node ast.Expression) string {
 
 pub fn (mut t Translator) translate(source string, filename string) string {
 	t.state = base.new_translator_state()
+	t.state.mapper = stdlib_map.new_stdlib_mapper()
 	t.state.current_file_name = filename
 	t.analyzer = analyzer.new_analyzer(map[string]string{})
 	t.state.output = []string{}

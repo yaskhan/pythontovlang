@@ -5,7 +5,17 @@ import base
 
 pub struct FunctionsGenerationHandler {}
 
-pub fn (h FunctionsGenerationHandler) generate_function(node &ast.FunctionDef, struct_name string, mut env FunctionVisitEnv) {
+pub fn (h FunctionsGenerationHandler) generate_function(
+	node &ast.FunctionDef,
+	struct_name string,
+	mut env FunctionVisitEnv,
+	mut m FunctionsModule,
+) {
+	ov_key := if struct_name.len > 0 { '${struct_name}.${node.name}' } else { node.name }
+	if ov_key in env.state.overloaded_signatures {
+		m.overload_handler.handle_overloads(node, struct_name, h.get_decorator_info(node, struct_name, env), mut env, mut m)
+		return
+	}
 	is_method := struct_name.len > 0
 	mut annotations_data := map[string]string{}
 	
@@ -120,6 +130,10 @@ pub fn (h FunctionsGenerationHandler) generate_function(node &ast.FunctionDef, s
 		mut a_type := 'Any'
 		if ann := vararg.annotation {
 			a_type = env.map_annotation_fn(ann)
+		}
+		// V varargs use the element type: ...T
+		if a_type.starts_with('[]') {
+			a_type = a_type[2..]
 		}
 		args_str_list << '${name} ...${a_type}'
 		annotations_data[name] = a_type
@@ -241,3 +255,32 @@ fn (h FunctionsGenerationHandler) is_mutating_method(node &ast.FunctionDef, clas
 	return node.name == '__init__'
 }
 
+fn (h FunctionsGenerationHandler) get_decorator_info(node &ast.FunctionDef, struct_name string, env FunctionVisitEnv) DecoratorInfo {
+	mut info := DecoratorInfo{}
+	for dec in node.decorator_list {
+		mut dec_name := ''
+		if dec is ast.Call {
+			dec_name = env.visit_expr_fn(dec.func)
+		} else {
+			dec_name = env.visit_expr_fn(dec)
+		}
+		
+		if dec_name.ends_with('classmethod') {
+			info.is_classmethod = true
+		} else if dec_name.ends_with('staticmethod') {
+			info.is_staticmethod = true
+		} else if dec_name.ends_with('property') {
+			info.is_property = true
+		} else if dec_name.ends_with('setter') {
+			info.is_setter = true
+		} else if dec_name.ends_with('deleter') {
+			info.is_deleter = true
+		} else if dec_name.ends_with('deprecated') {
+			info.is_deprecated = true
+			if dec is ast.Call && dec.args.len > 0 {
+				info.deprecated_msg = env.visit_expr_fn(dec.args[0]).trim("'\"")
+			}
+		}
+	}
+	return info
+}

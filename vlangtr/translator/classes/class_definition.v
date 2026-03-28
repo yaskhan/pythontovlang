@@ -9,7 +9,7 @@ pub mut:
 	class_stack []string
 }
 
-pub fn (mut h ClassDefinitionHandler) visit_class_def(node ast.ClassDef, mut env ClassVisitEnv, mut classes ClassesModule) {
+pub fn (mut h ClassDefinitionHandler) visit_class_def(node &ast.ClassDef, mut env ClassVisitEnv, mut classes ClassesModule) {
 	struct_name := sanitize_name(node.name, true)
 	if h.class_stack.len == 0 {
 		env.state.defined_top_level_symbols[node.name] = true

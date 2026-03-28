@@ -3,6 +3,7 @@ module expressions
 import analyzer
 import ast
 import base
+import stdlib_map
 
 pub fn (mut eg ExprGen) visit_call(node ast.Call) string {
 	func_name_str, _ := eg.extract_func_info(node)
@@ -37,7 +38,11 @@ pub fn (mut eg ExprGen) visit_call(node ast.Call) string {
 		return overload
 	}
 
-	return eg.handle_fallback_call(node, func_name_str, args, call_sig)
+	if result := eg.handle_object_method_call(node, node.func, func_name_str, args) {
+		return result
+	}
+
+	return eg.handle_fallback_call(node, func_name_str, args, keyword_args, call_sig)
 }
 
 pub fn (mut eg ExprGen) extract_func_info(node ast.Call) (string, string) {
@@ -55,16 +60,8 @@ pub fn (mut eg ExprGen) extract_func_info(node ast.Call) (string, string) {
 		}
 	}
 	if node.func is ast.Attribute {
-		attr := node.func
-		if attr.value is ast.Name {
-			if attr.value.id in eg.state.imported_modules {
-				return attr.attr, '${eg.state.imported_modules[attr.value.id]}.${attr.attr}'
-			}
-			if attr.value.id in eg.state.imported_symbols {
-				return attr.attr, '${eg.state.imported_symbols[attr.value.id]}.${attr.attr}'
-			}
-		}
-		return attr.attr, ''
+		full_name := eg.visit(node.func)
+		return full_name, ''
 	}
 	return eg.visit(node.func), ''
 }
@@ -252,9 +249,15 @@ pub fn (mut eg ExprGen) handle_special_cases(node ast.Call, module_name string, 
 		return "''"
 	}
 	
-	if func_name_str in ['any', 'all', 'sum'] {
-		eg.state.used_builtins['py_${func_name_str}'] = true
-		return 'py_${func_name_str}(${args.join(', ')})'
+	if func_name_str in ['any', 'all', 'sum'] || (module_name == 'builtins' && func_name in ['any', 'all', 'sum']) {
+		b_name := if func_name_str in ['any', 'all', 'sum'] { func_name_str } else { func_name }
+		eg.state.used_builtins['py_${b_name}'] = true
+		return 'py_${b_name}(${args.join(', ')})'
+	}
+	
+	if (module_name == 'urllib.parse' || module_name == 'urllib') && func_name == 'urlparse' {
+		eg.state.used_builtins['py_urlparse'] = true
+		return 'py_urlparse(${args.join(', ')})'
 	}
 	if func_name_str in ['bytes', 'bytearray'] {
 		if args.len > 0 {
@@ -359,15 +362,38 @@ pub fn (mut eg ExprGen) handle_special_cases(node ast.Call, module_name string, 
 	}
 
 	if func_name_str == 'print' {
-		mut print_args := []string{}
+		mut items := []string{}
 		for arg in args {
 			if arg.starts_with("'") || arg.starts_with('"') {
-				print_args << arg
+				items << arg.trim("'\"")
 			} else {
-				print_args << "'\${${arg}}'"
+				items << "\${${arg}}"
 			}
 		}
-		return 'println(${print_args.join(', ')})'
+		sep := if s := keyword_args['sep'] { s.trim("'\"") } else { ' ' }
+		end := if e := keyword_args['end'] { e.trim("'\"") } else { '\\n' }
+		file := if f := keyword_args['file'] { f } else { 'stdout' }
+		
+		fmt_str := items.join(sep)
+		is_stderr := file == 'sys.stderr'
+		if end == '\\n' {
+			if is_stderr {
+				return "eprintln('${fmt_str}')"
+			} else {
+				return "println('${fmt_str}')"
+			}
+		} else {
+			if is_stderr {
+				return "eprint('${fmt_str}${end}')"
+			} else {
+				return "print('${fmt_str}${end}')"
+			}
+		}
+	}
+
+	if func_name_str == 'any' && args.len == 1 {
+		eg.state.used_builtins['py_any'] = true
+		return 'py_any(${args[0]})'
 	}
 
 	if func_name_str == 'len' && args.len == 1 {
@@ -389,6 +415,11 @@ pub fn (mut eg ExprGen) handle_special_cases(node ast.Call, module_name string, 
 
 	if func_name_str == 'round' && args.len == 1 {
 		return 'int(math.round(${args[0]}))'
+	}
+
+	if func_name_str == 'sorted' && args.len >= 1 {
+		eg.state.used_builtins['py_sorted'] = true
+		return 'py_sorted(${args.join(', ')})'
 	}
 
 	if func_name_str == 'isinstance' && args.len >= 2 {
@@ -428,20 +459,27 @@ pub fn (mut eg ExprGen) handle_special_cases(node ast.Call, module_name string, 
 	}
 
 	if module_name == 'copy' && func_name in ['copy', 'deepcopy'] {
+		eg.state.used_builtins['py_${func_name}'] = true
 		return 'py_${func_name}(${args.join(', ')})'
 	}
 
 	if module_name == 'uuid' && func_name == 'uuid4' {
+		eg.state.used_builtins['rand.uuid_v4'] = true
 		return 'rand.uuid_v4()'
 	}
 
 	if func_name_str == 'range' {
+		eg.state.used_builtins['py_range'] = true
 		return 'py_range(${args.join(', ')})'
 	}
 
 	if func_name_str == 'sorted' {
 		eg.state.used_builtins['py_sorted'] = true
 		return 'py_sorted(${args.join(', ')}, false)'
+	}
+
+	if module_name == 'time' && func_name == 'sleep' && args.len >= 1 {
+		return 'time.sleep(${args[0]} * time.second)'
 	}
 
 	return none
@@ -455,7 +493,57 @@ pub fn (mut eg ExprGen) handle_via_mapper(node ast.Call, module_name string, fun
 		name := args[0].trim("'").trim('"')
 		return 'type ${name} = ${args[1]}'
 	}
-	// Add more mapper logic if needed
+	
+	if (module_name == 'argparse' || func_name.contains('argparse') || func_name.ends_with('add_argument')) && func_name.contains('add_argument') {
+		mut pos_args := []string{}
+		for a in args {
+			if !a.contains('=') {
+				pos_args << a
+			}
+		}
+		// Try to keep the receiver if it was visit_attribute
+		if func_name.contains('.') {
+			parts := func_name.split('.')
+			recv := parts[..parts.len-1].join('.')
+			return '${recv}.add_argument(${pos_args.join(', ')})'
+		}
+		return 'parser.add_argument(${pos_args.join(', ')})'
+	}
+	
+	if eg.state.mapper == unsafe { nil } { return none }
+	mapper := unsafe { &stdlib_map.StdLibMapper(eg.state.mapper) }
+
+	if module_name.len > 0 {
+		if res := mapper.get_mapping(module_name, func_name, args) {
+			return res
+		}
+	}
+	
+	// Try submodule matching if module_name is empty but func_name has dots
+	if func_name.contains('.') {
+		parts := func_name.split('.')
+		for i := 1; i < parts.len; i++ {
+			m_name := parts[..i].join('.')
+			f_name := parts[i..].join('.')
+			if res := mapper.get_mapping(m_name, f_name, args) {
+				return res
+			}
+		}
+	}
+
+	// Try with extract_func_info if it returned dots
+	func_str, _ := eg.extract_func_info(node)
+	if func_str.contains('.') && func_str != func_name {
+		parts := func_str.split('.')
+		for i := 1; i < parts.len; i++ {
+			m_name := parts[..i].join('.')
+			f_name := parts[i..].join('.')
+			if res := mapper.get_mapping(m_name, f_name, args) {
+				return res
+			}
+		}
+	}
+
 	return none
 }
 
@@ -472,13 +560,63 @@ pub fn (mut eg ExprGen) handle_overloads(node ast.Call, call_sig ?analyzer.CallS
 	return none
 }
 
-pub fn (mut eg ExprGen) handle_fallback_call(node ast.Call, func_name_str string, args []string, call_sig ?analyzer.CallSignature) string {
+pub fn (mut eg ExprGen) handle_fallback_call(node ast.Call, func_name_str string, args []string, keyword_args map[string]string, call_sig ?analyzer.CallSignature) string {
 	mut func_name := eg.visit(node.func)
 	if func_name.len == 0 { func_name = func_name_str }
 	if func_name in eg.state.renamed_functions { func_name = eg.state.renamed_functions[func_name] }
 
-	final_args := eg.process_mutated_args(func_name, args, call_sig)
+	mut final_raw_args := args.clone()
+	for k, v in keyword_args {
+		final_raw_args << '${k}=${v}'
+	}
+
+	final_args := eg.process_mutated_args(func_name, final_raw_args, call_sig)
 	return '${func_name}(${final_args.join(', ')})'
+}
+
+pub fn (mut eg ExprGen) handle_object_method_call(node ast.Call, func_node ast.Expression, func_name_str string, args []string) ?string {
+	if func_node !is ast.Attribute { return none }
+	attr := (func_node as ast.Attribute).attr
+	obj_type := eg.guess_type((func_node as ast.Attribute).value)
+	obj := eg.visit((func_node as ast.Attribute).value)
+
+	// List methods
+	if obj_type.starts_with('[]') || obj_type == 'Any' {
+		if attr == 'append' && args.len == 1 { return '${obj} << ${args[0]}' }
+		if attr == 'extend' && args.len == 1 { return '${obj} << ${args[0]}' }
+		if attr == 'pop' {
+			if args.len == 0 { return '${obj}.pop()' }
+			eg.state.used_builtins['py_list_pop_at'] = true
+			return 'py_list_pop_at(mut ${obj}, ${args[0]})'
+		}
+		if attr == 'remove' && args.len == 1 {
+			eg.state.used_builtins['py_list_remove'] = true
+			return 'py_list_remove(mut ${obj}, ${args[0]})'
+		}
+		if attr == 'sort' {
+			// simplified: always maps to .sort() or use py_sorted
+			return '${obj}.sort()'
+		}
+	}
+
+	// String methods
+	if obj_type == 'string' || obj_type == 'Any' {
+		if attr == 'lower' { return '${obj}.to_lower()' }
+		if attr == 'upper' { return '${obj}.to_upper()' }
+		if attr == 'capitalize' { return '${obj}.capitalize()' }
+		if attr == 'title' { return '${obj}.title()' }
+		if attr == 'strip' { return if args.len == 0 { '${obj}.trim_space()' } else { '${obj}.trim(${args[0]})' } }
+		if attr == 'split' { return if args.len == 0 { '${obj}.fields()' } else { '${obj}.split(${args[0]})' } }
+		if attr == 'join' && args.len == 1 { return '${args[0]}.join(${obj})' }
+		if attr == 'startswith' && args.len >= 1 { return '${obj}.starts_with(${args[0]})' }
+		if attr == 'endswith' && args.len >= 1 { return '${obj}.ends_with(${args[0]})' }
+		if attr == 'isdigit' { return '${obj}.runes().all(it.is_digit())' }
+		if attr == 'isalpha' { return '${obj}.runes().all(it.is_letter())' }
+		if attr == 'isalnum' { return '${obj}.runes().all(it.is_letter() || it.is_digit())' }
+		if attr == 'replace' { return if args.len == 2 { '${obj}.replace(${args[0]}, ${args[1]})' } else { '${obj}.replace_n(${args[0]}, ${args[1]}, ${args[2]})' } }
+	}
+
+	return none
 }
 
 pub fn (mut eg ExprGen) process_mutated_args(func_name_str string, args []string, call_sig ?analyzer.CallSignature) []string {
@@ -522,8 +660,10 @@ pub fn (mut eg ExprGen) resolve_module_and_func(node ast.Call, func_name_str str
 	if func_name_str in eg.state.imported_symbols {
 		sym := eg.state.imported_symbols[func_name_str]
 		if sym.contains('.') {
-			parts := sym.split('.')
-			return parts[0], parts[1]
+			last_dot := sym.last_index('.') or { -1 }
+			if last_dot != -1 {
+				return sym[..last_dot], sym[last_dot+1..]
+			}
 		}
 	}
 	return '', func_name_str

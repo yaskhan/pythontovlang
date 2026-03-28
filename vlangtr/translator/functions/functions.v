@@ -17,6 +17,31 @@ pub mut:
 
 pub struct FunctionsOverloadHandler {}
 
+pub fn (h FunctionsOverloadHandler) handle_overloads(node &ast.FunctionDef, struct_name string, dec_info DecoratorInfo, mut env FunctionVisitEnv, mut m FunctionsModule) {
+	generate_overload_variants(
+		node, struct_name, struct_name.len > 0, dec_info,
+		false, mut env.state, &env.analyzer, env.visit_expr_fn,
+		env.indent_fn, env.emit_fn, sanitize_name_fn, map_type_fn,
+		get_full_self_type_fn, get_factory_name_fn, mangle_name_fn,
+		is_exported_fn, get_source_info_fn, extract_implicit_generics_fn,
+		get_generic_map_fn, get_all_active_v_generics_fn, get_generics_with_variance_str_fn,
+		mut m,
+		mut env
+	)
+}
+
+fn sanitize_name_fn(name string, is_type bool) string { return sanitize_name(name, is_type) }
+fn map_type_fn(type_str string, struct_name string, allow_union bool, register bool, is_return bool) string { return type_str } // stub
+fn get_full_self_type_fn(struct_name string) string { return struct_name } // stub
+fn get_factory_name_fn(class_name string) string { return class_name } // stub
+fn mangle_name_fn(name string, class_name string) string { return name } // stub
+fn is_exported_fn(name string) bool { return true } // stub
+fn get_source_info_fn(node ast.Statement) string { return '' } // stub
+fn extract_implicit_generics_fn(node &ast.FunctionDef, variance map[string]bool, defaults map[string]bool, current []string, sanitize fn(string, bool) string) []string { return []string{} } // stub
+fn get_generic_map_fn(generics []string, scopes []map[string]string) map[string]string { return map[string]string{} } // stub
+fn get_all_active_v_generics_fn(scopes []map[string]string) []string { return []string{} } // stub
+fn get_generics_with_variance_str_fn(generics []string, variance map[string]string, defaults map[string]string, variance_map map[string]string) string { return '' } // stub
+
 pub struct FunctionsModule {
 pub mut:
 	generation_handler FunctionsGenerationHandler
@@ -78,7 +103,7 @@ pub fn new_function_visit_env(
 	}
 }
 
-pub fn (mut m FunctionsModule) visit_function_def(node ast.FunctionDef, mut env FunctionVisitEnv) {
+pub fn (mut m FunctionsModule) visit_function_def(node &ast.FunctionDef, mut env FunctionVisitEnv) {
 	m.visitor_handler.visit_function_def(node, mut env, mut m)
 }
 fn sanitize_name(name string, is_type bool) string {

@@ -12,7 +12,7 @@ pub fn visit_lambda(
 	visit_expr_fn fn (ast.Expression) string,
 	indent_fn fn () string,
 	sanitize_fn fn (string, bool) string,
-	map_type_fn fn (string, string, bool, bool, bool) string,
+	map_type_c fn (string, string, bool, bool, bool) string,
 	guess_type_fn fn (ast.Expression) string,
 	find_captured_vars_fn fn (ast.ASTNode, []map[string]bool, fn (string, bool) string) []string,
 ) string {
@@ -59,7 +59,7 @@ pub fn visit_lambda(
 		mut arg_type := 'int'
 		inferred := analyzer_ref.type_map[arg_name]
 		if inferred != '' {
-			arg_type = map_type_fn(inferred, '', true, true, false)
+			arg_type = map_type_c(inferred, '', true, true, false)
 		}
 		args_str_list << '${arg_name} ${arg_type}'
 	}
@@ -70,7 +70,7 @@ pub fn visit_lambda(
 		mut arg_type := 'map[string]Any'
 		inferred := analyzer_ref.type_map[arg_name]
 		if inferred != '' {
-			arg_type = map_type_fn(inferred, '', true, true, false)
+			arg_type = map_type_c(inferred, '', true, true, false)
 		}
 		args_str_list << '${arg_name} ${arg_type}'
 	}
@@ -81,7 +81,7 @@ pub fn visit_lambda(
 		mut arg_type := 'Any'
 		inferred := analyzer_ref.type_map[arg_name]
 		if inferred != '' {
-			arg_type = map_type_fn(inferred, '', true, true, false)
+			arg_type = map_type_c(inferred, '', true, true, false)
 		}
 		if !arg_type.starts_with('[]') {
 			arg_type = '[]${arg_type}'
@@ -121,7 +121,7 @@ pub fn visit_lambda(
 	}
 
 	body := visit_expr_fn(node.body)
-	body_type := map_type_fn(guess_type_fn(node.body), '', true, true, true)
+	body_type := map_type_c(guess_type_fn(node.body), '', true, true, true)
 	if body_type == 'void' {
 		if body == 'none' {
 			return 'fn ${capture_str}(${args_str}) {}'

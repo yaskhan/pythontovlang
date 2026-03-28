@@ -61,6 +61,6 @@ pub fn new_class_visit_env(
 	}
 }
 
-pub fn (mut m ClassesModule) visit_class_def(node ast.ClassDef, mut env ClassVisitEnv) {
+pub fn (mut m ClassesModule) visit_class_def(node &ast.ClassDef, mut env ClassVisitEnv) {
 	m.class_definition_handler.visit_class_def(node, mut env, mut m)
 }

@@ -41,6 +41,7 @@ pub mut:
 	typed_dicts          map[string]bool
 	literal_types        map[string]string // map[var_name]literal_value
 	overloaded_signatures map[string][]map[string]string
+	type_vars            map[string]bool
 }
 
 pub fn new_type_inference_base() TypeInferenceBase {
@@ -63,6 +64,7 @@ pub fn new_type_inference_base() TypeInferenceBase {
 		typed_dicts:          map[string]bool{}
 		literal_types:        map[string]string{}
 		overloaded_signatures: map[string][]map[string]string{}
+		type_vars:            map[string]bool{}
 	}
 }
 

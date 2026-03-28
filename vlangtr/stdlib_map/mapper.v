@@ -1,6 +1,6 @@
 module stdlib_map
 
-// StdLibMapper - Python standard library mapper to V
+@[heap]
 pub struct StdLibMapper {
 pub mut:
 	mappings  map[string]map[string]string
@@ -8,8 +8,8 @@ pub mut:
 }
 
 // new_stdlib_mapper creates a new StdLibMapper instance
-pub fn new_stdlib_mapper() StdLibMapper {
-	mut mapper := StdLibMapper{
+pub fn new_stdlib_mapper() &StdLibMapper {
+	mut mapper := &StdLibMapper{
 		mappings: map[string]map[string]string{}
 		v_imports: map[string][]string{}
 	}
@@ -119,14 +119,14 @@ fn (mut m StdLibMapper) init_mappings() {
 
 	// Shutil
 	m.mappings['shutil'] = {
-		'copy': 'os.cp'
-		'copy2': 'os.cp'
-		'copyfile': 'os.cp'
-		'move': 'os.mv'
-		'rmtree': 'os.rmdir_all'
-		'copytree': 'os.cp_all'
-		'which': 'os.find_abs_path_of_executable'
-		'chown': 'os.chown'
+		'copy':      'os.cp(__ARGS__) or { panic(err) }'
+		'copy2':     'os.cp'
+		'copyfile':  'os.cp'
+		'move':      'os.mv(__ARGS__) or { panic(err) }'
+		'rmtree':    'os.rmdir_all(__ARGS__) or { panic(err) }'
+		'copytree':  'os.cp_all(__ARGS__, true) or { panic(err) }'
+		'which':     'os.find_abs_path_of_executable(__ARGS__)'
+		'chown':     'os.chown(__ARGS__) or { panic(err) }'
 	}
 
 	// Tempfile
@@ -147,6 +147,7 @@ fn (mut m StdLibMapper) init_mappings() {
 	// Argparse
 	m.mappings['argparse'] = {
 		'ArgumentParser': 'py_argparse_new'
+		'add_argument':  'parser.add_argument(__ARGS__)'
 	}
 
 	// UUID
@@ -366,7 +367,7 @@ fn (mut m StdLibMapper) init_imports() {
 	m.v_imports['shutil'] = ['os']
 	m.v_imports['tempfile'] = ['os']
 	m.v_imports['logging'] = ['log']
-	m.v_imports['argparse'] = ['os']
+	m.v_imports['argparse'] = ['argparse']
 	m.v_imports['uuid'] = ['rand']
 	m.v_imports['threading'] = ['sync']
 	m.v_imports['socket'] = ['net']
@@ -389,12 +390,11 @@ fn (mut m StdLibMapper) init_imports() {
 	m.v_imports['string'] = ['strings']
 }
 
-// get_mapping returns V code for Python function call
-pub fn (m &StdLibMapper) get_mapping(module string, func string, args []string) ?string {
-	if module !in m.mappings {
+pub fn (m &StdLibMapper) get_mapping(mod_name string, func string, args []string) ?string {
+	if mod_name !in m.mappings {
 		// Handle submodules
-		if module.contains('.') {
-			parts := module.split('.')
+		if mod_name.contains('.') {
+			parts := mod_name.split('.')
 			for i := parts.len - 1; i > 0; i-- {
 				prefix := parts[..i].join('.')
 				suffix := parts[i..].join('.')
@@ -406,21 +406,23 @@ pub fn (m &StdLibMapper) get_mapping(module string, func string, args []string) 
 		return none
 	}
 
-	module_map := m.mappings[module]
+	module_map := m.mappings[mod_name].clone()
 	if func !in module_map {
 		return none
 	}
 
 	handler := module_map[func]
+	if handler.contains('__ARGS__') {
+		return handler.replace('__ARGS__', args.join(', '))
+	}
 	return '${handler}(${args.join(", ")})'
 }
 
-// get_constant_mapping returns V code for Python constant
-pub fn (m &StdLibMapper) get_constant_mapping(module string, name string) ?string {
-	if module !in m.mappings {
+pub fn (m &StdLibMapper) get_constant_mapping(mod_name string, name string) ?string {
+	if mod_name !in m.mappings {
 		// Handle submodules
-		if module.contains('.') {
-			parts := module.split('.')
+		if mod_name.contains('.') {
+			parts := mod_name.split('.')
 			for i := parts.len - 1; i > 0; i-- {
 				prefix := parts[..i].join('.')
 				suffix := parts[i..].join('.')
@@ -432,7 +434,7 @@ pub fn (m &StdLibMapper) get_constant_mapping(module string, name string) ?strin
 		return none
 	}
 
-	module_map := m.mappings[module]
+	module_map := m.mappings[mod_name].clone()
 	if name !in module_map {
 		return none
 	}
@@ -441,14 +443,14 @@ pub fn (m &StdLibMapper) get_constant_mapping(module string, name string) ?strin
 }
 
 // get_imports returns list of V imports for Python module
-pub fn (m &StdLibMapper) get_imports(module string) ?[]string {
-	if module in m.v_imports {
-		return m.v_imports[module]
+pub fn (m &StdLibMapper) get_imports(mod_name string) ?[]string {
+	if mod_name in m.v_imports {
+		return m.v_imports[mod_name]
 	}
 
 	// Handle submodules
-	if module.contains('.') {
-		parts := module.split('.')
+	if mod_name.contains('.') {
+		parts := mod_name.split('.')
 		for i := parts.len - 1; i > 0; i-- {
 			prefix := parts[..i].join('.')
 			if prefix in m.v_imports {
