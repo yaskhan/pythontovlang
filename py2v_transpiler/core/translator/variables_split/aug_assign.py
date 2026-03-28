@@ -1,6 +1,13 @@
 import ast
 from ..base import TranslatorBase
 
+# Static mapping for augmented assignment operators
+_AUG_OP_MAP = {
+    ast.Add: "+=", ast.Sub: "-=", ast.Mult: "*=", ast.Div: "/=",
+    ast.Mod: "%=", ast.BitOr: "|=", ast.BitAnd: "&=", ast.BitXor: "^=",
+    ast.LShift: "<<=", ast.RShift: ">>="
+}
+
 
 class AugAssignMixin(TranslatorBase):
     """Handling augmented assignment operators: +=, -=, *=, /=, %=, **=, //="""
@@ -55,11 +62,7 @@ class AugAssignMixin(TranslatorBase):
 
         target = self.visit(node.target)
         value = self.visit(node.value)
-        op_map = {
-            ast.Add: "+=", ast.Sub: "-=", ast.Mult: "*=", ast.Div: "/=",
-            ast.Mod: "%=", ast.BitOr: "|=", ast.BitAnd: "&=", ast.BitXor: "^=",
-            ast.LShift: "<<=", ast.RShift: ">>="
-        }
+        op_map = _AUG_OP_MAP
 
         emit_fn = self.output.append
         if self.in_main:

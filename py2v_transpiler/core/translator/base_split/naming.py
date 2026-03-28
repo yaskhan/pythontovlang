@@ -1,6 +1,10 @@
 from typing import Optional, TYPE_CHECKING, Any, Set, Dict, List
 import re
 
+# Pre-compiled regular expressions for snake_case conversion
+_SNAKE_CASE_RE1 = re.compile(r'([a-z0-9])([A-Z])')
+_SNAKE_CASE_RE2 = re.compile(r'([A-Z])([A-Z][a-z])')
+
 if TYPE_CHECKING:
     from py2v_transpiler.core.compatibility import CompatibilityLayer
 
@@ -24,6 +28,10 @@ class NamingMixin:
         if not name or name == "_":
             return name
 
+        # Fast-path for already lowercase strings without underscores
+        if name.islower() and '_' not in name:
+            return name
+
         # Preserve internal markers used for generics/mangling
         if "__py2v_gen" in name:
             return name
@@ -33,15 +41,10 @@ class NamingMixin:
             parts = [self._to_snake_case(p) for p in name.split('_') if p]
             return "_".join(parts) if parts else "_"
 
-        res = []
-        for i, char in enumerate(name):
-            if char.isupper() and i > 0:
-                if name[i - 1].islower():
-                    res.append('_')
-                elif i + 1 < len(name) and name[i + 1].islower():
-                    res.append('_')
-            res.append(char.lower())
-        return "".join(res)
+        # Optimized CamelCase to snake_case conversion using regex
+        s1 = _SNAKE_CASE_RE1.sub(r'\1_\2', name)
+        s2 = _SNAKE_CASE_RE2.sub(r'\1_\2', s1)
+        return s2.lower()
 
     def _get_factory_name(self, struct_name: str) -> str:
         """Returns a snake_case factory name for a given struct name."""

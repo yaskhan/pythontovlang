@@ -7,6 +7,25 @@ from ..base import TranslatorBase
 _PLACEHOLDERS_RE = re.compile(r'%[sdfr]')
 _PLACEHOLDERS_GROUPS_RE = re.compile(r'%([sdfr])')
 
+# Static mapping for operators to improve performance
+_BIN_OP_MAP = {
+    ast.Add: "+", ast.Sub: "-", ast.Mult: "*", ast.Div: "/",
+    ast.Mod: "%",
+    ast.BitAnd: "&", ast.BitOr: "|", ast.BitXor: "^",
+    ast.LShift: "<<", ast.RShift: ">>"
+}
+
+_UNARY_OP_MAP = {
+    ast.UAdd: "+", ast.USub: "-",
+    ast.Invert: "~"
+}
+
+_COMP_OP_MAP = {
+    ast.Eq: "==", ast.NotEq: "!=", ast.Lt: "<", ast.LtE: "<=",
+    ast.Gt: ">", ast.GtE: ">=", ast.Is: "==", ast.IsNot: "!=",
+    ast.In: "in", ast.NotIn: "!in"
+}
+
 class OperatorsMixin(TranslatorBase):
     def _should_use_is_none_type(self, typ: str, node: ast.AST) -> bool:
         if typ.startswith("?"): return False
@@ -211,12 +230,7 @@ class OperatorsMixin(TranslatorBase):
                   # V: math.floor(7.0 / 2) -> 3.0
                   return f"math.floor({left} / {right})"
 
-        op_map = {
-            ast.Add: "+", ast.Sub: "-", ast.Mult: "*", ast.Div: "/",
-            ast.Mod: "%",
-            ast.BitAnd: "&", ast.BitOr: "|", ast.BitXor: "^",
-            ast.LShift: "<<", ast.RShift: ">>"
-        }
+        op_map = _BIN_OP_MAP
 
         # Check for string formatting: "string" % (args)
         if isinstance(node.op, ast.Mod):
@@ -361,20 +375,12 @@ class OperatorsMixin(TranslatorBase):
              return self._wrap_bool(node.operand, invert=True)
 
         operand = self._visit_with_parens(node, node.operand, is_right_operand=True)
-        op_map = {
-            ast.UAdd: "+", ast.USub: "-",
-            ast.Invert: "~"
-        }
-        op_str = op_map.get(type(node.op), "?")
+        op_str = _UNARY_OP_MAP.get(type(node.op), "?")
         return f"{op_str}{operand}"
 
     def visit_Compare(self, node: ast.Compare) -> str:
         comparators = [self.visit(node.left)] + [self.visit(c) for c in node.comparators]
-        ops_map = {
-            ast.Eq: "==", ast.NotEq: "!=", ast.Lt: "<", ast.LtE: "<=",
-            ast.Gt: ">", ast.GtE: ">=", ast.Is: "==", ast.IsNot: "!=",
-            ast.In: "in", ast.NotIn: "!in"
-        }
+        ops_map = _COMP_OP_MAP
 
         def is_none_node(n: ast.AST) -> bool:
             if isinstance(n, ast.Constant) and n.value is None: return True
