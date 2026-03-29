@@ -7,6 +7,21 @@ from typing import cast, Optional, Callable, List, Sequence, Dict, Any
 _FALLBACK_RE = re.compile(r"fallback=([^,\]\s]+)")
 _CLEAN_FALLBACK_RE = re.compile(r",\s*fallback=[^\]]+")
 
+_HOT_TYPES = {
+    'int': 'int',
+    'float': 'f64',
+    'str': 'string',
+    'bool': 'bool',
+    'None': 'none',
+    'Any': 'Any',
+    'object': 'Any',
+    'Self': 'Self',
+    'builtins.int': 'int',
+    'builtins.float': 'f64',
+    'builtins.str': 'string',
+    'builtins.bool': 'bool',
+}
+
 _BASIC_TYPE_MAP = {
     'int': 'int',
     'float': 'f64',
@@ -109,6 +124,12 @@ def map_python_type_to_v(py_type: str, self_name: str = 'Self', allow_union: boo
     if not py_type:
         return 'void'
 
+    # Fast-path for common base types
+    if py_type in _HOT_TYPES:
+        if py_type == 'Self':
+            return self_name or 'Self'
+        return _HOT_TYPES[py_type]
+
     # Handle leading * for TypeVarTuple in annotations
     if py_type.startswith('*') and not py_type.startswith('**'):
         py_type = py_type[1:]
@@ -131,20 +152,6 @@ def map_python_type_to_v(py_type: str, self_name: str = 'Self', allow_union: boo
                  return map_python_type_to_v(clean_fb, self_name, allow_union, generic_map, sum_type_registrar, literal_registrar, tuple_registrar)
         
         py_type = _CLEAN_FALLBACK_RE.sub("", py_type)
-
-    # Pre-process basic types to avoid overhead
-    if py_type == 'int': return 'int'
-    if py_type == 'float': return 'f64'
-    if py_type == 'str': return 'string'
-    if py_type == 'bool': return 'bool'
-    if py_type == 'None': return 'none'
-    if py_type == 'Any': return 'Any'
-    if py_type == 'object': return 'Any' # Map object to Any
-    if py_type == 'Self': return self_name or 'Self'
-    if py_type == 'builtins.int': return 'int'
-    if py_type == 'builtins.float': return 'f64'
-    if py_type == 'builtins.str': return 'string'
-    if py_type == 'builtins.bool': return 'bool'
 
     if generic_map and py_type in generic_map:
         return generic_map[py_type]
@@ -456,10 +463,15 @@ def _map_ast_type(node: ast.AST, self_name: str = "Self", allow_union: bool = Tr
     return "void"
 
 def _map_basic_type(name: str) -> str:
-    # Strip typing. prefix
-    if name.startswith('typing.'):
-        name = name[7:]
-    if name.startswith('typing_extensions.'):
-        name = name[18:]
+    if name in _BASIC_TYPE_MAP:
+        return _BASIC_TYPE_MAP[name]
 
-    return _BASIC_TYPE_MAP.get(name, name)
+    # Fast-path for common prefixes
+    if name.startswith('t'):
+        if name.startswith('typing.'):
+            name = name[7:]
+        elif name.startswith('typing_extensions.'):
+            name = name[18:]
+        return _BASIC_TYPE_MAP.get(name, name)
+
+    return name

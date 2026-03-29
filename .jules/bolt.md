@@ -9,3 +9,7 @@
 ## 2026-03-28 - [Optimization: Lifting static structures and helpers]
 **Learning:** Lifting local static sets/dictionaries (e.g., `_MUTATING_METHODS` in `visitor.py`/`inferers.py`, `_OP_MAP` in `calls_overloads.py`) and local helper functions (e.g., `_to_standard_str` in `literals.py`) to the module level in hot AST traversal paths yields significant performance improvements (4.5x - 10x speedup for lookups) by avoiding redundant object creation.
 **Action:** Scan visitor methods for local constant collections or helper functions and lift them to module scope.
+
+## 2026-03-29 - [Optimization: Fast-path for common lookups]
+**Learning:** Implementing a "fast-path" for the most common input cases (e.g., common types like `int`, `str`, `Any`) at the start of expensive resolution functions (like `map_python_type_to_v`) avoids regex and string parsing overhead for the majority of calls, yielding 1.3x-2.5x speedups in those hot paths.
+**Action:** Identify the most frequent inputs to hot functions and add a direct lookup or fast-path guard.
