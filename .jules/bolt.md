@@ -13,3 +13,7 @@
 ## 2026-03-29 - [Optimization: Fast-path for common lookups]
 **Learning:** Implementing a "fast-path" for the most common input cases (e.g., common types like `int`, `str`, `Any`) at the start of expensive resolution functions (like `map_python_type_to_v`) avoids regex and string parsing overhead for the majority of calls, yielding 1.3x-2.5x speedups in those hot paths.
 **Action:** Identify the most frequent inputs to hot functions and add a direct lookup or fast-path guard.
+
+## 2026-03-30 - [Optimization: Memoization for repetitive transformations]
+**Learning:** Repetitive string transformations (like CamelCase to snake_case) and name sanitization are major bottlenecks in transpilers. Applying `@functools.lru_cache` to core naming functions and replacing manual character loops with optimized C-backed string methods (like `lstrip`) yields dramatic performance gains (up to 21x for memoized regex and 5x for optimized string stripping).
+**Action:** Identify frequent transformations or lookups and apply memoization or more efficient built-in string methods.
