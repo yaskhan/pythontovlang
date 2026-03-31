@@ -1,9 +1,38 @@
 from typing import Optional, TYPE_CHECKING, Any, Set, Dict, List
 import re
+import functools
 
 # Pre-compiled regular expressions for snake_case conversion
 _SNAKE_CASE_RE1 = re.compile(r'([a-z0-9])([A-Z])')
 _SNAKE_CASE_RE2 = re.compile(r'([A-Z])([A-Z][a-z])')
+
+_V_RESERVED_TYPES = {
+    "int", "string", "bool", "f64", "f32", "i64", "byte", "rune", "void", "Any", "none", "i8", "i16", "i32", "u16", "u32", "u64"
+}
+
+@functools.lru_cache(maxsize=1024)
+def _to_snake_case_impl(name: str) -> str:
+    """Converts CamelCase or UPPER_CASE to snake_case. Preserves internal markers."""
+    if not name or name == "_":
+        return name
+
+    # Fast-path for already lowercase strings without underscores
+    if name.islower() and '_' not in name:
+        return name
+
+    # Preserve internal markers used for generics/mangling
+    if "__py2v_gen" in name:
+        return name
+
+    # Handle already separated names
+    if '_' in name:
+        parts = [_to_snake_case_impl(p) for p in name.split('_') if p]
+        return "_".join(parts) if parts else "_"
+
+    # Optimized CamelCase to snake_case conversion using regex
+    s1 = _SNAKE_CASE_RE1.sub(r'\1_\2', name)
+    s2 = _SNAKE_CASE_RE2.sub(r'\1_\2', s1)
+    return s2.lower()
 
 if TYPE_CHECKING:
     from py2v_transpiler.core.compatibility import CompatibilityLayer
@@ -25,26 +54,7 @@ class NamingMixin:
 
     def _to_snake_case(self, name: str) -> str:
         """Converts CamelCase or UPPER_CASE to snake_case. Preserves internal markers."""
-        if not name or name == "_":
-            return name
-
-        # Fast-path for already lowercase strings without underscores
-        if name.islower() and '_' not in name:
-            return name
-
-        # Preserve internal markers used for generics/mangling
-        if "__py2v_gen" in name:
-            return name
-
-        # Handle already separated names
-        if '_' in name:
-            parts = [self._to_snake_case(p) for p in name.split('_') if p]
-            return "_".join(parts) if parts else "_"
-
-        # Optimized CamelCase to snake_case conversion using regex
-        s1 = _SNAKE_CASE_RE1.sub(r'\1_\2', name)
-        s2 = _SNAKE_CASE_RE2.sub(r'\1_\2', s1)
-        return s2.lower()
+        return _to_snake_case_impl(name)
 
     def _get_factory_name(self, struct_name: str) -> str:
         """Returns a snake_case factory name for a given struct name."""
@@ -72,7 +82,7 @@ class NamingMixin:
             return name
 
         # Reserved types in V should be preserved as-is
-        if name in ("int", "string", "bool", "f64", "f32", "i64", "byte", "rune", "void", "Any", "none", "i8", "i16", "i32", "u16", "u32", "u64"):
+        if name in _V_RESERVED_TYPES:
             return name
 
         # Internal markers are preserved as-is
@@ -81,10 +91,12 @@ class NamingMixin:
 
         # V compliance: no leading underscores (except single '_')
         # Leading underscores are moved to the end to maintain uniqueness
-        prefix_count = 0
-        while name.startswith('_') and name != "_":
-            prefix_count += 1
-            name = name[1:]
+        if name != "_" and name.startswith('_'):
+            stripped = name.lstrip('_')
+            prefix_count = len(name) - len(stripped)
+            name = stripped
+        else:
+            prefix_count = 0
         
         if not name:
             return "_" * prefix_count
@@ -92,7 +104,7 @@ class NamingMixin:
         if is_type:
             # PascalCase for types
             # Normalize to snake_case then to PascalCase to handle all-caps
-            snaked = self._to_snake_case(name)
+            snaked = _to_snake_case_impl(name)
             parts = [p[0].upper() + p[1:].lower() if p else "" for p in snaked.split('_') if p]
             res = "".join(parts) if parts else (name[0].upper() + name[1:])
             # V structs cannot have underscores.
@@ -105,7 +117,7 @@ class NamingMixin:
             return res
 
         # Others: snake_case
-        sanitized = self._to_snake_case(name)
+        sanitized = _to_snake_case_impl(name)
         sanitized += "_" * prefix_count
 
         compatibility = getattr(self, 'compatibility', None)
