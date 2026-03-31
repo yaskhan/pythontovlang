@@ -12,6 +12,10 @@ class DependencyAnalyzer(ast.NodeVisitor):
         """Pre-indexes files and directories to speed up resolution."""
         self._file_index = set()
         self._dir_index = set()
+
+        norm_skip_dirs = [os.path.normpath(skip) for skip in skip_dirs] if skip_dirs else []
+        skip_dirs_set = {s.replace('\\', '/') for s in skip_dirs} if skip_dirs else set()
+
         for root, dirs, files in os.walk(root_path):
             rel_root = os.path.relpath(root, root_path)
             if rel_root == ".":
@@ -19,10 +23,12 @@ class DependencyAnalyzer(ast.NodeVisitor):
             
             # Skip ignored directories
             if skip_dirs:
-                if any(os.path.normpath(rel_root).startswith(os.path.normpath(skip)) for skip in skip_dirs):
+                norm_rel_root = os.path.normpath(rel_root)
+                if any(norm_rel_root.startswith(skip) for skip in norm_skip_dirs):
+                    dirs[:] = []
                     continue
                 # Also filter 'dirs' to prevent walking into them
-                dirs[:] = [d for d in dirs if os.path.join(rel_root, d).replace('\\', '/') not in [s.replace('\\', '/') for s in skip_dirs]]
+                dirs[:] = [d for d in dirs if os.path.join(rel_root, d).replace('\\', '/') not in skip_dirs_set]
 
             for d in dirs:
                 self._dir_index.add(os.path.join(rel_root, d).replace('\\', '/'))
