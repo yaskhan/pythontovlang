@@ -235,9 +235,9 @@ pub fn (mut sa SemanticAnalyzer) visit_mypy_file(mut file_node MypyFile) !AnyNod
 pub fn (mut sa SemanticAnalyzer) visit_func_def(mut defn FuncDef) !AnyNode {
 	sa.statement = Statement(defn)
 
-	for arg in defn.arguments {
-		if arg.initializer != none {
-			// TODO: accept arg.initializer
+	for mut arg in defn.arguments {
+		if mut initializer := arg.initializer {
+			initializer.accept(mut sa)!
 		}
 	}
 
@@ -563,7 +563,23 @@ pub fn (mut sa SemanticAnalyzer) visit_name_expr(mut expr NameExpr) !AnyNode {
 // visit_member_expr handles member access
 pub fn (mut sa SemanticAnalyzer) visit_member_expr(mut expr MemberExpr) !AnyNode {
 	expr.expr.accept(mut sa)!
-	// TODO: handle member access
+
+	if mut ref_expr := expr.expr.as_ref_expr() {
+		base_fullname := match ref_expr {
+			NameExpr { if ref_expr.fullname != '' { ref_expr.fullname } else { ref_expr.name } }
+			MemberExpr { ref_expr.fullname }
+		}
+
+		if base_fullname != '' {
+			expr.fullname = base_fullname + '.' + expr.name
+			if sym := sa.lookup_qualified(expr.fullname, expr.base, true) {
+				expr.kind = sym.kind
+				if node := sym.node {
+					expr.node = node.as_mypy_node()
+				}
+			}
+		}
+	}
 	return ''
 }
 
@@ -591,25 +607,25 @@ pub fn (mut sa SemanticAnalyzer) visit_str_expr(mut expr StrExpr) !AnyNode {
 
 // visit_var handles variable
 pub fn (mut sa SemanticAnalyzer) visit_var(mut o Var) !AnyNode {
-	// TODO: visit_var
+	o.fullname = sa.qualified_name(o.name)
 	return ''
 }
 
 // visit_type_alias handles type alias
 pub fn (mut sa SemanticAnalyzer) visit_type_alias(mut o TypeAlias) !AnyNode {
-	// TODO: visit_type_alias
+	o.fullname = sa.qualified_name(o.name)
 	return ''
 }
 
 // visit_placeholder_node handles placeholder node
 pub fn (mut sa SemanticAnalyzer) visit_placeholder_node(mut o PlaceholderNode) !AnyNode {
-	// TODO: visit_placeholder_node
+	// Do nothing for now
 	return ''
 }
 
 // visit_type_info handles type info
 pub fn (mut sa SemanticAnalyzer) visit_type_info(mut o TypeInfo) !AnyNode {
-	// TODO: visit_type_info
+	// Do nothing for now
 	return ''
 }
 
@@ -958,7 +974,7 @@ fn (mut sa SemanticAnalyzer) bind_name_expr(mut expr NameExpr, sym SymbolTableNo
 // analyze_lvalue analyzes lvalue
 pub fn (mut sa SemanticAnalyzer) analyze_lvalue(mut lval Lvalue, nested bool, explicit_type bool) !AnyNode {
 	if mut lval is NameExpr {
-		// TODO: analyze lvalue
+		sa.visit_name_expr(mut lval)!
 	} else if mut lval is MemberExpr {
 		lval.accept(mut sa)!
 	} else if mut lval is TupleExpr {
@@ -1078,7 +1094,7 @@ fn (sa SemanticAnalyzer) is_core_builtin_class(defn ClassDef) bool {
 
 // recurse_into_functions checks if we should recursively traverse functions
 fn (sa SemanticAnalyzer) recurse_into_functions() bool {
-	return true // TODO: proper implementation
+	return !sa.is_stub_file
 }
 
 // enter_class enters a class
