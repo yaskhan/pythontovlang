@@ -6,6 +6,10 @@ from typing import cast, Optional, Callable, List, Sequence, Dict, Any
 # Pre-compiled regular expressions for performance
 _FALLBACK_RE = re.compile(r"fallback=([^,\]\s]+)")
 _CLEAN_FALLBACK_RE = re.compile(r",\s*fallback=[^\]]+")
+_IDENTIFIER_RE = re.compile(r'^[a-zA-Z_][a-zA-Z0-9._]*$')
+
+# Cache for AST nodes of type strings
+_TYPE_AST_CACHE: Dict[str, ast.AST] = {}
 
 _HOT_TYPES = {
     'int': 'int',
@@ -124,15 +128,15 @@ def map_python_type_to_v(py_type: str, self_name: str = 'Self', allow_union: boo
     if not py_type:
         return 'void'
 
+    # Handle leading * for TypeVarTuple in annotations
+    if py_type.startswith('*') and not py_type.startswith('**'):
+        py_type = py_type[1:]
+
     # Fast-path for common base types
     if py_type in _HOT_TYPES:
         if py_type == 'Self':
             return self_name or 'Self'
         return _HOT_TYPES[py_type]
-
-    # Handle leading * for TypeVarTuple in annotations
-    if py_type.startswith('*') and not py_type.startswith('**'):
-        py_type = py_type[1:]
 
     # Strip surrounding quotes for forward references and handle deferred evaluation
     while py_type and ((py_type.startswith("'") and py_type.endswith("'")) or \
@@ -156,16 +160,31 @@ def map_python_type_to_v(py_type: str, self_name: str = 'Self', allow_union: boo
     if generic_map and py_type in generic_map:
         return generic_map[py_type]
 
-    try:
-        if "[" in py_type:
-            tree = ast.parse(py_type)
-            if tree.body and isinstance(tree.body[0], ast.Expr):
-                return _map_ast_type(tree.body[0].value, self_name or "Self", allow_union, generic_map, sum_type_registrar, literal_registrar, tuple_registrar)
+    # Fast-path for simple identifiers and qualified names (avoiding ast.parse)
+    if '[' not in py_type and '|' not in py_type and ',' not in py_type and _IDENTIFIER_RE.match(py_type):
+        # ParamSpec attributes like P.args/P.kwargs need context from generic_map,
+        # which is handled in _map_ast_type.
+        if '.args' not in py_type and '.kwargs' not in py_type:
+             return _map_basic_type(py_type)
 
-        # Use AST to parse complex types (for non-bracketed types or if the above didn't return)
-        node = ast.parse(py_type, mode='eval').body
+    try:
+        # Cache AST parsing for complex types
+        # Use a composite key for cache to account for self_name and generic_map if needed?
+        # Actually _map_ast_type handles those, so we only need to cache the AST.
+        if py_type not in _TYPE_AST_CACHE:
+            if "[" in py_type:
+                tree = ast.parse(py_type)
+                if tree.body and isinstance(tree.body[0], ast.Expr):
+                    _TYPE_AST_CACHE[py_type] = tree.body[0].value
+                else:
+                    # Fallback for unexpected AST structure
+                    _TYPE_AST_CACHE[py_type] = ast.parse(py_type, mode='eval').body
+            else:
+                _TYPE_AST_CACHE[py_type] = ast.parse(py_type, mode='eval').body
+
+        node = _TYPE_AST_CACHE[py_type]
         return _map_ast_type(node, self_name or "Self", allow_union, generic_map, sum_type_registrar, literal_registrar, tuple_registrar)
-    except SyntaxError:
+    except Exception:
         # If parsing fails, it might be a simple type name or an unparseable complex type.
         # Try to clean it up before returning as is.
         clean_py_type = py_type.replace("builtins.", "").replace("typing.", "").replace("typing_extensions.", "")

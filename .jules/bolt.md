@@ -17,3 +17,7 @@
 ## 2026-03-30 - [Optimization: Memoization for repetitive transformations]
 **Learning:** Repetitive string transformations (like CamelCase to snake_case) and name sanitization are major bottlenecks in transpilers. Applying `@functools.lru_cache` to core naming functions and replacing manual character loops with optimized C-backed string methods (like `lstrip`) yields dramatic performance gains (up to 21x for memoized regex and 5x for optimized string stripping).
 **Action:** Identify frequent transformations or lookups and apply memoization or more efficient built-in string methods.
+
+## 2026-03-31 - [Optimization: AST Caching for Type Parsing]
+**Learning:** `ast.parse` is an expensive operation that becomes a bottleneck when resolving hundreds of type annotations. Caching the parsed AST nodes in a module-level dictionary (`_TYPE_AST_CACHE`) and using a regex fast-path (`_IDENTIFIER_RE`) for simple types yields dramatic speedups (~6.4x) in core type resolution paths.
+**Action:** Use a combination of regex fast-paths for simple strings and dictionary-based AST caches for complex expressions that require parsing.
