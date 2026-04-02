@@ -8,20 +8,34 @@ class TypeInferenceUtilsMixin(TypeInferenceBase):
     def _find_lcs(self, types: list[str]) -> str:
         if not types:
             return "Any"
-        if len(set(types)) == 1:
-            return types[0]
+
+        # Optimization: De-duplicate input types.
+        # Many lists contain multiple instances of the same class.
+        unique_types = list(set(types))
+        if len(unique_types) == 1:
+            return unique_types[0]
         
-        # Build all ancestor paths for each type
-        def get_ancestors(t):
+        # Optimization: Local memoization for ancestor resolution within the same LCS lookup.
+        ancestor_cache: dict[str, list[str]] = {}
+
+        def get_ancestors(t: str) -> list[str]:
+            if t in ancestor_cache:
+                return ancestor_cache[t]
+
+            # Use dict.fromkeys for ordered de-duplication to preserve hierarchy order.
             ancestors = [t]
             if t in self.class_hierarchy:
                 for base in self.class_hierarchy[t]:
                     ancestors.extend(get_ancestors(base))
-            return ancestors
 
-        ancestor_lists = [get_ancestors(t) for t in types]
+            res = list(dict.fromkeys(ancestors))
+            ancestor_cache[t] = res
+            return res
+
+        # Process only unique types
+        ancestor_lists = [get_ancestors(t) for t in unique_types]
         
-        # Find common ancestors
+        # Find common ancestors using set intersection
         common = set(ancestor_lists[0])
         for other in ancestor_lists[1:]:
             common &= set(other)
@@ -29,17 +43,24 @@ class TypeInferenceUtilsMixin(TypeInferenceBase):
         if not common:
             return "Any"
             
-        # Return the one that is closest to the original types (least general)
-        # We can pick the one that has the shortest average distance, 
-        # but since it's a hierarchy, usually we want the one that is not an ancestor of another common ancestor.
+        # Optimization: Local memoization for depth resolution.
+        # Depth is defined as the maximum distance to a root (class with no bases).
+        depth_cache: dict[str, int] = {}
+        
+        def get_depth(t: str) -> int:
+            if t in depth_cache:
+                return depth_cache[t]
+
+            if t not in self.class_hierarchy or not self.class_hierarchy[t]:
+                res = 0
+            else:
+                res = 1 + max(get_depth(base) for base in self.class_hierarchy[t])
+
+            depth_cache[t] = res
+            return res
+
         lcs = "Any"
         max_depth = -1
-        
-        def get_depth(t, current_depth=0):
-            if t not in self.class_hierarchy or not self.class_hierarchy[t]:
-                return current_depth
-            return max(get_depth(base, current_depth + 1) for base in self.class_hierarchy[t])
-
         for candidate in common:
             d = get_depth(candidate)
             if d > max_depth:

@@ -21,3 +21,7 @@
 ## 2026-03-31 - [Optimization: AST Caching for Type Parsing]
 **Learning:** `ast.parse` is an expensive operation that becomes a bottleneck when resolving hundreds of type annotations. Caching the parsed AST nodes in a module-level dictionary (`_TYPE_AST_CACHE`) and using a regex fast-path (`_IDENTIFIER_RE`) for simple types yields dramatic speedups (~6.4x) in core type resolution paths.
 **Action:** Use a combination of regex fast-paths for simple strings and dictionary-based AST caches for complex expressions that require parsing.
+
+## 2026-04-01 - [Optimization: Context-independent memoization]
+**Learning:** When memoizing recursive functions like `get_depth` in a hierarchy, avoid using accumulating parameters (e.g., `current_depth`) as part of the result if it's not part of the cache key. An optimization that incorrectly caches a context-dependent result will lead to logical regressions.
+**Action:** Refactor recursive functions to return absolute values (e.g., height from root) that are independent of the call stack before applying memoization.
