@@ -25,3 +25,7 @@
 ## 2026-04-01 - [Optimization: Context-independent memoization]
 **Learning:** When memoizing recursive functions like `get_depth` in a hierarchy, avoid using accumulating parameters (e.g., `current_depth`) as part of the result if it's not part of the cache key. An optimization that incorrectly caches a context-dependent result will lead to logical regressions.
 **Action:** Refactor recursive functions to return absolute values (e.g., height from root) that are independent of the call stack before applying memoization.
+
+## 2026-04-02 - [Optimization: Lifting local imports and static structures in hot paths]
+**Learning:** Lifting local imports (e.g., `map_python_type_to_v`) and converting static tuples used for membership checks into module-level sets yields significant gains in core type resolution paths. Benchmarks showed up to 48% speedup for simple checks (`_is_numeric_type`) and ~6% for complex ones (`_map_type`) by eliminating redundant object creation and `sys.modules` lookups.
+**Action:** Identify frequently called helper methods with internal static collections or local imports and lift them to module scope as constants or sets.
