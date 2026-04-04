@@ -29,3 +29,7 @@
 ## 2026-04-02 - [Optimization: Lifting local imports and static structures in hot paths]
 **Learning:** Lifting local imports (e.g., `map_python_type_to_v`) and converting static tuples used for membership checks into module-level sets yields significant gains in core type resolution paths. Benchmarks showed up to 48% speedup for simple checks (`_is_numeric_type`) and ~6% for complex ones (`_map_type`) by eliminating redundant object creation and `sys.modules` lookups.
 **Action:** Identify frequently called helper methods with internal static collections or local imports and lift them to module scope as constants or sets.
+
+## 2026-04-03 - [Optimization: Dictionary lookups for hot branching logic]
+**Learning:** Replacing long sequential `if/elif` string comparisons with module-level dictionary lookups in hot paths (like `_guess_type_call`) yields measurable speedups (~24%) by moving from $O(n)$ to $O(1)$ lookup time. Additionally, lifting local dictionary creation out of visitor methods (e.g., `visit_BoolOp`) avoids redundant allocations.
+**Action:** Identify long identifier-based `if/elif` chains or local dictionaries in hot AST traversal methods and refactor them into module-level constant lookups.

@@ -6,6 +6,29 @@ from typing import TYPE_CHECKING, Any, Set, Dict, List, Union
 if TYPE_CHECKING:
     from .base import TranslatorBase
 
+# Optimization: Lifted common function name to type mappings to a module-level constant
+# to avoid long if/elif chains in _guess_type_call.
+_SIMPLE_CALL_TYPE_MAP = {
+    "int": "int",
+    "float": "f64",
+    "bool": "bool",
+    "len": "int",
+    "print": "None",
+    "input": "string",
+    "open": "os.File",
+    "bytearray": "[]u8",
+    "memoryview": "[]u8",
+    "bytes": "[]u8",
+    "isinstance": "bool",
+    "hasattr": "bool",
+    "getattr": "bool",
+    "setattr": "bool",
+    "Counter": "map[string]int",
+    "py_range": "[]int",
+    "py_zip": "[]PyZipItem",
+    "py_enumerate": "[]PyEnumerateItem",
+}
+
 
 class TypeGuessingMixin:
     """Mixin for guessing types from AST nodes."""
@@ -96,36 +119,21 @@ class TypeGuessingMixin:
             fid = node.func.id
             if fid in self.defined_classes:
                 return fid
+
+            # Fast-path for simple builtin/helper functions
+            if fid in _SIMPLE_CALL_TYPE_MAP:
+                return _SIMPLE_CALL_TYPE_MAP[fid]
+
             if fid == "str":
                 if node.args and self._is_literal_string_expr(node.args[0]):
                     return "LiteralString"
                 return "string"
-            if fid == "int":
-                return "int"
-            if fid == "float":
-                return "f64"
-            if fid == "bool":
-                return "bool"
-            if fid == "len":
-                return "int"
-            if fid == "print":
-                return "None"
-            if fid == "input":
-                return "string"
-            if fid == "open":
-                return "os.File"
-            if fid in ("bytearray", "memoryview", "bytes"):
-                return "[]u8"
-            if fid in ("isinstance", "hasattr", "getattr", "setattr"):
-                return "bool"
             if fid in ("set", "frozenset"):
                 if node.args:
                     arg_type = self._guess_type(node.args[0])
                     if arg_type.startswith("[]"):
                         return f"datatypes.Set[{arg_type[2:]}]"
                 return "datatypes.Set[string]"
-            if fid == "Counter":
-                return "map[string]int"
             if fid == "defaultdict":
                 if node.args:
                     factory = ""
@@ -139,16 +147,10 @@ class TypeGuessingMixin:
                         return "map[string]map[int]bool" # Best guess
                 return "map[string]Any"
             
-            if fid == "py_range":
-                return "[]int"
             if fid in ("py_sorted", "py_reversed"):
                 if node.args:
                     return self._guess_type(node.args[0])
                 return "[]Any"
-            if fid == "py_zip":
-                return "[]PyZipItem"
-            if fid == "py_enumerate":
-                return "[]PyEnumerateItem"
             if fid == "py_divmod":
                 if node.args:
                     return f"[]{self._guess_type(node.args[0])}"
