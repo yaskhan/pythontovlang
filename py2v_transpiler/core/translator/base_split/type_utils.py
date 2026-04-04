@@ -134,8 +134,6 @@ class TypeUtilsMixin:
             elif inner_type == "Any":
                 self.used_builtins.add("py_bool")
                 inner_cond = f"!py_bool({expr})" if invert else f"py_bool({expr})"
-                self.used_builtins.add("py_bool")
-                inner_cond = f"!py_bool({expr})" if invert else f"py_bool({expr})"
             else:
                 inner_cond = ""
 
