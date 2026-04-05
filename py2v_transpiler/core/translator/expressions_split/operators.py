@@ -26,6 +26,9 @@ _COMP_OP_MAP = {
     ast.In: "in", ast.NotIn: "!in"
 }
 
+# Optimization: Lifted local op_map to module-level constant to avoid redundant dictionary creation in visit_BoolOp.
+_BOOL_OP_STR_MAP = {ast.And: "&&", ast.Or: "||"}
+
 class OperatorsMixin(TranslatorBase):
     def _should_use_is_none_type(self, typ: str, node: ast.AST) -> bool:
         if typ.startswith("?"): return False
@@ -318,8 +321,7 @@ class OperatorsMixin(TranslatorBase):
         # so relying only on operand types is safer.
 
         if all_bools:
-            op_map = {ast.And: "&&", ast.Or: "||"}
-            op_str = op_map.get(type(node.op), "and")
+            op_str = _BOOL_OP_STR_MAP.get(type(node.op), "and")
             values = []
             for i, val in enumerate(node.values):
                 values.append(self._wrap_bool(val, parent=node, is_right_operand=(i > 0)))
