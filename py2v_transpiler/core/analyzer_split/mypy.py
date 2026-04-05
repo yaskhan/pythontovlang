@@ -4,7 +4,7 @@ import sys
 import subprocess
 import json
 import tempfile
-from typing import Tuple
+from typing import Tuple, Any
 from py2v_transpiler.models.v_types import map_python_type_to_v
 from py2v_transpiler.core.compatibility import CompatibilityLayer
 from .base import TypeInferenceBase
@@ -102,6 +102,7 @@ class TypeInferenceMypyMixin(TypeInferenceBase):
                         v_type = map_python_type_to_v(typ)
                         name = fullname.split('.')[-1]
                         # Extract tuple location if possible
+                        loc_tuple: Any
                         try:
                             l_parts = location.split(':')
                             loc_tuple = (int(l_parts[0]), int(l_parts[1]))

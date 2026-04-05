@@ -36,7 +36,7 @@ class OperatorsMixin(TranslatorBase):
         if typ.startswith("map[") and typ.endswith("]Any"): return True
         if typ == "Any":
             # Check if it was explicitly annotated as Any
-            explicit_any = getattr(self.type_inference, "explicit_any_types", set())
+            explicit_any: set[Any] = getattr(self.type_inference, "explicit_any_types", set())
             if isinstance(node, ast.Name) and node.id in explicit_any:
                 return True
             # Check if it has a location-based explicit Any
