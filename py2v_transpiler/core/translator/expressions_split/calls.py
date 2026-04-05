@@ -200,9 +200,18 @@ class CallsMixin(
         if loc_key in sigs:
             return sigs[loc_key]
 
+        # Backward compatibility for mocks
+        loc_str = f"{loc_key[0]}:{loc_key[1]}"
+        if loc_str in sigs:
+            return sigs[loc_str]
+
         pk_composite = (func_name_str, loc_key)
         if pk_composite in sigs:
             return sigs[pk_composite]
+
+        pk_composite_str = f"{func_name_str}@{loc_str}"
+        if pk_composite_str in sigs:
+            return sigs[pk_composite_str]
 
         # Try qualified name based on current scope
         if hasattr(self, "_scope_names") and self._scope_names:

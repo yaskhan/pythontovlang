@@ -46,6 +46,12 @@ class OperatorsMixin(TranslatorBase):
                     return True
                 if isinstance(node, ast.Name) and (node.id, loc_tuple) in explicit_any:
                     return True
+                # Backward compatibility for mocks
+                loc_str = f"{node.lineno}:{node.col_offset}"
+                if loc_str in explicit_any:
+                    return True
+                if isinstance(node, ast.Name) and f"{node.id}@{loc_str}" in explicit_any:
+                    return True
         return False
 
     def visit_BinOp(self, node: ast.BinOp) -> str:
@@ -56,10 +62,18 @@ class OperatorsMixin(TranslatorBase):
         # Use inferred mypy static types to cast if needed.
         op_type = "void"
         loc_tuple = (getattr(node, 'lineno', 0), getattr(node, 'col_offset', 0))
-        if hasattr(self.type_inference, 'location_map') and loc_tuple in self.type_inference.location_map:
-            v_type = self.type_inference.location_map[loc_tuple]
-            if v_type != "void":
-                 op_type = v_type
+        if hasattr(self.type_inference, 'location_map'):
+            if loc_tuple in self.type_inference.location_map:
+                v_type = self.type_inference.location_map[loc_tuple]
+                if v_type != "void":
+                     op_type = v_type
+            else:
+                # Backward compatibility for mocks
+                loc_str = f"{loc_tuple[0]}:{loc_tuple[1]}"
+                if loc_str in self.type_inference.location_map:
+                    v_type = self.type_inference.location_map[loc_str]
+                    if v_type != "void":
+                         op_type = v_type
 
         # Support for array initialization: [element] * length
         if isinstance(node.op, ast.Mult):

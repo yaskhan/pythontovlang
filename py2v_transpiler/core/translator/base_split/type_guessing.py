@@ -48,6 +48,12 @@ class TypeGuessingMixin:
                 res = self.type_inference.location_map[loc_key]
                 if res != "none":
                     return res
+            # Backward compatibility for mocks
+            loc_str = f"{node.lineno}:{node.col_offset}"
+            if loc_str in self.type_inference.location_map:
+                res = self.type_inference.location_map[loc_str]
+                if res != "none":
+                    return res
 
 
         if isinstance(node, ast.Constant):
@@ -294,6 +300,10 @@ class TypeGuessingMixin:
             loc_key = (node.id, loc_tuple)
             if hasattr(self.type_inference, "type_map") and loc_key in self.type_inference.type_map:
                 return self.type_inference.type_map[loc_key]
+            # Backward compatibility for mocks
+            loc_key_str = f"{node.id}@{node.lineno}:{node.col_offset}"
+            if hasattr(self.type_inference, "type_map") and loc_key_str in self.type_inference.type_map:
+                return self.type_inference.type_map[loc_key_str]
 
         # Check type_map by name (registered during assignment translation, e.g. x = False -> bool)
         if hasattr(self.type_inference, "type_map") and node.id in self.type_inference.type_map:

@@ -101,11 +101,6 @@ class TypeInferenceMypyMixin(TypeInferenceBase):
                     for location, typ in types.items():
                         v_type = map_python_type_to_v(typ)
                         name = fullname.split('.')[-1]
-                        if typ == "typing.Any":
-                            self.explicit_any_types.add(fullname)
-                            self.explicit_any_types.add(name)
-                            self.explicit_any_types.add((fullname, loc_tuple))
-                            self.explicit_any_types.add((name, loc_tuple))
                         # Extract tuple location if possible
                         try:
                             l_parts = location.split(':')
@@ -113,11 +108,22 @@ class TypeInferenceMypyMixin(TypeInferenceBase):
                         except (ValueError, IndexError):
                             loc_tuple = location
 
+                        if typ == "typing.Any":
+                            self.explicit_any_types.add(fullname)
+                            self.explicit_any_types.add(name)
+                            self.explicit_any_types.add((fullname, loc_tuple))
+                            self.explicit_any_types.add((name, loc_tuple))
+                            self.explicit_any_types.add(f"{fullname}@{location}")
+                            self.explicit_any_types.add(f"{name}@{location}")
+
                         # Store by fullname@location and name@location for precise lookup
                         # Optimization: Use (name, loc_tuple) composite key for faster lookups
                         # while maintaining compatibility with string-based fullname lookups.
                         self.type_map[(fullname, loc_tuple)] = v_type
                         self.type_map[(name, loc_tuple)] = v_type
+                        # Maintain string key for backward compatibility and mocks
+                        self.type_map[f"{fullname}@{location}"] = v_type
+                        self.type_map[f"{name}@{location}"] = v_type
 
                         # Store base type if location-less entry is missing
                         if fullname not in self.type_map:
@@ -128,6 +134,8 @@ class TypeInferenceMypyMixin(TypeInferenceBase):
                         # Also store raw types
                         self.raw_type_map[(fullname, loc_tuple)] = typ
                         self.raw_type_map[(name, loc_tuple)] = typ
+                        self.raw_type_map[f"{fullname}@{location}"] = typ
+                        self.raw_type_map[f"{name}@{location}"] = typ
                         if fullname not in self.raw_type_map:
                             self.raw_type_map[fullname] = typ
                         if name not in self.raw_type_map:
@@ -140,6 +148,7 @@ class TypeInferenceMypyMixin(TypeInferenceBase):
                             or loc_tuple not in self.location_map
                         ):
                             self.location_map[loc_tuple] = v_type
+                            self.location_map[location] = v_type
 
             if collected_sigs:
                 for fullname, sigs in collected_sigs.items():
@@ -155,6 +164,9 @@ class TypeInferenceMypyMixin(TypeInferenceBase):
                             # the function name itself is usually enough, but we store full location too
                             self.call_signatures[(fullname, loc_tuple)] = sig_data
                             self.call_signatures[loc_tuple] = sig_data
+                            # Maintain string key for backward compatibility
+                            self.call_signatures[f"{fullname}@{location}"] = sig_data
+                            self.call_signatures[location] = sig_data
                         except Exception:
                             pass
 
@@ -171,6 +183,9 @@ class TypeInferenceMypyMixin(TypeInferenceBase):
                         self.mutability_map[(fullname, loc_tuple)] = mut_data
                         name = fullname.split('.')[-1]
                         self.mutability_map[(name, loc_tuple)] = mut_data
+                        # Maintain string key for backward compatibility
+                        self.mutability_map[f"{fullname}@{location}"] = mut_data
+                        self.mutability_map[f"{name}@{location}"] = mut_data
 
             if os.path.exists("types_for_vlang.json"):
                 try:
