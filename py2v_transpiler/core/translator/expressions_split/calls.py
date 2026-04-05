@@ -36,8 +36,18 @@ class CallsMixin(
         """Main method for handling function calls."""
 
         # === Stage 1: Extract function info ===
-        func_name_str_lookup, fullname_lookup = self._extract_func_info(node)
-        loc_key = f"{getattr(node, 'lineno', 0)}:{getattr(node, 'col_offset', 0)}"
+        # Optimization: Inlined common cases for faster function name extraction.
+        # Removed redundant _ret inner function to reduce per-call overhead.
+        func_node = node.func
+        if isinstance(func_node, ast.Name):
+            func_name_str_lookup = func_node.id
+        elif isinstance(func_node, ast.Attribute):
+            func_name_str_lookup = func_node.attr
+        else:
+            func_name_str_lookup, _ = self._extract_func_info(node)
+
+        # Optimization: Use a tuple (line, col) as loc_key to avoid string formatting overhead.
+        loc_key = (getattr(node, 'lineno', 0), getattr(node, 'col_offset', 0))
 
         # Get call signature from type inference
         call_sig = self._get_call_signature(func_name_str_lookup, loc_key)
@@ -51,37 +61,34 @@ class CallsMixin(
         if needs_llm_comment:
             self._pending_llm_call_comments.append("//##LLM@@ unresolved **kwargs unpacking")
 
-        def _ret(val: str) -> str:
-            return val
-
         # === Stage 4: Resolve module and function name ===
         module_name, func_name = self._resolve_module_and_func(node, func_name_str_lookup)
 
         # === Stage 5: Handle special cases by module/function ===
         if func_name_str_lookup in ("get_type_hints", "get_annotations"):
-             return _ret(self._handle_get_type_hints(node, args))
+             return self._handle_get_type_hints(node, args)
 
         result = self._handle_special_cases(
             node, module_name, func_name, func_name_str_lookup, args, call_sig
         )
         if result:
-            return _ret(result)
+            return result
 
         # === Stage 6: Handle via mapper ===
         if module_name and func_name:
             result = self._handle_via_mapper(node, module_name, func_name, args)
             if result:
-                return _ret(result)
+                return result
 
         # === Stage 7: Handle overloads ===
         result = self._handle_overloads(node, call_sig, args)
         if result:
-            return _ret(result)
+            return result
 
         # === Stage 8: Handle SCC calls ===
         result = self._handle_scc_call(node, node.func, func_name_str_lookup, args)
         if result:
-            return _ret(result)
+            return result
 
         # === Stage 9: Handle typing.assert_type and assert_never ===
         original_id = node.func.id if isinstance(node.func, ast.Name) else None
@@ -89,46 +96,46 @@ class CallsMixin(
             node, func_name_str_lookup, original_id, args
         )
         if result:
-            return _ret(result)
+            return result
 
         # === Stage 10: Handle built-in type cast functions ===
         result = self._handle_builtin_type_cast(node, str(func_name_str_lookup), original_id, args)
         if result:
-            return _ret(result)
+            return result
 
         # === Stage 11: Handle object methods ===
         result = self._handle_object_method_call(node, node.func, func_name_str_lookup, args)
         if result:
-            return _ret(result)
+            return result
 
         # === Stage 12: Handle classes and dataclass ===
         result = self._handle_dataclass_call(node, func_name_str_lookup, args, call_sig)
         if result:
-            return _ret(result)
+            return result
 
         result = self._handle_class_call(node, node.func, func_name_str_lookup, args, call_sig)
         if result:
-            return _ret(result)
+            return result
 
         # === Stage 13: Handle iterators and generators ===
         result = self._handle_iterator_functions(node, func_name_str_lookup, args)
         if result:
-            return _ret(result)
+            return result
 
         result = self._handle_generator_call(node, func_name_str_lookup, args)
         if result:
-            return _ret(result)
+            return result
 
         # === Stage 14: Handle print/input ===
         if func_name_str_lookup == "print":
             result = self._handle_print_call(node, args)
             if result:
-                return _ret(result)
+                return result
 
         if func_name_str_lookup == "input":
             result = self._handle_input_call(node, args)
             if result:
-                return _ret(result)
+                return result
 
         # === Stage 15: Handle unittest.main() ===
         if module_name == "unittest" and func_name == "main":
@@ -143,16 +150,16 @@ class CallsMixin(
                   v_func_name = f"{v_imports[0]}.{func_name}"
                   if v_func_name == "rand.sample":
                        self.used_builtins.add("py_random_sample")
-                       return _ret(f"py_random_sample({ ', '.join(args) })")
+                       return f"py_random_sample({ ', '.join(args) })"
                   if v_func_name == "os.path.split":
                        self.used_builtins.add("py_os_path_split")
-                       return _ret(f"py_os_path_split({ ', '.join(args) })")
+                       return f"py_os_path_split({ ', '.join(args) })"
                   if v_func_name == "os.path.splitext":
                        self.used_builtins.add("py_os_path_splitext")
-                       return _ret(f"py_os_path_splitext({ ', '.join(args) })")
-                  return _ret(f"{v_func_name}({ ', '.join(args) })")
+                       return f"py_os_path_splitext({ ', '.join(args) })"
+                  return f"{v_func_name}({ ', '.join(args) })"
 
-        return _ret(self._handle_fallback_call(node, func_name_str_lookup, args, call_sig))
+        return self._handle_fallback_call(node, func_name_str_lookup, args, call_sig)
 
     def _extract_func_info(self, node: ast.Call) -> tuple:
         """Extract function info for lookup."""
@@ -181,50 +188,49 @@ class CallsMixin(
         
         return func_name_str_lookup, fullname_lookup
 
-    def _get_call_signature(self, func_name_str: str, loc_key: str) -> dict | None:
+    def _get_call_signature(self, func_name_str: str, loc_key: tuple) -> dict | None:
         """Get call signature from type inference."""
-        call_sig = None
+        # Optimization: Optimized lookup order and replaced string keys with tuple/composite keys.
+        if not hasattr(self.type_inference, "call_signatures"):
+            return None
 
-        if hasattr(self.type_inference, "call_signatures"):
-            # Try specific location-based keys first
-            potential_keys = [loc_key, f"{func_name_str}@{loc_key}"]
+        sigs = self.type_inference.call_signatures
 
-            for pk in potential_keys:
-                if pk in self.type_inference.call_signatures:
-                    call_sig = self.type_inference.call_signatures[pk]
-                    break
+        # Try specific location-based keys first
+        if loc_key in sigs:
+            return sigs[loc_key]
 
-            if not call_sig:
-                # Try qualified name based on current scope
-                if hasattr(self, "_scope_names") and self._scope_names:
-                    # Try from inner scope to outer
-                    for i in range(len(self._scope_names), -1, -1):
-                         prefix = ".".join(self._scope_names[:i])
-                         qualified_name = f"{prefix}.{func_name_str}" if prefix else func_name_str
-                         if qualified_name in self.type_inference.call_signatures:
-                              call_sig = self.type_inference.call_signatures[qualified_name]
-                              break
+        pk_composite = (func_name_str, loc_key)
+        if pk_composite in sigs:
+            return sigs[pk_composite]
 
-            if not call_sig:
-                # Fallback to suffix match
-                for k, v in self.type_inference.call_signatures.items():
-                    if k == func_name_str or k.endswith("." + func_name_str):
-                         call_sig = v
-                         # Don't break, keep looking for potentially better matches?
-                         # Actually, the first suffix match found in dict order might not be best.
-                         # But it's better than none.
+        # Try qualified name based on current scope
+        if hasattr(self, "_scope_names") and self._scope_names:
+            # Try from inner scope to outer
+            scope_parts = self._scope_names
+            for i in range(len(scope_parts), -1, -1):
+                prefix = ".".join(scope_parts[:i])
+                qualified_name = f"{prefix}.{func_name_str}" if prefix else func_name_str
+                if qualified_name in sigs:
+                    return sigs[qualified_name]
 
-            if not call_sig:
-                for k, v in self.type_inference.call_signatures.items():
-                    if k.endswith(f".{func_name_str}@{loc_key}") or k.endswith(f"@{loc_key}"):
-                        if func_name_str in k:
-                            call_sig = v
-                            break
+        # Fallback to suffix match or more complex location match
+        # Hoist constant strings/tuples out of the loop
+        suffix_dot = f".{func_name_str}"
 
-            if not call_sig:
-                call_sig = self.type_inference.call_signatures.get(func_name_str)
+        for k, v in sigs.items():
+            if k == func_name_str:
+                return v
+            if isinstance(k, str) and k.endswith(suffix_dot):
+                return v
+            if isinstance(k, tuple) and len(k) == 2:
+                # Handle (fullname, loc_tuple) or (name, loc_tuple)
+                name_part, loc_part = k
+                if loc_part == loc_key:
+                    if name_part == func_name_str or (isinstance(name_part, str) and name_part.endswith(suffix_dot)):
+                        return v
 
-        return call_sig
+        return sigs.get(func_name_str)
     def _process_call_args(self, node: ast.Call, call_sig: dict | None) -> list:
         """Process positional call arguments."""
         args = []

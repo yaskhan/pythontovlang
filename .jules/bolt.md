@@ -33,3 +33,7 @@
 ## 2026-04-03 - [Optimization: Dictionary lookups for hot branching logic]
 **Learning:** Replacing long sequential `if/elif` string comparisons with module-level dictionary lookups in hot paths (like `_guess_type_call`) yields measurable speedups (~24%) by moving from $O(n)$ to $O(1)$ lookup time. Additionally, lifting local dictionary creation out of visitor methods (e.g., `visit_BoolOp`) avoids redundant allocations.
 **Action:** Identify long identifier-based `if/elif` chains or local dictionaries in hot AST traversal methods and refactor them into module-level constant lookups.
+
+## 2026-04-04 - [Optimization: Composite Tuple Keys for Location-based Lookups]
+**Learning:** Using composite tuples `(identifier, (line, col))` as dictionary keys is significantly more efficient than formatted strings `f"{identifier}@{line}:{col}"` in hot AST traversal paths. Tuples avoid repeated string formatting overhead and offer faster hashing and comparison than string representations of complex data.
+**Action:** Replace string-based location keys and combined identifier@location strings with tuples or nested tuples to minimize overhead in hot resolution paths.
