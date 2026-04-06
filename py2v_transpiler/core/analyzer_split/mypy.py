@@ -4,7 +4,7 @@ import sys
 import subprocess
 import json
 import tempfile
-from typing import Tuple
+from typing import Tuple, Any
 from py2v_transpiler.models.v_types import map_python_type_to_v
 from py2v_transpiler.core.compatibility import CompatibilityLayer
 from .base import TypeInferenceBase
@@ -101,12 +101,28 @@ class TypeInferenceMypyMixin(TypeInferenceBase):
                     for location, typ in types.items():
                         v_type = map_python_type_to_v(typ)
                         name = fullname.split('.')[-1]
+                        # Extract tuple location if possible
+                        loc_tuple: Any
+                        try:
+                            l_parts = location.split(':')
+                            loc_tuple = (int(l_parts[0]), int(l_parts[1]))
+                        except (ValueError, IndexError):
+                            loc_tuple = location
+
                         if typ == "typing.Any":
                             self.explicit_any_types.add(fullname)
                             self.explicit_any_types.add(name)
+                            self.explicit_any_types.add((fullname, loc_tuple))
+                            self.explicit_any_types.add((name, loc_tuple))
                             self.explicit_any_types.add(f"{fullname}@{location}")
                             self.explicit_any_types.add(f"{name}@{location}")
+
                         # Store by fullname@location and name@location for precise lookup
+                        # Optimization: Use (name, loc_tuple) composite key for faster lookups
+                        # while maintaining compatibility with string-based fullname lookups.
+                        self.type_map[(fullname, loc_tuple)] = v_type
+                        self.type_map[(name, loc_tuple)] = v_type
+                        # Maintain string key for backward compatibility and mocks
                         self.type_map[f"{fullname}@{location}"] = v_type
                         self.type_map[f"{name}@{location}"] = v_type
 
@@ -117,6 +133,8 @@ class TypeInferenceMypyMixin(TypeInferenceBase):
                             self.type_map[name] = v_type
                             
                         # Also store raw types
+                        self.raw_type_map[(fullname, loc_tuple)] = typ
+                        self.raw_type_map[(name, loc_tuple)] = typ
                         self.raw_type_map[f"{fullname}@{location}"] = typ
                         self.raw_type_map[f"{name}@{location}"] = typ
                         if fullname not in self.raw_type_map:
@@ -128,16 +146,26 @@ class TypeInferenceMypyMixin(TypeInferenceBase):
                         if (
                             fullname == "@"
                             or "builtins.float" in fullname
-                            or location not in self.location_map
+                            or loc_tuple not in self.location_map
                         ):
+                            self.location_map[loc_tuple] = v_type
                             self.location_map[location] = v_type
 
             if collected_sigs:
                 for fullname, sigs in collected_sigs.items():
                     for location, sig_json in sigs.items():
                         try:
+                            l_parts = location.split(':')
+                            loc_tuple = (int(l_parts[0]), int(l_parts[1]))
+                        except (ValueError, IndexError):
+                            loc_tuple = location
+
+                        try:
                             sig_data = json.loads(sig_json)
                             # the function name itself is usually enough, but we store full location too
+                            self.call_signatures[(fullname, loc_tuple)] = sig_data
+                            self.call_signatures[loc_tuple] = sig_data
+                            # Maintain string key for backward compatibility
                             self.call_signatures[f"{fullname}@{location}"] = sig_data
                             self.call_signatures[location] = sig_data
                         except Exception:
@@ -146,9 +174,18 @@ class TypeInferenceMypyMixin(TypeInferenceBase):
             if collected_mut:
                 for fullname, muts in collected_mut.items():
                     for location, mut_data in muts.items():
+                        try:
+                            l_parts = location.split(':')
+                            loc_tuple = (int(l_parts[0]), int(l_parts[1]))
+                        except (ValueError, IndexError):
+                            loc_tuple = location
+
                         # Store by fullname@location and name@location for precise lookup
-                        self.mutability_map[f"{fullname}@{location}"] = mut_data
+                        self.mutability_map[(fullname, loc_tuple)] = mut_data
                         name = fullname.split('.')[-1]
+                        self.mutability_map[(name, loc_tuple)] = mut_data
+                        # Maintain string key for backward compatibility
+                        self.mutability_map[f"{fullname}@{location}"] = mut_data
                         self.mutability_map[f"{name}@{location}"] = mut_data
 
             if os.path.exists("types_for_vlang.json"):

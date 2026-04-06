@@ -36,12 +36,22 @@ class OperatorsMixin(TranslatorBase):
         if typ.startswith("map[") and typ.endswith("]Any"): return True
         if typ == "Any":
             # Check if it was explicitly annotated as Any
-            if isinstance(node, ast.Name) and node.id in getattr(self.type_inference, "explicit_any_types", set()):
+            explicit_any: set[Any] = getattr(self.type_inference, "explicit_any_types", set())
+            if isinstance(node, ast.Name) and node.id in explicit_any:
                 return True
             # Check if it has a location-based explicit Any
-            loc_key = f"{getattr(node, 'id', '')}@{getattr(node, 'lineno', 0)}:{getattr(node, 'col_offset', 0)}"
-            if loc_key in getattr(self.type_inference, "explicit_any_types", set()):
-                return True
+            if hasattr(node, 'lineno') and hasattr(node, 'col_offset'):
+                loc_tuple = (node.lineno, node.col_offset)
+                if loc_tuple in explicit_any:
+                    return True
+                if isinstance(node, ast.Name) and (node.id, loc_tuple) in explicit_any:
+                    return True
+                # Backward compatibility for mocks
+                loc_str = f"{node.lineno}:{node.col_offset}"
+                if loc_str in explicit_any:
+                    return True
+                if isinstance(node, ast.Name) and f"{node.id}@{loc_str}" in explicit_any:
+                    return True
         return False
 
     def visit_BinOp(self, node: ast.BinOp) -> str:
@@ -51,11 +61,19 @@ class OperatorsMixin(TranslatorBase):
         # Type-Directed Operator Overloading
         # Use inferred mypy static types to cast if needed.
         op_type = "void"
-        loc_key = f"{getattr(node, 'lineno', 0)}:{getattr(node, 'col_offset', 0)}"
-        if hasattr(self.type_inference, 'location_map') and loc_key in self.type_inference.location_map:
-            v_type = self.type_inference.location_map[loc_key]
-            if v_type != "void":
-                 op_type = v_type
+        loc_tuple = (getattr(node, 'lineno', 0), getattr(node, 'col_offset', 0))
+        if hasattr(self.type_inference, 'location_map'):
+            if loc_tuple in self.type_inference.location_map:
+                v_type = self.type_inference.location_map[loc_tuple]
+                if v_type != "void":
+                     op_type = v_type
+            else:
+                # Backward compatibility for mocks
+                loc_str = f"{loc_tuple[0]}:{loc_tuple[1]}"
+                if loc_str in self.type_inference.location_map:
+                    v_type = self.type_inference.location_map[loc_str]
+                    if v_type != "void":
+                         op_type = v_type
 
         # Support for array initialization: [element] * length
         if isinstance(node.op, ast.Mult):
