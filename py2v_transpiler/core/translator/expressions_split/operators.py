@@ -376,7 +376,7 @@ class OperatorsMixin(TranslatorBase):
             is_and = isinstance(node.op, ast.And)
             return self._build_boolop_expr(node.values, is_and, ret_type)
 
-    def _build_boolop_expr(self, vals: List[ast.AST], is_and: bool, ret_type: str) -> str:
+    def _build_boolop_expr(self, vals: List[ast.expr], is_and: bool, ret_type: str) -> str:
         """Recursive helper to build nested if expressions for Python's boolean operators."""
         if len(vals) == 1:
             val_str = self.visit(vals[0])
