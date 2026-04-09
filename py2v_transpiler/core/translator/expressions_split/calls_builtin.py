@@ -25,12 +25,6 @@ _BUILTIN_DISPATCH_MAP = {
     "py_bool": "_handle_bool_call",
     "str": "_handle_str_call",
     "py_str": "_handle_str_call",
-    "repr": "_handle_repr_call",
-    "py_repr": "_handle_repr_call",
-    "ascii": "_handle_ascii_call",
-    "py_ascii": "_handle_ascii_call",
-    "format": "_handle_format_call",
-    "py_format": "_handle_format_call",
     "bytes": "_handle_bytes_call",
     "bytearray": "_handle_bytes_call",
     "memoryview": "_handle_memoryview_call",
@@ -39,6 +33,13 @@ _BUILTIN_DISPATCH_MAP = {
     "divmod": "_handle_divmod_call",
     "ord": "_handle_ord_call",
     "chr": "_handle_chr_call",
+}
+
+# Functions that should only be matched if they are Name calls (to avoid hijacking methods like s.format())
+_STRICT_BUILTIN_DISPATCH_MAP = {
+    "repr": "_handle_repr_call",
+    "ascii": "_handle_ascii_call",
+    "format": "_handle_format_call",
 }
 
 _FULL_FUNC_DISPATCH_MAP = {
@@ -322,7 +323,13 @@ class BuiltinCallsMixin:
             handler_name = _BUILTIN_DISPATCH_MAP[func_name_str]
             return getattr(self, handler_name)(node, func_name_str, original_id, args)
 
-        # Handle repr/ascii/format/int/float/bool/str when original_id is used for mapping
+        # Optimization: O(1) dispatch for functions that should NOT match Attribute calls (methods)
+        # These are only checked if original_id is present (meaning it's a Name call)
+        if original_id and original_id in _STRICT_BUILTIN_DISPATCH_MAP:
+             handler_name = _STRICT_BUILTIN_DISPATCH_MAP[original_id]
+             return getattr(self, handler_name)(node, func_name_str, original_id, args)
+
+        # Handle int/float/bool/str/etc. when original_id is used for mapping
         if original_id in _BUILTIN_DISPATCH_MAP:
             handler_name = _BUILTIN_DISPATCH_MAP[original_id]
             return getattr(self, handler_name)(node, func_name_str, original_id, args)
