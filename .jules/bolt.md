@@ -37,3 +37,7 @@
 ## 2026-04-04 - [Optimization: Composite Tuple Keys for Location-based Lookups]
 **Learning:** Using composite tuples `(identifier, (line, col))` as dictionary keys is significantly more efficient than formatted strings `f"{identifier}@{line}:{col}"` in hot AST traversal paths. Tuples avoid repeated string formatting overhead and offer faster hashing and comparison than string representations of complex data.
 **Action:** Replace string-based location keys and combined identifier@location strings with tuples or nested tuples to minimize overhead in hot resolution paths.
+
+## 2026-04-05 - [Optimization: O(1) dispatch for AST node operations]
+**Learning:** Sequential `if/elif` chains using `isinstance()` are a common bottleneck in AST visitors. Replacing these with a module-level dispatch dictionary mapping `type(node)` to handler functions/lambdas, combined with lifting static constants, yields dramatic speedups (~18x) by moving from (n)$ type checking to (1)$ lookup and avoiding redundant object allocations.
+**Action:** Identify `if/elif` chains performing type-based dispatch in hot AST traversal paths and refactor them into module-level dispatch dictionaries.
