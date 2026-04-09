@@ -1,10 +1,19 @@
 import ast
+from dataclasses import dataclass
 from typing import Any, List, Dict, Optional
 
 from .field_processor import PydanticFieldProcessor, PydanticFieldInfo
 from .validator_processor import PydanticValidatorProcessor, PydanticValidatorInfo
 from .config_processor import PydanticConfigProcessor, PydanticConfigInfo
 from .detector import PydanticDetector
+
+@dataclass
+class PydanticModelInfo:
+    name: str
+    fields: List[PydanticFieldInfo]
+    validators: List[PydanticValidatorInfo]
+    config: Optional[PydanticConfigInfo]
+    export: str
 
 class PydanticModelProcessor:
     def __init__(self, visitor: Any):
@@ -117,16 +126,24 @@ class PydanticModelProcessor:
         }
         self.visitor.emitter.add_struct("\n".join(struct_def))
 
+        model_info = PydanticModelInfo(
+            name=struct_name,
+            fields=fields,
+            validators=validators,
+            config=config,
+            export=export
+        )
+
         # Generate automatic factory if no __init__ is present
         has_init = any(isinstance(m, (ast.FunctionDef, ast.AsyncFunctionDef)) and m.name == "__init__" for m in methods)
         if not has_init:
-            factory_code = self._generate_factory_method(struct_name, fields, export)
+            factory_code = self._generate_factory_method(model_info)
             self.visitor.emitter.add_function(factory_code)
             self.visitor.defined_classes[struct_name]["has_init"] = True
             self.visitor.defined_classes[struct_name]["has_new"] = True
 
         # Generate Validation Method
-        validation_code = self._generate_validate_method(struct_name, fields, validators, export, config)
+        validation_code = self._generate_validate_method(model_info)
         if validation_code:
             self.visitor.emitter.add_function(validation_code)
 
@@ -139,17 +156,18 @@ class PydanticModelProcessor:
 
         return "" # The emitter handles the actual output
 
-    def _generate_validate_method(self, struct_name: str, fields: List[PydanticFieldInfo], validators: List[PydanticValidatorInfo], export: str, config: Optional[PydanticConfigInfo]) -> str:
+    def _generate_validate_method(self, model_info: PydanticModelInfo) -> str:
         """Generates a .validate() method for the struct."""
         code = [
-            f"{export}fn (mut m {struct_name}) validate() ! {{",
+            f"{model_info.export}fn (mut m {model_info.name}) validate() ! {{",
         ]
 
         has_validation = False
 
         # Apply Config transformations
-        if config:
-            for field_info in fields:
+        if model_info.config:
+            config = model_info.config
+            for field_info in model_info.fields:
                 if field_info.type_str == "string":
                     if config.str_strip_whitespace:
                         code.append(f"    m.{field_info.name} = m.{field_info.name}.trim()")
@@ -169,23 +187,23 @@ class PydanticModelProcessor:
                         has_validation = True
 
         # 1. Model validators (mode='before')
-        for v in validators:
+        for v in model_info.validators:
             if v.is_model_validator and v.mode == 'before':
-                v_logic = self._generate_validator_logic(v, struct_name, fields)
+                v_logic = self._generate_validator_logic(v, model_info)
                 if v_logic:
                     has_validation = True
                     code.extend(v_logic)
 
         # 2. Field validators (mode='before')
-        for v in validators:
+        for v in model_info.validators:
             if not v.is_model_validator and v.mode == 'before':
-                v_logic = self._generate_validator_logic(v, struct_name, fields)
+                v_logic = self._generate_validator_logic(v, model_info)
                 if v_logic:
                     has_validation = True
                     code.extend(v_logic)
 
         # 3. Built-in field constraints
-        for field_info in fields:
+        for field_info in model_info.fields:
             # Check for Nested models
             # If the type is in defined_classes and is a pydantic model, flag it
             # Since we can't be 100% sure just by type_str if it's imported, we do a basic check
@@ -208,34 +226,34 @@ class PydanticModelProcessor:
                 code.extend(vcode)
 
         # 4. Field validators (mode='after' or default)
-        for v in validators:
+        for v in model_info.validators:
             if not v.is_model_validator and (v.mode in ('after', 'default') or not v.mode):
-                v_logic = self._generate_validator_logic(v, struct_name, fields)
+                v_logic = self._generate_validator_logic(v, model_info)
                 if v_logic:
                     has_validation = True
                     code.extend(v_logic)
 
         # 5. Model validators (mode='after' or default)
-        for v in validators:
+        for v in model_info.validators:
             if v.is_model_validator and (v.mode in ('after', 'default') or not v.mode):
-                v_logic = self._generate_validator_logic(v, struct_name, fields)
+                v_logic = self._generate_validator_logic(v, model_info)
                 if v_logic:
                     has_validation = True
                     code.extend(v_logic)
 
-        if not has_validation and not (config and config.validate_all):
+        if not has_validation and not (model_info.config and model_info.config.validate_all):
             return ""
 
         code.append("}")
         return "\n".join(code)
 
-    def _generate_validator_logic(self, v_info: PydanticValidatorInfo, struct_name: str, fields: List[PydanticFieldInfo]) -> List[str]:
+    def _generate_validator_logic(self, v_info: PydanticValidatorInfo, model_info: PydanticModelInfo) -> List[str]:
         node = v_info.node
         if not node:
             return []
 
         res = []
-        field_map = {f.name: f for f in fields}
+        field_map = {f.name: f for f in model_info.fields}
 
         # Save visitor state
         old_output = self.visitor.output
@@ -249,9 +267,9 @@ class PydanticModelProcessor:
 
         try:
             if v_info.is_model_validator:
-                res.append(f"    m = fn (mut self {struct_name}) !{struct_name} {{")
+                res.append(f"    m = fn (mut self {model_info.name}) !{model_info.name} {{")
                 self.visitor.output = []
-                self.visitor.current_function_return_type = struct_name
+                self.visitor.current_function_return_type = model_info.name
 
                 real_args = node.args.args
                 if real_args:
@@ -302,11 +320,11 @@ class PydanticModelProcessor:
 
         return res
 
-    def _generate_factory_method(self, struct_name: str, fields: List[PydanticFieldInfo], export: str) -> str:
+    def _generate_factory_method(self, model_info: PydanticModelInfo) -> str:
         """Generates a new_StructName factory function."""
-        factory_name = self.visitor._get_factory_name(struct_name)
-        required = [f for f in fields if not f.default_val]
-        optional = [f for f in fields if f.default_val]
+        factory_name = self.visitor._get_factory_name(model_info.name)
+        required = [f for f in model_info.fields if not f.default_val]
+        optional = [f for f in model_info.fields if f.default_val]
 
         args = []
         for f in required:
@@ -323,9 +341,9 @@ class PydanticModelProcessor:
 
         args_str = ", ".join(args)
         code = [
-            f"// {factory_name} creates a new {struct_name} and validates it.",
-            f"{export}fn {factory_name}({args_str}) !{struct_name} {{",
-            f"    mut self := {struct_name}{{"
+            f"// {factory_name} creates a new {model_info.name} and validates it.",
+            f"{model_info.export}fn {factory_name}({args_str}) !{model_info.name} {{",
+            f"    mut self := {model_info.name}{{"
         ]
 
         for f in required:
