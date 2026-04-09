@@ -75,13 +75,21 @@ class GenericsMixin:
         rev_map = {v: k for k, v in self._get_combined_generic_map().items()}
         for v_gen in v_generics:
             py_name = rev_map.get(v_gen)
-            variance = self.generic_variance.get(py_name, "") if py_name else ""
-            default = self.generic_defaults.get(py_name, "") if py_name else ""
+            if not py_name:
+                v_gen_parts.append(v_gen)
+                continue
 
-            part = v_gen
+            variance = self.generic_variance.get(py_name, "")
+            default = self.generic_defaults.get(py_name, "")
+
             if variance:
-                part += f" /* {variance} */"
-            if default:
-                part += f" /* = {default} */"
-            v_gen_parts.append(part)
+                if default:
+                    v_gen_parts.append(f"{v_gen} /* {variance} */ /* = {default} */")
+                else:
+                    v_gen_parts.append(f"{v_gen} /* {variance} */")
+            elif default:
+                v_gen_parts.append(f"{v_gen} /* = {default} */")
+            else:
+                v_gen_parts.append(v_gen)
+
         return f"[{', '.join(v_gen_parts)}]"
