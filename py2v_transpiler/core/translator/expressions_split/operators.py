@@ -1,6 +1,6 @@
 import ast
 import re
-from typing import Any
+from typing import Any, List
 from ..base import TranslatorBase
 
 # Pre-compiled regular expressions for performance
@@ -29,6 +29,12 @@ _COMP_OP_MAP = {
 # Optimization: Lifted local op_map to module-level constant to avoid redundant dictionary creation in visit_BoolOp.
 _BOOL_OP_STR_MAP = {ast.And: "&&", ast.Or: "||"}
 
+# Optimization: Lifted is_none_node to module level to avoid repeated function definition in visit_Compare.
+def _is_none_node(n: ast.AST) -> bool:
+    if isinstance(n, ast.Constant) and n.value is None: return True
+    if isinstance(n, ast.Name) and n.id in ("None", "none"): return True
+    return False
+
 class OperatorsMixin(TranslatorBase):
     def _should_use_is_none_type(self, typ: str, node: ast.AST) -> bool:
         if typ.startswith("?"): return False
@@ -36,18 +42,24 @@ class OperatorsMixin(TranslatorBase):
         if typ.startswith("map[") and typ.endswith("]Any"): return True
         if typ == "Any":
             # Check if it was explicitly annotated as Any
+            # Optimization: Hoisted the explicit_any_types lookup to avoid repeated getattr calls.
             explicit_any: set[Any] = getattr(self.type_inference, "explicit_any_types", set())
+            if not explicit_any:
+                return False
+
             if isinstance(node, ast.Name) and node.id in explicit_any:
                 return True
             # Check if it has a location-based explicit Any
-            if hasattr(node, 'lineno') and hasattr(node, 'col_offset'):
-                loc_tuple = (node.lineno, node.col_offset)
+            lineno = getattr(node, 'lineno', None)
+            if lineno is not None:
+                col_offset = getattr(node, 'col_offset', 0)
+                loc_tuple = (lineno, col_offset)
                 if loc_tuple in explicit_any:
                     return True
                 if isinstance(node, ast.Name) and (node.id, loc_tuple) in explicit_any:
                     return True
                 # Backward compatibility for mocks
-                loc_str = f"{node.lineno}:{node.col_offset}"
+                loc_str = f"{lineno}:{col_offset}"
                 if loc_str in explicit_any:
                     return True
                 if isinstance(node, ast.Name) and f"{node.id}@{loc_str}" in explicit_any:
@@ -361,34 +373,34 @@ class OperatorsMixin(TranslatorBase):
             if len(set(branch_types)) > 1:
                 ret_type = "Any"
 
-            # Helper to recursively build nested if expressions
-            def build_boolop(vals, is_and):
-                if len(vals) == 1:
-                    val_str = self.visit(vals[0])
-                    v_type = self._guess_type(vals[0])
-                    if ret_type == "Any" and "Any" not in v_type and not val_str.startswith("Any("):
-                        if v_type.startswith("?"): return f"Any({val_str}!)"
-                        return f"Any({val_str})"
-                    return val_str
-                left = vals[0]
-                right_expr = build_boolop(vals[1:], is_and)
-
-                left_cond = self._wrap_bool(left)
-                left_val = self.visit(left)
-                left_type = self._guess_type(left)
-                if ret_type == "Any" and "Any" not in left_type and not left_val.startswith("Any("):
-                    if left_type.startswith("?"): left_val = f"Any({left_val}!)"
-                    else: left_val = f"Any({left_val})"
-
-                if is_and:
-                    # x and y -> if x { y } else { x }
-                    return f"if {left_cond} {{ {right_expr} }} else {{ {left_val} }}"
-                else:
-                    # x or y -> if x { x } else { y }
-                    return f"if {left_cond} {{ {left_val} }} else {{ {right_expr} }}"
-
             is_and = isinstance(node.op, ast.And)
-            return build_boolop(node.values, is_and)
+            return self._build_boolop_expr(node.values, is_and, ret_type)
+
+    def _build_boolop_expr(self, vals: List[ast.expr], is_and: bool, ret_type: str) -> str:
+        """Recursive helper to build nested if expressions for Python's boolean operators."""
+        if len(vals) == 1:
+            val_str = self.visit(vals[0])
+            v_type = self._guess_type(vals[0])
+            if ret_type == "Any" and "Any" not in v_type and not val_str.startswith("Any("):
+                if v_type.startswith("?"): return f"Any({val_str}!)"
+                return f"Any({val_str})"
+            return val_str
+        left = vals[0]
+        right_expr = self._build_boolop_expr(vals[1:], is_and, ret_type)
+
+        left_cond = self._wrap_bool(left)
+        left_val = self.visit(left)
+        left_type = self._guess_type(left)
+        if ret_type == "Any" and "Any" not in left_type and not left_val.startswith("Any("):
+            if left_type.startswith("?"): left_val = f"Any({left_val}!)"
+            else: left_val = f"Any({left_val})"
+
+        if is_and:
+            # x and y -> if x { y } else { x }
+            return f"if {left_cond} {{ {right_expr} }} else {{ {left_val} }}"
+        else:
+            # x or y -> if x { x } else { y }
+            return f"if {left_cond} {{ {left_val} }} else {{ {right_expr} }}"
 
     def visit_UnaryOp(self, node: ast.UnaryOp) -> str:
         if isinstance(node.op, ast.Not):
@@ -400,48 +412,42 @@ class OperatorsMixin(TranslatorBase):
 
     def visit_Compare(self, node: ast.Compare) -> str:
         comparators = [self.visit(node.left)] + [self.visit(c) for c in node.comparators]
-        ops_map = _COMP_OP_MAP
-
-        def is_none_node(n: ast.AST) -> bool:
-            if isinstance(n, ast.Constant) and n.value is None: return True
-            if isinstance(n, ast.Name) and n.id in ("None", "none"): return True
-            return False
 
         if len(node.ops) == 1:
             left = comparators[0]
             right = comparators[1]
             op = node.ops[0]
-            op_str = ops_map.get(type(op), "?")
+            op_str = _COMP_OP_MAP.get(type(op), "?")
             left_type = self._guess_type(node.left)
 
-            if isinstance(op, (ast.Is, ast.Eq)) and is_none_node(node.comparators[0]):
-                 if is_none_node(node.left):
+            if isinstance(op, (ast.Is, ast.Eq)) and _is_none_node(node.comparators[0]):
+                 if _is_none_node(node.left):
                      return "true"
                  if self._should_use_is_none_type(left_type, node.left):
                       return f"(({left}) is NoneType)" if str(left).endswith("}") else f"({left}) is NoneType"
                  return f"{left} == none"
-            elif isinstance(op, (ast.IsNot, ast.NotEq)) and is_none_node(node.comparators[0]):
-                 if is_none_node(node.left):
+            elif isinstance(op, (ast.IsNot, ast.NotEq)) and _is_none_node(node.comparators[0]):
+                 if _is_none_node(node.left):
                      return "false"
                  if self._should_use_is_none_type(left_type, node.left):
                       return f"(({left}) !is NoneType)" if str(left).endswith("}") else f"({left}) !is NoneType"
                  return f"{left} != none"
-            elif isinstance(op, (ast.Is, ast.Eq)) and is_none_node(node.left):
+            elif isinstance(op, (ast.Is, ast.Eq)) and _is_none_node(node.left):
                  right_type = self._guess_type(node.comparators[0])
                  if self._should_use_is_none_type(right_type, node.comparators[0]):
                       return f"(({right}) is NoneType)" if str(right).endswith("}") else f"({right}) is NoneType"
                  return f"none == {right}"
-            elif isinstance(op, (ast.IsNot, ast.NotEq)) and is_none_node(node.left):
+            elif isinstance(op, (ast.IsNot, ast.NotEq)) and _is_none_node(node.left):
                  right_type = self._guess_type(node.comparators[0])
                  if self._should_use_is_none_type(right_type, node.comparators[0]):
                       return f"(({right}) !is NoneType)" if str(right).endswith("}") else f"({right}) !is NoneType"
                  return f"none != {right}"
-            elif isinstance(op, ast.In) and is_none_node(node.left):
+            elif isinstance(op, ast.In) and _is_none_node(node.left):
                  right_type = self._guess_type(node.comparators[0])
                  if right_type.startswith("map["):
                       return f"none in {right}"
                  return f"{right}.any(it == none)"
-            elif isinstance(op, ast.NotIn) and is_none_node(node.left):
+            elif isinstance(op, ast.NotIn) and _is_none_node(node.left):
                  right_type = self._guess_type(node.comparators[0])
                  if right_type.startswith("map["):
                       return f"none !in {right}"
@@ -475,46 +481,46 @@ class OperatorsMixin(TranslatorBase):
         for i, op in enumerate(node.ops):
             left = comparators[i]
             right = comparators[i+1]
-            op_str = ops_map.get(type(op), "?")
+            op_str = _COMP_OP_MAP.get(type(op), "?")
             left_node = node.left if i == 0 else node.comparators[i-1]
             right_node = node.comparators[i]
             left_type = self._guess_type(left_node)
 
-            if isinstance(op, (ast.Is, ast.Eq)) and is_none_node(right_node):
-                 if is_none_node(left_node):
+            if isinstance(op, (ast.Is, ast.Eq)) and _is_none_node(right_node):
+                 if _is_none_node(left_node):
                       parts.append("true")
                       continue
                  if self._should_use_is_none_type(left_type, left_node):
                       parts.append(f"(({left}) is NoneType)" if str(left).endswith("}") else f"({left}) is NoneType")
                       continue
                  parts.append(f"({left} == none)")
-            elif isinstance(op, (ast.IsNot, ast.NotEq)) and is_none_node(right_node):
-                 if is_none_node(left_node):
+            elif isinstance(op, (ast.IsNot, ast.NotEq)) and _is_none_node(right_node):
+                 if _is_none_node(left_node):
                       parts.append("false")
                       continue
                  if self._should_use_is_none_type(left_type, left_node):
                       parts.append(f"(({left}) !is NoneType)" if str(left).endswith("}") else f"({left}) !is NoneType")
                       continue
                  parts.append(f"({left} != none)")
-            elif isinstance(op, (ast.Is, ast.Eq)) and is_none_node(left_node):
+            elif isinstance(op, (ast.Is, ast.Eq)) and _is_none_node(left_node):
                  right_type = self._guess_type(right_node)
                  if self._should_use_is_none_type(right_type, right_node):
                       parts.append(f"(({right}) is NoneType)" if str(right).endswith("}") else f"({right}) is NoneType")
                       continue
                  parts.append(f"(none == {right})")
-            elif isinstance(op, (ast.IsNot, ast.NotEq)) and is_none_node(left_node):
+            elif isinstance(op, (ast.IsNot, ast.NotEq)) and _is_none_node(left_node):
                  right_type = self._guess_type(right_node)
                  if self._should_use_is_none_type(right_type, right_node):
                       parts.append(f"(({right}) !is NoneType)" if str(right).endswith("}") else f"({right}) !is NoneType")
                       continue
                  parts.append(f"(none != {right})")
-            elif isinstance(op, ast.In) and is_none_node(left_node):
+            elif isinstance(op, ast.In) and _is_none_node(left_node):
                  right_type = self._guess_type(node.comparators[i])
                  if right_type.startswith("map["):
                       parts.append(f"(none in {right})")
                  else:
                       parts.append(f"({right}.any(it == none))")
-            elif isinstance(op, ast.NotIn) and is_none_node(left_node):
+            elif isinstance(op, ast.NotIn) and _is_none_node(left_node):
                  right_type = self._guess_type(node.comparators[i])
                  if right_type.startswith("map["):
                       parts.append(f"(none !in {right})")
