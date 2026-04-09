@@ -96,6 +96,7 @@ pub fn (mut t TransformVisitor) visit_mypy_file(mut node MypyFile) !AnyNode {
 		defs:          t.statements(mut node.defs)
 		is_bom:        node.is_bom
 		ignored_lines: ignored_lines
+		future_imports: node.future_imports.clone()
 	}
 	new.fullname = node.fullname
 	new.path = node.path

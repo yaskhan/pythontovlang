@@ -47,6 +47,7 @@ fn empty_tree(fnam string, mod_name ?string) MypyFile {
 		is_stub:                 fnam.ends_with('.pyi')
 		is_partial_stub_package: false
 		plugin_deps:             map[string]bool{}
+		future_imports:          map[string]bool{}
 	}
 }
 

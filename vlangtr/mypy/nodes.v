@@ -1830,6 +1830,7 @@ pub mut:
 	is_bom                  bool
 	plugin_deps             map[string]bool
 	ignored_lines           []int
+	future_imports          map[string]bool
 }
 
 pub fn (f &MypyFile) is_package_init_file() bool {
