@@ -1197,7 +1197,9 @@ fn (mut b ASTReadBuffer) read_type_param() TypeParam {
 }
 
 fn (mut b ASTReadBuffer) read_mypy_file() MypyFile {
-	mut node := MypyFile{}
+	mut node := MypyFile{
+		future_imports: map[string]bool{}
+	}
 	b.read_loc(mut node.base)
 	node.defs = b.read_list_stmt()
 	node.path = b.read_str()

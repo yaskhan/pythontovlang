@@ -1238,7 +1238,12 @@ fn (sa SemanticAnalyzer) correct_relative_import(node ImportFrom) string {
 
 // set_future_import_flags sets future import flags
 fn (mut sa SemanticAnalyzer) set_future_import_flags(fullname string) {
-	// TODO: handle future imports if field is added to MypyFile
+	if fullname in future_imports {
+		if mut mod := sa.cur_mod_node {
+			feature := future_imports[fullname]
+			mod.future_imports[feature] = true
+		}
+	}
 }
 
 // push_type_args adds type args
