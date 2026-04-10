@@ -94,18 +94,18 @@ class TypeGuessingMixin:
                             if res != "none":
                                 return res
 
-        node_type = type(node)
-        if node_type is ast.Constant:
+        if isinstance(node, ast.Constant):
             return _CONSTANT_TYPE_MAP.get(type(node.value), "int")
 
-        if node_type is ast.Name:
+        if isinstance(node, ast.Name):
             return self._guess_type_name(node, use_location=use_location)
 
-        handler = _NODE_GUESS_DISPATCH.get(node_type)
+        handler = _NODE_GUESS_DISPATCH.get(type(node))
         if handler:
             if callable(handler):
                 return handler(self, node)
-            return getattr(self, handler)(node)
+            # Use cast to Any to avoid Mypy's strict getattr check on mixins
+            return getattr(self, handler)(node) # type: ignore
 
         return "int"
 
