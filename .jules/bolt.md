@@ -41,3 +41,7 @@
 ## 2026-04-05 - [Optimization: O(1) dispatch for AST node operations]
 **Learning:** Sequential `if/elif` chains using `isinstance()` are a common bottleneck in AST visitors. Replacing these with a module-level dispatch dictionary mapping `type(node)` to handler functions/lambdas, combined with lifting static constants, yields dramatic speedups (~18x) by moving from (n)$ type checking to (1)$ lookup and avoiding redundant object allocations.
 **Action:** Identify `if/elif` chains performing type-based dispatch in hot AST traversal paths and refactor them into module-level dispatch dictionaries.
+
+## 2026-04-06 - [Optimization: O(1) dispatch for built-in call resolution]
+**Learning:** Replacing a long sequential `if/elif` chain (approx. 30 cases) with a module-level dispatch dictionary in the hot built-in call resolution path (`_handle_builtin_type_cast`) yields a ~1.5x speedup for the lookup logic. This reduces the per-call overhead for both built-in and non-built-in calls during AST traversal.
+**Action:** Use dispatch dictionaries for large conditional blocks that map identifiers to specialized handling logic in hot visitor paths.
