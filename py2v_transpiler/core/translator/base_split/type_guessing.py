@@ -82,15 +82,16 @@ class TypeGuessingMixin:
                     if loc_map:
                         col_offset = getattr(node, "col_offset", 0)
                         loc_key = (lineno, col_offset)
-                        if loc_key in loc_map:
-                            res = loc_map[loc_key]
+                        missing = object()
+                        res = loc_map.get(loc_key, missing)
+                        if res is not missing:
                             if res != "none":
                                 return res
 
                         # Backward compatibility for mocks
                         loc_str = f"{lineno}:{col_offset}"
-                        if loc_str in loc_map:
-                            res = loc_map[loc_str]
+                        res = loc_map.get(loc_str, missing)
+                        if res is not missing:
                             if res != "none":
                                 return res
 
