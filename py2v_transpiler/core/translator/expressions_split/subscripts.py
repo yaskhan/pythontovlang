@@ -48,7 +48,7 @@ class SubscriptsMixin(TranslatorBase):
                   elif name_id in type_map:
                        idx_type = type_map[name_id]
 
-                  if (idx_type == "Any" or idx_type == "string") and hasattr(type_inf, "resolve_type"):
+                  if (idx_type == "Any" or idx_type == "string") and type_inf and hasattr(type_inf, "resolve_type"):
                        res = type_inf.resolve_type(idx_node)
                        if res != "Any":
                             idx_type = res
@@ -92,6 +92,7 @@ class SubscriptsMixin(TranslatorBase):
             is_simple_reverse = (
                 lower_node is None and
                 upper_node is None and
+                step_node is not None and
                 self._get_negative_const(step_node) == 1
             )
 
