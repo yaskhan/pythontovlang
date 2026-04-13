@@ -3,8 +3,10 @@ from typing import Any, Optional, cast
 from ..base import TranslatorBase
 
 class SubscriptsMixin(TranslatorBase):
-    def _get_negative_const(self, node: ast.AST) -> Optional[int]:
+    def _get_negative_const(self, node: Optional[ast.AST]) -> Optional[int]:
         """Returns the absolute value if node is a negative integer constant, else None."""
+        if node is None:
+            return None
         if isinstance(node, ast.UnaryOp) and isinstance(node.op, ast.USub):
             if isinstance(node.operand, ast.Constant) and isinstance(node.operand.value, int):
                 return node.operand.value
@@ -92,7 +94,6 @@ class SubscriptsMixin(TranslatorBase):
             is_simple_reverse = (
                 lower_node is None and
                 upper_node is None and
-                step_node is not None and
                 self._get_negative_const(step_node) == 1
             )
 
