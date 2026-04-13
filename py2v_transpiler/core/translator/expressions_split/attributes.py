@@ -3,9 +3,13 @@ from ..base import TranslatorBase
 
 class AttributesMixin(TranslatorBase):
     def visit_Attribute(self, node: ast.Attribute) -> str:
+        # Optimization: Hoisted frequently accessed attributes and cached expensive type guesses.
+        imported_modules = self.imported_modules
+        defined_classes = getattr(self, "defined_classes", {})
+
         # Handle module attributes (mapped constants or fallback)
-        if isinstance(node.value, ast.Name) and node.value.id in self.imported_modules:
-            module_name = self.imported_modules[node.value.id]
+        if isinstance(node.value, ast.Name) and node.value.id in imported_modules:
+            module_name = imported_modules[node.value.id]
             scc_file = next((f for f in self.scc_files if module_name.endswith(f.replace('.py', '').replace('/', '.').replace('\\', '.'))), None)
             if scc_file:
                 prefix = self._get_scc_prefix(scc_file)
@@ -31,12 +35,14 @@ class AttributesMixin(TranslatorBase):
              obj = self.visit(node.value)
              return f"typeof({obj})"
 
+        # Cache type guess for node.value as it is used multiple times below.
+        obj_type_guess = self._guess_type(node.value)
+
         if node.attr in ("__annotations__", "__annotate__"):
             obj = self.visit(node.value)
             # Use the same logic as get_type_hints
-            obj_type = self._guess_type(node.value)
-            if obj_type in getattr(self, "defined_classes", {}) or obj in getattr(self, "defined_classes", {}):
-                class_name = obj if obj in getattr(self, "defined_classes", {}) else obj_type
+            if obj_type_guess in defined_classes or obj in defined_classes:
+                class_name = obj if obj in defined_classes else obj_type_guess
                 return f"py_get_type_hints[{class_name}]()"
             if obj in getattr(self, "function_names", set()):
                 return f"{obj}__annotations__"
@@ -59,11 +65,11 @@ class AttributesMixin(TranslatorBase):
             return "[]string{}"
 
         if node.attr == "real":
-             if self._guess_type(node.value) == "PyComplex":
+             if obj_type_guess == "PyComplex":
                  obj = self.visit(node.value)
                  return f"{obj}.re"
         elif node.attr == "imag":
-             if self._guess_type(node.value) == "PyComplex":
+             if obj_type_guess == "PyComplex":
                  obj = self.visit(node.value)
                  return f"{obj}.im"
 
@@ -88,8 +94,6 @@ class AttributesMixin(TranslatorBase):
 
         # Static/Class methods resolution
         # If receiver is a class name, check for class variables (via meta singleton).
-        defined_classes = getattr(self, "defined_classes", {})
-        
         obj_base = obj.split('[')[0] # handle ClassName[T]
         if obj_base in defined_classes:
             defining_class = self._find_defining_class_for_class_var(obj_base, attr_name)
@@ -100,10 +104,8 @@ class AttributesMixin(TranslatorBase):
         target_class = None
         if obj_base in defined_classes:
             target_class = obj_base
-        else:
-            obj_type = self._guess_type(node.value)
-            if obj_type in defined_classes:
-                target_class = obj_type
+        elif obj_type_guess in defined_classes:
+            target_class = obj_type_guess
 
         if target_class:
             # Check for class variable access on instance or class receiver
@@ -121,9 +123,8 @@ class AttributesMixin(TranslatorBase):
             return f"{obj}__{attr_name}"
 
         # Descriptor narrowing check
-        base_obj_type = self._guess_type(node.value)
-        if base_obj_type and base_obj_type not in ("Any", "unknown", "void", "int", "f64", "string", "bool"):
-            desc_key = f"{base_obj_type}.{node.attr}"
+        if obj_type_guess and obj_type_guess not in ("Any", "unknown", "void", "int", "f64", "string", "bool"):
+            desc_key = f"{obj_type_guess}.{node.attr}"
             narrowed_desc_type = self.type_inference.type_map.get(desc_key)
             if narrowed_desc_type and narrowed_desc_type not in ("Any", "unknown", "void"):
                 # Check if it corresponds to a known function first
@@ -151,11 +152,15 @@ class AttributesMixin(TranslatorBase):
             
             v_attr_narrowed = None
             if hasattr(node, 'lineno') and hasattr(node, 'col_offset'):
-                loc_key = f"{node.lineno}:{node.col_offset}"
+                lineno, col_offset = node.lineno, node.col_offset
                 if hasattr(self.type_inference, "location_map"):
-                    narrowed = self.type_inference.location_map.get(loc_key)
+                    # Optimization: Use tuple key for faster lookup, with string fallback for compatibility.
+                    loc_map = self.type_inference.location_map
+                    loc_tuple = (lineno, col_offset)
+                    narrowed = loc_map.get(loc_tuple)
                     if not narrowed:
-                        narrowed = self.type_inference.location_map.get(loc_key.strip())
+                        loc_key = f"{lineno}:{col_offset}"
+                        narrowed = loc_map.get(loc_key) or loc_map.get(loc_key.strip())
                     
                     if narrowed:
                         v_attr_narrowed = self._map_type(narrowed)

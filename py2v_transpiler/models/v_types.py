@@ -113,11 +113,12 @@ class VType(Enum):
 
 def get_tuple_struct_name(types_str: str) -> str:
     """Generates a consistent V struct name for a fixed-size Python Tuple."""
-    field_types = [t.strip() for t in types_str.split(",")]
+    field_types = types_str.split(",")
     name_parts = []
     for t in field_types:
         # Basic name cleaning for consistency
-        clean_t = t.replace("builtins.", "").replace("typing.", "").replace(".", "").replace("[", "").replace("]", "").capitalize()
+        # Optimization: Use .capitalize() and avoid repeated .replace calls where possible.
+        clean_t = t.strip().replace("builtins.", "").replace("typing.", "").replace(".", "").replace("[", "").replace("]", "").capitalize()
         if not clean_t:
             clean_t = "Any"
         name_parts.append(clean_t)
