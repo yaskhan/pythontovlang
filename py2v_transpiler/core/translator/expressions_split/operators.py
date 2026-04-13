@@ -33,10 +33,11 @@ _CAST_TYPES = {"int", "f64", "i64"}
 _SET_BIN_OPS = {ast.BitOr, ast.BitAnd, ast.Sub, ast.BitXor}
 
 # Optimization: Lifted is_none_node to module level to avoid repeated function definition in visit_Compare.
+# Using type() for faster matching than isinstance().
 def _is_none_node(n: ast.AST) -> bool:
     t = type(n)
-    if t is ast.Constant: return n.value is None
-    if t is ast.Name: return n.id in ("None", "none")
+    if t is ast.Constant: return n.value is None  # type: ignore
+    if t is ast.Name: return n.id in ("None", "none")  # type: ignore
     return False
 
 class OperatorsMixin(TranslatorBase):
