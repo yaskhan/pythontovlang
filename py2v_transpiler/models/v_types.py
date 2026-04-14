@@ -117,7 +117,8 @@ def get_tuple_struct_name(types_str: str) -> str:
     name_parts = []
     for t in field_types:
         # Basic name cleaning for consistency
-        # Optimization: Use .capitalize() and avoid repeated .replace calls where possible.
+        # Optimization: perform stripping and normalization inline in the loop,
+        # avoiding an extra preprocessing pass or list comprehension.
         clean_t = t.strip().replace("builtins.", "").replace("typing.", "").replace(".", "").replace("[", "").replace("]", "").capitalize()
         if not clean_t:
             clean_t = "Any"
