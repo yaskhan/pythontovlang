@@ -105,7 +105,8 @@ class NamingMixin:
             # PascalCase for types
             # Normalize to snake_case then to PascalCase to handle all-caps
             snaked = _to_snake_case_impl(name)
-            parts = [p[0].upper() + p[1:].lower() if p else "" for p in snaked.split('_') if p]
+            # Optimization: Use .capitalize() for faster string normalization
+            parts = [p.capitalize() for p in snaked.split('_') if p]
             res = "".join(parts) if parts else (name[0].upper() + name[1:])
             # V structs cannot have underscores.
             res = res.replace("_", "")
