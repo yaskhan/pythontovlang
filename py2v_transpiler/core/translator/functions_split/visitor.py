@@ -66,7 +66,7 @@ class FunctionVisitorMixin(TranslatorBase):
                     type_str = ast.unparse(node.returns)
                     self._check_experimental_type(type_str, node.returns)
                     sig["return"] = self._map_type(type_str, ov_struct_name, is_return=True)
-                except:
+                except Exception:
                     if isinstance(node.returns, ast.Name):
                         sig["return"] = self._map_type(node.returns.id, ov_struct_name, is_return=True)
                     elif isinstance(node.returns, ast.Constant) and isinstance(
@@ -113,7 +113,7 @@ class FunctionVisitorMixin(TranslatorBase):
                             try:
                                 type_str = ast.unparse(decorator.args[0])
                                 register_type = self._map_type(type_str)
-                            except:
+                            except Exception:
                                 pass
 
         if register_dispatcher and register_type:
