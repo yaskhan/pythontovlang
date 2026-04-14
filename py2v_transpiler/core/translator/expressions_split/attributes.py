@@ -6,6 +6,7 @@ class AttributesMixin(TranslatorBase):
         # Optimization: Hoisted frequently accessed attributes and cached expensive type guesses.
         imported_modules = self.imported_modules
         defined_classes = getattr(self, "defined_classes", {})
+        attr_name = node.attr
 
         # Handle module attributes (mapped constants or fallback)
         if isinstance(node.value, ast.Name) and node.value.id in imported_modules:
@@ -13,10 +14,10 @@ class AttributesMixin(TranslatorBase):
             scc_file = next((f for f in self.scc_files if module_name.endswith(f.replace('.py', '').replace('/', '.').replace('\\', '.'))), None)
             if scc_file:
                 prefix = self._get_scc_prefix(scc_file)
-                return f'{prefix}__{node.attr}'
+                return f'{prefix}__{attr_name}'
 
             # Check if this is a mapped constant or function from a module
-            const_name = node.attr
+            const_name = attr_name
             mapped = self.mapper.get_constant_mapping(module_name, const_name)
             if mapped:
                  # Add automatic V imports for the module
@@ -29,18 +30,16 @@ class AttributesMixin(TranslatorBase):
             # Fallback for unmapped attributes of a mapped module (e.g. random.seed)
             v_imports = self.mapper.get_imports(module_name)
             if v_imports and len(v_imports) == 1 and v_imports[0] != module_name:
-                 return f'{v_imports[0]}.{node.attr}'
+                 return f'{v_imports[0]}.{attr_name}'
 
-        if node.attr == "__class__":
+        if attr_name == "__class__":
              obj = self.visit(node.value)
              return f"typeof({obj})"
 
-        # Cache type guess for node.value as it is used multiple times below.
-        obj_type_guess = self._guess_type(node.value)
-
-        if node.attr in ("__annotations__", "__annotate__"):
+        if attr_name in ("__annotations__", "__annotate__"):
             obj = self.visit(node.value)
             # Use the same logic as get_type_hints
+            obj_type_guess = self._guess_type(node.value)
             if obj_type_guess in defined_classes or obj in defined_classes:
                 class_name = obj if obj in defined_classes else obj_type_guess
                 return f"py_get_type_hints[{class_name}]()"
@@ -48,7 +47,7 @@ class AttributesMixin(TranslatorBase):
                 return f"{obj}__annotations__"
             return f"py_get_type_hints_generic({obj})"
 
-        if node.attr == "__type_params__":
+        if attr_name == "__type_params__":
             obj = self.visit(node.value)
             # obj could be ClassName, ClassName[int], or a function name.
             # We strip generic arguments if any to get the base name.
@@ -64,11 +63,14 @@ class AttributesMixin(TranslatorBase):
                 return f"[{params_v}]"
             return "[]string{}"
 
-        if node.attr == "real":
+        # Cache type guess for node.value as it is used multiple times below.
+        obj_type_guess = self._guess_type(node.value)
+
+        if attr_name == "real":
              if obj_type_guess == "PyComplex":
                  obj = self.visit(node.value)
                  return f"{obj}.re"
-        elif node.attr == "imag":
+        elif attr_name == "imag":
              if obj_type_guess == "PyComplex":
                  obj = self.visit(node.value)
                  return f"{obj}.im"
@@ -81,7 +83,6 @@ class AttributesMixin(TranslatorBase):
 
         # Mangling for self.__private attributes
         # We need to know if we are accessing self inside a class
-        attr_name = node.attr
         if attr_name == "__next__": attr_name = "next"
         elif attr_name == "__await__": attr_name = "await_"
         elif attr_name == "__iter__": attr_name = "iter"
@@ -109,11 +110,11 @@ class AttributesMixin(TranslatorBase):
 
         if target_class:
             # Check for class variable access on instance or class receiver
-            defining_class_var = self._find_defining_class_for_class_var(target_class, node.attr)
+            defining_class_var = self._find_defining_class_for_class_var(target_class, attr_name)
             if defining_class_var:
                 return f"{self._to_snake_case(defining_class_var)}_meta.{attr_name}"
 
-            defining_class = self._find_defining_class_for_static_method(target_class, node.attr)
+            defining_class = self._find_defining_class_for_static_method(target_class, attr_name)
             if defining_class:
                 return f"{defining_class}_{attr_name}"
 
@@ -124,7 +125,7 @@ class AttributesMixin(TranslatorBase):
 
         # Descriptor narrowing check
         if obj_type_guess and obj_type_guess not in ("Any", "unknown", "void", "int", "f64", "string", "bool"):
-            desc_key = f"{obj_type_guess}.{node.attr}"
+            desc_key = f"{obj_type_guess}.{attr_name}"
             narrowed_desc_type = self.type_inference.type_map.get(desc_key)
             if narrowed_desc_type and narrowed_desc_type not in ("Any", "unknown", "void"):
                 # Check if it corresponds to a known function first
@@ -133,13 +134,6 @@ class AttributesMixin(TranslatorBase):
 
                 # Otherwise, it's a struct field access
                 return f"({obj}.{attr_name} as {narrowed_desc_type})"
-
-        if isinstance(node.value, ast.Name) and node.value.id in self.imported_modules:
-            module_name = self.imported_modules[node.value.id]
-            scc_file = next((f for f in self.scc_files if module_name.endswith(f.replace('.py', '').replace('/', '.').replace('\\', '.'))), None)
-            if scc_file:
-                prefix = self._get_scc_prefix(scc_file)
-                return f"{prefix}__{attr_name}"
 
         res = f"{obj}.{attr_name}"
         
@@ -160,7 +154,7 @@ class AttributesMixin(TranslatorBase):
                     narrowed = loc_map.get(loc_tuple)
                     if not narrowed:
                         loc_key = f"{lineno}:{col_offset}"
-                        narrowed = loc_map.get(loc_key) or loc_map.get(loc_key.strip())
+                        narrowed = loc_map.get(loc_key)
                     
                     if narrowed:
                         v_attr_narrowed = self._map_type(narrowed)
