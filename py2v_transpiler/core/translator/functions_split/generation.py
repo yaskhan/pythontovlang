@@ -100,7 +100,7 @@ class FunctionGenerationMixin:
                     elif getattr(param, "variance", 0) == 2: self.generic_variance[p_name] = "-" ; added_variance_keys.append(p_name)
                     if getattr(param, "default", None):
                         try: self.generic_defaults[p_name] = self._map_type(ast.unparse(param.default), struct_name); added_default_keys.append(p_name)
-                        except: pass
+                        except Exception: pass
             full_func_name = f"{struct_name}_{self._sanitize_name(node.name)}" if is_method and struct_name else self._sanitize_name(node.name)
             self.type_params_map[full_func_name] = list(py_func_generics)
         if not py_func_generics:
@@ -145,7 +145,7 @@ class FunctionGenerationMixin:
         for arg in args:
             arg_name = self._sanitize_name(arg.arg)
             try: arg_type = self._map_type(ast.unparse(arg.annotation), struct_name) if arg.annotation else self._map_type(self.type_inference.type_map.get(arg_name, "Any" if node.name == "__exit__" else "int"), struct_name)
-            except: arg_type = self._map_type(self.type_inference.type_map.get(arg_name, "int"), struct_name)
+            except Exception: arg_type = self._map_type(self.type_inference.type_map.get(arg_name, "int"), struct_name)
 
             # Prepend & for non-primitive struct types
             if self._is_class_type(arg_type):
@@ -165,7 +165,7 @@ class FunctionGenerationMixin:
         if node.args.vararg:
             arg_name = self._sanitize_name(node.args.vararg.arg)
             try: arg_type = self._map_type(ast.unparse(node.args.vararg.annotation), struct_name) if node.args.vararg.annotation else self._map_type(self.type_inference.type_map.get(arg_name, "Any"), struct_name)
-            except: arg_type = "Any"
+            except Exception: arg_type = "Any"
             if is_nested:
                 if not arg_type.startswith("[]"): arg_type = f"[]{arg_type}"
                 args_str_list.append(f"{arg_name} {arg_type}"); annotations_data[arg_name] = arg_type
@@ -177,7 +177,7 @@ class FunctionGenerationMixin:
         if node.args.kwarg:
             arg_name = self._sanitize_name(node.args.kwarg.arg)
             try: arg_type = self._map_type(ast.unparse(node.args.kwarg.annotation), struct_name) if node.args.kwarg.annotation else self._map_type(self.type_inference.type_map.get(arg_name, "map[string]Any"), struct_name)
-            except: arg_type = "map[string]Any"
+            except Exception: arg_type = "map[string]Any"
             args_str_list.append(f"{arg_name} {arg_type}"); args_names.append(arg_name); annotations_data[arg_name] = arg_type
         args_str = ", ".join(args_str_list)
         ret_type = "void"
@@ -187,7 +187,7 @@ class FunctionGenerationMixin:
                     type_str = ast.unparse(node.returns)
                     self._check_experimental_type(type_str, node.returns)
                     ret_type = self._map_type(type_str, struct_name, is_return=True)
-                except:
+                except Exception:
                     if isinstance(node.returns, ast.Name): ret_type = self._map_type(node.returns.id, struct_name, is_return=True)
                     elif isinstance(node.returns, ast.Constant) and isinstance(node.returns.value, str): ret_type = self._map_type(node.returns.value, struct_name, is_return=True)
 
@@ -209,7 +209,7 @@ class FunctionGenerationMixin:
         if ret_type == "void":
             try:
                 if hasattr(ast, "unparse") and "NoReturn" in ast.unparse(node.returns): is_noreturn = True
-            except: pass
+            except Exception: pass
         if not is_unittest_method:
             func_name = self._sanitize_name(node.name)
             if original_node_name == "__new__": func_name = self._get_factory_name(struct_name)
