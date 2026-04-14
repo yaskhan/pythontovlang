@@ -52,15 +52,11 @@ class PrintCallsMixin:
                 parts.append(('expr', val_str))
 
         if sep_val is not None:
-            joined_content = ""
             esc_sep = escape_v(sep_val)
-            for i, (kind, val) in enumerate(parts):
-                if i > 0:
-                    joined_content += esc_sep
-                if kind == 'literal':
-                    joined_content += val
-                else:
-                    joined_content += f"${{{val}}}"
+            joined_content = esc_sep.join(
+                val if kind == 'literal' else f"${{{val}}}"
+                for kind, val in parts
+            )
         else:
             v_elements = []
             for kind, val in parts:
