@@ -254,9 +254,7 @@ pub fn (mut sa SemanticAnalyzer) visit_func_def(mut defn FuncDef) !AnyNode {
 		return ''
 	}
 
-	sa.function_stack << defn
 	sa.analyze_func_def(mut defn)!
-	sa.function_stack.pop()
 	return ''
 }
 
@@ -267,8 +265,6 @@ fn (mut sa SemanticAnalyzer) analyze_func_def(mut defn FuncDef) !AnyNode {
 		return ''
 	}
 
-	sa.function_stack << defn
-
 	mut has_self_type := false
 	if defn.type_ != none {
 		if defn.type_ is CallableType {
@@ -276,8 +272,6 @@ fn (mut sa SemanticAnalyzer) analyze_func_def(mut defn FuncDef) !AnyNode {
 		}
 	}
 	_ = has_self_type
-
-	sa.function_stack.pop()
 
 	if sa.is_class_scope() {
 		defn.info = sa.cur_type
@@ -464,7 +458,9 @@ pub fn (mut sa SemanticAnalyzer) visit_while_stmt(mut s WhileStmt) !AnyNode {
 // visit_for_stmt handles for
 pub fn (mut sa SemanticAnalyzer) visit_for_stmt(mut s ForStmt) !AnyNode {
 	if s.is_async {
-		// TODO: async check
+		if !sa.is_async_context() {
+			sa.fail("'async for' outside async function", s.get_context(), false, false, none)
+		}
 	}
 	sa.statement = Statement(s)
 	s.expr.accept(mut sa)!
@@ -1077,6 +1073,25 @@ fn (sa SemanticAnalyzer) is_func_scope() bool {
 	return scope_type in [scope_func, scope_comprehension]
 }
 
+// is_async_context checks if we are in an async function or generator
+fn (sa SemanticAnalyzer) is_async_context() bool {
+	if sa.function_stack.len == 0 {
+		return false
+	}
+	last := sa.function_stack.last()
+	match last {
+		FuncDef {
+			return last.is_coroutine || last.is_async_generator
+		}
+		Decorator {
+			return last.func.is_coroutine || last.func.is_async_generator
+		}
+		else {
+			return false
+		}
+	}
+}
+
 // is_class_scope checks if we are in a class
 fn (sa SemanticAnalyzer) is_class_scope() bool {
 	return sa.cur_type != none && !sa.is_func_scope()
@@ -1292,6 +1307,7 @@ fn (mut sa SemanticAnalyzer) update_function_type_variables(fun_type CallableTyp
 
 // analyze_function_body analyzes a function body
 fn (mut sa SemanticAnalyzer) analyze_function_body(mut defn FuncItem) ! {
+	sa.function_stack << defn
 	// Enter function scope
 	sa.scope_stack << scope_func
 	sa.block_depth << 0
@@ -1338,6 +1354,7 @@ fn (mut sa SemanticAnalyzer) analyze_function_body(mut defn FuncItem) ! {
 	sa.missing_names.pop()
 	sa.block_depth.pop()
 	sa.loop_depth.pop()
+	sa.function_stack.pop()
 }
 
 // prepare_class_def prepares a class definition
